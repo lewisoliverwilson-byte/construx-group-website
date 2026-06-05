@@ -7,8 +7,10 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'A portfolio of AI-first ventures built at the frontier.',
     start_url: '/',
     display: 'standalone',
+    orientation: 'portrait',
     background_color: '#000008',
     theme_color: '#F97316',
+    categories: ['business', 'productivity'],
     icons: [
       {
         src: '/icon',
@@ -19,6 +21,18 @@ export default function manifest(): MetadataRoute.Manifest {
         src: '/apple-icon',
         sizes: '180x180',
         type: 'image/png',
+      },
+      {
+        src: '/icon-192',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icon-512',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   };

@@ -8,12 +8,16 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   transpilePackages: [
     'three',
     '@react-three/fiber',
     '@react-three/drei',
     '@react-three/postprocessing',
   ],
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },
