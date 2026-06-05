@@ -31,6 +31,17 @@ export default function JournalPage() {
             The honest record of what we're building, how we're building it,
             and what AI at the frontier actually looks like in practice.
           </p>
+          {posts.length > 0 && (
+            <div className="flex items-center gap-4 mt-6 animate-fade-up" style={{ animationDelay: '350ms' }}>
+              <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.2em] flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-construx opacity-70" />
+                {String(posts.length).padStart(3, '0')} DISPATCHES
+              </span>
+              <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.2em]">
+                SIGNAL: LIVE
+              </span>
+            </div>
+          )}
         </div>
       </section>
 
