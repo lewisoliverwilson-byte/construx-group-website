@@ -142,10 +142,20 @@ export default function FoundersPage() {
             whether you could organise a company entirely around that assumption from day one.
           </p>
           <p className="text-text-muted leading-relaxed text-base mb-4">
-            The first test was Scoutr — a resell intelligence product built in three weeks, live
-            in production, with real users before most startups have finished their pitch deck.
-            That worked. So we kept going. The Marqet followed. Then The Hyve. Each venture was
-            proof that the model held at the next level of complexity.
+            The first test was{' '}
+            <Link href="/ventures/scoutr" className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors">
+              Scoutr
+            </Link>{' '}
+            — a resell intelligence product built in three weeks, live in production, with real users
+            before most startups have finished their pitch deck. That worked. So we kept going.{' '}
+            <Link href="/ventures/the-marqet" className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors">
+              The Marqet
+            </Link>{' '}
+            followed. Then{' '}
+            <Link href="/ventures/the-hyve" className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors">
+              The Hyve
+            </Link>
+            . Each venture was proof that the model held at the next level of complexity.
           </p>
           <p className="text-text-muted leading-relaxed text-base">
             Every product in the portfolio is something that wouldn't exist in its current form
