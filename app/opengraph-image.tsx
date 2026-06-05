@@ -108,8 +108,6 @@ export default function OGImage() {
         {/* Heading */}
         <div
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
             fontSize: 72,
             fontWeight: 700,
             color: '#F0EFFF',
@@ -119,7 +117,7 @@ export default function OGImage() {
             maxWidth: 900,
           }}
         >
-          <span>Building at the&nbsp;</span>
+          Building at the{' '}
           <span style={{ color: '#F97316' }}>AI frontier</span>
         </div>
 
