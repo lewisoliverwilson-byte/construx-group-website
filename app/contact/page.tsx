@@ -110,7 +110,7 @@ export default function ContactPage() {
             <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-emerald-400 mb-3">TRANSMISSION.OK</p>
             <h2 className="text-lg font-bold text-text-base mb-3">Message sent.</h2>
             <p className="text-sm text-text-muted leading-relaxed">
-              We've received your message and will get back to you shortly.
+              We've received your message. We respond to every message — usually same day, always within 24 hours.
             </p>
             <button
               onClick={() => setStatus('idle')}
