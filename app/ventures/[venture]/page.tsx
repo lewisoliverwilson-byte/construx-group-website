@@ -248,7 +248,7 @@ export default async function VenturePage({ params }: Props) {
                 href={venture.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-3 text-sm font-semibold text-black transition-all hover:scale-[1.02]"
+                className="flex items-center justify-center gap-2 w-full py-3 font-mono text-xs font-semibold text-black transition-all hover:scale-[1.02] uppercase tracking-wider"
                 style={{
                   backgroundColor: venture.accent,
                   borderRadius: '3px',
