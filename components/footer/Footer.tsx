@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
+import { getAllPostMeta } from '@/lib/posts';
 
 const navLinks = [
   { href: '/ventures', label: 'Ventures' },
@@ -12,13 +13,15 @@ const navLinks = [
 ];
 
 export default function Footer() {
+  const recentPosts = getAllPostMeta().slice(0, 4);
+
   return (
     <footer className="relative border-t border-border mt-0">
       {/* Top gradient fade */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-construx/40 to-transparent" />
 
       <div className="mx-auto max-w-7xl px-5 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
           {/* Brand column */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5 mb-4">
@@ -86,6 +89,35 @@ export default function Footer() {
                   </a>
                 </li>
               ))}
+            </ul>
+          </div>
+
+          {/* Journal */}
+          <div>
+            <h3 className="font-mono text-[9px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
+              // JOURNAL
+            </h3>
+            <ul className="flex flex-col gap-2.5">
+              {recentPosts.map((post) => (
+                <li key={post.slug}>
+                  <Link
+                    href={`/journal/${post.slug}`}
+                    className="text-sm text-text-muted hover:text-construx transition-colors line-clamp-2 leading-snug"
+                  >
+                    {post.title}
+                  </Link>
+                </li>
+              ))}
+              {recentPosts.length > 0 && (
+                <li>
+                  <Link
+                    href="/journal"
+                    className="font-mono text-[9px] text-text-dim hover:text-construx transition-colors uppercase tracking-widest"
+                  >
+                    All posts &rsaquo;
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
         </div>
