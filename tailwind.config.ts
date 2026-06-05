@@ -20,6 +20,7 @@ const config: Config = {
         border: 'rgba(255,255,255,0.07)',
         'border-bright': 'rgba(255,255,255,0.14)',
         glass: 'rgba(5,5,18,0.88)',
+        subtle: 'rgba(255,255,255,0.04)',
         venture: {
           scoutr: '#C8F50C',
           marqet: '#3B82F6',

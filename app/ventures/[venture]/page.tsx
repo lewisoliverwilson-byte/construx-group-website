@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowUpRight, ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpRight, ArrowLeft, ChevronRight, Tag } from 'lucide-react';
 import { ventures, getVentureBySlug } from '@/lib/ventures';
 import StatusBadge from '@/components/ui/StatusBadge';
 
@@ -49,9 +49,7 @@ export default async function VenturePage({ params }: Props) {
         />
         <div
           className="absolute inset-x-0 bottom-0 h-32 pointer-events-none"
-          style={{
-            background: 'linear-gradient(to bottom,transparent,#000008)',
-          }}
+          style={{ background: 'linear-gradient(to bottom,transparent,#000008)' }}
         />
 
         <div className="relative mx-auto max-w-4xl">
@@ -63,8 +61,8 @@ export default async function VenturePage({ params }: Props) {
             All ventures
           </Link>
 
-          <div className="flex flex-col sm:flex-row items-start gap-6 mb-8">
-            {/* Planet */}
+          <div className="flex flex-col sm:flex-row items-start gap-6 mb-6">
+            {/* Planet orb */}
             <div
               className="h-20 w-20 rounded-full flex-shrink-0 animate-float"
               style={{
@@ -75,6 +73,12 @@ export default async function VenturePage({ params }: Props) {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <StatusBadge status={venture.status} />
+                <span
+                  className="text-xs font-semibold px-2 py-0.5 rounded uppercase tracking-widest"
+                  style={{ color: venture.accent, background: `${venture.accent}14` }}
+                >
+                  {venture.category}
+                </span>
                 <span className="text-xs text-text-dim tracking-wider uppercase">
                   Construx Group
                 </span>
@@ -89,13 +93,35 @@ export default async function VenturePage({ params }: Props) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 mt-8">
+          {/* Stats strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+            {venture.stats.map((s) => (
+              <div
+                key={s.label}
+                className="rounded-xl px-4 py-3"
+                style={{
+                  background: `${venture.accent}0C`,
+                  border: `1px solid ${venture.accent}1E`,
+                }}
+              >
+                <p
+                  className="text-lg font-bold leading-tight mb-0.5"
+                  style={{ color: venture.accent }}
+                >
+                  {s.value}
+                </p>
+                <p className="text-xs text-text-dim uppercase tracking-wider">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
             {venture.url ? (
               <a
                 href={venture.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-black transition-all hover:scale-[1.02] hover:shadow-venture"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-black transition-all hover:scale-[1.02]"
                 style={{
                   backgroundColor: venture.accent,
                   boxShadow: `0 0 24px ${venture.accent}44`,
@@ -111,6 +137,12 @@ export default async function VenturePage({ params }: Props) {
                 Get early access <ChevronRight size={15} />
               </Link>
             )}
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx/40 transition-all"
+            >
+              Get in touch
+            </Link>
           </div>
         </div>
       </section>
@@ -118,8 +150,10 @@ export default async function VenturePage({ params }: Props) {
       {/* Content */}
       <section className="px-5 pb-24 mx-auto max-w-4xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+
           {/* Main copy */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-6">
+            {/* What it is */}
             <div
               className="rounded-2xl p-7"
               style={{
@@ -133,6 +167,7 @@ export default async function VenturePage({ params }: Props) {
               <p className="text-text-muted leading-relaxed text-base">{venture.what}</p>
             </div>
 
+            {/* The pitch */}
             <div
               className="rounded-2xl p-7"
               style={{
@@ -145,11 +180,36 @@ export default async function VenturePage({ params }: Props) {
               </h2>
               <p className="text-text-muted leading-relaxed text-base">{venture.pitch}</p>
             </div>
+
+            {/* Key capabilities */}
+            <div
+              className="rounded-2xl p-7"
+              style={{
+                background: 'rgba(5,5,18,0.8)',
+                border: `1px solid ${venture.accent}18`,
+              }}
+            >
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-text-dim mb-5 flex items-center gap-2">
+                <Tag size={12} />
+                Key capabilities
+              </h2>
+              <ul className="space-y-3">
+                {venture.features.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <span
+                      className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: venture.accent }}
+                    />
+                    <span className="text-sm text-text-muted leading-relaxed">{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-5">
-            {/* Status card */}
+            {/* Status */}
             <div
               className="rounded-2xl p-5"
               style={{ background: 'rgba(5,5,18,0.8)', border: '1px solid rgba(255,255,255,0.07)' }}
@@ -160,7 +220,23 @@ export default async function VenturePage({ params }: Props) {
               <StatusBadge status={venture.status} />
             </div>
 
-            {/* Parent */}
+            {/* Category */}
+            <div
+              className="rounded-2xl p-5"
+              style={{ background: 'rgba(5,5,18,0.8)', border: '1px solid rgba(255,255,255,0.07)' }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-widest text-text-dim mb-3">
+                Category
+              </p>
+              <span
+                className="text-sm font-semibold"
+                style={{ color: venture.accent }}
+              >
+                {venture.category}
+              </span>
+            </div>
+
+            {/* Parent group */}
             <div
               className="rounded-2xl p-5"
               style={{ background: 'rgba(5,5,18,0.8)', border: '1px solid rgba(255,255,255,0.07)' }}
@@ -178,7 +254,7 @@ export default async function VenturePage({ params }: Props) {
               </Link>
             </div>
 
-            {/* CTA */}
+            {/* Visit CTA */}
             {venture.url && (
               <a
                 href={venture.url}
@@ -193,6 +269,14 @@ export default async function VenturePage({ params }: Props) {
                 Visit Site <ArrowUpRight size={14} />
               </a>
             )}
+
+            {/* Contact CTA */}
+            <Link
+              href="/contact"
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-medium border border-border hover:border-border-bright text-text-muted hover:text-text-base transition-all"
+            >
+              Get in touch
+            </Link>
           </div>
         </div>
 
@@ -207,11 +291,8 @@ export default async function VenturePage({ params }: Props) {
                 <Link
                   key={v.id}
                   href={`/ventures/${v.slug}`}
-                  className="group flex items-center gap-4 px-5 py-4 rounded-2xl transition-all hover:bg-subtle"
-                  style={{
-                    background: 'rgba(5,5,18,0.6)',
-                    border: `1px solid ${v.accent}18`,
-                  }}
+                  className="group flex items-center gap-4 px-5 py-4 rounded-2xl transition-all bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
+                  style={{ border: `1px solid ${v.accent}18` }}
                 >
                   <div
                     className="h-10 w-10 rounded-full flex-shrink-0"

@@ -82,9 +82,8 @@ export default function HomePage() {
               {ventures.map((v, i) => (
                 <div
                   key={v.id}
-                  className="group relative flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-200 hover:bg-subtle cursor-default"
+                  className="group relative flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-200 bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
                   style={{
-                    background: 'rgba(5,5,18,0.6)',
                     border: `1px solid ${v.accent}1A`,
                     animationDelay: `${i * 80}ms`,
                   }}
@@ -102,6 +101,12 @@ export default function HomePage() {
                       <StatusBadge status={v.status} />
                     </div>
                     <p className="text-xs text-text-muted truncate">{v.tagline}</p>
+                    <p
+                      className="text-[10px] font-semibold uppercase tracking-widest mt-0.5"
+                      style={{ color: v.accent, opacity: 0.7 }}
+                    >
+                      {v.category}
+                    </p>
                   </div>
                   <Link
                     href={`/ventures/${v.slug}`}

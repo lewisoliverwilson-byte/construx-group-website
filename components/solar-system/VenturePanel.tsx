@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowUpRight, ChevronRight } from 'lucide-react';
+import { X, ArrowUpRight, ChevronRight, Tag } from 'lucide-react';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import type { Venture } from '@/lib/ventures';
@@ -51,11 +51,11 @@ export default function VenturePanel({ venture, onClose }: Props) {
             />
 
             {/* Header */}
-            <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4">
+            <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3">
               <div className="flex items-center gap-3 min-w-0">
-                {/* Planet dot */}
+                {/* Planet orb */}
                 <div
-                  className="h-9 w-9 rounded-full flex-shrink-0 flex items-center justify-center"
+                  className="h-9 w-9 rounded-full flex-shrink-0"
                   style={{
                     background: `radial-gradient(circle at 35% 35%, ${venture.accent}cc, ${venture.accent}44)`,
                     boxShadow: `0 0 20px ${venture.accent}55`,
@@ -65,7 +65,15 @@ export default function VenturePanel({ venture, onClose }: Props) {
                   <h2 className="text-lg font-bold text-text-base leading-tight truncate">
                     {venture.name}
                   </h2>
-                  <StatusBadge status={venture.status} className="mt-1" />
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <StatusBadge status={venture.status} />
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                      style={{ color: venture.accent, background: `${venture.accent}14` }}
+                    >
+                      {venture.category}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
@@ -79,21 +87,48 @@ export default function VenturePanel({ venture, onClose }: Props) {
 
             {/* Tagline */}
             <p
-              className="px-6 pb-2 text-base font-semibold leading-snug"
+              className="px-6 pb-4 text-sm font-semibold leading-snug"
               style={{ color: venture.accent }}
             >
               {venture.tagline}
             </p>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4 scrollbar-thin">
+            {/* Body — scrollable */}
+            <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-5 scrollbar-thin">
+
+              {/* Pitch */}
               <p className="text-sm text-text-muted leading-relaxed">
                 {venture.pitch}
               </p>
 
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {venture.stats.map((s) => (
+                  <div
+                    key={s.label}
+                    className="rounded-xl px-3 py-2.5 flex flex-col gap-0.5"
+                    style={{
+                      background: `${venture.accent}0C`,
+                      border: `1px solid ${venture.accent}1A`,
+                    }}
+                  >
+                    <span
+                      className="text-sm font-bold leading-tight"
+                      style={{ color: venture.accent }}
+                    >
+                      {s.value}
+                    </span>
+                    <span className="text-[10px] text-text-dim uppercase tracking-wider">
+                      {s.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
               {/* Divider */}
               <div className="border-t border-border" />
 
+              {/* What it is */}
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-text-dim mb-2">
                   What it is
@@ -102,10 +137,29 @@ export default function VenturePanel({ venture, onClose }: Props) {
                   {venture.what}
                 </p>
               </div>
+
+              {/* Features */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-text-dim mb-2.5 flex items-center gap-1.5">
+                  <Tag size={10} />
+                  Key capabilities
+                </p>
+                <ul className="space-y-1.5">
+                  {venture.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <span
+                        className="mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: venture.accent }}
+                      />
+                      <span className="text-xs text-text-muted leading-relaxed">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             {/* CTAs */}
-            <div className="px-6 pb-6 pt-2 flex flex-col gap-2.5 border-t border-border mt-auto">
+            <div className="px-6 pb-6 pt-4 flex flex-col gap-2.5 border-t border-border mt-2">
               {venture.url ? (
                 <a
                   href={venture.url}
@@ -125,7 +179,7 @@ export default function VenturePanel({ venture, onClose }: Props) {
                 href={`/ventures/${venture.slug}`}
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-medium text-text-muted border border-border hover:border-border-bright hover:text-text-base transition-all duration-200"
               >
-                Learn More
+                Full details
                 <ChevronRight size={15} />
               </Link>
             </div>

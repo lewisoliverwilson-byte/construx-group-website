@@ -15,7 +15,7 @@ export default function VenturesPage() {
   const other = ventures.filter((v) => v.status !== 'live');
 
   return (
-    <div className="min-h-screen grid-bg">
+    <div className="relative min-h-screen grid-bg overflow-hidden">
       <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
 
       {/* Hero */}
@@ -57,8 +57,8 @@ export default function VenturesPage() {
               />
 
               <div className="flex flex-col flex-1 p-7">
-                {/* Planet */}
-                <div className="flex items-center gap-4 mb-5">
+                {/* Planet + name */}
+                <div className="flex items-center gap-4 mb-4">
                   <div
                     className="h-14 w-14 rounded-full flex-shrink-0 transition-all duration-300 group-hover:scale-110"
                     style={{
@@ -68,22 +68,44 @@ export default function VenturesPage() {
                   />
                   <div>
                     <h3 className="text-lg font-bold text-text-base leading-tight">{v.name}</h3>
-                    <StatusBadge status={v.status} className="mt-1" />
+                    <div className="flex items-center gap-2 mt-1">
+                      <StatusBadge status={v.status} />
+                      <span
+                        className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                        style={{ color: v.accent, background: `${v.accent}14` }}
+                      >
+                        {v.category}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <p
-                  className="text-sm font-semibold mb-3"
-                  style={{ color: v.accent }}
-                >
+                <p className="text-sm font-semibold mb-3" style={{ color: v.accent }}>
                   {v.tagline}
                 </p>
-                <p className="text-sm text-text-muted leading-relaxed flex-1">
+                <p className="text-sm text-text-muted leading-relaxed flex-1 mb-5">
                   {v.pitch}
                 </p>
 
+                {/* Mini stats */}
+                <div className="grid grid-cols-2 gap-2 mb-5">
+                  {v.stats.slice(0, 4).map((s) => (
+                    <div
+                      key={s.label}
+                      className="rounded-lg px-2.5 py-2"
+                      style={{
+                        background: `${v.accent}0C`,
+                        border: `1px solid ${v.accent}1A`,
+                      }}
+                    >
+                      <p className="text-xs font-bold" style={{ color: v.accent }}>{s.value}</p>
+                      <p className="text-[10px] text-text-dim uppercase tracking-wide">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
                 {/* CTAs */}
-                <div className="mt-6 flex items-center gap-3">
+                <div className="flex items-center gap-3">
                   {v.url && (
                     <a
                       href={v.url}

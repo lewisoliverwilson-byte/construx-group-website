@@ -47,10 +47,7 @@ export default function JournalPage() {
               <Link
                 key={post.slug}
                 href={`/journal/${post.slug}`}
-                className="group relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7 px-6 py-5 rounded-2xl transition-all hover:bg-subtle border border-transparent hover:border-construx/20"
-                style={{
-                  background: i % 2 === 0 ? 'rgba(5,5,18,0.6)' : 'transparent',
-                }}
+                className={`group relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7 px-6 py-5 rounded-2xl transition-all hover:bg-subtle border border-transparent hover:border-construx/20${i % 2 === 0 ? ' bg-[rgba(5,5,18,0.6)]' : ''}`}
               >
                 <time
                   dateTime={post.date}

@@ -68,7 +68,7 @@ export default function FoundersPage() {
                   <div
                     className="h-20 w-20 rounded-2xl flex items-center justify-center text-2xl font-bold"
                     style={{
-                      background: `radial-gradient(135deg at 30% 30%, ${f.accent}44, ${f.accent}11)`,
+                      background: `radial-gradient(circle at 30% 30%, ${f.accent}55, ${f.accent}11)`,
                       border: `1px solid ${f.accent}28`,
                       color: f.accent,
                     }}
