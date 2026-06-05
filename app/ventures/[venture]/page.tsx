@@ -54,8 +54,22 @@ export default async function VenturePage({ params }: Props) {
     .map((slug) => allPosts.find((p) => p.slug === slug))
     .filter(Boolean) as (typeof allPosts)[number][];
 
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://construxgroup.io' },
+      { '@type': 'ListItem', position: 2, name: 'Ventures', item: 'https://construxgroup.io/ventures' },
+      { '@type': 'ListItem', position: 3, name: venture.name, item: `https://construxgroup.io/ventures/${venture.slug}` },
+    ],
+  };
+
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       {/* Hero */}
       <section
         className="relative pt-36 pb-24 px-5 overflow-hidden"

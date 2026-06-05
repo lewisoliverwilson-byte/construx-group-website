@@ -72,12 +72,26 @@ export default async function JournalPostPage({ params }: Props) {
     url: `https://construxgroup.io/journal/${post.slug}`,
   };
 
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://construxgroup.io' },
+      { '@type': 'ListItem', position: 2, name: 'Journal', item: 'https://construxgroup.io/journal' },
+      { '@type': 'ListItem', position: 3, name: post.title, item: `https://construxgroup.io/journal/${post.slug}` },
+    ],
+  };
+
   return (
     <div className="min-h-screen">
       <ReadingProgress />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       {/* Hero */}
       <section className="relative pt-36 pb-12 px-5 grid-bg overflow-hidden">

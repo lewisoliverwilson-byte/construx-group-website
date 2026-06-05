@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { getAllPostMeta } from '@/lib/posts';
 
 export const metadata: Metadata = {
   title: '404 — Signal Lost',
@@ -8,6 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function NotFound() {
+  const recentPosts = getAllPostMeta().slice(0, 3);
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center px-5 grid-bg overflow-hidden">
       <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
@@ -56,6 +58,36 @@ export default function NotFound() {
           </Link>
         </div>
       </div>
+
+      {/* Recent dispatches */}
+      {recentPosts.length > 0 && (
+        <div className="relative mt-12 w-full max-w-lg">
+          <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-text-dim mb-3 text-center">
+            // RECENT DISPATCHES
+          </p>
+          <div className="flex flex-col gap-1">
+            {recentPosts.map((post) => (
+              <Link
+                key={post.slug}
+                href={`/journal/${post.slug}`}
+                className="group flex items-center gap-3 px-4 py-3 transition-all hover:bg-subtle border border-transparent hover:border-construx/20"
+                style={{ borderRadius: '3px', background: 'rgba(5,5,18,0.5)' }}
+              >
+                <span
+                  className="font-mono text-[9px] font-medium px-1.5 py-0.5 text-construx uppercase tracking-widest flex-shrink-0"
+                  style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '2px' }}
+                >
+                  {post.tag}
+                </span>
+                <span className="text-xs text-text-muted group-hover:text-text-base transition-colors flex-1 min-w-0 truncate">
+                  {post.title}
+                </span>
+                <ArrowRight size={11} className="flex-shrink-0 text-text-dim group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Bottom HUD readout */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 opacity-30">
