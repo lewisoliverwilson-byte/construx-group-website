@@ -34,8 +34,25 @@ export default function VenturesPage() {
         </p>
       </section>
 
+      {/* Stats bar */}
+      <section className="relative border-y border-border py-6 px-5" style={{ background: 'rgba(3,3,14,0.7)' }}>
+        <div className="mx-auto max-w-6xl flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
+          {[
+            { value: String(live.length).padStart(3, '0'), label: 'Live ventures' },
+            { value: '167+', label: 'Marketplace listings' },
+            { value: '<5s', label: 'Avg. scan time' },
+            { value: '4', label: 'Tools replaced' },
+          ].map(({ value, label }) => (
+            <div key={label} className="flex items-center gap-2.5">
+              <span className="font-mono text-sm font-bold text-construx tabular-nums">{value}</span>
+              <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.18em]">{label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Live ventures */}
-      <section className="relative px-5 pb-8 mx-auto max-w-6xl">
+      <section className="relative px-5 pt-10 pb-8 mx-auto max-w-6xl">
         <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
           // LIVE
         </h2>
