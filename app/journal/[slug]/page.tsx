@@ -54,6 +54,10 @@ export default async function JournalPostPage({ params }: Props) {
   const prevPost = currentIndex < allPosts.length - 1 ? allPosts[currentIndex + 1] : null;
   const nextPost = currentIndex > 0 ? allPosts[currentIndex - 1] : null;
 
+  const relatedByTag = allPosts
+    .filter((p) => p.slug !== slug && p.tag === post.tag)
+    .slice(0, 2);
+
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -169,6 +173,40 @@ export default async function JournalPostPage({ params }: Props) {
           )}
         </div>
       </article>
+
+      {relatedByTag.length > 0 && (
+        <section className="px-5 pb-20 mx-auto max-w-3xl border-t border-border">
+          <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-text-dim pt-10 mb-6">
+            // MORE LIKE THIS
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {relatedByTag.map((related) => (
+              <Link
+                key={related.slug}
+                href={`/journal/${related.slug}`}
+                className="group flex flex-col gap-2 px-5 py-4 transition-all hover:bg-subtle border border-transparent hover:border-construx/15"
+                style={{ borderRadius: '3px', background: 'rgba(5,5,18,0.5)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+                    style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '2px' }}
+                  >
+                    {related.tag}
+                  </span>
+                  <span className="font-mono text-[10px] text-text-dim">{related.readingTime} min read</span>
+                </div>
+                <p className="text-sm font-semibold text-text-base group-hover:text-text-base transition-colors leading-snug line-clamp-2">
+                  {related.title}
+                </p>
+                <p className="text-xs text-text-muted leading-relaxed line-clamp-2 opacity-70">
+                  {related.excerpt}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
