@@ -209,8 +209,8 @@ export default function HomePage() {
         <div className="mx-auto max-w-5xl grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
             { value: '003', label: 'Live ventures' },
-            { value: '100+', label: 'Products shipped' },
-            { value: 'AI', label: 'Methodology' },
+            { value: '167+', label: 'Marketplace listings' },
+            { value: '<5s', label: 'Avg. scan time' },
             { value: '002', label: 'Founders' },
           ].map(({ value, label }) => (
             <div key={label} className="text-center">
