@@ -19,9 +19,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { venture: slug } = await params;
   const venture = getVentureBySlug(slug);
   if (!venture) return {};
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://construxgroup.io';
+  const url = `${siteUrl}/ventures/${slug}`;
+
   return {
     title: `${venture.name} — ${venture.tagline}`,
     description: venture.pitch,
+    alternates: { canonical: url },
+    openGraph: {
+      type: 'website',
+      url,
+      title: `${venture.name} — ${venture.tagline}`,
+      description: venture.pitch,
+      siteName: 'Construx Group',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${venture.name} — ${venture.tagline}`,
+      description: venture.pitch,
+    },
   };
 }
 
