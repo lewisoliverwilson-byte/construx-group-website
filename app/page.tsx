@@ -30,6 +30,10 @@ export default function HomePage() {
   const now = new Date();
   const buildStamp = `BUILD.${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}`;
   const postCount = String(allPosts.length).padStart(3, '0');
+  const launchDate = new Date('2026-03-01');
+  const uptimeDays = Math.floor((now.getTime() - launchDate.getTime()) / (1000 * 60 * 60 * 24));
+  const uptimeHours = Math.floor(((now.getTime() - launchDate.getTime()) % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const uptimeStamp = `UPTIME: ${String(uptimeDays).padStart(3, '0')}D ${String(uptimeHours).padStart(2, '0')}H`;
 
   return (
     <>
@@ -79,6 +83,9 @@ export default function HomePage() {
             </p>
             <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
               AI.FRONTIER — LIVE
+            </p>
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest tabular-nums">
+              {uptimeStamp}
             </p>
           </div>
           {/* Bottom-left: orbit data */}
