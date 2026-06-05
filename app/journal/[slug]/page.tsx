@@ -127,12 +127,13 @@ export default async function JournalPostPage({ params }: Props) {
             <span className="font-mono text-[9px] text-construx/40 tabular-nums">
               #{dispatchNumber}
             </span>
-            <span
-              className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+            <Link
+              href={`/journal?tag=${encodeURIComponent(post.tag)}`}
+              className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest hover:bg-construx/20 transition-colors"
               style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
             >
               {post.tag}
-            </span>
+            </Link>
             <span className="font-mono text-[10px] text-text-dim">{post.author}</span>
             <span className="text-text-dim text-xs opacity-50">·</span>
             <time dateTime={post.date} className="font-mono text-[10px] text-text-dim">
