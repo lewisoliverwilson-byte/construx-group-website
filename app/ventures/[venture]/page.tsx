@@ -60,13 +60,14 @@ export default async function VenturePage({ params }: Props) {
         <div className="relative mx-auto max-w-4xl">
           <Link
             href="/ventures"
-            className="inline-flex items-center gap-1.5 font-mono text-[9px] text-text-dim hover:text-text-muted transition-colors mb-8 group uppercase tracking-widest"
+            className="inline-flex items-center gap-1.5 font-mono text-[9px] text-text-dim hover:text-text-muted transition-colors mb-8 group uppercase tracking-widest animate-fade-in"
           >
             <ArrowLeft size={11} className="group-hover:-translate-x-0.5 transition-transform" />
             // ALL VENTURES
           </Link>
 
-          <div className="flex flex-col sm:flex-row items-start gap-6 mb-6">
+          <div className="flex flex-col sm:flex-row items-start gap-6 mb-6 animate-fade-up"
+            style={{ animationDelay: '80ms' }}>
             {/* Planet orb */}
             <div
               className="h-20 w-20 rounded-full flex-shrink-0 animate-float"
@@ -99,7 +100,8 @@ export default async function VenturePage({ params }: Props) {
           </div>
 
           {/* Stats strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8 animate-fade-up"
+            style={{ animationDelay: '200ms' }}>
             {venture.stats.map((s) => (
               <div
                 key={s.label}
@@ -121,7 +123,7 @@ export default async function VenturePage({ params }: Props) {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 animate-fade-up" style={{ animationDelay: '320ms' }}>
             {venture.url ? (
               <a
                 href={venture.url}
