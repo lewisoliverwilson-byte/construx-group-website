@@ -25,6 +25,8 @@ const organizationSchema = {
 
 export default function HomePage() {
   const recentPosts = getAllPostMeta().slice(0, 3);
+  const now = new Date();
+  const buildStamp = `BUILD.${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   return (
     <>
@@ -67,7 +69,7 @@ export default function HomePage() {
           {/* Top-right: build ref */}
           <div className="absolute top-8 right-8 flex flex-col items-end gap-1.5 opacity-50">
             <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
-              BUILD.2026.06
+              {buildStamp}
             </p>
             <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
               AI.FRONTIER — LIVE
