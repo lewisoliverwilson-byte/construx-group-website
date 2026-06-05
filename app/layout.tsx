@@ -5,6 +5,8 @@ import Nav from '@/components/nav/Nav';
 import Footer from '@/components/footer/Footer';
 import PostHogProvider from '@/components/PostHogProvider';
 import ConsoleGreeting from '@/components/ConsoleGreeting';
+import KeyboardShortcuts from '@/components/KeyboardShortcuts';
+import { getAllPostMeta } from '@/lib/posts';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -60,6 +62,7 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const postCount = getAllPostMeta().length;
   return (
     <html lang="en" className={`noise scanlines ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>
@@ -71,7 +74,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <PostHogProvider>
-          <ConsoleGreeting />
+          <ConsoleGreeting postCount={postCount} />
+          <KeyboardShortcuts />
           <Nav />
           <main id="main-content">{children}</main>
           <Footer />

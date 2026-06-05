@@ -119,7 +119,7 @@ export const ventures: Venture[] = [
       'First-class AI team member — not a chatbot, a colleague',
       'Replaces Slack, Notion, GitHub discussions, and Discord in one tab',
     ],
-    journalSlugs: ['building-the-hyve', 'hyve-ai-team-member'],
+    journalSlugs: ['building-the-hyve', 'hyve-ai-team-member', 'the-hyve-decision-engine'],
   },
 ];
 

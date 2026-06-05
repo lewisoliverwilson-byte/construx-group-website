@@ -35,7 +35,7 @@ const sections: { number: string; heading: string; paragraphs: ReactNode[] }[] =
     paragraphs: [
       <>We use Claude and Anthropic's tools as core methodology, not as a productivity hack bolted onto a traditional build process. Claude is in the room from the first design decision. It helps define what we're building, surfaces edge cases, drafts the first versions of copy and code, and operates as a genuine collaborator through every layer of production.</>,
       <>The output is never shipped raw. But the speed at which we reach a first version worth reacting to is qualitatively different from how a traditional studio works. A two-person team operates with the output velocity of a ten-person one — not by cutting corners, but by eliminating the dead time between "I have an idea" and "I have a working thing to critique."</>,
-      <>This is the model. It's not changing. {iLink('/journal/ai-first-methodology', 'Read more about the methodology')} — including {iLink('/journal/prompt-architecture-patterns', 'the prompt architecture patterns')} we've converged on across every product.</>,
+      <>This is the model. It's not changing. {iLink('/journal/ai-first-methodology', 'Read more about the methodology')} — including {iLink('/journal/prompt-architecture-patterns', 'the prompt architecture patterns')} we've converged on and {iLink('/journal/context-window-discipline', 'how we manage context to keep output quality high')}.</>,
     ],
   },
   {
