@@ -39,7 +39,7 @@ export default function JournalPage() {
             className="px-8 py-12 text-center"
             style={{ background: 'rgba(5,5,18,0.5)', border: '1px dashed rgba(255,255,255,0.07)', borderRadius: '3px' }}
           >
-            <p className="text-text-dim">First post incoming.</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-text-dim">SIGNAL PENDING — FIRST POST INCOMING</p>
           </div>
         ) : (
           <div className="flex flex-col gap-1">
