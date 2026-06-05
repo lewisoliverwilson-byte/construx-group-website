@@ -59,6 +59,8 @@ export default async function JournalPostPage({ params }: Props) {
     .filter((p) => p.slug !== slug && p.tag === post.tag)
     .slice(0, 2);
 
+  const dispatchNumber = String(allPosts.length - currentIndex).padStart(3, '0');
+
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -90,6 +92,9 @@ export default async function JournalPostPage({ params }: Props) {
           </Link>
 
           <div className="flex items-center gap-3 mb-4 animate-fade-in flex-wrap">
+            <span className="font-mono text-[9px] text-construx/40 tabular-nums">
+              #{dispatchNumber}
+            </span>
             <span
               className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
               style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}

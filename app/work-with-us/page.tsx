@@ -168,6 +168,14 @@ export default function WorkWithUsPage() {
           Why direction matters more than speed
           <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
         </Link>
+        <Link
+          href="/journal/building-this-website"
+          className="inline-flex items-center gap-2 font-mono text-[10px] text-text-dim hover:text-construx transition-colors uppercase tracking-widest group"
+        >
+          <ExternalLink size={11} className="flex-shrink-0" />
+          How this site was built
+          <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+        </Link>
       </div>
 
       {/* Technical stack */}
