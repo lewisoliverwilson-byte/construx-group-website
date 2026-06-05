@@ -1,0 +1,61 @@
+---
+title: "Why we built our own workspace before selling it"
+date: "2026-05-28"
+excerpt: "The Hyve exists because the tools we were using to build our other tools were fragmenting our work across five different surfaces. We stopped paying for the fragmentation and built the thing we actually needed."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+The thing about builder tools is that the people who most understand what they should do are the people who use them all day.
+
+We were using Slack for communication, Notion for documentation, GitHub for code discussion, a separate tool for task management, and Discord for the communities we were part of. Each of these did its individual job tolerably well. Together, they created a context-switching tax that cost us more than we noticed until we added it up.
+
+## The actual problem
+
+The problem wasn't any one tool. It was the gap between them.
+
+A decision made in a Slack thread would need to be manually copied to Notion to become permanent documentation. A GitHub issue would reference context that lived in Slack. A task in the task manager would be disconnected from the conversation that generated it. The AI agent we were using — running in a separate window — had no access to any of this.
+
+What we spent our time doing: not building, but maintaining context across surfaces. Copying. Summarising. Linking. Re-explaining to the AI what we'd already decided in Slack.
+
+This is a coordination problem, not a tool quality problem. The individual tools were fine. The system they created was not.
+
+## What we decided
+
+We decided to build something that treated context as the primary resource, not documents or messages.
+
+The architecture follows from that: everything happens in one place, and the AI agent is a first-class participant — not a bolt-on. It reads every message and document as they're created. It has vector memory of every decision ever made in the project. When you ask it something, it already knows the context.
+
+The Hyve is not a better Slack. It's a different thesis: that the right unit of a team's work is context, and that maintaining that context should be the responsibility of the system, not the people.
+
+## Building it before selling it
+
+We built The Hyve using The Hyve.
+
+The first few months were uncomfortable. We were running on a half-finished product, debugging it while using it to build it. The AI agent would occasionally give advice based on decisions it had hallucinated. The kanban boards were missing features we'd taken for granted in other tools. The docs interface was slower than Notion.
+
+This was valuable.
+
+Every piece of friction we felt was a design decision we needed to make. Every missing feature was on a list we were keeping in the tool itself. Every time the AI got something wrong, we improved the memory system or the retrieval logic.
+
+By the time we started thinking about other users, we'd been through several complete iterations. The product had been stress-tested by people who cared about it failing.
+
+## What we learned
+
+The insight that came out of building it ourselves was about density.
+
+The thing that makes The Hyve useful is not any individual feature — it's the density of context that accumulates over time. After six months of using it, the AI agent knows the history of every decision we've ever made. It knows why we chose a certain architecture for Scoutr, why we pivoted The Marqet's initial category structure, which suppliers we considered and rejected for a project that never launched.
+
+That context compounds. The longer you use it, the more useful the AI becomes, because it knows more. No other tool we used did this.
+
+The limitation we discovered: the value of The Hyve is not immediate. For the first few weeks, it's a fine workspace with a decent AI assistant. The compounding context takes time to accumulate. This is a user acquisition problem as much as a product problem.
+
+## Why it matters for the portfolio
+
+Every Construx venture is built on the thesis that AI makes things tractable that weren't tractable before. The Hyve's version of that thesis is specifically about institutional memory — the idea that a small team can maintain the cognitive infrastructure of a much larger organisation if the AI handles the memory layer.
+
+We've been running on that thesis for months now. It's holding up.
+
+The journal entry about building Scoutr was written in The Hyve's docs interface. The pipeline for The Marqet's 167 listings was tracked in its kanban boards. This post was drafted there.
+
+That's not marketing. It's just the honest record.
