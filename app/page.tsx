@@ -19,8 +19,8 @@ export default function HomePage() {
         {/* SSR headline — always indexed by crawlers */}
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none select-none px-5">
           <div className="text-center max-w-3xl">
-            <p className="text-xs font-semibold tracking-[0.3em] uppercase text-construx mb-5 animate-fade-in">
-              Construx Group
+            <p className="font-mono text-[10px] font-medium tracking-[0.3em] uppercase text-construx mb-5 animate-fade-in">
+              // CONSTRUX.GROUP
             </p>
             <h1 className="text-display text-gradient-white mb-4 animate-fade-up">
               Building at the<br />
@@ -29,6 +29,47 @@ export default function HomePage() {
             <p className="text-base text-text-muted max-w-md mx-auto leading-relaxed animate-fade-up"
               style={{ animationDelay: '100ms' }}>
               A portfolio of ventures that only exist because AI makes them possible.
+            </p>
+          </div>
+        </div>
+
+        {/* HUD telemetry overlays */}
+        <div className="absolute inset-0 z-[5] pointer-events-none select-none hidden lg:block">
+          {/* Top-left: sys status */}
+          <div className="absolute top-8 left-8 flex flex-col gap-1.5 opacity-50">
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest flex items-center gap-1.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-construx" />
+              SYS.STATUS: ONLINE
+            </p>
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              ACTIVE.VENTURES: 003
+            </p>
+          </div>
+          {/* Top-right: build ref */}
+          <div className="absolute top-8 right-8 flex flex-col items-end gap-1.5 opacity-50">
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              BUILD.2025.06
+            </p>
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              AI.FRONTIER — LIVE
+            </p>
+          </div>
+          {/* Bottom-left: orbit data */}
+          <div className="absolute bottom-28 left-8 flex flex-col gap-1.5 opacity-50">
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              ORBIT.LOCK: ACQUIRED
+            </p>
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              CLICK.PLANET: TO SELECT
+            </p>
+          </div>
+          {/* Bottom-right: signal */}
+          <div className="absolute bottom-28 right-8 flex flex-col items-end gap-1.5 opacity-50">
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              SIGNAL: LOCKED
+            </p>
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              COORD: 51.5074°N / 0.1278°W
             </p>
           </div>
         </div>
@@ -42,8 +83,8 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-5xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
-              <p className="text-xs font-semibold tracking-[0.28em] uppercase text-construx mb-4">
-                What we are
+              <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+                // WHAT WE ARE
               </p>
               <h2 id="what-construx" className="text-display-sm text-text-base mb-6 leading-tight">
                 Not an agency.<br />
@@ -137,17 +178,17 @@ export default function HomePage() {
       </section>
 
       {/* Stat strip */}
-      <section className="border-y border-border py-12 px-5" aria-label="Key facts">
+      <section className="border-y border-border py-10 px-5" aria-label="Key facts" style={{ background: 'rgba(3,3,14,0.6)' }}>
         <div className="mx-auto max-w-5xl grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
-            { value: '3', label: 'Live ventures' },
+            { value: '003', label: 'Live ventures' },
             { value: '100+', label: 'Products shipped' },
-            { value: 'AI-first', label: 'Methodology' },
-            { value: '2', label: 'Founders' },
+            { value: 'AI', label: 'Methodology' },
+            { value: '002', label: 'Founders' },
           ].map(({ value, label }) => (
             <div key={label} className="text-center">
-              <p className="text-heading-xl font-bold text-gradient-orange mb-1">{value}</p>
-              <p className="text-xs text-text-dim uppercase tracking-widest">{label}</p>
+              <p className="font-mono text-heading-xl font-bold text-gradient-orange mb-1 tabular-nums">{value}</p>
+              <p className="font-mono text-[10px] text-text-dim uppercase tracking-[0.2em]">{label}</p>
             </div>
           ))}
         </div>

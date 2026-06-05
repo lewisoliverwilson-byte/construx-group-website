@@ -20,8 +20,8 @@ export default function VenturesPage() {
 
       {/* Hero */}
       <section className="relative pt-36 pb-20 px-5 text-center">
-        <p className="text-xs font-semibold tracking-[0.28em] uppercase text-construx mb-4">
-          The portfolio
+        <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+          // THE PORTFOLIO
         </p>
         <h1 className="text-display text-text-base mb-5">
           Our <span className="text-gradient-orange">Ventures</span>
@@ -92,14 +92,15 @@ export default function VenturesPage() {
                   {v.stats.slice(0, 4).map((s) => (
                     <div
                       key={s.label}
-                      className="rounded-lg px-2.5 py-2"
+                      className="px-2.5 py-2"
                       style={{
-                        background: `${v.accent}0C`,
-                        border: `1px solid ${v.accent}1A`,
+                        background: `${v.accent}08`,
+                        border: `1px solid ${v.accent}18`,
+                        borderRadius: '2px',
                       }}
                     >
-                      <p className="text-xs font-bold" style={{ color: v.accent }}>{s.value}</p>
-                      <p className="text-[10px] text-text-dim uppercase tracking-wide">{s.label}</p>
+                      <p className="font-mono text-xs font-semibold tabular-nums" style={{ color: v.accent }}>{s.value}</p>
+                      <p className="font-mono text-[9px] text-text-dim uppercase tracking-wider">{s.label}</p>
                     </div>
                   ))}
                 </div>

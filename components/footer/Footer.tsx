@@ -34,15 +34,15 @@ export default function Footer() {
               A portfolio of AI-first ventures. We build the things that are only possible
               now that AI exists — and we build them properly.
             </p>
-            <p className="text-text-dim text-xs mt-4 tracking-wide">
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-[0.18em] mt-4">
               Powered by Claude &amp; Anthropic
             </p>
           </div>
 
           {/* Site links */}
           <div>
-            <h3 className="text-xs font-semibold tracking-widest uppercase text-text-dim mb-4">
-              Navigate
+            <h3 className="font-mono text-[9px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
+              // NAVIGATE
             </h3>
             <ul className="flex flex-col gap-2.5">
               {navLinks.map(({ href, label }) => (
@@ -60,8 +60,8 @@ export default function Footer() {
 
           {/* Ventures */}
           <div>
-            <h3 className="text-xs font-semibold tracking-widest uppercase text-text-dim mb-4">
-              Ventures
+            <h3 className="font-mono text-[9px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
+              // VENTURES
             </h3>
             <ul className="flex flex-col gap-2.5">
               {ventures.map((v) => (
@@ -92,14 +92,20 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-8 border-t border-border">
-          <p className="text-xs text-text-dim">
-            © {new Date().getFullYear()} Construx Group. All rights reserved.
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="font-mono text-[10px] text-text-dim">
+              © {new Date().getFullYear()} Construx Group
+            </p>
+            <span className="flex items-center gap-1.5 font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-construx opacity-80" />
+              SYS:ONLINE
+            </span>
+          </div>
           <div className="flex items-center gap-5">
-            <Link href="/contact" className="text-xs text-text-dim hover:text-text-muted transition-colors">
+            <Link href="/contact" className="font-mono text-[10px] text-text-dim hover:text-text-muted transition-colors uppercase tracking-wider">
               Privacy
             </Link>
-            <Link href="/contact" className="text-xs text-text-dim hover:text-text-muted transition-colors">
+            <Link href="/contact" className="font-mono text-[10px] text-text-dim hover:text-text-muted transition-colors uppercase tracking-wider">
               Terms
             </Link>
           </div>

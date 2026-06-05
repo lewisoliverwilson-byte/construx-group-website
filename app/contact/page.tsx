@@ -85,8 +85,8 @@ export default function ContactPage() {
       <section className="relative pt-36 pb-16 px-5 grid-bg overflow-hidden">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-3xl text-center">
-          <p className="text-xs font-semibold tracking-[0.28em] uppercase text-construx mb-4">
-            Get in touch
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+            // GET IN TOUCH
           </p>
           <h1 className="text-display text-text-base mb-5 leading-none">
             <span className="text-gradient-orange">Contact</span>

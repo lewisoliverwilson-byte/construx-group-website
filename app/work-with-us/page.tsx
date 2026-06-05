@@ -65,8 +65,8 @@ export default function WorkWithUsPage() {
       <section className="relative pt-36 pb-20 px-5 overflow-hidden grid-bg">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-4xl">
-          <p className="text-xs font-semibold tracking-[0.28em] uppercase text-construx mb-5">
-            Client work
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5">
+            // CLIENT WORK
           </p>
           <h1 className="text-display text-text-base mb-6 leading-none">
             Work<br />
@@ -89,8 +89,8 @@ export default function WorkWithUsPage() {
 
       {/* What we do */}
       <section className="px-5 py-20 mx-auto max-w-6xl">
-        <h2 className="text-xs font-semibold tracking-[0.28em] uppercase text-text-dim mb-10">
-          What we build
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-10">
+          // WHAT WE BUILD
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {capabilities.map(({ icon: Icon, title, body, accent }) => (
@@ -143,23 +143,89 @@ export default function WorkWithUsPage() {
         </div>
       </section>
 
-      {/* Proof placeholder */}
+      {/* Proof of work */}
       <section className="px-5 py-16 mx-auto max-w-6xl border-t border-border">
-        <h2 className="text-xs font-semibold tracking-[0.28em] uppercase text-text-dim mb-8">
-          Proof of work
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-8">
+          // PROOF OF WORK
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[1, 2, 3].map((n) => (
+          {[
+            {
+              name: 'Scoutr',
+              accent: '#C8F50C',
+              category: 'Resell Intelligence',
+              headline: 'From zero to live in 3 weeks',
+              summary: 'Full-stack AI product with real-time product scanning, Amazon + eBay profit calculation, and Claude-powered classification. Users paste a URL, get actionable margin data in under 5 seconds.',
+              stats: [{ label: 'Time to scan', value: '<5s' }, { label: 'Live', value: 'Yes' }],
+            },
+            {
+              name: 'The Marqet',
+              accent: '#3B82F6',
+              category: 'AI Marketplace',
+              headline: '167+ listings, built in weeks',
+              summary: 'AI-native marketplace for professional Claude configurations. Custom CMS, semantic search, category filtering, and a content pipeline that generated 167 listings across 4 verticals without manual work.',
+              stats: [{ label: 'Listings', value: '167+' }, { label: 'Live', value: 'Yes' }],
+            },
+            {
+              name: 'The Hyve',
+              accent: '#8B5CF6',
+              category: 'AI Workspace',
+              headline: 'Replaced 4 tools with one',
+              summary: 'Full-stack workspace replacing Slack, Notion, GitHub discussions, and Discord. Real-time channels, kanban, docs, and a vector-memory AI team member — all in a single URL on AWS.',
+              stats: [{ label: 'Tools replaced', value: '4' }, { label: 'Live', value: 'Yes' }],
+            },
+          ].map((item) => (
             <div
-              key={n}
-              className="rounded-2xl p-7"
-              style={{ background: 'rgba(5,5,18,0.5)', border: '1px dashed rgba(255,255,255,0.07)' }}
+              key={item.name}
+              className="flex flex-col p-6"
+              style={{
+                background: 'rgba(3,3,14,0.8)',
+                border: `1px solid ${item.accent}18`,
+                borderRadius: '3px',
+              }}
             >
-              <div className="h-4 w-24 rounded bg-border mb-3" />
-              <div className="h-3 w-full rounded bg-border/60 mb-2" />
-              <div className="h-3 w-4/5 rounded bg-border/60 mb-2" />
-              <div className="h-3 w-2/3 rounded bg-border/40" />
-              <p className="mt-4 text-xs text-text-dim italic">Case study coming soon</p>
+              {/* Corner accent */}
+              <div
+                className="h-px w-full mb-5"
+                style={{ background: `linear-gradient(90deg, ${item.accent}, transparent)` }}
+              />
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className="h-8 w-8 rounded-full flex-shrink-0"
+                  style={{
+                    background: `radial-gradient(circle at 35% 35%, ${item.accent}cc, ${item.accent}44)`,
+                    boxShadow: `0 0 14px ${item.accent}44`,
+                  }}
+                />
+                <div>
+                  <p className="text-sm font-bold text-text-base">{item.name}</p>
+                  <p className="font-mono text-[9px] uppercase tracking-widest" style={{ color: item.accent, opacity: 0.8 }}>
+                    {item.category}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs font-semibold mb-2" style={{ color: item.accent }}>
+                {item.headline}
+              </p>
+              <p className="text-xs text-text-muted leading-relaxed flex-1 mb-4">
+                {item.summary}
+              </p>
+              <div className="flex gap-3">
+                {item.stats.map((s) => (
+                  <div
+                    key={s.label}
+                    className="px-2.5 py-1.5 flex flex-col"
+                    style={{
+                      background: `${item.accent}08`,
+                      border: `1px solid ${item.accent}18`,
+                      borderRadius: '2px',
+                    }}
+                  >
+                    <span className="font-mono text-xs font-semibold tabular-nums" style={{ color: item.accent }}>{s.value}</span>
+                    <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">{s.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>

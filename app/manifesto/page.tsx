@@ -43,8 +43,8 @@ export default function ManifestoPage() {
       <section className="relative pt-36 pb-16 px-5 overflow-hidden grid-bg">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-3xl text-center">
-          <p className="text-xs font-semibold tracking-[0.28em] uppercase text-construx mb-5">
-            Our thesis
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5">
+            // OUR THESIS
           </p>
           <h1 className="text-display text-text-base mb-6 leading-none">
             The<br />
@@ -64,9 +64,9 @@ export default function ManifestoPage() {
               key={s.number}
               className="relative group"
             >
-              {/* Connector line */}
+              {/* Connector line — left-5 = 20px = center of h-10 w-10 number box */}
               {i < sections.length - 1 && (
-                <div className="absolute left-8 top-24 bottom-0 w-px bg-gradient-to-b from-construx/20 to-transparent pointer-events-none" />
+                <div className="absolute left-5 top-14 bottom-0 w-px bg-gradient-to-b from-construx/20 to-transparent pointer-events-none" />
               )}
 
               <div className="flex gap-7 pb-20">

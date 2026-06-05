@@ -133,7 +133,7 @@ export default function Planet({ venture, isSelected, onSelect, onHover, isPanel
             <meshBasicMaterial transparent opacity={0} />
           </mesh>
 
-          {/* Always-visible label above the planet */}
+          {/* Always-visible HUD label above the planet */}
           <Html
             center
             position={[0, venture.planetSize + 0.82, 0]}
@@ -143,47 +143,66 @@ export default function Planet({ venture, isSelected, onSelect, onHover, isPanel
           >
             <div
               style={{
-                background: active
-                  ? `rgba(5,5,18,0.96)`
-                  : 'rgba(5,5,18,0.78)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                border: `1px solid ${venture.accent}${active ? '55' : '28'}`,
-                borderRadius: '9px',
-                padding: '6px 12px',
+                position: 'relative',
+                background: active ? 'rgba(3,3,14,0.97)' : 'rgba(3,3,14,0.8)',
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                border: `1px solid ${venture.accent}${active ? '40' : '1a'}`,
+                borderRadius: '2px',
+                padding: '5px 22px 5px 8px',
                 whiteSpace: 'nowrap',
+                minWidth: '88px',
                 boxShadow: active
-                  ? `0 4px 24px rgba(0,0,0,0.55), 0 0 18px ${venture.accent}28`
-                  : '0 2px 12px rgba(0,0,0,0.4)',
-                transform: `scale(${active ? 1.06 : 1})`,
-                transition: 'all 0.25s ease',
+                  ? `0 0 20px ${venture.accent}22, 0 2px 16px rgba(0,0,0,0.7)`
+                  : '0 1px 8px rgba(0,0,0,0.6)',
+                transform: `scale(${active ? 1.08 : 1})`,
+                transition: 'all 0.2s ease',
                 opacity: labelOpacity,
               }}
             >
-              <p
-                style={{
-                  color: venture.accent,
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  lineHeight: 1.25,
-                  margin: 0,
-                  letterSpacing: '-0.01em',
-                }}
-              >
+              {/* Corner: top-left */}
+              <span style={{
+                position: 'absolute', top: -1, left: -1, width: 5, height: 5,
+                borderTop: `1.5px solid ${venture.accent}`,
+                borderLeft: `1.5px solid ${venture.accent}`,
+              }} />
+              {/* Corner: bottom-right */}
+              <span style={{
+                position: 'absolute', bottom: -1, right: -1, width: 5, height: 5,
+                borderBottom: `1.5px solid ${venture.accent}`,
+                borderRight: `1.5px solid ${venture.accent}`,
+              }} />
+              {/* Status dot */}
+              <span style={{
+                position: 'absolute', top: 5, right: 7,
+                width: 4, height: 4, borderRadius: '50%',
+                backgroundColor: venture.accent,
+                opacity: active ? 1 : 0.55,
+                boxShadow: active ? `0 0 6px ${venture.accent}` : 'none',
+              }} />
+              {/* Name */}
+              <p style={{
+                color: venture.accent,
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                lineHeight: 1.2,
+                margin: 0,
+              }}>
                 {venture.name}
               </p>
-              <p
-                style={{
-                  color: 'rgba(240,239,255,0.5)',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: '9px',
-                  fontWeight: 600,
-                  letterSpacing: '0.09em',
-                  textTransform: 'uppercase',
-                  margin: '2px 0 0',
-                }}
-              >
+              {/* Category in monospace */}
+              <p style={{
+                color: 'rgba(240,239,255,0.38)',
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: '7.5px',
+                fontWeight: 500,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                margin: '2px 0 0',
+              }}>
                 {venture.category}
               </p>
             </div>
