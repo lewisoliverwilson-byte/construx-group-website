@@ -28,8 +28,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        sans: ['var(--font-space-grotesk)', 'Space Grotesk', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-jetbrains-mono)', 'JetBrains Mono', 'Fira Code', 'monospace'],
       },
       fontSize: {
         display: ['clamp(3.2rem,8vw,7.5rem)', { lineHeight: '0.92', letterSpacing: '-0.035em' }],
