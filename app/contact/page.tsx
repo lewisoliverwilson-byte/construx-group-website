@@ -124,7 +124,7 @@ export default function ContactPage() {
           >
             <div className="p-8 flex flex-col gap-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {field('name', 'Your name', 'text', 'Lewis Wilson')}
+                {field('name', 'Your name', 'text', 'Your name')}
                 {field('email', 'Email address', 'email', 'you@company.com')}
               </div>
 

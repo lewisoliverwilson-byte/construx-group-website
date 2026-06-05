@@ -42,9 +42,9 @@ export const ventures: Venture[] = [
     category: 'Resell Intelligence',
     stats: [
       { label: 'Time to scan', value: '<5s' },
-      { label: 'Platforms', value: 'Amazon + eBay' },
-      { label: 'Model', value: 'Claude Sonnet' },
-      { label: 'Pricing', value: 'Fee-inclusive' },
+      { label: 'Platforms', value: '2 (AMZ+eBay)' },
+      { label: 'Model', value: 'Claude' },
+      { label: 'Pricing', value: 'All-in fees' },
     ],
     features: [
       'Paste any URL — Scoutr finds every resellable product',

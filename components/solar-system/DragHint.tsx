@@ -55,6 +55,8 @@ export default function DragHint() {
             <span className="text-text-dim">·</span>
             <ZoomIn size={13} className="text-construx" />
             <span>Scroll to zoom</span>
+            <span className="text-text-dim">·</span>
+            <span>Click a planet</span>
           </button>
         </motion.div>
       )}

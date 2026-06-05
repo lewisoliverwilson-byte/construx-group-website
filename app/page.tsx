@@ -29,8 +29,6 @@ export default function HomePage() {
             <p className="text-base text-text-muted max-w-md mx-auto leading-relaxed animate-fade-up"
               style={{ animationDelay: '100ms' }}>
               A portfolio of ventures that only exist because AI makes them possible.
-              <br className="hidden sm:block" />
-              Drag the system. Click a planet.
             </p>
           </div>
         </div>
@@ -80,8 +78,9 @@ export default function HomePage() {
             {/* Venture grid */}
             <div className="flex flex-col gap-3">
               {ventures.map((v, i) => (
-                <div
+                <Link
                   key={v.id}
+                  href={`/ventures/${v.slug}`}
                   className="group relative flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-200 bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
                   style={{
                     border: `1px solid ${v.accent}1A`,
@@ -89,7 +88,7 @@ export default function HomePage() {
                   }}
                 >
                   <div
-                    className="h-10 w-10 rounded-full flex-shrink-0"
+                    className="h-10 w-10 rounded-full flex-shrink-0 transition-transform duration-300 group-hover:scale-110"
                     style={{
                       background: `radial-gradient(circle at 35% 35%, ${v.accent}cc, ${v.accent}44)`,
                       boxShadow: `0 0 16px ${v.accent}44`,
@@ -108,14 +107,11 @@ export default function HomePage() {
                       {v.category}
                     </p>
                   </div>
-                  <Link
-                    href={`/ventures/${v.slug}`}
-                    className="flex-shrink-0 flex items-center gap-1 text-xs text-text-dim group-hover:text-text-muted transition-colors"
-                    aria-label={`Learn more about ${v.name}`}
-                  >
-                    <ArrowRight size={13} />
-                  </Link>
-                </div>
+                  <ArrowRight
+                    size={14}
+                    className="flex-shrink-0 text-text-dim group-hover:text-text-muted group-hover:translate-x-0.5 transition-all"
+                  />
+                </Link>
               ))}
               <div
                 className="flex items-center gap-4 px-5 py-4 rounded-2xl"

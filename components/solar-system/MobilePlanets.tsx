@@ -38,7 +38,15 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
           />
           <div>
             <h3 className="text-lg font-bold text-text-base">{venture.name}</h3>
-            <StatusBadge status={venture.status} />
+            <div className="flex items-center gap-2 mt-1">
+              <StatusBadge status={venture.status} />
+              <span
+                className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                style={{ color: venture.accent, background: `${venture.accent}14` }}
+              >
+                {venture.category}
+              </span>
+            </div>
           </div>
         </div>
 

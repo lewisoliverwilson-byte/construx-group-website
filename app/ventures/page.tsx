@@ -83,7 +83,7 @@ export default function VenturesPage() {
                 <p className="text-sm font-semibold mb-3" style={{ color: v.accent }}>
                   {v.tagline}
                 </p>
-                <p className="text-sm text-text-muted leading-relaxed flex-1 mb-5">
+                <p className="text-sm text-text-muted leading-relaxed flex-1 mb-5 line-clamp-4">
                   {v.pitch}
                 </p>
 
