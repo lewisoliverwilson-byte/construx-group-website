@@ -75,7 +75,7 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
             className="flex items-center gap-1.5 px-4 py-2 font-mono text-xs font-medium text-text-muted border border-border hover:border-border-bright hover:text-text-base transition-all uppercase tracking-wider"
             style={{ borderRadius: '3px' }}
           >
-            Learn More
+            Full Details
           </Link>
         </div>
       </div>
