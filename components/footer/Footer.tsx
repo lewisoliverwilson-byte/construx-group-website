@@ -37,9 +37,14 @@ export default function Footer() {
               A portfolio of AI-first ventures. We build the things that are only possible
               now that AI exists — and we build them properly.
             </p>
-            <p className="font-mono text-[9px] text-text-dim uppercase tracking-[0.18em] mt-4">
-              Powered by Claude &amp; Anthropic
-            </p>
+            <a
+              href="https://anthropic.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-[9px] text-text-dim hover:text-construx uppercase tracking-[0.18em] mt-4 inline-block transition-colors"
+            >
+              Powered by Claude &amp; Anthropic ↗
+            </a>
           </div>
 
           {/* Site links */}
