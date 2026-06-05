@@ -16,7 +16,11 @@ const links = [
   { href: '/contact', label: 'Contact' },
 ];
 
-export default function Nav() {
+interface Props {
+  postCount?: number;
+}
+
+export default function Nav({ postCount }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -74,7 +78,7 @@ export default function Nav() {
                   key={href}
                   href={href}
                   className={cn(
-                    'px-3 py-1.5 text-sm font-medium transition-all duration-150',
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all duration-150',
                     active
                       ? 'text-construx bg-construx-dim'
                       : 'text-text-muted hover:text-text-base hover:bg-subtle'
@@ -82,6 +86,19 @@ export default function Nav() {
                   style={{ borderRadius: '3px' }}
                 >
                   {label}
+                  {href === '/journal' && postCount && (
+                    <span
+                      className="font-mono text-[9px] font-medium tabular-nums px-1 py-px leading-none"
+                      style={{
+                        background: active ? 'rgba(249,115,22,0.2)' : 'rgba(255,255,255,0.06)',
+                        border: active ? '1px solid rgba(249,115,22,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '2px',
+                        color: active ? '#F97316' : 'rgba(240,239,255,0.4)',
+                      }}
+                    >
+                      {postCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

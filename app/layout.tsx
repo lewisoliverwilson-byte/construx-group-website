@@ -76,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PostHogProvider>
           <ConsoleGreeting postCount={postCount} />
           <KeyboardShortcuts />
-          <Nav />
+          <Nav postCount={postCount} />
           <main id="main-content">{children}</main>
           <Footer />
         </PostHogProvider>

@@ -1,0 +1,137 @@
+---
+title: "Building the interactive solar system hero"
+date: "2026-06-09"
+excerpt: "The home page hero is an interactive 3D solar system built with Three.js and React Three Fiber. Each planet represents a venture. Here's how it works and why we built it this way instead of using a static animation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The first thing most visitors see on construxgroup.io is an interactive 3D solar system. Click a planet and it flies to that venture's detail page. Hover over one and a label appears showing the venture name and status.
+
+This was a deliberate design decision — not decoration, but the primary navigation element for the venture portfolio. Here's why we built it and how it works.
+
+## Why an interactive solar system
+
+The standard approach for a portfolio page is a grid of cards. Cards are clear. Cards are scannable. Cards work fine.
+
+The solar system communicates something cards don't: the ventures are independent bodies orbiting in the same system, at different distances, at different speeds, with different sizes and characteristics. It's a metaphor for the portfolio model made literal.
+
+It also communicates that this is not a standard portfolio site. The first few seconds of a first visit create an impression of what kind of company you're dealing with. A static card grid says "professional." An interactive solar system says "we build things that require imagination to conceive and technical skill to execute."
+
+The practical test: it gets people to stay on the page longer, to explore, to notice details. A card grid doesn't do that.
+
+## Technical stack
+
+The solar system is built with Three.js via React Three Fiber (R3F) — a React renderer for Three.js that lets you write declarative JSX for 3D scenes.
+
+Three.js directly would require imperative code managing the scene, camera, renderer, and animation loop manually. R3F wraps all of this in React's component model. You write `<mesh>`, `<sphereGeometry>`, `<meshStandardMaterial>` as JSX, and R3F handles the Three.js plumbing.
+
+The stack:
+- `@react-three/fiber` — the React renderer
+- `@react-three/drei` — utility components (OrbitControls, Html, Stars)
+- `@react-three/postprocessing` — bloom and visual effects
+- `three` — the underlying 3D library
+
+## Loading strategy
+
+Three.js is large. The base three package plus R3F and the postprocessing library adds significant weight to the initial bundle.
+
+We use dynamic imports and a loading component to handle this:
+
+```tsx
+const SolarSystem = dynamic(() => import('./SolarSystem'), {
+  ssr: false,
+  loading: () => <SolarSystemFallback />,
+});
+```
+
+`ssr: false` is critical — Three.js requires a browser DOM and WebGL context that doesn't exist during server-side rendering. Trying to render it on the server throws immediately. The dynamic import with `ssr: false` ensures Three.js code only executes in the browser.
+
+The `SolarSystemFallback` is a static version of the hero shown while the 3D scene loads — same text overlay, same visual structure, no interactive element. Users on slow connections see a consistent experience; they just don't get the 3D.
+
+## Scene structure
+
+The scene contains:
+- A `<Stars>` component (Drei) for the star field background
+- A sun at the centre — a glowing sphere with bloom effect
+- Three planet objects, one per venture
+- A `<PerspectiveCamera>` positioned to see the full solar system
+- `<OrbitControls>` for mouse-drag orbit
+- Ambient and point lights
+
+Each planet is positioned on an elliptical orbit path defined by its `orbitRadius` value. The orbit is computed as:
+```
+x = Math.sin(angle) * orbitRadius
+z = Math.cos(angle) * orbitRadius
+```
+
+Where `angle` increments each frame in the animation loop, scaled by the planet's `orbitSpeed`.
+
+## Venture data drives the scene
+
+The planet properties — size, orbit radius, orbit speed, colour — come directly from the `ventures` data in `lib/ventures.ts`. Each venture has:
+
+```ts
+orbitRadius: 3.5,
+planetSize: 0.38,
+orbitSpeed: 0.55,
+accent: '#C8F50C',
+```
+
+This means adding a new venture to the portfolio automatically adds it to the solar system. There's no separate configuration for the 3D scene — the venture definition is the source of truth.
+
+Scoutr orbits closest (radius 3.5), fastest. The Marqet is mid-range (5.5). The Hyve is outermost (8.0), slowest. This maps loosely to when they were built — Scoutr first, The Hyve most recently — but the visual hierarchy also communicates something about their relative scope.
+
+## Click interaction
+
+Clicking a planet navigates to that venture's detail page. The implementation uses R3F's event system — `onClick` on a mesh works exactly like it does on a React DOM element:
+
+```tsx
+<mesh onClick={() => router.push(`/ventures/${venture.slug}`)}>
+  ...
+</mesh>
+```
+
+The router is accessed via Next.js's `useRouter()` hook. The click handler does a standard client-side navigation.
+
+We briefly explored adding a camera animation on click — flying the camera toward the planet before navigating. It looked impressive but introduced a 1.5-2 second delay between click and page load. Users expect navigation to be instant. We removed it.
+
+## Labels and hover states
+
+Each planet renders a label when hovered. The label uses Drei's `<Html>` component, which renders a standard HTML element positioned in 3D space. This is significantly easier than building a texture-based label — you get HTML styling, CSS, and React state for free.
+
+The hover state changes the planet's emissive intensity (how much light it appears to emit itself) and scales it slightly:
+
+```tsx
+const [hovered, setHovered] = useState(false);
+// ...
+<mesh
+  onPointerOver={() => setHovered(true)}
+  onPointerOut={() => setHovered(false)}
+  scale={hovered ? 1.1 : 1}
+>
+```
+
+The cursor also changes to a pointer on hover — this is configured via R3F's event system:
+```tsx
+onPointerOver={() => document.body.style.cursor = 'pointer'}
+onPointerOut={() => document.body.style.cursor = 'auto'}
+```
+
+## Bloom and atmosphere
+
+The bloom effect makes the planets and sun glow — light appears to bleed into the surrounding area. This is handled by `@react-three/postprocessing`'s `<Bloom>` component, which applies a screen-space post-processing pass to the rendered scene.
+
+Each planet has an atmosphere — a slightly larger, transparent sphere around the actual planet mesh. This creates the visual impression of atmospheric depth without requiring a complex shader.
+
+The sun uses an `<PointLight>` inside the sun mesh itself, casting light onto the planets. The directional light model is physically approximate — planets further from the sun are lit slightly less — but the effect is subtle given the bloom.
+
+## What we'd do differently
+
+The biggest limitation of the current implementation is mobile performance. Three.js is GPU-intensive. On low-end mobile devices, the solar system drops frames noticeably. We detect this via the `devicePixelRatio` and screen width, and show a simplified version on mobile — fewer stars, lower-quality materials, no postprocessing.
+
+The detection is imperfect — a high-end phone will render the simplified version unnecessarily. A proper solution would use WebGL performance heuristics rather than device proxies. It's on the list.
+
+The second limitation is accessibility. The 3D scene is navigable by mouse/touch but not by keyboard. Venture navigation via keyboard currently requires using the standard text navigation (nav links, tab order) rather than the 3D scene. A proper accessible implementation would keyboard-navigate the planets in orbital order.
+
+Both are solvable. Both are deferred — the product works, and the perfect should not block the shipped.
