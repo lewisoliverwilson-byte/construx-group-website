@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -11,6 +12,15 @@ interface Props {
 }
 
 export default function VenturePanel({ venture, onClose }: Props) {
+  useEffect(() => {
+    if (!venture) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [venture, onClose]);
+
   return (
     <AnimatePresence>
       {venture && (
