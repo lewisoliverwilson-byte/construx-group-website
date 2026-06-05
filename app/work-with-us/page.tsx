@@ -78,7 +78,7 @@ export default function WorkWithUsPage() {
             We build AI-first products for organisations who need something built properly —
             not a slide deck, not a POC that falls apart under load, but a real product that ships.
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 animate-fade-up" style={{ animationDelay: '360ms' }}>
             <Link
               href="/contact"
               className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_24px_rgba(249,115,22,0.3)] hover:shadow-[0_0_40px_rgba(249,115,22,0.5)] hover:scale-[1.02] uppercase tracking-wider"
