@@ -46,6 +46,7 @@ const config: Config = {
         'fade-in': 'fadeIn 0.4s ease-out',
         'scan': 'scan 5s linear infinite',
         'orbit': 'orbit var(--orbit-duration,20s) linear infinite',
+        'marquee': 'marquee 55s linear infinite',
       },
       keyframes: {
         glowPulse: {
@@ -79,6 +80,10 @@ const config: Config = {
         orbit: {
           from: { transform: 'rotate(0deg)' },
           to: { transform: 'rotate(360deg)' },
+        },
+        marquee: {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(-50%)' },
         },
       },
       backgroundImage: {

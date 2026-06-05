@@ -13,12 +13,49 @@ const navLinks = [
 ];
 
 export default function Footer() {
-  const recentPosts = getAllPostMeta().slice(0, 4);
+  const allPosts = getAllPostMeta();
+  const recentPosts = allPosts.slice(0, 4);
+  const postCount = String(allPosts.length).padStart(3, '0');
+  const now = new Date();
+  const buildStamp = `BUILD.${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const tickerItems = [
+    { pulse: true, text: 'SIGNAL: LIVE' },
+    { text: 'CONSTRUX.GROUP' },
+    { text: 'VENTURES: 003' },
+    { text: `DISPATCHES: ${postCount}` },
+    { text: 'AI.FRONTIER' },
+    { text: 'COORD: 51.5074°N / 0.1278°W' },
+    { text: buildStamp },
+    { text: 'STATUS: ALL.SYSTEMS.NOMINAL' },
+    { text: 'ORBIT.LOCK: ACQUIRED' },
+    { text: 'CLAUDE.POWERED' },
+  ];
 
   return (
     <footer className="relative border-t border-border mt-0">
       {/* Top gradient fade */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-construx/40 to-transparent" />
+
+      {/* Telemetry ticker */}
+      <div className="relative overflow-hidden border-b border-border" style={{ height: '28px', background: 'rgba(0,0,4,0.9)' }}>
+        <div className="flex animate-marquee whitespace-nowrap absolute inset-y-0 left-0">
+          {[0, 1].map((copy) => (
+            <div key={copy} className="flex items-center gap-10 px-10" style={{ height: '28px' }}>
+              {tickerItems.map(({ pulse, text }, i) => (
+                <span key={i} className="flex items-center gap-1.5 font-mono text-[9px] text-text-dim uppercase tracking-[0.18em] flex-shrink-0">
+                  {pulse && <span className="inline-block w-1 h-1 rounded-full bg-construx opacity-80 flex-shrink-0" />}
+                  {!pulse && <span className="text-construx/30 text-[8px] flex-shrink-0">·</span>}
+                  {text}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+        {/* Fade edges */}
+        <div className="absolute inset-y-0 left-0 w-16 pointer-events-none" style={{ background: 'linear-gradient(90deg, rgba(0,0,4,0.9), transparent)' }} />
+        <div className="absolute inset-y-0 right-0 w-16 pointer-events-none" style={{ background: 'linear-gradient(-90deg, rgba(0,0,4,0.9), transparent)' }} />
+      </div>
 
       <div className="mx-auto max-w-7xl px-5 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
