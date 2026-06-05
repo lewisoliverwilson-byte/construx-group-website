@@ -178,6 +178,40 @@ export default function WorkWithUsPage() {
         </Link>
       </div>
 
+      {/* Not a fit */}
+      <section className="px-5 pb-6 mx-auto max-w-4xl">
+        <div
+          className="p-6"
+          style={{
+            background: 'rgba(3,3,14,0.7)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '3px',
+          }}
+        >
+          <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-5">
+            // PROBABLY NOT A FIT
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-2 mb-5">
+            {[
+              'Long-term on-site staff augmentation',
+              'Projects that could have been built in 2020',
+              'Hourly billing or open-ended retainers',
+              'Design agencies or branding-only work',
+              'Six-month sprints with monthly check-ins',
+              'Teams that want the AI layer bolted on after',
+            ].map((item) => (
+              <div key={item} className="flex items-start gap-2.5">
+                <span className="font-mono text-[10px] text-red-500/40 flex-shrink-0 mt-0.5">×</span>
+                <span className="text-sm text-text-dim leading-snug">{item}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-text-muted leading-relaxed border-t border-border pt-4">
+            If none of those apply, we'd genuinely like to hear what you're building.
+          </p>
+        </div>
+      </section>
+
       {/* Technical stack */}
       <section className="px-5 py-16 mx-auto max-w-6xl border-t border-border">
         <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-8">
