@@ -12,15 +12,15 @@ const founders = [
   {
     name: 'Lewis Wilson',
     role: 'Co-founder',
-    bio: `Builder and product architect. Believes the most interesting companies right now are the ones that couldn't exist two years ago — and spends most of his time proving that thesis is correct.`,
-    focus: ['Product strategy', 'Technical architecture', 'Venture direction'],
+    bio: `Builder and product architect. Leads the technical direction for every venture in the portfolio — from architecture decisions to the prompt engineering that sits at the core of each product.\n\nCame up in full-stack web development before AI made it interesting to build in a completely different way. Now spends most of his time proving that a two-person team with the right tools can build what previously took ten.`,
+    focus: ['Product strategy', 'Technical architecture', 'AI integration', 'Venture direction'],
     accent: '#F97316',
   },
   {
     name: 'Dan',
     role: 'Co-founder',
-    bio: `Operator and creative director. Turns half-formed ideas into something real, and real things into something people actually want to use.`,
-    focus: ['Design', 'Operations', 'Growth'],
+    bio: `Operator and creative director. Turns half-formed ideas into something real, and real things into something people actually want to use.\n\nHandles the side of building that isn't code — the go-to-market framing, the product design decisions, the user experience decisions that determine whether a technically excellent product gets used or ignored.`,
+    focus: ['Design', 'Operations', 'Product direction', 'Growth'],
     accent: '#8B5CF6',
   },
 ];
@@ -88,7 +88,11 @@ export default function FoundersPage() {
                   </p>
                 </div>
 
-                <p className="text-sm text-text-muted leading-relaxed mb-6">{f.bio}</p>
+                <div className="flex flex-col gap-3 mb-6">
+                  {f.bio.split('\n\n').map((para, i) => (
+                    <p key={i} className="text-sm text-text-muted leading-relaxed">{para}</p>
+                  ))}
+                </div>
 
                 <div>
                   <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-2.5">
