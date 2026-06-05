@@ -55,7 +55,7 @@ export const ventures: Venture[] = [
       'Claude-powered product classification',
       'Works across retail, wholesale, and clearance pages',
     ],
-    journalSlugs: ['building-scoutr', 'portfolio-model'],
+    journalSlugs: ['building-scoutr', 'ai-first-methodology'],
   },
   {
     id: 'the-marqet',
@@ -119,7 +119,7 @@ export const ventures: Venture[] = [
       'First-class AI team member — not a chatbot, a colleague',
       'Replaces Slack, Notion, GitHub discussions, and Discord in one tab',
     ],
-    journalSlugs: ['building-the-hyve', 'portfolio-model'],
+    journalSlugs: ['building-the-hyve', 'how-we-ship'],
   },
 ];
 

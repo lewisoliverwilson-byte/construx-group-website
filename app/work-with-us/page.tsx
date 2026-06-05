@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, Zap, Layers, Code2, Rocket, BookOpen } from 'lucide-react';
+import { ArrowRight, Zap, Layers, Code2, Rocket, BookOpen, ExternalLink } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -149,6 +149,18 @@ export default function WorkWithUsPage() {
           ))}
         </div>
       </section>
+
+      {/* How we ship link */}
+      <div className="px-5 pb-10 mx-auto max-w-4xl">
+        <Link
+          href="/journal/how-we-ship"
+          className="inline-flex items-center gap-2 font-mono text-[10px] text-construx hover:text-orange-400 transition-colors uppercase tracking-widest group"
+        >
+          <ExternalLink size={11} className="flex-shrink-0" />
+          See the full build loop in the journal
+          <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+      </div>
 
       {/* Technical stack */}
       <section className="px-5 py-16 mx-auto max-w-6xl border-t border-border">
