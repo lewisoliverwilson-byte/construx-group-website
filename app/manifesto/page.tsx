@@ -35,7 +35,7 @@ const sections: { number: string; heading: string; paragraphs: ReactNode[] }[] =
     paragraphs: [
       <>We use Claude and Anthropic's tools as core methodology, not as a productivity hack bolted onto a traditional build process. Claude is in the room from the first design decision. It helps define what we're building, surfaces edge cases, drafts the first versions of copy and code, and operates as a genuine collaborator through every layer of production.</>,
       <>The output is never shipped raw. But the speed at which we reach a first version worth reacting to is qualitatively different from how a traditional studio works. A two-person team operates with the output velocity of a ten-person one — not by cutting corners, but by eliminating the dead time between "I have an idea" and "I have a working thing to critique."</>,
-      <>This is the model. It's not changing. {iLink('/journal/ai-first-methodology', 'Read more about the methodology.')}</>,
+      <>This is the model. It's not changing. {iLink('/journal/ai-first-methodology', 'Read more about the methodology')} — including {iLink('/journal/prompt-architecture-patterns', 'the prompt architecture patterns')} we've converged on across every product.</>,
     ],
   },
   {
@@ -44,7 +44,7 @@ const sections: { number: string; heading: string; paragraphs: ReactNode[] }[] =
     paragraphs: [
       <>The conventional startup playbook: pick one bet, go all-in, raise capital to buy time, optimise for an exit. We are not doing that.</>,
       <>The Construx model is a permanent holding structure for multiple independent ventures — each with its own market, its own brand, its own trajectory. Some will grow large. Some will stay focused. Some will get acquired. None of this requires the group to change shape.</>,
-      <>This model is only viable because AI collapses the cost of building something new. When a full-featured product can be taken from concept to live in weeks rather than months, you can afford to run multiple bets simultaneously. We can. {iLink('/journal/portfolio-model', 'The full case for the portfolio model.')}</>,
+      <>This model is only viable because AI collapses the cost of building something new. When a full-featured product can be taken from concept to live in weeks rather than months, you can afford to run multiple bets simultaneously. We can. {iLink('/journal/portfolio-model', 'The full case for the portfolio model')} — and {iLink('/journal/two-person-operating-model', 'how we decide what to build next')}.</>,
     ],
   },
   {
@@ -63,7 +63,7 @@ const sections: { number: string; heading: string; paragraphs: ReactNode[] }[] =
     paragraphs: [
       <>We document what we build and how we build it. Not as a growth tactic — as an honest record of what this approach actually produces.</>,
       <>If something doesn't work, we write about why. If a venture pivots, the journal will show you the reasoning. If AI tooling evolves and we change our methods, you'll see that too.</>,
-      <>The {iLink('/journal', 'journal')} is not marketing. It is documentation.</>,
+      <>The {iLink('/journal', 'journal')} is not marketing. It is documentation. Including {iLink('/journal/building-this-website', 'the story of this website itself')}.</>,
     ],
   },
 ];
