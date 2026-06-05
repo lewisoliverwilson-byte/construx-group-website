@@ -42,7 +42,7 @@ export const ventures: Venture[] = [
     category: 'Resell Intelligence',
     stats: [
       { label: 'Time to scan', value: '<5s' },
-      { label: 'Platforms', value: '2 (AMZ+eBay)' },
+      { label: 'Platforms', value: 'AMZ+eBay' },
       { label: 'Model', value: 'Claude' },
       { label: 'Pricing', value: 'All-in fees' },
     ],

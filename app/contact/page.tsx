@@ -55,7 +55,7 @@ export default function ContactPage() {
     placeholder: string = '',
   ) => (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-semibold uppercase tracking-widest text-text-dim">
+      <label htmlFor={id} className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim">
         {label}
       </label>
       <input
@@ -65,10 +65,11 @@ export default function ContactPage() {
         onChange={(e) => setForm((p) => ({ ...p, [id]: e.target.value }))}
         placeholder={placeholder}
         autoComplete={id === 'email' ? 'email' : 'off'}
-        className="w-full px-4 py-3 rounded-xl text-sm text-text-base placeholder:text-text-dim transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)]"
+        className="w-full px-4 py-3 text-sm text-text-base placeholder:text-text-dim transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)]"
         style={{
           background: 'rgba(5,5,18,0.8)',
           border: errors[id] ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '2px',
         }}
       />
       {errors[id] && (
@@ -100,8 +101,8 @@ export default function ContactPage() {
       <section className="px-5 py-20 mx-auto max-w-2xl">
         {status === 'success' ? (
           <div
-            className="rounded-2xl px-8 py-12 text-center"
-            style={{ background: 'rgba(5,5,18,0.88)', border: '1px solid rgba(16,185,129,0.2)' }}
+            className="px-8 py-12 text-center"
+            style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '3px' }}
           >
             <CheckCircle className="mx-auto mb-4 text-emerald-400" size={36} />
             <h2 className="text-lg font-bold text-text-base mb-3">Message sent.</h2>
@@ -119,8 +120,8 @@ export default function ContactPage() {
           <form
             onSubmit={handleSubmit}
             noValidate
-            className="rounded-2xl overflow-hidden"
-            style={{ background: 'rgba(5,5,18,0.88)', border: '1px solid rgba(255,255,255,0.07)' }}
+            className="overflow-hidden"
+            style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '3px' }}
           >
             <div className="p-8 flex flex-col gap-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -132,18 +133,19 @@ export default function ContactPage() {
               <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="topic"
-                  className="text-xs font-semibold uppercase tracking-widest text-text-dim"
+                  className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim"
                 >
-                  What&apos;s this about? <span className="text-text-dim normal-case tracking-normal">(optional)</span>
+                  Topic <span className="normal-case tracking-normal opacity-60">(optional)</span>
                 </label>
                 <select
                   id="topic"
                   value={form.topic}
                   onChange={(e) => setForm((p) => ({ ...p, topic: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)] appearance-none"
+                  className="w-full px-4 py-3 text-sm transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)] appearance-none"
                   style={{
                     background: 'rgba(5,5,18,0.8)',
                     border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '2px',
                     color: form.topic ? '#F0EFFF' : 'rgba(240,239,255,0.35)',
                   }}
                 >
@@ -162,7 +164,7 @@ export default function ContactPage() {
               <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="message"
-                  className="text-xs font-semibold uppercase tracking-widest text-text-dim"
+                  className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim"
                 >
                   Message
                 </label>
@@ -172,10 +174,11 @@ export default function ContactPage() {
                   value={form.message}
                   onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
                   placeholder="Tell us what you're working on or want to build…"
-                  className="w-full px-4 py-3 rounded-xl text-sm text-text-base placeholder:text-text-dim resize-none transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)]"
+                  className="w-full px-4 py-3 text-sm text-text-base placeholder:text-text-dim resize-none transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)]"
                   style={{
                     background: 'rgba(5,5,18,0.8)',
                     border: errors.message ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '2px',
                   }}
                 />
                 {errors.message && (
@@ -201,8 +204,8 @@ export default function ContactPage() {
               className="px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-border"
               style={{ background: 'rgba(0,0,8,0.4)' }}
             >
-              <p className="text-xs text-text-dim">
-                Or email directly:{' '}
+              <p className="font-mono text-[10px] text-text-dim">
+                <span className="text-construx">// </span>
                 <a
                   href="mailto:lewis.oliver.wilson@googlemail.com"
                   className="text-text-muted hover:text-construx transition-colors"
@@ -213,7 +216,8 @@ export default function ContactPage() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-black bg-construx hover:bg-orange-400 transition-all shadow-[0_0_16px_rgba(249,115,22,0.3)] hover:shadow-[0_0_24px_rgba(249,115,22,0.5)] disabled:opacity-60 disabled:pointer-events-none"
+                className="flex items-center gap-2 px-6 py-2.5 font-mono text-xs font-semibold text-black bg-construx hover:bg-orange-400 transition-all shadow-[0_0_16px_rgba(249,115,22,0.3)] hover:shadow-[0_0_24px_rgba(249,115,22,0.5)] disabled:opacity-60 disabled:pointer-events-none uppercase tracking-wider"
+                style={{ borderRadius: '3px' }}
               >
                 {status === 'loading' ? (
                   <>

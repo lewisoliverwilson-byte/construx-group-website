@@ -12,14 +12,14 @@ const founders = [
   {
     name: 'Lewis Wilson',
     role: 'Co-founder',
-    bio: `Placeholder bio — Lewis's story, background, and role within Construx Group will live here. Update this via the content file.`,
+    bio: `Builder and product architect. Believes the most interesting companies right now are the ones that couldn't exist two years ago — and spends most of his time proving that thesis is correct.`,
     focus: ['Product strategy', 'Technical architecture', 'Venture direction'],
     accent: '#F97316',
   },
   {
     name: 'Dan',
     role: 'Co-founder',
-    bio: `Placeholder bio — Dan's story, background, and role within Construx Group will live here. Update this via the content file.`,
+    bio: `Operator and creative director. Turns half-formed ideas into something real, and real things into something people actually want to use.`,
     focus: ['Design', 'Operations', 'Growth'],
     accent: '#8B5CF6',
   },
@@ -123,14 +123,16 @@ export default function FoundersPage() {
             How Construx started
           </h2>
           <p className="text-text-muted leading-relaxed text-base mb-4">
-            Placeholder — the origin story of Construx Group, how Lewis and Dan started working
-            together, and what they observed about AI that made them start building this way.
-            This section will be updated with the real story.
+            Construx started from a simple observation: the tools had changed enough that a small,
+            disciplined team could build and ship things that previously required significant
+            headcount, funding, and time. The question wasn't whether AI could help — it was
+            whether you could organise a company entirely around that assumption from day one.
           </p>
           <p className="text-text-muted leading-relaxed text-base">
-            The core insight that drove everything: a small team equipped with the right AI tools
-            can build what a large studio used to require six months and a dozen engineers to produce.
-            Not by being reckless, but by eliminating every form of unnecessary friction from the process.
+            We could. So we did. Every venture in the portfolio is a product that wouldn't exist
+            in its current form without Claude as a core collaborator — not a shortcut, but a
+            genuine tool for building things properly. The result is a small group that operates
+            like something much larger, without compromising on quality or pace.
           </p>
         </div>
 
