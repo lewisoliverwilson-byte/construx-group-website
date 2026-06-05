@@ -88,14 +88,17 @@ export default function HomePage() {
               {uptimeStamp}
             </p>
           </div>
-          {/* Bottom-left: orbit data */}
+          {/* Bottom-left: venture status */}
           <div className="absolute bottom-28 left-8 flex flex-col gap-1.5 opacity-50">
-            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
-              ORBIT.LOCK: ACQUIRED
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest mb-0.5">
+              // FLEET.STATUS
             </p>
-            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
-              CLICK.PLANET: TO SELECT
-            </p>
+            {ventures.map((v) => (
+              <p key={v.id} className="font-mono text-[9px] text-text-dim uppercase tracking-widest flex items-center gap-1.5 tabular-nums">
+                <span className="inline-block w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: v.accent }} />
+                {v.name.toUpperCase().replace(' ', '.')}: NOMINAL
+              </p>
+            ))}
           </div>
           {/* Bottom-right: signal */}
           <div className="absolute bottom-28 right-8 flex flex-col items-end gap-1.5 opacity-50">
