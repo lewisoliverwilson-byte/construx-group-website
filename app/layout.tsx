@@ -62,9 +62,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`noise scanlines ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:font-semibold focus:text-black focus:bg-construx focus:uppercase focus:tracking-wider"
+          style={{ borderRadius: '3px' }}
+        >
+          Skip to content
+        </a>
         <PostHogProvider>
           <Nav />
-          <main>{children}</main>
+          <main id="main-content">{children}</main>
           <Footer />
         </PostHogProvider>
       </body>
