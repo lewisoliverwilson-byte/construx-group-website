@@ -55,7 +55,7 @@ export const ventures: Venture[] = [
       'Claude-powered product classification',
       'Works across retail, wholesale, and clearance pages',
     ],
-    journalSlugs: ['building-scoutr', 'ai-first-methodology'],
+    journalSlugs: ['building-scoutr', 'scoutr-real-time-design'],
   },
   {
     id: 'the-marqet',
