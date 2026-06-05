@@ -54,10 +54,10 @@ export default function Nav() {
             aria-label="Construx Group home"
           >
             <div className="relative">
-              <div className="h-8 w-8 rounded-lg bg-construx flex items-center justify-center shadow-[0_0_16px_rgba(249,115,22,0.4)] group-hover:shadow-[0_0_24px_rgba(249,115,22,0.6)] transition-shadow">
-                <span className="font-bold text-black text-sm leading-none select-none">CX</span>
+              <div className="h-8 w-8 bg-construx flex items-center justify-center shadow-[0_0_16px_rgba(249,115,22,0.4)] group-hover:shadow-[0_0_24px_rgba(249,115,22,0.6)] transition-shadow" style={{ borderRadius: '3px' }}>
+                <span className="font-mono font-bold text-black text-sm leading-none select-none">CX</span>
               </div>
-              <div className="absolute inset-0 rounded-lg bg-construx opacity-0 group-hover:opacity-20 blur-lg transition-opacity" />
+              <div className="absolute inset-0 bg-construx opacity-0 group-hover:opacity-20 blur-lg transition-opacity" style={{ borderRadius: '3px' }} />
             </div>
             <div className="flex flex-col leading-none">
               <span className="text-sm font-bold tracking-wider text-text-base uppercase">Construx</span>
@@ -74,11 +74,12 @@ export default function Nav() {
                   key={href}
                   href={href}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150',
+                    'px-3 py-1.5 text-sm font-medium transition-all duration-150',
                     active
                       ? 'text-construx bg-construx-dim'
                       : 'text-text-muted hover:text-text-base hover:bg-subtle'
                   )}
+                  style={{ borderRadius: '3px' }}
                 >
                   {label}
                 </Link>
@@ -88,7 +89,8 @@ export default function Nav() {
 
           {/* Mobile burger */}
           <button
-            className="md:hidden flex items-center justify-center h-9 w-9 rounded-lg hover:bg-subtle transition-colors text-text-muted hover:text-text-base"
+            className="md:hidden flex items-center justify-center h-9 w-9 hover:bg-subtle transition-colors text-text-muted hover:text-text-base"
+            style={{ borderRadius: '3px' }}
             onClick={() => setMenuOpen((p) => !p)}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}

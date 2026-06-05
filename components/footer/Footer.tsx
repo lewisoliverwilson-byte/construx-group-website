@@ -22,8 +22,8 @@ export default function Footer() {
           {/* Brand column */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="h-8 w-8 rounded-lg bg-construx flex items-center justify-center shadow-[0_0_16px_rgba(249,115,22,0.3)]">
-                <span className="font-bold text-black text-sm">CX</span>
+              <div className="h-8 w-8 bg-construx flex items-center justify-center shadow-[0_0_16px_rgba(249,115,22,0.3)]" style={{ borderRadius: '3px' }}>
+                <span className="font-mono font-bold text-black text-sm">CX</span>
               </div>
               <div className="flex flex-col leading-none">
                 <span className="text-sm font-bold tracking-wider text-text-base uppercase">Construx</span>
