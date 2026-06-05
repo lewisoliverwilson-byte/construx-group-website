@@ -1,0 +1,75 @@
+---
+title: "The 5-second constraint: how we designed Scoutr's scan pipeline"
+date: "2026-06-05"
+excerpt: "When the AI response time is the core product experience, every architectural decision flows from a single question: what's the slowest thing in the loop, and how do we make it faster?"
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Scoutr's core promise is a scan time under 5 seconds. A user pastes a URL, and in under 5 seconds they have a full profit analysis for every resellable product on that page.
+
+That constraint — 5 seconds — wasn't arbitrary. In user research with actual resellers, anything over 10 seconds felt too slow to fit naturally into a sourcing workflow. Anything under 5 seconds felt genuinely fast enough to change behaviour. So 5 seconds became the design target for everything.
+
+Here's how we hit it.
+
+## What happens in 5 seconds
+
+When a user submits a URL, three things need to happen:
+
+**Step 1: Fetch the page.** Hit the URL, extract the product data. Retail pages are noisy — lots of navigation, footer, related items, ads. We need the product listings, the prices, and enough context to classify each item.
+
+**Step 2: Classify and score with Claude.** Pass the extracted product data to Claude, which identifies which items are resellable, estimates the likely product category, and returns a structured JSON response.
+
+**Step 3: Calculate margins.** For each identified product, pull current Amazon and eBay fee structures, apply them to the price data, factor in estimated shipping, and return a ranked list by projected profit.
+
+The naive implementation — sequential API calls, synchronous processing — takes 12-18 seconds. Too slow.
+
+## The parallelisation insight
+
+The key insight was that steps 2 and 3 don't have to be sequential. As Claude returns product classifications, we can start calculating margins for the products it's already identified while it continues processing the rest of the page.
+
+In practice, we use a streaming approach: Claude returns classified products as they're identified, not as a single batch response. As each product arrives, a margin calculation is triggered immediately. The user sees results start populating before the full AI response is complete.
+
+This shaved 4-6 seconds off the end-to-end time.
+
+## The fee calculation problem
+
+Amazon and eBay fee structures are not static. They vary by category, by seller account type, by item price and size, and they change periodically. Building a static fee table would require constant maintenance and would still be wrong at the edges.
+
+Our approach: a rules-based fee engine that implements the actual fee formula logic rather than a lookup table. It takes category, price, estimated dimensions and weight as inputs and returns exact fee breakdown: referral fee, FBA fulfillment fee, closing fee (for eBay), estimated shipping cost.
+
+Getting this right was the most tedious part of the build. Amazon's fee structure in particular has a lot of category-specific carve-outs. Claude helped generate the initial fee calculation code from the Amazon fee tables, which we then validated against known transactions.
+
+## Where Claude earns its role
+
+People assume the "AI" in Scoutr is doing the hard work of price intelligence. It's not, exactly. Margin calculations are deterministic math. What Claude is actually doing is the classification problem.
+
+The classification problem is: given a product title like "LEGO City Police Station 60316" and a price of £34.99, determine what category this should be, whether it's resellable, and what the realistic dimensions and weight are likely to be.
+
+This is genuinely hard to do with traditional code. Rule-based classifiers break on edge cases. Machine learning classifiers require training data and infrastructure. Claude does it reliably, at scale, with no training required and excellent handling of edge cases.
+
+The other place Claude is essential: structured extraction from noisy retail pages. Getting Claude to return consistent JSON from a wildly varying HTML structure is a solved problem with the right system prompt. Getting a traditional scraper to do the same thing requires custom selectors for every site.
+
+## The system prompt
+
+The core of what makes Scoutr work is about 300 words of system prompt. It tells Claude exactly what to extract, what format to return it in, how to handle ambiguous cases, and what to skip.
+
+We iterate on this prompt regularly. When a new class of product causes classification errors, we add a specific instruction. When a common edge case breaks the JSON structure, we add an example. The prompt is a living document, not a static configuration.
+
+This is one of the places where Claude Code is invaluable — when we're iterating on the prompt, we can rapidly test changes against a library of edge case inputs and see the effect immediately.
+
+## What didn't work
+
+We tried a version where Claude did the margin calculations as well. The idea was to give it the product data and fee structures and let it compute the margins directly.
+
+This was slower, more expensive per query, and more error-prone than deterministic math. Claude is not a calculator. It's excellent at reasoning about ambiguous problems. Deterministic fee math is not an ambiguous problem.
+
+The current architecture — Claude for classification and extraction, deterministic code for calculations — is the right split. Knowing where not to use AI is as important as knowing where to use it.
+
+## The 5-second average
+
+We're currently at an average scan time of 4.2 seconds across all submitted URLs, with the 95th percentile at 7.1 seconds. Pages with more products take longer because there's more for Claude to process. Pages with particularly noisy HTML take longer to extract.
+
+Getting the 95th percentile under 5 seconds is the current engineering goal. The approach we're investigating: partial cache warming for common retail domains, so the fetch-and-extract step is faster for sites we've seen before.
+
+The constraint you ship with is not always the constraint you started with. But 5 seconds continues to be the right target — user behaviour confirms it every week.
