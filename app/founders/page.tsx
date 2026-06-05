@@ -137,11 +137,17 @@ export default function FoundersPage() {
             headcount, funding, and time. The question wasn't whether AI could help — it was
             whether you could organise a company entirely around that assumption from day one.
           </p>
+          <p className="text-text-muted leading-relaxed text-base mb-4">
+            The first test was Scoutr — a resell intelligence product built in three weeks, live
+            in production, with real users before most startups have finished their pitch deck.
+            That worked. So we kept going. The Marqet followed. Then The Hyve. Each venture was
+            proof that the model held at the next level of complexity.
+          </p>
           <p className="text-text-muted leading-relaxed text-base">
-            We could. So we did. Every venture in the portfolio is a product that wouldn't exist
-            in its current form without Claude as a core collaborator — not a shortcut, but a
-            genuine tool for building things properly. The result is a small group that operates
-            like something much larger, without compromising on quality or pace.
+            Every product in the portfolio is something that wouldn't exist in its current form
+            without Claude as a core collaborator — not a shortcut, but a genuine building tool.
+            The result is a small group that operates like something much larger, without
+            compromising on quality or pace.
           </p>
         </div>
 
