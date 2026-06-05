@@ -1,0 +1,63 @@
+---
+title: "Building Scoutr: a resell intelligence product in three weeks"
+date: "2026-04-22"
+excerpt: "A concrete account of how we went from a reseller's frustration to a live, deployed product in twenty-one days. Numbers, mistakes, and what the AI-first approach actually looks like in practice."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Three weeks. That's how long it took from the first conversation about the problem to a live URL that real people were using.
+
+This is the honest account of how that happened.
+
+## The problem
+
+Resellers — people who buy products from one marketplace and sell them on another — have a core workflow problem. They find a product, and before they buy a single unit, they need to know: is this actually worth buying? What's the margin after fees? Is this selling on the other side? How competitive is the category?
+
+Most resellers do this manually. They open multiple tabs, copy product titles between browser windows, do mental arithmetic with fee structures that change quarterly. It's slow, error-prone, and it's the part of the job they hate most.
+
+The pitch for Scoutr: paste a URL, get actionable margin data in under five seconds.
+
+## The first week
+
+Week one was architecture and data. The core problem was getting reliable product data from multiple marketplaces and passing it through a profit calculation that accounted for platform fees, shipping estimates, and category-specific variables.
+
+Claude handled the reasoning work — classifying product categories from titles and descriptions, estimating fee structures that depend on attributes that aren't always explicit in the listing, surfacing the number a reseller actually needs rather than a wall of raw data.
+
+The prompt engineering here was not trivial. "Classify this product and estimate its fee category" is easy to get a mediocre answer for. Getting a consistently reliable answer — the kind you'd stake a purchasing decision on — required iteration. Probably thirty prompt versions before we had something I'd trust with real money.
+
+## The second week
+
+Week two was the user-facing interface and the deployment pipeline. The UX goal was ruthless simplicity: one input, one output, no dashboard sprawl. Resellers don't want to learn a new tool. They want to paste a URL.
+
+The real challenge was latency. Getting from URL to result in under five seconds meant the backend pipeline had to run in parallel where possible — fetching and processing data concurrently rather than sequentially. This is the kind of thing that's obvious in retrospect but costs a day of debugging when you get the order wrong.
+
+## The third week
+
+Week three was testing with real resellers and fixing the things that broke.
+
+Real users are better than any QA process. Within forty-eight hours we had three categories of feedback:
+
+**Things we'd missed entirely.** Fee structures for a specific product category that we'd estimated incorrectly. Edge cases in URL parsing for marketplace-specific formats. A category of product where our classification was consistently wrong.
+
+**Things we'd got right that we weren't sure about.** The five-second target held under real use. The calculation output format was immediately legible without explanation.
+
+**Things users wanted that weren't in the spec.** Saving previous results. Batch scanning. Export. All reasonable. None of them were the product we'd built.
+
+We fixed the first category. We noted the second. We deferred the third to v2.
+
+## What the AI-first approach actually contributed
+
+The speed wasn't magic. It came from specific places.
+
+Claude made the classification problem tractable in a way that hand-coded heuristics wouldn't have. Writing rules for every product category and its fee structure would have taken weeks and still been wrong at the edges. Claude gets it right enough, fast enough, that the product is viable.
+
+Claude Code handled the implementation velocity. Not by generating perfect code on the first try — it doesn't — but by eliminating the lookup time. When you're building on an API you've not used before, or constructing a data pipeline you're designing as you go, the difference between "I need to think about how to do this" and "I have a working draft to react to" is significant. The thinking still happens. It just happens faster.
+
+## The honest number
+
+Three weeks is twenty-one days. Scoutr launched in twenty-two. Close enough.
+
+What it wasn't: a polished product with a full feature set. What it was: a working product that solved the core problem, live, that real people started using immediately.
+
+That's the goal. The polishing comes after you know what's worth polishing.
