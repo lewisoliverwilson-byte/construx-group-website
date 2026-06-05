@@ -270,6 +270,18 @@ export default async function VenturePage({ params }: Props) {
                     Construx
                   </Link>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">Deploy</span>
+                  <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">AWS.AMPLIFY</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">Engine</span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: venture.accent }}>CLAUDE.API</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">Orbit.R</span>
+                  <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider tabular-nums">{venture.orbitRadius} AU</span>
+                </div>
               </div>
             </div>
 
