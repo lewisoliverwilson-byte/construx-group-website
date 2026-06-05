@@ -155,6 +155,12 @@ export default function HomePage() {
                 >
                   Work with us
                 </Link>
+                <Link
+                  href="/journal"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium text-text-dim hover:text-construx transition-all uppercase tracking-wider"
+                >
+                  Journal <ArrowRight size={13} />
+                </Link>
               </div>
             </div>
 

@@ -252,6 +252,7 @@
 .prose-construx pre {
   background: rgba(5, 5, 18, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 2px solid rgba(249, 115, 22, 0.35);
   border-radius: 3px;
   padding: 1.25rem;
   overflow-x: auto;
