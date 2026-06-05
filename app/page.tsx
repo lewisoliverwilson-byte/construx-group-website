@@ -24,9 +24,11 @@ const organizationSchema = {
 };
 
 export default function HomePage() {
-  const recentPosts = getAllPostMeta().slice(0, 3);
+  const allPosts = getAllPostMeta();
+  const recentPosts = allPosts.slice(0, 3);
   const now = new Date();
   const buildStamp = `BUILD.${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const postCount = String(allPosts.length).padStart(3, '0');
 
   return (
     <>
@@ -64,6 +66,9 @@ export default function HomePage() {
             </p>
             <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
               ACTIVE.VENTURES: 003
+            </p>
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              JOURNAL.POSTS: {postCount}
             </p>
           </div>
           {/* Top-right: build ref */}
