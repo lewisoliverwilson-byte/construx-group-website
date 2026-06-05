@@ -1,0 +1,85 @@
+---
+title: "The sprint format: how we structure a two-week build"
+date: "2026-06-06"
+excerpt: "Two weeks is enough to go from a blank repo to a deployed, working product if you structure the time properly. Here's the breakdown we use and why each phase matters."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+Two weeks is a short time to build a real product. It's also more than enough time if you structure it correctly. We've shipped three ventures on this cadence. Here's the breakdown.
+
+## Why two weeks
+
+The two-week constraint is deliberately tight. Tight enough that you can't defer decisions indefinitely. Loose enough that you can build something real, not just a prototype.
+
+The alternative — giving yourself six months — changes how you work. Long timelines encourage complexity. They allow you to "come back to that later" until later becomes a pile of deferred decisions that all need resolving at once, at the worst possible moment, just before launch.
+
+Two weeks forces you to make the decisions now. That's uncomfortable. It's also how you find out quickly whether the product idea holds up under real constraints.
+
+## Day 1: architecture lock
+
+The entire first day is for architecture decisions. Nothing gets coded until the architecture is locked.
+
+Architecture means: what's the data model, what's the API shape, how does the AI layer sit in the stack, what does the deployment look like, what external dependencies are we accepting.
+
+We use Claude Code for this conversation. Not to make the decisions — those stay with us — but to think through options, surface tradeoffs, and document the conclusions. By end of day 1, there's a decision record that captures: what we're building, what we're not building, and why the major architectural choices were made.
+
+This document is the foundation for the CLAUDE.md that Claude Code will use throughout the sprint. Getting the architecture decision right on day 1 pays back every day after it.
+
+## Days 2–5: the core loop
+
+The core loop is the minimum sequence of actions that delivers the product's primary value. For Scoutr: paste URL, get margin report. For The Hyve: send a message, get a response from an AI team member that knows your project.
+
+Everything in days 2-5 is in service of that loop. Nothing else exists yet. No settings pages, no admin panels, no export features. Just the loop.
+
+The product is considered working when a real person can complete the loop without help. That's the checkpoint at end of day 5. If the loop doesn't work by then, days 6-8 get reordered and the polish pass waits.
+
+## Days 6–8: the first complete pass
+
+The loop works. Now everything else:
+
+- Error states
+- Edge cases in the loop itself
+- Mobile layout
+- Loading states
+- The navigation and basic information architecture
+- The first cut of the product marketing page
+
+This is also when we do our first external review — showing the product to someone who hasn't seen it and watching what confuses them. The gap between what you built and what someone needs to understand to use it reveals itself immediately when you put a real person in front of the product.
+
+Claude Code is heavy at this stage. The first complete pass involves a lot of surface area and a lot of small decisions. The architecture is already made; this is implementation work.
+
+## Days 9–10: deployment and monitoring
+
+Day 9 is deployment day. Not soft launch, not beta, not private preview — deployed, public, reachable.
+
+The deployment day includes:
+- Amplify app setup and environment variables
+- Domain or subdomain configuration  
+- Error monitoring live
+- A basic health check that confirms the AI calls are working
+
+Day 10 is watching the first users and fixing what breaks. Every product breaks on first contact with real users. Having a full day to watch and fix before moving to iteration means the product doesn't stay broken.
+
+## Days 11–14: feedback and first iteration
+
+The product is live, working, and used by real people. The final four days are for responding to what you've learned.
+
+What we look for in the first feedback cycle:
+- Where do people get confused or stuck?
+- What feature are they asking for most often?
+- Is the AI layer doing what we expected, or are there failure modes we didn't predict?
+
+We don't ship everything people ask for in this window. We ship the one or two things that would make the biggest difference to the core loop. The rest goes on the backlog.
+
+At the end of day 14, we do a retrospective: what would we do differently if we could start again, what worked better than expected, and what's the most important thing to fix in the first full month post-launch.
+
+## What breaks this format
+
+Two things reliably break the two-week format:
+
+**Unclear core loop.** If you haven't decided what the one thing is before you start, you can't build it in two weeks. You end up with a product that does several things poorly instead of one thing well. The architecture day is supposed to resolve this. If it doesn't, stop and resolve it before building.
+
+**Scope addition in flight.** The most common failure mode: midway through the sprint, an idea comes up that seems important enough to add. It almost never is. We use a simple rule: ideas that come up during a sprint get written down and reviewed at the retrospective. If they're still important then, they go in the next sprint. If they're not, they weren't important.
+
+The two-week format works because it's tight. Adding scope loosens the constraint and collapses the whole thing. Hold the line.
