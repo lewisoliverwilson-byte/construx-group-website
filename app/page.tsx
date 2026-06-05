@@ -334,6 +334,51 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* System log */}
+      <section className="px-5 pb-12 mx-auto max-w-5xl" aria-label="Recent activity">
+        <div
+          className="p-5"
+          style={{ background: 'rgba(0,0,4,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px', fontFamily: 'var(--font-jetbrains-mono)' }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-mono text-[9px] font-medium uppercase tracking-[0.25em] text-construx">
+              // SYSTEM.LOG
+            </p>
+            <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              TAIL -F /VAR/LOG/CONSTRUX
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            {allPosts.slice(0, 8).map((post, i) => (
+              <div key={post.slug} className="flex items-start gap-3 group">
+                <span className="font-mono text-[9px] text-text-dim tabular-nums flex-shrink-0 w-20 pt-px">
+                  [{post.date}]
+                </span>
+                <span
+                  className="font-mono text-[9px] uppercase tracking-widest flex-shrink-0 pt-px"
+                  style={{ color: i === 0 ? '#F97316' : 'rgba(249,115,22,0.4)' }}
+                >
+                  [DISPATCH]
+                </span>
+                <a
+                  href={`/journal/${post.slug}`}
+                  className="font-mono text-[9px] text-text-muted hover:text-construx transition-colors leading-relaxed"
+                >
+                  {post.title}
+                </a>
+              </div>
+            ))}
+            <div className="flex items-center gap-3 mt-2">
+              <span className="font-mono text-[9px] text-text-dim tabular-nums w-20">...</span>
+              <span className="font-mono text-[9px] text-text-dim/30">
+                {allPosts.length - 8} EARLIER ENTRIES
+              </span>
+              <span className="inline-block w-1.5 h-3.5 bg-construx/60 animate-glow-pulse ml-0.5" />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA strip */}
       <section className="py-24 px-5 text-center" aria-labelledby="cta-heading">
         <div className="mx-auto max-w-2xl">

@@ -96,7 +96,8 @@ export default function ManifestoPage() {
           {sections.map((s, i) => (
             <div
               key={s.number}
-              className="relative group"
+              id={s.number}
+              className="relative group scroll-mt-24"
             >
               {/* Connector line — left-5 = 20px = center of h-10 w-10 number box */}
               {i < sections.length - 1 && (
@@ -106,16 +107,18 @@ export default function ManifestoPage() {
               <div className="flex gap-7 pb-20">
                 {/* Number */}
                 <div className="flex-shrink-0 pt-1">
-                  <div
-                    className="h-10 w-10 flex items-center justify-center font-mono text-xs font-bold text-construx"
+                  <a
+                    href={`#${s.number}`}
+                    className="h-10 w-10 flex items-center justify-center font-mono text-xs font-bold text-construx hover:bg-construx/15 transition-colors"
                     style={{
                       background: 'rgba(249,115,22,0.08)',
                       border: '1px solid rgba(249,115,22,0.2)',
                       borderRadius: '3px',
                     }}
+                    aria-label={`Section ${s.number}`}
                   >
                     {s.number}
-                  </div>
+                  </a>
                 </div>
 
                 {/* Content */}
