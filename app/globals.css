@@ -41,6 +41,11 @@
     color: #F0EFFF;
   }
 
+  :focus-visible {
+    outline: 1.5px solid rgba(249, 115, 22, 0.55);
+    outline-offset: 2px;
+  }
+
   ::-webkit-scrollbar {
     width: 5px;
   }
