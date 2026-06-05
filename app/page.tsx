@@ -74,6 +74,12 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[5] pointer-events-none select-none flex flex-col items-center gap-1.5 opacity-40">
+          <span className="font-mono text-[8px] text-text-dim uppercase tracking-[0.3em]">scroll</span>
+          <div className="w-px h-8 bg-gradient-to-b from-text-dim to-transparent" />
+        </div>
+
         <SolarSystemLoader />
       </section>
 

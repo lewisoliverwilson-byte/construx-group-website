@@ -16,8 +16,8 @@ function Skeleton() {
             boxShadow: '0 0 40px rgba(249,115,22,0.5)',
           }}
         />
-        <p className="text-xs text-text-dim tracking-widest uppercase animate-pulse">
-          Initialising
+        <p className="font-mono text-[9px] text-text-dim tracking-[0.3em] uppercase animate-pulse">
+          SYS.INIT
         </p>
       </div>
     </div>

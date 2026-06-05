@@ -145,11 +145,12 @@ export default function Nav() {
               </div>
 
               <div className="mt-auto pt-6 border-t border-border">
-                <p className="text-xs text-text-dim tracking-wider uppercase">
-                  Construx Group
+                <p className="font-mono text-[9px] text-text-dim tracking-[0.2em] uppercase">
+                  // CONSTRUX.GROUP
                 </p>
-                <p className="text-xs text-text-dim mt-1">
-                  AI-first ventures
+                <p className="font-mono text-[9px] text-text-dim mt-1.5 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-construx opacity-80" />
+                  AI.FRONTIER
                 </p>
               </div>
             </motion.nav>
