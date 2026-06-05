@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpRight, ChevronRight } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import type { Venture } from '@/lib/ventures';
 
@@ -226,6 +226,15 @@ export default function VenturePanel({ venture, onClose }: Props) {
                 FULL DETAILS
                 <ChevronRight size={13} />
               </Link>
+              {venture.journalSlugs && venture.journalSlugs[0] && (
+                <Link
+                  href={`/journal/${venture.journalSlugs[0]}`}
+                  className="flex items-center justify-center gap-1.5 w-full py-1.5 font-mono text-[10px] text-text-dim hover:text-construx transition-colors uppercase tracking-widest"
+                >
+                  <BookOpen size={10} />
+                  Build log
+                </Link>
+              )}
             </div>
           </motion.aside>
         </>
