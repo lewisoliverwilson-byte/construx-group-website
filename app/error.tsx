@@ -56,11 +56,15 @@ export default function Error({
         </div>
       </div>
 
-      {error.digest && (
-        <p className="absolute bottom-10 left-1/2 -translate-x-1/2 font-mono text-[9px] text-text-dim uppercase tracking-[0.2em] opacity-30">
-          REF: {error.digest}
-        </p>
-      )}
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 opacity-30">
+        <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-text-dim">STATUS: ERR</p>
+        {error.digest ? (
+          <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-text-dim">REF: {error.digest}</p>
+        ) : (
+          <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-text-dim">SIGNAL: INTERRUPTED</p>
+        )}
+        <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-text-dim">SYS: RECOVERY.MODE</p>
+      </div>
     </div>
   );
 }
