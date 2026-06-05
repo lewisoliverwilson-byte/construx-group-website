@@ -87,18 +87,19 @@ export default function FoundersPage() {
                 <p className="text-sm text-text-muted leading-relaxed mb-6">{f.bio}</p>
 
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-text-dim mb-2">
-                    Focus areas
+                  <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-2.5">
+                    // FOCUS AREAS
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {f.focus.map((area) => (
                       <span
                         key={area}
-                        className="text-xs px-2.5 py-1 rounded-lg"
+                        className="font-mono text-[9px] font-medium px-2.5 py-1 uppercase tracking-wider"
                         style={{
-                          background: `${f.accent}12`,
-                          border: `1px solid ${f.accent}22`,
+                          background: `${f.accent}10`,
+                          border: `1px solid ${f.accent}20`,
                           color: f.accent,
+                          borderRadius: '2px',
                         }}
                       >
                         {area}
@@ -119,6 +120,9 @@ export default function FoundersPage() {
             border: '1px solid rgba(255,255,255,0.07)',
           }}
         >
+          <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
+            // ORIGIN
+          </p>
           <h2 className="text-heading-xl text-text-base mb-6">
             How Construx started
           </h2>

@@ -55,10 +55,10 @@ export default async function VenturePage({ params }: Props) {
         <div className="relative mx-auto max-w-4xl">
           <Link
             href="/ventures"
-            className="inline-flex items-center gap-1.5 text-xs text-text-dim hover:text-text-muted transition-colors mb-8 group"
+            className="inline-flex items-center gap-1.5 font-mono text-[9px] text-text-dim hover:text-text-muted transition-colors mb-8 group uppercase tracking-widest"
           >
-            <ArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
-            All ventures
+            <ArrowLeft size={11} className="group-hover:-translate-x-0.5 transition-transform" />
+            // ALL VENTURES
           </Link>
 
           <div className="flex flex-col sm:flex-row items-start gap-6 mb-6">
@@ -74,13 +74,13 @@ export default async function VenturePage({ params }: Props) {
               <div className="flex items-center gap-3 mb-2">
                 <StatusBadge status={venture.status} />
                 <span
-                  className="text-xs font-semibold px-2 py-0.5 rounded uppercase tracking-widest"
-                  style={{ color: venture.accent, background: `${venture.accent}14` }}
+                  className="font-mono text-[9px] font-semibold px-2 py-0.5 uppercase tracking-widest"
+                  style={{ color: venture.accent, background: `${venture.accent}12`, border: `1px solid ${venture.accent}20`, borderRadius: '2px' }}
                 >
                   {venture.category}
                 </span>
-                <span className="text-xs text-text-dim tracking-wider uppercase">
-                  Construx Group
+                <span className="font-mono text-[9px] text-text-dim tracking-wider uppercase">
+                  CONSTRUX.GROUP
                 </span>
               </div>
               <h1 className="text-display-sm text-text-base mb-2">{venture.name}</h1>

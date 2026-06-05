@@ -37,10 +37,10 @@ export default async function JournalPostPage({ params }: Props) {
         <div className="relative mx-auto max-w-3xl">
           <Link
             href="/journal"
-            className="inline-flex items-center gap-1.5 text-xs text-text-dim hover:text-text-muted transition-colors mb-8 group"
+            className="inline-flex items-center gap-1.5 font-mono text-[9px] text-text-dim hover:text-text-muted transition-colors mb-8 group uppercase tracking-widest"
           >
-            <ArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
-            Journal
+            <ArrowLeft size={11} className="group-hover:-translate-x-0.5 transition-transform" />
+            // JOURNAL
           </Link>
 
           <div className="flex items-center gap-3 mb-4">
@@ -81,10 +81,10 @@ export default async function JournalPostPage({ params }: Props) {
           </div>
           <Link
             href="/journal"
-            className="inline-flex items-center gap-1.5 text-sm text-construx hover:text-orange-400 transition-colors font-medium"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] text-construx hover:text-orange-400 transition-colors font-medium uppercase tracking-widest"
           >
-            <ArrowLeft size={13} />
-            More from the journal
+            <ArrowLeft size={11} />
+            MORE FROM THE JOURNAL
           </Link>
         </div>
       </article>
