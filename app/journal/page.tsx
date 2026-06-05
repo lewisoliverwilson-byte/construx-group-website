@@ -68,6 +68,8 @@ export default function JournalPage() {
                       {post.tag}
                     </span>
                     <span className="font-mono text-[10px] text-text-dim">{post.author}</span>
+                    <span className="text-text-dim text-xs opacity-50">·</span>
+                    <span className="font-mono text-[10px] text-text-dim">{post.readingTime} min read</span>
                   </div>
                   <h2 className="text-sm font-bold text-text-base group-hover:text-text-base transition-colors mb-1 leading-snug">
                     {post.title}

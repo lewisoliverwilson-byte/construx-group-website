@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { readingTime } from './utils';
 
 const postsDir = path.join(process.cwd(), 'content', 'journal');
 
@@ -11,6 +12,7 @@ export interface PostMeta {
   excerpt: string;
   author: string;
   tag: string;
+  readingTime: number;
 }
 
 export interface Post extends PostMeta {
@@ -31,6 +33,7 @@ export function getAllPostMeta(): PostMeta[] {
         excerpt: data.excerpt ?? '',
         author: data.author ?? 'Construx Group',
         tag: data.tag ?? 'Journal',
+        readingTime: readingTime(raw),
       };
     })
     .sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -48,6 +51,7 @@ export function getPostBySlug(slug: string): Post | null {
     excerpt: data.excerpt ?? '',
     author: data.author ?? 'Construx Group',
     tag: data.tag ?? 'Journal',
+    readingTime: readingTime(raw),
     content,
   };
 }
