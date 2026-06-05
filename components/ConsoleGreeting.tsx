@@ -20,6 +20,10 @@ export default function ConsoleGreeting({ postCount }: Props) {
       '%cCurious how this was built?\nhttps://construxgroup.io/journal/building-this-website',
       'color: #F97316; font-family: monospace; font-size: 11px;'
     );
+    console.log(
+      '%cPress ? for keyboard shortcuts. g+j, g+v, g+m to navigate.',
+      'color: rgba(240,239,255,0.3); font-family: monospace; font-size: 10px;'
+    );
   }, []);
 
   return null;
