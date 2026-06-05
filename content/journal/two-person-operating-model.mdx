@@ -1,0 +1,80 @@
+---
+title: "The two-person operating model: how Construx decides what to build next"
+date: "2026-06-06"
+excerpt: "Running a portfolio of live products with two people requires a specific set of operating principles. Here's how we think about prioritisation, venture incubation, and what makes something worth building."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Two people, three live ventures, a growing pipeline. The question we get asked most often isn't "how do you build so fast?" — it's "how do you decide what to build?"
+
+The answer isn't a framework. It's a set of working principles that have evolved through the actual experience of incubating, building, and maintaining products. Some of them are counterintuitive. All of them are load-bearing.
+
+## The only filter that matters
+
+Before any other consideration, a venture has to pass a single test: could this exist in its current form without AI?
+
+Not "could AI make it better?" — almost everything passes that test. Not "did we use AI to build it?" — that's about process, not product. The question is whether the product's core value proposition requires AI to function.
+
+Scoutr scans a product page and returns profit estimates across two marketplaces in under 5 seconds. That's not possible without AI. A human doing the same work manually takes 20-30 minutes per product and makes the unit economics of the tool completely different.
+
+The Hyve's AI team member holds months of project history in vector memory and answers questions about past decisions accurately. Without the AI, you have a workspace tool. With it, you have something categorically different.
+
+Products that fail this test don't make it into the portfolio. It's not that they're bad products — it's that they're not Construx ventures. We don't build things that happen to use AI. We build things that are constituted by AI.
+
+## How ventures start
+
+Every venture starts as a specific bottleneck in someone's workflow. Not a market opportunity. Not a category. A specific, recurring frustration experienced by a real person who does a real job.
+
+Scoutr started from the sourcing bottleneck in retail arbitrage. Resellers know the margin math works — they're bottlenecked on finding the next product before their competition does.
+
+The Marqet started from the configuration overhead in Claude Projects. Every professional who adopts Claude rebuilds a similar set of configurations from scratch. That's a solved problem that the market hasn't solved yet.
+
+The Hyve started from the tool fragmentation problem for builder teams. If your team of 4 is running Slack + Notion + GitHub discussions + Discord, you have 4 tools, 4 sync points, and an AI assistant that knows none of it.
+
+The pattern: a known workflow, a clear bottleneck, a specific way AI removes or transforms that bottleneck. That's the incubation brief.
+
+## Incubation vs building
+
+Not everything that passes the filter gets built. Some things get incubated — considered, sketched, written up, left in a state where they could be picked up quickly.
+
+The practical difference between incubation and building is resource commitment. Incubation is cheap. You can run 15 incubation candidates while actively building 2 ventures. Most incubation candidates never become ventures — they get superseded, deprioritised, or you realise the bottleneck was smaller than it appeared.
+
+Building commits the team. A venture in active build displaces 4-6 hours of daily focus. That focus is the resource, not money. We have two people, which means active building can really only happen on one venture at a time without quality degrading. The other ventures get maintenance mode — bugs fixed, improvements shipped, but no major new features.
+
+The transition from incubation to building happens when three things are true simultaneously:
+1. The bottleneck is clearly real and unserved
+2. The technical approach is at least sketched
+3. Current maintenance load allows it
+
+The third condition is the constraint most people don't talk about. Growth and maintenance compound. Three live ventures each have their own user feedback, their own bugs, their own improvement queue. Before we start building a fourth, we have to be honest about whether the maintenance burden allows it.
+
+## How we prioritise within a venture
+
+Within an active venture build, prioritisation follows a simple rule: anything that makes the core loop work comes first, everything else waits.
+
+The "core loop" is the minimum sequence of actions that delivers the product's primary value. For Scoutr: paste URL, get margin report. That's it. Everything else — saved searches, comparison features, integrations — is outside the core loop.
+
+Once the core loop works, we ship. Not beta, not soft launch — public, live, accessible. Shipping creates feedback loops that no amount of internal planning substitutes for.
+
+After shipping, we run maintenance until we see clear patterns in how people use the product vs. how we expected them to. Features built on real usage patterns survive. Features built on assumptions get replaced.
+
+## What we've got wrong
+
+We consistently underestimate maintenance load in early planning. The first venture — Scoutr — taught us this. The product was simpler than The Hyve or The Marqet, but the maintenance queue still grew faster than expected once real users were using it.
+
+We've also overestimated how quickly we can context-switch between ventures. The mental state required to go deep on The Hyve's vector memory architecture is different from the state required to think about The Marqet's content pipeline or Scoutr's pricing model. Context switches are expensive. We now protect deep-work blocks more aggressively than we used to.
+
+The third thing we've got wrong: prioritising features over stability too early. A product with 90% of the features and 99% uptime is worth more than a product with 100% of the features and 85% uptime. We learned that the hard way.
+
+## The part that doesn't have a framework
+
+None of this captures the part of the operating model that's actually hardest to systematise: knowing when to stop pushing a line of thinking and try a different angle.
+
+Building AI-first products involves a lot of iterating on the prompt architecture, the retrieval design, the interface decisions that shape how users interact with the AI layer. That iteration isn't linear. Some directions run into walls quickly. Others open up unexpectedly.
+
+The skill that matters most here isn't following the framework. It's knowing when the framework has nothing more to say and what to do when you've run out of structured approaches.
+
+We don't have a good answer to how you learn that. We've just built enough things at this point that the intuition has developed. The only real way to develop it is to ship enough things that you've seen what running into walls looks like across multiple contexts.
+
+That's the thing you can't incubate your way into.
