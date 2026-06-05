@@ -45,14 +45,14 @@ export default async function JournalPostPage({ params }: Props) {
 
           <div className="flex items-center gap-3 mb-4">
             <span
-              className="text-xs px-2 py-0.5 rounded text-construx"
-              style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)' }}
+              className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+              style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
             >
               {post.tag}
             </span>
-            <span className="text-xs text-text-dim">{post.author}</span>
-            <span className="text-text-dim">·</span>
-            <time dateTime={post.date} className="text-xs text-text-dim">
+            <span className="font-mono text-[10px] text-text-dim">{post.author}</span>
+            <span className="text-text-dim text-xs">·</span>
+            <time dateTime={post.date} className="font-mono text-[10px] text-text-dim">
               {formatDate(post.date)}
             </time>
           </div>
@@ -75,9 +75,9 @@ export default async function JournalPostPage({ params }: Props) {
         {/* Footer */}
         <div className="mt-20 pt-10 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
-            <p className="text-xs text-text-dim mb-1 uppercase tracking-widest">Written by</p>
+            <p className="font-mono text-[9px] text-text-dim mb-1.5 uppercase tracking-widest">// WRITTEN BY</p>
             <p className="text-sm font-semibold text-text-base">{post.author}</p>
-            <p className="text-xs text-text-dim">Construx Group</p>
+            <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest mt-0.5">Construx Group</p>
           </div>
           <Link
             href="/journal"

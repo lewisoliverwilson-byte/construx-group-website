@@ -15,11 +15,12 @@ export default function ListViewToggle() {
       {/* Toggle button */}
       <button
         onClick={() => setOpen((p) => !p)}
-        className="fixed bottom-8 right-8 z-20 flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium text-text-muted hover:text-text-base transition-all hover:border-border-bright"
+        className="fixed bottom-8 right-8 z-20 flex items-center gap-2 px-4 py-2.5 font-mono text-[10px] font-medium text-text-muted hover:text-text-base transition-all hover:border-border-bright uppercase tracking-widest"
         style={{
-          background: 'rgba(5,5,18,0.82)',
+          background: 'rgba(3,3,14,0.88)',
           backdropFilter: 'blur(16px)',
           border: '1px solid rgba(255,255,255,0.09)',
+          borderRadius: '3px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
         }}
         aria-label={open ? 'Close venture list' : 'Open venture list'}
@@ -37,22 +38,23 @@ export default function ListViewToggle() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-            className="fixed bottom-20 right-8 z-20 w-72 rounded-2xl overflow-hidden"
+            className="fixed bottom-20 right-8 z-20 w-72 overflow-hidden"
             style={{
-              background: 'rgba(5,5,18,0.94)',
+              background: 'rgba(3,3,14,0.96)',
               backdropFilter: 'blur(28px)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '3px',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
             }}
             role="navigation"
             aria-label="Venture list"
           >
-            <div className="px-5 py-4 border-b border-border">
-              <p className="text-xs font-semibold uppercase tracking-widest text-text-dim">
-                All Ventures
+            <div className="px-5 py-3.5 border-b border-border">
+              <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim">
+                // ALL VENTURES
               </p>
             </div>
-            <ul className="p-3 flex flex-col gap-1">
+            <ul className="p-2 flex flex-col gap-0.5">
               {ventures.map((v, i) => (
                 <motion.li
                   key={v.id}
@@ -60,7 +62,7 @@ export default function ListViewToggle() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
                 >
-                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-subtle transition-colors group">
+                  <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-subtle transition-colors group" style={{ borderRadius: '2px' }}>
                     <div
                       className="h-7 w-7 rounded-full flex-shrink-0"
                       style={{
@@ -103,9 +105,9 @@ export default function ListViewToggle() {
             <div className="px-5 py-3 border-t border-border">
               <Link
                 href="/ventures"
-                className="text-xs text-text-dim hover:text-construx transition-colors"
+                className="font-mono text-[9px] text-text-dim hover:text-construx transition-colors uppercase tracking-widest"
               >
-                View all ventures →
+                VIEW ALL VENTURES &rsaquo;
               </Link>
             </div>
           </motion.div>

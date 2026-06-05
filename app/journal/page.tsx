@@ -47,11 +47,12 @@ export default function JournalPage() {
               <Link
                 key={post.slug}
                 href={`/journal/${post.slug}`}
-                className={`group relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7 px-6 py-5 rounded-2xl transition-all hover:bg-subtle border border-transparent hover:border-construx/20${i % 2 === 0 ? ' bg-[rgba(5,5,18,0.6)]' : ''}`}
+                className={`group relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7 px-6 py-5 transition-all hover:bg-subtle border border-transparent hover:border-construx/20${i % 2 === 0 ? ' bg-[rgba(5,5,18,0.6)]' : ''}`}
+                style={{ borderRadius: '3px' }}
               >
                 <time
                   dateTime={post.date}
-                  className="text-xs text-text-dim tabular-nums flex-shrink-0 sm:w-32"
+                  className="font-mono text-[10px] text-text-dim tabular-nums flex-shrink-0 sm:w-32"
                 >
                   {fd(post.date)}
                 </time>
@@ -59,12 +60,12 @@ export default function JournalPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span
-                      className="text-xs px-2 py-0.5 rounded text-construx"
-                      style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)' }}
+                      className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+                      style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
                     >
                       {post.tag}
                     </span>
-                    <span className="text-xs text-text-dim">{post.author}</span>
+                    <span className="font-mono text-[10px] text-text-dim">{post.author}</span>
                   </div>
                   <h2 className="text-sm font-bold text-text-base group-hover:text-text-base transition-colors mb-1 leading-snug">
                     {post.title}
