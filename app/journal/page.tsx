@@ -31,17 +31,33 @@ export default function JournalPage() {
             The honest record of what we're building, how we're building it,
             and what AI at the frontier actually looks like in practice.
           </p>
-          {posts.length > 0 && (
-            <div className="flex items-center gap-4 mt-6 animate-fade-up" style={{ animationDelay: '350ms' }}>
-              <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.2em] flex items-center gap-1.5">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-construx opacity-70" />
-                {String(posts.length).padStart(3, '0')} DISPATCHES
-              </span>
-              <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.2em]">
-                SIGNAL: LIVE
-              </span>
-            </div>
-          )}
+          {posts.length > 0 && (() => {
+            const tags = [...new Set(posts.map((p) => p.tag))].sort();
+            return (
+              <>
+                <div className="flex items-center gap-4 mt-6 animate-fade-up" style={{ animationDelay: '350ms' }}>
+                  <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.2em] flex items-center gap-1.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-construx opacity-70" />
+                    {String(posts.length).padStart(3, '0')} DISPATCHES
+                  </span>
+                  <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.2em]">
+                    SIGNAL: LIVE
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-4 animate-fade-up" style={{ animationDelay: '440ms' }}>
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="font-mono text-[9px] font-medium px-2.5 py-1 text-text-dim uppercase tracking-widest"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px' }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </section>
 
