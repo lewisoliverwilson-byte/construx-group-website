@@ -58,6 +58,19 @@ export default function HomePage() {
               style={{ animationDelay: '240ms' }}>
               A portfolio of ventures that only exist because AI makes them possible.
             </p>
+            {/* Mobile-only status strip */}
+            <div className="lg:hidden flex items-center justify-center gap-5 mt-5 animate-fade-up" style={{ animationDelay: '380ms' }}>
+              <span className="font-mono text-[9px] text-construx/70 flex items-center gap-1.5 uppercase tracking-widest">
+                <span className="inline-block w-1 h-1 rounded-full bg-construx animate-glow-pulse" />
+                ONLINE
+              </span>
+              <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+                {ventures.length} VENTURES
+              </span>
+              <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+                {postCount} POSTS
+              </span>
+            </div>
           </div>
         </div>
 
