@@ -131,7 +131,7 @@ export default function VenturePanel({ venture, onClose }: Props) {
             </p>
 
             {/* Body — scrollable */}
-            <div className="flex-1 overflow-y-auto px-5 pb-2 space-y-4 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto px-5 pb-2 space-y-4">
 
               {/* Pitch */}
               <p className="text-sm text-text-muted leading-relaxed">
