@@ -6,6 +6,7 @@ import { MDXRemote } from 'next-mdx-remote/rsc';
 import { getAllPostMeta, getPostBySlug } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import ReadingProgress from '@/components/journal/ReadingProgress';
+import CopyLink from '@/components/journal/CopyLink';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -149,13 +150,16 @@ export default async function JournalPostPage({ params }: Props) {
               <p className="text-sm font-semibold text-text-base">{post.author}</p>
               <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest mt-0.5">Construx Group</p>
             </div>
-            <Link
-              href="/journal"
-              className="inline-flex items-center gap-1.5 font-mono text-[10px] text-construx hover:text-orange-400 transition-colors font-medium uppercase tracking-widest"
-            >
-              <ArrowLeft size={11} />
-              ALL POSTS
-            </Link>
+            <div className="flex items-center gap-3">
+              <CopyLink />
+              <Link
+                href="/journal"
+                className="inline-flex items-center gap-1.5 font-mono text-[10px] text-construx hover:text-orange-400 transition-colors font-medium uppercase tracking-widest"
+              >
+                <ArrowLeft size={11} />
+                ALL POSTS
+              </Link>
+            </div>
           </div>
 
           {(prevPost || nextPost) && (
