@@ -266,6 +266,12 @@
   font-size: 0.9em;
 }
 
+/* ─── Animation fill-mode ───────────────────────────────────────────────── */
+.animate-fade-up,
+.animate-fade-in {
+  animation-fill-mode: both;
+}
+
 /* ─── Reduced motion ────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,
