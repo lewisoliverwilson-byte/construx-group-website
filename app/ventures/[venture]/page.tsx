@@ -140,7 +140,7 @@ export default async function VenturePage({ params }: Props) {
               <Link
                 href="/contact"
                 className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] uppercase tracking-wider"
-              style={{ borderRadius: '3px' }}
+                style={{ borderRadius: '3px' }}
               >
                 Get early access <ChevronRight size={15} />
               </Link>

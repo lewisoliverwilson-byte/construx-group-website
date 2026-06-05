@@ -28,7 +28,7 @@ export default function VenturesPage() {
         </h1>
         <p className="text-text-muted max-w-lg mx-auto leading-relaxed text-base">
           Each venture is an independent product, built AI-first, owned by Construx Group.
-          Click any planet in the solar system or browse below.
+          Navigate the solar system from the homepage, or read the full manifest below.
         </p>
       </section>
 

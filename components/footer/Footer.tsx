@@ -102,11 +102,11 @@ export default function Footer() {
             </span>
           </div>
           <div className="flex items-center gap-5">
-            <Link href="/contact" className="font-mono text-[10px] text-text-dim hover:text-text-muted transition-colors uppercase tracking-wider">
-              Privacy
-            </Link>
-            <Link href="/contact" className="font-mono text-[10px] text-text-dim hover:text-text-muted transition-colors uppercase tracking-wider">
-              Terms
+            <a href="mailto:lewis.oliver.wilson@googlemail.com" className="font-mono text-[10px] text-text-dim hover:text-construx transition-colors uppercase tracking-wider">
+              Direct Line
+            </a>
+            <Link href="/manifesto" className="font-mono text-[10px] text-text-dim hover:text-text-muted transition-colors uppercase tracking-wider">
+              Manifesto
             </Link>
           </div>
         </div>

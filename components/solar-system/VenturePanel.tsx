@@ -36,7 +36,7 @@ export default function VenturePanel({ venture, onClose }: Props) {
               backdropFilter: 'blur(28px)',
               WebkitBackdropFilter: 'blur(28px)',
               border: `1px solid ${venture.accent}22`,
-              borderRadius: '4px',
+              borderRadius: '3px',
               boxShadow: `0 0 0 1px rgba(255,255,255,0.04), 0 0 60px ${venture.accent}14, 0 24px 64px rgba(0,0,0,0.7)`,
             }}
             role="complementary"
@@ -58,7 +58,7 @@ export default function VenturePanel({ venture, onClose }: Props) {
               <div className="flex items-center gap-2 min-w-0">
                 <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
                   <span className="text-construx">// </span>
-                  CONSTRUX.SYS &rsaquo; {venture.name.toUpperCase()}
+                  CONSTRUX.SYS &rsaquo; {venture.slug.toUpperCase()}
                 </span>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">

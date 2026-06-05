@@ -12,7 +12,7 @@ const sections = [
   {
     number: '01',
     heading: 'We build things that require AI to exist.',
-    body: `Every venture in this portfolio was conceived because the current state of AI made it tractable for the first time. Not "AI helps us go faster." AI is the reason the thing is possible at all.\n\nScoutr scans and reasons about thousands of product listings in real time — impractical to hand-code, trivial for Claude. The Marqet needed a way to organise and surface hundreds of AI configurations with genuine semantic understanding — only possible with frontier language models. The Hyve needed an AI team member that holds the full context of an entire project's history — only possible with the context windows and instruction fidelity of 2025-era AI.\n\nIf you could have built it in 2020 without AI, it's not a Construx venture.`,
+    body: `Every venture in this portfolio was conceived because the current state of AI made it tractable for the first time. Not "AI helps us go faster." AI is the reason the thing is possible at all.\n\nScoutr scans and reasons about thousands of product listings in real time — impractical to hand-code, trivial for Claude. The Marqet needed a way to organise and surface hundreds of AI configurations with genuine semantic understanding — only possible with frontier language models. The Hyve needed an AI team member that holds the full context of an entire project's history — only possible with the context windows and instruction fidelity of 2026-era AI.\n\nIf you could have built it in 2020 without AI, it's not a Construx venture.`,
   },
   {
     number: '02',

@@ -48,7 +48,7 @@ export default function HomePage() {
           {/* Top-right: build ref */}
           <div className="absolute top-8 right-8 flex flex-col items-end gap-1.5 opacity-50">
             <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
-              BUILD.2025.06
+              BUILD.2026.06
             </p>
             <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
               AI.FRONTIER — LIVE
@@ -89,7 +89,7 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-5xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
-              <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+              <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
                 // WHAT WE ARE
               </p>
               <h2 id="what-construx" className="text-display-sm text-text-base mb-6 leading-tight">
