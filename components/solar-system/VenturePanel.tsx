@@ -3,7 +3,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import StatusBadge from '@/components/ui/StatusBadge';
 import type { Venture } from '@/lib/ventures';
 
 interface Props {
