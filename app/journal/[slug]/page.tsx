@@ -29,8 +29,23 @@ export default async function JournalPostPage({ params }: Props) {
   const post = getPostBySlug(slug);
   if (!post) notFound();
 
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.excerpt,
+    datePublished: post.date,
+    author: { '@type': 'Person', name: post.author },
+    publisher: { '@type': 'Organization', name: 'Construx Group', url: 'https://construxgroup.io' },
+    url: `https://construxgroup.io/journal/${post.slug}`,
+  };
+
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
       {/* Hero */}
       <section className="relative pt-36 pb-12 px-5 grid-bg overflow-hidden">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />

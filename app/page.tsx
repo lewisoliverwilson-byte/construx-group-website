@@ -11,9 +11,23 @@ export const metadata: Metadata = {
     'A portfolio of AI-first ventures. We build the things that are only possible now that AI exists.',
 };
 
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Construx Group',
+  description: 'A portfolio of AI-first ventures built by a small team operating at the frontier of what AI makes possible.',
+  url: 'https://construxgroup.io',
+  logo: 'https://construxgroup.io/icon',
+  sameAs: [],
+};
+
 export default function HomePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+      />
       {/* Hero: solar system */}
       <section className="relative" aria-label="Interactive venture explorer">
         {/* SSR headline — always indexed by crawlers */}
