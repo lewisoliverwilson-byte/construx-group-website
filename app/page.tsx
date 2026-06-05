@@ -116,7 +116,7 @@ export default function HomePage() {
                 </Link>
                 <Link
                   href="/work-with-us"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all uppercase tracking-wider"
                   style={{ borderRadius: '3px' }}
                 >
                   Work with us
