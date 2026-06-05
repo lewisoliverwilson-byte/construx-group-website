@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 import StatusBadge from '@/components/ui/StatusBadge';
+import CountUp from '@/components/ui/CountUp';
 
 export const metadata: Metadata = {
   title: 'Ventures',
@@ -38,13 +39,13 @@ export default function VenturesPage() {
       <section className="relative border-y border-border py-6 px-5" style={{ background: 'rgba(3,3,14,0.7)' }}>
         <div className="mx-auto max-w-6xl flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
           {[
-            { value: String(live.length).padStart(3, '0'), label: 'Live ventures' },
-            { value: '167+', label: 'Marketplace listings' },
-            { value: '<5s', label: 'Avg. scan time' },
-            { value: '4', label: 'Tools replaced' },
-          ].map(({ value, label }) => (
+            { node: <CountUp to={live.length} pad={3} />, label: 'Live ventures' },
+            { node: <CountUp to={167} suffix="+" />, label: 'Marketplace listings' },
+            { node: <>{'<5s'}</>, label: 'Avg. scan time' },
+            { node: <CountUp to={4} />, label: 'Tools replaced' },
+          ].map(({ node, label }) => (
             <div key={label} className="flex items-center gap-2.5">
-              <span className="font-mono text-sm font-bold text-construx tabular-nums">{value}</span>
+              <span className="font-mono text-sm font-bold text-construx">{node}</span>
               <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.18em]">{label}</span>
             </div>
           ))}

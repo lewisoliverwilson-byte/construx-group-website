@@ -6,6 +6,7 @@ import { getAllPostMeta } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import StatusBadge from '@/components/ui/StatusBadge';
 import SolarSystemLoader from '@/components/solar-system/SolarSystemLoader';
+import CountUp from '@/components/ui/CountUp';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -215,13 +216,13 @@ export default function HomePage() {
       <section className="border-y border-border py-10 px-5" aria-label="Key facts" style={{ background: 'rgba(3,3,14,0.6)' }}>
         <div className="mx-auto max-w-5xl grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
-            { value: '003', label: 'Live ventures' },
-            { value: '167+', label: 'Marketplace listings' },
-            { value: '<5s', label: 'Avg. scan time' },
-            { value: '002', label: 'Founders' },
-          ].map(({ value, label }) => (
+            { node: <CountUp to={3} pad={3} />, label: 'Live ventures' },
+            { node: <CountUp to={167} suffix="+" />, label: 'Marketplace listings' },
+            { node: <>{'<5s'}</>, label: 'Avg. scan time' },
+            { node: <CountUp to={2} pad={3} />, label: 'Founders' },
+          ].map(({ node, label }) => (
             <div key={label} className="text-center">
-              <p className="font-mono text-heading-xl font-bold text-gradient-orange mb-1 tabular-nums">{value}</p>
+              <p className="font-mono text-heading-xl font-bold text-gradient-orange mb-1">{node}</p>
               <p className="font-mono text-[10px] text-text-dim uppercase tracking-[0.2em]">{label}</p>
             </div>
           ))}
