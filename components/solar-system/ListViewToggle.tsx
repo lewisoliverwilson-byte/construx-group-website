@@ -81,7 +81,7 @@ export default function ListViewToggle() {
                           href={v.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-border-bright transition-colors"
+                          className="h-6 w-6 flex items-center justify-center hover:bg-border-bright transition-colors"
                           aria-label={`Visit ${v.name}`}
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -90,7 +90,7 @@ export default function ListViewToggle() {
                       ) : (
                         <Link
                           href={`/ventures/${v.slug}`}
-                          className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-border-bright transition-colors"
+                          className="h-6 w-6 flex items-center justify-center hover:bg-border-bright transition-colors"
                           aria-label={`Learn more about ${v.name}`}
                           onClick={(e) => e.stopPropagation()}
                         >
