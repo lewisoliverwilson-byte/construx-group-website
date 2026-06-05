@@ -193,11 +193,20 @@ export default function ContactPage() {
 
               {status === 'error' && (
                 <div
-                  className="flex items-center gap-2 px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-red-400"
+                  className="flex items-start gap-2 px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-red-400"
                   style={{ borderRadius: '2px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
                 >
-                  <AlertCircle size={14} />
-                  Something went wrong. Try again or email us directly.
+                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                  <span>
+                    Something went wrong. Try again or{' '}
+                    <a
+                      href="mailto:lewis.oliver.wilson@googlemail.com"
+                      className="underline underline-offset-2 hover:text-red-300 transition-colors normal-case"
+                    >
+                      email us directly
+                    </a>
+                    .
+                  </span>
                 </div>
               )}
             </div>
