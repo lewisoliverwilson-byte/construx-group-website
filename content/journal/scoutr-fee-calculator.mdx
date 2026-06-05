@@ -1,0 +1,86 @@
+---
+title: "How Scoutr calculates Amazon FBA fees in real time"
+date: "2026-06-06"
+excerpt: "Getting Amazon and eBay fees right is the hard part of resell intelligence. Wrong fee calculations mean users make decisions on incorrect data. Here's how we built a fee engine that's accurate enough to trust."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Scoutr's core value proposition is a profit estimate. Paste a product URL, get back a clear picture of what each product on that page is worth as an Amazon or eBay resell opportunity.
+
+That profit estimate is only worth anything if the fee calculation is accurate. An off-by-50% margin estimate sends resellers toward products that lose money. Getting the fees right is not a nice-to-have — it's the entire basis of the product's usefulness.
+
+## The complexity of Amazon fees
+
+Amazon FBA fees are more complex than they appear from the outside. The headline number — "15% referral fee" — is accurate for some categories. For others, it's wrong by a significant margin.
+
+The full fee structure for a typical Amazon FBA sale includes:
+
+**Referral fees** — a percentage of the sale price, varying by category. Electronics are 8%. Beauty products are 8%. Jewellery is 20%. Books are 15%. The category matters enormously for margin calculation.
+
+**Fulfillment fees** — charged per unit, based on size and weight. The Amazon fee schedule has six size tiers: small standard, large standard, small oversize, medium oversize, large oversize, and special oversize. A product that's 1.1 lbs triggers a different tier than one at 0.9 lbs, with meaningful fee differences.
+
+**Monthly storage fees** — charged per cubic foot, varying by month. January-September storage is cheaper than October-December. For a reseller turning inventory quickly, storage fees are often negligible. For slow-moving stock, they're material.
+
+**Closing fees** — certain categories (books, music, video, software) have per-item closing fees in addition to referral fees.
+
+The right fee for a product depends on: its category, its dimensions, its weight, what month it's likely to sell in, and whether it qualifies for any fee exceptions. Getting all of that right from a product page URL is a data and inference problem.
+
+## How we solve it
+
+Scoutr's approach uses Claude for the parts that require judgment and structured lookups for the parts that are deterministic.
+
+When a user pastes a URL, Scoutr extracts the product data from the page. For each product, Claude is asked to:
+1. Classify the product into an Amazon category
+2. Estimate dimensions and weight from available data (model number, product description, comparative products)
+3. Flag any known fee exceptions that apply
+
+With category, estimated dimensions, and estimated weight, the fee calculation becomes deterministic. We maintain a current version of Amazon's fee schedule as structured data and apply it programmatically.
+
+The referral fee calculation is straightforward once you have the category. The fulfillment fee calculation requires mapping dimensions and weight to a size tier, then looking up the tier fee. This is pure arithmetic once the data is right.
+
+## The weight and dimension problem
+
+The hardest part is getting weight and dimensions. Product pages don't always list them. When they do, the format is inconsistent. When they don't, you're estimating.
+
+Claude is reasonably good at estimating product dimensions from context. A product listed as "6-pack of paper towel rolls" can have its approximate dimensions estimated from knowledge of standard paper towel roll sizing. A product with a model number that matches a known product family can inherit dimensions from the known product.
+
+But estimates are estimates. Scoutr is explicit about this — the fee breakdown shows when dimensions were estimated rather than extracted, and the profit figure flags uncertainty when the calculation depended on estimated inputs.
+
+We'd rather be right about uncertainty than confident about the wrong number.
+
+## The eBay calculation
+
+eBay's fee structure is simpler than Amazon's but involves its own complications:
+
+**Final value fees** — 13.25% for most categories, capped at a maximum that varies by category. Below the cap, this is straightforward. Above the cap, the fee is fixed.
+
+**Payment processing** — eBay's managed payments take a percentage of the total including shipping. This is often overlooked and understates costs by several percent.
+
+**Insertion fees** — free for your first N listings per month, then a small per-listing fee above the allowance.
+
+**Shipping** — eBay buyers often expect free shipping, which means shipping cost comes out of the seller's margin. We estimate shipping cost from product dimensions and weight against standard carrier rates.
+
+The eBay calculation is less complex to implement correctly but still requires accurate product data for the fee logic to produce useful output.
+
+## Validation approach
+
+We validated the fee calculator against our own test purchases — buying products, listing them, and comparing what Scoutr predicted against what we actually paid. For most products, the difference was under 5%. For a few products with unusual category fees or oversized dimensions, it was higher until we corrected the underlying logic.
+
+The test purchase validation process also revealed that some product categories have minimum referral fees that apply even when the percentage-based fee would be lower. This edge case was in the fee schedule but easy to miss — we caught it through testing.
+
+## The ongoing maintenance
+
+Amazon and eBay update their fee schedules periodically. The fee data that's current today may be slightly off in six months.
+
+Scoutr treats fee data as a versioned dataset. When Amazon announces fee changes (they typically give notice), we update the fee schedule and verify that the calculations still validate against expected outputs. This is a maintenance task, not a build task — but it's a real one.
+
+The practical implication: Scoutr's margin estimates are accurate for current fee structures. We don't guarantee they reflect future fee changes. We update when changes are announced.
+
+## What this makes possible
+
+The margin estimate Scoutr produces isn't a rough approximation. For most products, it's within a few percent of what a seller would actually net. That's accurate enough to make sourcing decisions on.
+
+That accuracy is what makes the product useful. A tool that says "this might be profitable" is marginally useful. A tool that says "this is 34% margin after all fees, calculated from these inputs, with these caveats" is a tool you can make decisions from.
+
+The technical complexity is invisible to the user. They paste a URL and see numbers. Behind those numbers is category classification, dimension estimation, fee schedule lookup, shipping estimation, and explicit handling of uncertainty. That's the product.
