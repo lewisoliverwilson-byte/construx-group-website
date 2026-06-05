@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import { getAllPostMeta, getPostBySlug } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
+import ReadingProgress from '@/components/journal/ReadingProgress';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -71,6 +72,7 @@ export default async function JournalPostPage({ params }: Props) {
 
   return (
     <div className="min-h-screen">
+      <ReadingProgress />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
