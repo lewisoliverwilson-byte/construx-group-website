@@ -64,7 +64,7 @@ export default function ContactPage() {
         value={form[id]}
         onChange={(e) => setForm((p) => ({ ...p, [id]: e.target.value }))}
         placeholder={placeholder}
-        autoComplete={id === 'email' ? 'email' : 'off'}
+        autoComplete={id === 'email' ? 'email' : id === 'name' ? 'name' : 'off'}
         className="w-full px-4 py-3 text-sm text-text-base placeholder:text-text-dim transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)]"
         style={{
           background: 'rgba(5,5,18,0.8)',
