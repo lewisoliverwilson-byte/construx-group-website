@@ -1,0 +1,65 @@
+---
+title: "The cost of building AI-first: how we think about API spend"
+date: "2026-06-06"
+excerpt: "Every Claude API call costs money. At scale, the economics of AI-first products look completely different from traditional SaaS. Here's how we think about it."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+There's a cost structure conversation that doesn't happen enough in public discussions about AI-first products. Every call to the Claude API costs money. In a traditional SaaS product, marginal cost per user action is close to zero — some database reads, some compute. In an AI-first product, the marginal cost per user action can be significant depending on how the API is used.
+
+This changes how you think about pricing, unit economics, and product design in ways that aren't obvious until you're actually paying the bills.
+
+## How Claude's pricing works
+
+Claude charges per token — essentially per word, in and out. The exact pricing varies by model and changes over time, but the structure is consistent: you pay for what you process.
+
+For Scoutr, every product scan is an API call. The input includes the system prompt, the scraped product data, and the user's context. The output is a structured analysis of each product's profit potential. A typical scan might process 2,000-4,000 tokens.
+
+For The Hyve, every AI team member response involves retrieving context from the vector database, constructing an input that includes the retrieved context plus conversation history, and generating a response. More complex questions pull more context, which means more tokens.
+
+For The Marqet's content pipeline, generating a single listing is an API call. Validating it is another. Generating 104 listings in our expansion involved hundreds of API calls.
+
+## The optimisation levers
+
+Once you're aware of the cost structure, there are meaningful levers for optimisation without degrading quality.
+
+**System prompt caching.** Anthropic's prompt caching feature lets you cache the system prompt portion of your calls. If your system prompt is 1,000 tokens (ours often are), caching it means you're not paying for those 1,000 tokens on every call — only on the first call and then on cache misses (typically every 5 minutes). For products with high call volume, this is a significant saving.
+
+**Model selection by task.** Not every task requires the most capable model. Scoutr uses different models for different parts of the analysis: the complex reasoning about profit margins uses a more capable model, but simpler classification tasks — "is this product likely to be restricted on Amazon?" — can use Haiku at a fraction of the cost. The quality difference is indistinguishable for the simpler tasks.
+
+**Prompt length discipline.** Long system prompts are expensive. We maintain strict discipline about what's in a system prompt — only information that's genuinely necessary for every call. Role-specific context that's only relevant for certain query types goes into the user message, not the system prompt.
+
+**Output limits.** Setting `max_tokens` explicitly tells Claude to stop when it's delivered what you asked for. Without an explicit limit, models sometimes produce more than necessary, particularly for open-ended generation tasks. The Marqet's content pipeline uses tight output schemas that keep responses focused.
+
+**Retrieval quality, not quantity.** In The Hyve's vector memory architecture, early versions retrieved too much context — 40 items per query. Reducing to 10-15 higher-relevance items cut input tokens by 60% with no quality degradation. The precision of retrieval matters more than the volume.
+
+## The unit economics question
+
+The fundamental question for any AI-first product is: what does a user action cost, and what can you charge for it?
+
+Scoutr's cost per scan is a fraction of a penny. At current pricing, a user running 100 scans per day costs us less than a dollar in API calls. The subscription price comfortably covers this at any reasonable volume.
+
+The cost structure gets more complex for products like The Hyve where usage patterns vary widely. A power user with rich project history and frequent AI queries costs significantly more in API calls than an occasional user. Pricing has to account for the distribution, not just the average.
+
+The rough rule we use: if the marginal cost of a user action is less than 1% of what you're charging, the economics work. If it's approaching 10%, the pricing model needs rethinking.
+
+## The design implication
+
+Here's the part that's easy to miss: API cost structures should influence product design, not just pricing.
+
+If a feature requires expensive API calls to be useful, you need a clear answer to "what's the value exchange?" before building it. Features that trigger large API calls without delivering proportional user value are a design problem as well as a cost problem.
+
+We've killed several features in early design because the cost structure didn't make sense. Not because they were bad features — because the economics of delivering them well were unfavorable at the pricing we were targeting.
+
+This is a fundamentally different design constraint than traditional software. In traditional SaaS, compute cost is cheap enough that it almost never influences feature design decisions. In AI-first products, it regularly does.
+
+## What this means for the portfolio model
+
+Construx's portfolio model works precisely because AI enables us to build products that would otherwise require significant operational headcount. But it only works if the unit economics of each venture are sound.
+
+We review the API cost structure of each venture as a first-class concern — not an afterthought. How the costs scale with usage, where the inefficiencies are, and whether the pricing model aligns with the cost structure.
+
+This is a more rigorous financial analysis than most small builders do. We think it's necessary if you're serious about the economics being sustainable at scale.
+
+The products that survive AI winter — or any period where usage grows faster than pricing flexibility — will be the ones that understood their cost structure from the beginning and built accordingly.
