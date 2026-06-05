@@ -43,14 +43,16 @@ export default function ManifestoPage() {
       <section className="relative pt-36 pb-16 px-5 overflow-hidden grid-bg">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-3xl text-center">
-          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5">
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5 animate-fade-in">
             // OUR THESIS
           </p>
-          <h1 className="text-display text-text-base mb-6 leading-none">
+          <h1 className="text-display text-text-base mb-6 leading-none animate-fade-up"
+            style={{ animationDelay: '90ms' }}>
             The<br />
             <span className="text-gradient-orange">Manifesto</span>
           </h1>
-          <p className="text-text-muted text-base leading-relaxed max-w-xl mx-auto">
+          <p className="text-text-muted text-base leading-relaxed max-w-xl mx-auto animate-fade-up"
+            style={{ animationDelay: '220ms' }}>
             Five principles. One model. Everything Construx builds follows from these.
           </p>
         </div>

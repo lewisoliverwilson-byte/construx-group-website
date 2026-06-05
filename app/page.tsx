@@ -36,12 +36,13 @@ export default function HomePage() {
             <p className="font-mono text-[10px] font-medium tracking-[0.3em] uppercase text-construx mb-5 animate-fade-in">
               // CONSTRUX.GROUP
             </p>
-            <h1 className="text-display text-gradient-white mb-4 animate-fade-up">
+            <h1 className="text-display text-gradient-white mb-4 animate-fade-up"
+              style={{ animationDelay: '90ms' }}>
               Building at the<br />
               <span className="text-gradient-orange">AI frontier</span>
             </h1>
             <p className="text-base text-text-muted max-w-md mx-auto leading-relaxed animate-fade-up"
-              style={{ animationDelay: '100ms' }}>
+              style={{ animationDelay: '240ms' }}>
               A portfolio of ventures that only exist because AI makes them possible.
             </p>
           </div>

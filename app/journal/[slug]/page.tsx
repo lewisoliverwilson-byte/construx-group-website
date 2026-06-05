@@ -58,7 +58,7 @@ export default async function JournalPostPage({ params }: Props) {
             // JOURNAL
           </Link>
 
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-4 animate-fade-in">
             <span
               className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
               style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
@@ -72,10 +72,12 @@ export default async function JournalPostPage({ params }: Props) {
             </time>
           </div>
 
-          <h1 className="text-display-sm text-text-base mb-5 leading-tight">
+          <h1 className="text-display-sm text-text-base mb-5 leading-tight animate-fade-up"
+            style={{ animationDelay: '80ms' }}>
             {post.title}
           </h1>
-          <p className="text-text-muted leading-relaxed text-base max-w-2xl">
+          <p className="text-text-muted leading-relaxed text-base max-w-2xl animate-fade-up"
+            style={{ animationDelay: '200ms' }}>
             {post.excerpt}
           </p>
         </div>

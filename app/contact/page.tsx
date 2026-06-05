@@ -86,13 +86,15 @@ export default function ContactPage() {
       <section className="relative pt-36 pb-16 px-5 grid-bg overflow-hidden">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-3xl text-center">
-          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4 animate-fade-in">
             // GET IN TOUCH
           </p>
-          <h1 className="text-display text-text-base mb-5 leading-none">
+          <h1 className="text-display text-text-base mb-5 leading-none animate-fade-up"
+            style={{ animationDelay: '90ms' }}>
             <span className="text-gradient-orange">Contact</span>
           </h1>
-          <p className="text-text-muted text-base leading-relaxed max-w-md mx-auto">
+          <p className="text-text-muted text-base leading-relaxed max-w-md mx-auto animate-fade-up"
+            style={{ animationDelay: '220ms' }}>
             We respond to every message. Usually same day.
           </p>
         </div>

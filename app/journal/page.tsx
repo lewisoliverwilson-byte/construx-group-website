@@ -19,13 +19,15 @@ export default function JournalPage() {
       <section className="relative pt-36 pb-16 px-5 grid-bg overflow-hidden">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-3xl">
-          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4 animate-fade-in">
             // BUILD IN PUBLIC
           </p>
-          <h1 className="text-display text-text-base mb-5 leading-none">
+          <h1 className="text-display text-text-base mb-5 leading-none animate-fade-up"
+            style={{ animationDelay: '90ms' }}>
             The <span className="text-gradient-orange">Journal</span>
           </h1>
-          <p className="text-text-muted text-base leading-relaxed max-w-lg">
+          <p className="text-text-muted text-base leading-relaxed max-w-lg animate-fade-up"
+            style={{ animationDelay: '220ms' }}>
             The honest record of what we're building, how we're building it,
             and what AI at the frontier actually looks like in practice.
           </p>

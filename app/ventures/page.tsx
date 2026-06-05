@@ -20,13 +20,15 @@ export default function VenturesPage() {
 
       {/* Hero */}
       <section className="relative pt-36 pb-20 px-5 text-center">
-        <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+        <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4 animate-fade-in">
           // THE PORTFOLIO
         </p>
-        <h1 className="text-display text-text-base mb-5">
+        <h1 className="text-display text-text-base mb-5 animate-fade-up"
+          style={{ animationDelay: '90ms' }}>
           Our <span className="text-gradient-orange">Ventures</span>
         </h1>
-        <p className="text-text-muted max-w-lg mx-auto leading-relaxed text-base">
+        <p className="text-text-muted max-w-lg mx-auto leading-relaxed text-base animate-fade-up"
+          style={{ animationDelay: '220ms' }}>
           Each venture is an independent product, built AI-first, owned by Construx Group.
           Navigate the solar system from the homepage, or read the full manifest below.
         </p>

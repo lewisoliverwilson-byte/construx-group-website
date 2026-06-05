@@ -32,13 +32,15 @@ export default function FoundersPage() {
       <section className="relative pt-36 pb-16 px-5 overflow-hidden grid-bg">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-3xl text-center">
-          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5">
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5 animate-fade-in">
             // THE PEOPLE
           </p>
-          <h1 className="text-display text-text-base mb-6 leading-none">
+          <h1 className="text-display text-text-base mb-6 leading-none animate-fade-up"
+            style={{ animationDelay: '90ms' }}>
             The <span className="text-gradient-orange">Founders</span>
           </h1>
-          <p className="text-text-muted text-base leading-relaxed max-w-lg mx-auto">
+          <p className="text-text-muted text-base leading-relaxed max-w-lg mx-auto animate-fade-up"
+            style={{ animationDelay: '220ms' }}>
             Two people. Equal billing. Everything built, owned, and shipped together.
           </p>
         </div>

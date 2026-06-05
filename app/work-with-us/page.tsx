@@ -65,14 +65,16 @@ export default function WorkWithUsPage() {
       <section className="relative pt-36 pb-20 px-5 overflow-hidden grid-bg">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-4xl">
-          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5">
+          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5 animate-fade-in">
             // CLIENT WORK
           </p>
-          <h1 className="text-display text-text-base mb-6 leading-none">
+          <h1 className="text-display text-text-base mb-6 leading-none animate-fade-up"
+            style={{ animationDelay: '90ms' }}>
             Work<br />
             <span className="text-gradient-orange">With Us</span>
           </h1>
-          <p className="text-text-muted text-base leading-relaxed max-w-xl mb-10">
+          <p className="text-text-muted text-base leading-relaxed max-w-xl mb-10 animate-fade-up"
+            style={{ animationDelay: '220ms' }}>
             We build AI-first products for organisations who need something built properly —
             not a slide deck, not a POC that falls apart under load, but a real product that ships.
           </p>
