@@ -1,0 +1,98 @@
+---
+title: "Evaluation without evals: knowing if your AI output is good"
+date: "2026-06-09"
+excerpt: "The standard answer to AI quality is 'build a test suite.' For fast-moving products, formal evals are often slower to maintain than the thing they're supposed to test. Here's how we think about quality without a formal evaluation framework."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+The canonical advice for AI quality assurance is to build an evaluation suite — a set of test cases with expected outputs that you run against your prompts to detect regressions. This is correct advice for teams that can invest in building and maintaining that infrastructure. For most early-stage AI products, it's aspirational rather than practical.
+
+The problem with formal evals is not that they're a bad idea. It's that they require maintenance. The eval suite that correctly reflects what "good" looks like for v1.0 of your product may not correctly reflect "good" for v1.3, when the use cases have evolved, the prompt has changed, and the definition of quality has shifted. Maintaining the eval suite costs time that could go toward building.
+
+There's a middle path. Not "no quality checks" and not "formal regression suite." Here's how we think about it.
+
+## The two failure modes you're actually trying to prevent
+
+Most people think about AI quality as a single problem. It's two problems with different characteristics:
+
+**Capability failure** — the AI simply can't do the thing. The prompt produces output that doesn't answer the question, misses required fields, hallucinates information, or formats output incorrectly. These failures are usually obvious on inspection.
+
+**Quality degradation** — the AI produces output that is technically correct but noticeably worse than before. Less precise reasoning, weaker structure, less relevant examples, more hedging. These failures are subtle and accumulate gradually.
+
+Formal evals are good at catching capability failures (the output either has the required field or it doesn't) and bad at catching quality degradation (whether the reasoning is "good" requires judgment, not binary comparison).
+
+The practical implication: you need different detection mechanisms for each.
+
+## Detecting capability failures: manual test cases
+
+For capability failures, we maintain a small set of explicit test inputs — representative examples that cover the main use cases of the product, including edge cases that have historically failed.
+
+These are not automated. They're run manually, on a schedule, and when the prompt changes significantly. The format is simple: input → expected output category (not exact expected output, since LLM outputs vary).
+
+The test cases are small enough to run in 15 minutes. If they can't be run in 15 minutes, they're too large and you're not actually running them. A test suite that takes an hour per run will be run twice — before launch and after the first critical bug report.
+
+Five well-chosen test cases that you actually run are more valuable than fifty test cases that you meant to run.
+
+## Detecting quality degradation: sampling production outputs
+
+For quality degradation, automated comparison doesn't work because "good" is a human judgment. What works instead is systematic sampling.
+
+We periodically sample a small number of production outputs — not randomly, but stratified across different input types — and review them manually. The question isn't "is this output correct?" but "is this output as good as it was six weeks ago?"
+
+This requires a baseline. The first step, before anything else, is to save examples of "good" output when your product is working well. These become the informal reference point for future quality reviews. You're not comparing against a formal spec — you're comparing against "what we know good looks like."
+
+The cadence depends on how often the prompt changes. Stable prompts need less frequent sampling. A prompt that changes weekly needs sampling after every significant change.
+
+## What actually causes degradation
+
+Understanding what causes quality degradation helps you know what to monitor.
+
+**Model updates** — providers update their models periodically. A model that produced output format X might produce output format Y after an update, even if the prompt is unchanged. We track provider announcement dates and run our test cases when a model update is announced.
+
+**Prompt drift** — small prompt edits accumulate over time. Each individual edit seems innocuous; the cumulative effect can be significant. Version control for prompts is important for being able to identify when degradation started.
+
+**Context contamination** — if your production system accumulates context (conversation history, session state), degradation can emerge from the context rather than the prompt. A prompt that works perfectly with empty context may produce worse output with 20 turns of history. Test with representative context, not just empty context.
+
+**Input distribution shift** — users who stick around use your product differently from users who just signed up. If your test inputs all look like new-user inputs, you won't catch degradation in the long-tail use cases that power users encounter.
+
+## The role of user feedback
+
+User feedback is a lagging quality signal but an important one.
+
+Explicit feedback (thumb up/down, bug reports, cancellations) is the most legible. It captures severe quality failures — cases where the output was bad enough to prompt action.
+
+Implicit feedback (task completion rates, re-generation frequency, output editing frequency) is more granular. If users are consistently regenerating a specific output type, that's a quality signal even if they're not explicitly reporting it.
+
+The challenge is that user feedback is noisy and often delayed. A quality regression that affects 5% of outputs might not surface in user feedback for weeks, by which time the root cause is hard to identify.
+
+## The minimum viable quality process
+
+For an early-stage AI product, the minimum viable quality process is:
+
+1. Save 10-20 examples of "good" outputs when the product is working well. These become your informal baseline.
+
+2. Maintain 5-10 manual test cases covering the main use cases and historical failure points. Run them after every significant prompt change.
+
+3. Sample 10-15 production outputs per week (or per change cycle, whichever is more frequent) and compare against your baseline qualitatively.
+
+4. Track the date of every significant prompt change. When degradation is detected, trace it to the most recent change.
+
+5. When a user reports a quality issue, save the failing example. This grows your test case set organically from real failures rather than hypothetical ones.
+
+This is not a rigorous evaluation framework. It is a quality practice that is sustainable for a small team, actually gets done, and catches the majority of issues before they accumulate into a product reputation problem.
+
+The alternative — shipping without any quality process — works until it doesn't, and then the damage is to trust rather than to metrics.
+
+## When to invest in formal evals
+
+Formal evaluation infrastructure becomes worth building when:
+
+- You have enough users that systematic sampling is no longer feasible
+- Your prompts change frequently enough that manual test cases can't keep up
+- Your quality failures are expensive (financial, legal, safety implications)
+- You have engineering capacity to maintain the infrastructure properly
+
+For most products, this is "when you've raised a Series A and hired an ML engineer" territory. Before that point, the minimum viable quality process described above is the practical option.
+
+The aspiration to have formal evals before you need them often results in neither: the infrastructure is started, gets complicated, doesn't get finished, and the team ends up with neither the formal system nor the informal practice. Pick one and do it properly.
