@@ -7,6 +7,8 @@ import { getAllPostMeta, getPostBySlug } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import ReadingProgress from '@/components/journal/ReadingProgress';
 import CopyLink from '@/components/journal/CopyLink';
+import TableOfContents from '@/components/journal/TableOfContents';
+import { extractHeadings, slugify } from '@/lib/headings';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -59,6 +61,19 @@ export default async function JournalPostPage({ params }: Props) {
   const relatedByTag = allPosts
     .filter((p) => p.slug !== slug && p.tag === post.tag)
     .slice(0, 2);
+
+  const headings = extractHeadings(post.content);
+
+  const mdxComponents = {
+    h2: ({ children }: { children: React.ReactNode }) => {
+      const id = slugify(String(children));
+      return <h2 id={id}>{children}</h2>;
+    },
+    h3: ({ children }: { children: React.ReactNode }) => {
+      const id = slugify(String(children));
+      return <h3 id={id}>{children}</h3>;
+    },
+  };
 
   const dispatchNumber = String(allPosts.length - currentIndex).padStart(3, '0');
 
@@ -137,9 +152,11 @@ export default async function JournalPostPage({ params }: Props) {
       </section>
 
       {/* Post body */}
-      <article className="px-5 py-16 mx-auto max-w-3xl">
+      <div className="px-5 py-16 mx-auto max-w-5xl flex gap-12 items-start">
+        <TableOfContents headings={headings} />
+        <article className="min-w-0 flex-1 max-w-3xl mx-auto xl:mx-0">
         <div className="prose-construx">
-          <MDXRemote source={post.content} />
+          <MDXRemote source={post.content} components={mdxComponents} />
         </div>
 
         {/* Footer: author + prev/next */}
@@ -197,7 +214,8 @@ export default async function JournalPostPage({ params }: Props) {
             </div>
           )}
         </div>
-      </article>
+        </article>
+      </div>
 
       {relatedByTag.length > 0 && (
         <section className="px-5 pb-20 mx-auto max-w-3xl border-t border-border">
