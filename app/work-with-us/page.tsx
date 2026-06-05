@@ -150,14 +150,22 @@ export default function WorkWithUsPage() {
         </div>
       </section>
 
-      {/* How we ship link */}
-      <div className="px-5 pb-10 mx-auto max-w-4xl">
+      {/* Recommended reading */}
+      <div className="px-5 pb-10 mx-auto max-w-4xl flex flex-wrap gap-5">
         <Link
           href="/journal/how-we-ship"
           className="inline-flex items-center gap-2 font-mono text-[10px] text-construx hover:text-orange-400 transition-colors uppercase tracking-widest group"
         >
           <ExternalLink size={11} className="flex-shrink-0" />
-          See the full build loop in the journal
+          The full build loop
+          <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+        <Link
+          href="/journal/ai-speed-cuts-both-ways"
+          className="inline-flex items-center gap-2 font-mono text-[10px] text-text-dim hover:text-construx transition-colors uppercase tracking-widest group"
+        >
+          <ExternalLink size={11} className="flex-shrink-0" />
+          Why direction matters more than speed
           <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
         </Link>
       </div>
