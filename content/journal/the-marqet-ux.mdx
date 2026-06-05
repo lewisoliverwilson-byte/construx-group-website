@@ -1,0 +1,91 @@
+---
+title: "Designing The Marqet: how users navigate 167 listings"
+date: "2026-06-08"
+excerpt: "A marketplace with 167 listings needs a different UX than one with 20. The discovery problem changes at scale. Here's how we designed The Marqet to make professional configurations findable without overwhelming users."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+A marketplace with 20 listings works fine with a list. A marketplace with 167 listings has a discovery problem.
+
+When The Marqet launched with its initial set of Claude configurations, the model was simple: browse, click, buy. That worked at 30 listings. At 167, it doesn't — not because users can't scroll, but because the cognitive load of evaluating 167 items while maintaining a clear sense of "am I in the right section?" is too high.
+
+The UX challenge for The Marqet was how to make professional configurations findable at scale without recreating the complexity of a large enterprise software catalogue.
+
+## The core browse problem
+
+The Marqet's listings span a wide range of professional domains: HR, recruiting, real estate, finance, engineering, legal, marketing. A HR professional looking for an interview template has nothing in common with an engineer looking for a code review configuration — different vocabulary, different value proposition, different price tolerance.
+
+A flat list sorted by "most popular" or "newest" doesn't serve either of them well. The HR professional doesn't want to wade through code review tools. The engineer doesn't want to see interview prep templates.
+
+Category-first navigation is the obvious answer. But category design is harder than it looks. Too many categories and the taxonomy becomes the discovery problem — users spend time figuring out which category their need falls into. Too few and categories are so broad they're not useful for narrowing the field.
+
+We settled on four top-level categories that map to the way the configurations are actually used:
+
+**System Prompts** — pre-built role configurations that transform Claude into a specialist for a specific job function. The core product.
+
+**Prompt Packs** — sets of reusable prompts for recurring workflows: candidate screening, property descriptions, contract review, code documentation.
+
+**MCP Servers** — configurations that extend Claude's capabilities by connecting it to external tools and data sources.
+
+**Workflow Templates** — multi-step process guides that walk Claude through complex professional tasks with decision points and output formats.
+
+These four categories are not arbitrary. They reflect the actual structure of how Claude can be configured for professional use. A system prompt changes how Claude thinks. A prompt pack changes what Claude is asked. An MCP server changes what Claude can access. A workflow template changes how Claude sequences work.
+
+## Search as the power-user path
+
+Category browsing solves the casual discovery problem. Search solves the specific need.
+
+A user who knows they want "Amazon listing optimisation" will search for it directly. They don't want to browse to Marketplace → E-commerce → Listing Tools — they want to type "Amazon" and see what's there.
+
+The Marqet's search runs across listing titles, descriptions, and tags. Crucially, it's designed to match on intent, not just keywords. A search for "job description" surfaces listings tagged with recruitment, hiring, and HR — not just ones that literally contain the phrase "job description" in the title.
+
+This matters because users don't have the vocabulary of the catalogue. They describe their problem in the language of their job, not in the language of the product taxonomy. The search layer translates between the two.
+
+## Listing page design
+
+Each listing page has a consistent structure designed to answer three questions quickly:
+
+**Is this what I'm looking for?** The title and one-line description carry this. A user scanning search results should know within two seconds whether to click.
+
+**Will this work for my situation?** The listing description covers use case, typical workflow, and what the configuration does differently from a plain Claude conversation. This is the "why buy this" section.
+
+**How do I use this?** Setup instructions are one paragraph, maximum. The value proposition of The Marqet is zero-configuration — if setup requires more than "paste this into a Claude Project system prompt," the listing has failed its own brief.
+
+We made a deliberate choice to keep listing pages short. The temptation in marketplace design is to maximise perceived value by adding more: feature lists, comparison tables, testimonials, screenshots. We resisted this. A professional who knows their domain will understand the value of a specialist configuration from a clear, direct description. Cluttering the page with upsell material undermines the product's core positioning as a tool for people who know what they're doing.
+
+## The rating and review question
+
+The Marqet does not have ratings or reviews. This was a deliberate choice.
+
+The conventional wisdom is that marketplaces need social proof. In B2C, this is true — a consumer buying a phone case wants to know that other people found it satisfactory. In a professional tool marketplace, the dynamics are different.
+
+A professional buying a Claude configuration for contract review isn't asking "did other people find this useful?" They're asking "will this work for my specific use case?" Reviews from people with different use cases and different levels of Claude familiarity don't reliably answer that question. They add noise.
+
+We will add ratings when we have enough data to segment them meaningfully — not "4.2 stars" but "4.8 stars from verified legal professionals." Until the volume is there to make segmentation meaningful, the signal-to-noise ratio of a single aggregate score is too low to be useful.
+
+## Pricing display
+
+Pricing display on professional tool marketplaces is a design problem disguised as a pricing problem.
+
+The Marqet's configurations are priced at the listing level. For the user, the question isn't just "how much does this cost?" but "how much does this cost relative to what I currently do?" A £15 system prompt for a professional who currently spends two hours a week in prompt engineering is not a £15 purchase — it's a decision about time value.
+
+We show prices clearly, without trying to frame them relative to abstract alternatives. The value comparison is implicit in the product positioning — if you're looking at The Marqet, you already understand the value of a correctly configured Claude. The price display doesn't need to do the persuasion work.
+
+## What we got wrong first
+
+The initial version of The Marqet organised listings alphabetically within categories. This seemed logical: predictable, easy to explain, familiar from directory-style catalogues.
+
+It was wrong. Alphabetical order within "System Prompts → HR" is only useful if you already know what you're looking for by name. For discovery — which is the primary use case for a new user — alphabetical is arbitrary. "Absence Management Assistant" appearing before "Workforce Planning Tool" because A comes before W is not a useful ordering for someone trying to find HR tools.
+
+We switched to relevance ranking — a combination of category match quality, tag coverage, and recency. The order now reflects "how well does this listing match what someone browsing this category is likely to want?" rather than "where does this fall in the alphabet?"
+
+The change required reindexing but no UX changes visible to the user. The listing order changed; everything else stayed the same. It made a measurable difference to the time users spent browsing before finding a listing they engaged with.
+
+## The lesson
+
+Marketplace UX is fundamentally a taxonomy design problem. How you name and structure categories determines whether users can self-direct to the right area without assistance. How you design individual listing pages determines whether they can evaluate a listing in the time they're willing to give it.
+
+At 167 listings, The Marqet is past the point where "just browse everything" works. At 500, the current taxonomy will likely need revisiting. Scale changes the discovery problem — what works at 167 listings will not work at 500.
+
+We're designing for the current scale, not the hypothetical future scale. When we hit the next inflection point, we'll redesign then.

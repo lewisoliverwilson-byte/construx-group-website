@@ -8,6 +8,7 @@ import { formatDate } from '@/lib/utils';
 import ReadingProgress from '@/components/journal/ReadingProgress';
 import CopyLink from '@/components/journal/CopyLink';
 import TableOfContents from '@/components/journal/TableOfContents';
+import BackToTop from '@/components/journal/BackToTop';
 import { extractHeadings, slugify } from '@/lib/headings';
 
 interface Props {
@@ -101,6 +102,7 @@ export default async function JournalPostPage({ params }: Props) {
   return (
     <div className="min-h-screen">
       <ReadingProgress />
+      <BackToTop />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}

@@ -87,7 +87,7 @@ export const ventures: Venture[] = [
       'New listings added weekly',
       'Built exclusively for Claude Projects',
     ],
-    journalSlugs: ['the-marqet-167-listings', 'the-marqet-content-pipeline'],
+    journalSlugs: ['the-marqet-167-listings', 'the-marqet-content-pipeline', 'the-marqet-ux'],
   },
   {
     id: 'the-hyve',
