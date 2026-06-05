@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, BookOpen } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { ventures } from '@/lib/ventures';
 
@@ -58,7 +58,7 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
           {venture.pitch}
         </p>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {venture.url ? (
             <a
               href={venture.url}
@@ -77,6 +77,15 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
           >
             Full Details
           </Link>
+          {venture.journalSlugs && venture.journalSlugs[0] && (
+            <Link
+              href={`/journal/${venture.journalSlugs[0]}`}
+              className="flex items-center gap-1 font-mono text-[10px] text-text-dim hover:text-construx transition-colors uppercase tracking-widest"
+            >
+              <BookOpen size={11} />
+              Build log
+            </Link>
+          )}
         </div>
       </div>
     </motion.article>
