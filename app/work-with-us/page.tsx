@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, Zap, Layers, Code2, Rocket } from 'lucide-react';
+import { ArrowRight, Zap, Layers, Code2, Rocket, BookOpen } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -164,6 +164,7 @@ export default function WorkWithUsPage() {
               headline: 'From zero to live in 3 weeks',
               summary: 'Full-stack AI product with real-time product scanning, Amazon + eBay profit calculation, and Claude-powered classification. Users paste a URL, get actionable margin data in under 5 seconds.',
               stats: [{ label: 'Time to scan', value: '<5s' }, { label: 'Live', value: 'Yes' }],
+              journalSlug: 'building-scoutr',
             },
             {
               name: 'The Marqet',
@@ -172,6 +173,7 @@ export default function WorkWithUsPage() {
               headline: '167+ listings, built in weeks',
               summary: 'AI-native marketplace for professional Claude configurations. Custom CMS, semantic search, category filtering, and a content pipeline that generated 167 listings across 4 verticals without manual work.',
               stats: [{ label: 'Listings', value: '167+' }, { label: 'Live', value: 'Yes' }],
+              journalSlug: 'the-marqet-167-listings',
             },
             {
               name: 'The Hyve',
@@ -180,6 +182,7 @@ export default function WorkWithUsPage() {
               headline: 'Replaced 4 tools with one',
               summary: 'Full-stack workspace replacing Slack, Notion, GitHub discussions, and Discord. Real-time channels, kanban, docs, and a vector-memory AI team member — all in a single URL on AWS.',
               stats: [{ label: 'Tools replaced', value: '4' }, { label: 'Live', value: 'Yes' }],
+              journalSlug: 'building-the-hyve',
             },
           ].map((item) => (
             <div
@@ -217,21 +220,30 @@ export default function WorkWithUsPage() {
               <p className="text-xs text-text-muted leading-relaxed flex-1 mb-4">
                 {item.summary}
               </p>
-              <div className="flex gap-3">
-                {item.stats.map((s) => (
-                  <div
-                    key={s.label}
-                    className="px-2.5 py-1.5 flex flex-col"
-                    style={{
-                      background: `${item.accent}08`,
-                      border: `1px solid ${item.accent}18`,
-                      borderRadius: '2px',
-                    }}
-                  >
-                    <span className="font-mono text-xs font-semibold tabular-nums" style={{ color: item.accent }}>{s.value}</span>
-                    <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">{s.label}</span>
-                  </div>
-                ))}
+              <div className="flex items-end justify-between gap-3 mt-auto">
+                <div className="flex gap-3">
+                  {item.stats.map((s) => (
+                    <div
+                      key={s.label}
+                      className="px-2.5 py-1.5 flex flex-col"
+                      style={{
+                        background: `${item.accent}08`,
+                        border: `1px solid ${item.accent}18`,
+                        borderRadius: '2px',
+                      }}
+                    >
+                      <span className="font-mono text-xs font-semibold tabular-nums" style={{ color: item.accent }}>{s.value}</span>
+                      <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <Link
+                  href={`/journal/${item.journalSlug}`}
+                  className="flex items-center gap-1 font-mono text-[9px] text-text-dim hover:text-text-muted transition-colors uppercase tracking-wider flex-shrink-0"
+                >
+                  <BookOpen size={10} />
+                  Story
+                </Link>
               </div>
             </div>
           ))}
