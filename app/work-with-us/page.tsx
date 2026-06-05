@@ -150,6 +150,42 @@ export default function WorkWithUsPage() {
         </div>
       </section>
 
+      {/* Technical stack */}
+      <section className="px-5 py-16 mx-auto max-w-6xl border-t border-border">
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-8">
+          // TECHNICAL STACK
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: 'Next.js', category: 'Frontend' },
+            { label: 'React', category: 'Frontend' },
+            { label: 'TypeScript', category: 'Language' },
+            { label: 'Tailwind CSS', category: 'Styling' },
+            { label: 'Claude API', category: 'AI' },
+            { label: 'Claude Code', category: 'AI' },
+            { label: 'AWS Amplify', category: 'Infra' },
+            { label: 'Node.js', category: 'Backend' },
+            { label: 'PostgreSQL', category: 'Database' },
+            { label: 'React Three Fiber', category: '3D' },
+            { label: 'Framer Motion', category: 'Animation' },
+            { label: 'Resend', category: 'Email' },
+          ].map(({ label, category }) => (
+            <div
+              key={label}
+              className="flex flex-col px-3 py-3 gap-1"
+              style={{
+                background: 'rgba(5,5,18,0.6)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '3px',
+              }}
+            >
+              <p className="font-mono text-[9px] font-medium uppercase tracking-widest text-construx/60">{category}</p>
+              <p className="text-sm font-semibold text-text-muted">{label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Proof of work */}
       <section className="px-5 py-16 mx-auto max-w-6xl border-t border-border">
         <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-8">
