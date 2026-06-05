@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, Zap } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
+import { getAllPostMeta } from '@/lib/posts';
+import { formatDate } from '@/lib/utils';
 import StatusBadge from '@/components/ui/StatusBadge';
 import SolarSystemLoader from '@/components/solar-system/SolarSystemLoader';
 
@@ -22,6 +24,8 @@ const organizationSchema = {
 };
 
 export default function HomePage() {
+  const recentPosts = getAllPostMeta().slice(0, 3);
+
   return (
     <>
       <script
@@ -217,6 +221,58 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Recent journal posts */}
+      {recentPosts.length > 0 && (
+        <section className="py-20 px-5 mx-auto max-w-5xl" aria-labelledby="journal-heading">
+          <div className="flex items-center justify-between mb-8">
+            <h2
+              id="journal-heading"
+              className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim"
+            >
+              // FROM THE JOURNAL
+            </h2>
+            <Link
+              href="/journal"
+              className="font-mono text-[10px] text-construx hover:text-orange-400 transition-colors uppercase tracking-widest flex items-center gap-1"
+            >
+              All posts <ArrowRight size={11} />
+            </Link>
+          </div>
+          <div className="flex flex-col gap-1">
+            {recentPosts.map((post) => (
+              <Link
+                key={post.slug}
+                href={`/journal/${post.slug}`}
+                className="group flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 px-5 py-4 transition-all hover:bg-subtle border border-transparent hover:border-construx/15"
+                style={{ borderRadius: '3px', background: 'rgba(5,5,18,0.5)' }}
+              >
+                <time
+                  dateTime={post.date}
+                  className="font-mono text-[10px] text-text-dim tabular-nums flex-shrink-0 sm:w-32"
+                >
+                  {formatDate(post.date)}
+                </time>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span
+                      className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+                      style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '2px' }}
+                    >
+                      {post.tag}
+                    </span>
+                    <span className="font-mono text-[10px] text-text-dim">{post.readingTime} min read</span>
+                  </div>
+                  <p className="text-sm font-semibold text-text-base group-hover:text-text-base transition-colors leading-snug">
+                    {post.title}
+                  </p>
+                </div>
+                <ArrowRight size={13} className="flex-shrink-0 text-text-dim group-hover:text-text-muted group-hover:translate-x-0.5 transition-all" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* CTA strip */}
       <section className="py-24 px-5 text-center" aria-labelledby="cta-heading">
         <div className="mx-auto max-w-2xl">
@@ -230,7 +286,7 @@ export default function HomePage() {
           </p>
           <Link
             href="/contact"
-            className="inline-flex items-center gap-2 px-7 py-3.5 text-base font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 px-7 py-3.5 font-mono text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02] uppercase tracking-wider"
             style={{ borderRadius: '3px' }}
           >
             Get in touch <ArrowRight size={16} />
