@@ -1,0 +1,69 @@
+---
+title: "How we built this website: a self-referential case study"
+date: "2026-06-06"
+excerpt: "The construxgroup.io site is itself a product built AI-first. Here's what the build looked like — the tech choices, what worked, and the one decision we'd change."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+There's something slightly strange about writing a build log for the website you're reading it on. But the site itself is a good example of how we build, so it's worth documenting.
+
+## The brief
+
+The brief for the site was: a credible technical presence that matches the quality of the products we ship. Not a brochure. Not a landing page. A site that feels like it was made by people who build software properly — because the people who'll read it will know what that looks like.
+
+Secondary constraints: no agency, no template, no paid design tools. Built from first principles, deployed fast, maintainable by two non-designers.
+
+## The tech stack
+
+**Next.js 15 App Router** — the default for a TypeScript-first React project with a mix of static and dynamic pages. The App Router's server component model meant we could call data-fetching functions directly in page components without extra ceremony.
+
+**Tailwind CSS** — utility-first styling means no context-switching between a CSS file and a component. Design decisions happen in the JSX, where the markup is. For a small team without a separate CSS architecture, this is the right call.
+
+**MDX + next-mdx-remote/rsc** — the journal runs on MDX files in `content/journal/`. Adding a post is adding a file. No CMS, no database, no admin panel. The tradeoff is that the journal doesn't support user-facing editing, but we don't need that — the journal is our writing, shipped like code.
+
+**React Three Fiber + Three.js** — the solar system on the homepage is the technically interesting part of the build. It's a procedural scene: planets orbiting a sun, each representing a venture, clickable to open a detail panel. The scene uses real orbital mechanics for the ring paths and runs on Three.js via React Three Fiber's declarative API.
+
+**AWS Amplify** — auto-deploys from the `master` branch. Push to GitHub, 2-3 minutes later the site is live. We use Amplify for all our products for this reason.
+
+## What Claude Code contributed
+
+The development process was almost entirely Claude Code-assisted. Not Claude-generated — Claude-assisted. The distinction matters.
+
+We didn't prompt Claude to "build a website" and paste the output. We drove the architecture and design decisions, and used Claude to write the implementation of those decisions. The difference in quality between those two approaches is significant enough that we talk about it in the methodology.
+
+The solar system was the hardest part. Getting physically plausible orbital mechanics in Three.js, managing the camera and interaction layer, building the venture panel overlay that appears on planet click — that took several iterative passes. Claude wrote the Three.js geometry and physics, we drove the iteration on what felt right.
+
+The journal system — MDX parsing, frontmatter extraction, reading time calculation, static path generation — Claude wrote the lib functions. We specified the data shape and the API surface. The split is: we designed it, Claude built it.
+
+## Design system
+
+There's no Figma file for this site. The design system exists in `tailwind.config.ts`: a handful of custom colours, a spacing scale, three text gradient utilities, and a set of animation keyframes.
+
+The aesthetic — dark background, orange accent, JetBrains Mono for data readouts, Space Grotesk for prose — came from a brief we wrote in plain text. "Terminal meets product. Precise. Not trying to be SaaS." Claude translated that into a working colour system and spacing scale in one pass.
+
+The HUD telemetry elements — the `SIGNAL: LIVE` indicators, the coordinate readouts, the build stamps — were an idea that came from wanting the site to feel like the kind of thing that runs in a datacentre, not a brochure. They're cosmetic, but they carry signal about what kind of company Construx is.
+
+## What worked
+
+The solar system homepage. Most people who see it have a reaction, which is the point. It gives the site a distinctive character and makes the venture metaphor — an orbit of products — concrete and spatial.
+
+The journal. Starting the site with a journal that documents real build decisions gives the site something that most company sites don't have: a record of thinking. People can form a view on how we approach problems, not just what we've built.
+
+The MDX architecture. The decision to store content as files in the repo means the journal is versioned with the code. There's no CMS to maintain, no API calls for content, no external dependency. The journal builds to static HTML.
+
+## The one decision we'd change
+
+We built the solar system as a client component with no fallback below a certain viewport. On smaller screens it falls back to a cards layout, which is fine, but the transition isn't perfectly smooth. If we were doing it again, we'd design the mobile experience first and treat the 3D scene as a progressive enhancement from the start rather than adapting it retroactively.
+
+The technical challenge is that Three.js scenes and React server components have an inherent tension: the scene needs to run in the browser, but the venture data lives on the server. We solved it with a loader component that handles the client/server boundary, but the seam is more visible than it should be.
+
+That's a known issue, not a blocker. The fix is a straightforward refactor of the mobile layout. It'll get done in the next pass.
+
+## Deployment
+
+The site deploys to AWS Amplify. The Amplify build runs `next build` and outputs a static export. Environment variables — site URL, analytics keys, email API key — are set in the Amplify console.
+
+The whole build is under 3 minutes from push to live. Given that we often ship 5-10 commits on a build day, that turnaround matters.
+
+Time from first commit to first deploy: 4 days.

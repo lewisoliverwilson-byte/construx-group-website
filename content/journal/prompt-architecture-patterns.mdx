@@ -1,0 +1,92 @@
+---
+title: "Prompt architecture patterns we use across every Construx product"
+date: "2026-06-06"
+excerpt: "After building three products with Claude at the core, certain patterns have emerged as load-bearing. Here's what we've converged on and why."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+We've built three products with Claude as the primary engine. They're different in what they do — resell intelligence, a professional marketplace, a team workspace — but at the prompt architecture level, they share a surprising amount. Certain patterns came up independently in each product and turned out to be non-negotiable. Others seemed like they'd matter but didn't.
+
+Here's what actually held up across all three.
+
+## The role declaration is load-bearing
+
+Every Claude system prompt we use starts with an explicit role declaration. Not a vague one — a specific one.
+
+Not: "You are an AI assistant that helps with resell research."
+
+But: "You are a resell intelligence analyst specialised in retail arbitrage. Your job is to evaluate products for their profit potential on Amazon and eBay after all platform fees and shipping costs. You're working with a URL containing products that a reseller wants to evaluate."
+
+The specificity matters because it shapes Claude's defaults before a single token of the actual task arrives. A vague role declaration means Claude has to infer domain context from the task itself, which is slower and more likely to apply the wrong defaults. A specific role declaration pre-loads the relevant frame.
+
+Across Scoutr, The Marqet, and The Hyve, we've found that investing 3-4 sentences in a precise role declaration recovers more quality than any other single change to a prompt.
+
+## Output schema in the prompt, not just the API call
+
+When we need structured output — JSON objects, markdown tables, formatted reports — we specify the schema in the prompt body in addition to any API-level structured output enforcement.
+
+The reason: Claude performs better when it understands the schema as part of the semantic task, not just as a format constraint. A prompt that says "return a JSON object with these fields: ..." produces more semantically coherent responses than a prompt that's silent on structure and relies solely on API enforcement to shape the output.
+
+This has been especially true for Scoutr, where the output schema carries semantic meaning. The difference between `profit_after_fees` and `profit_before_fees` fields is a meaning distinction as much as a format distinction. Making it explicit in the prompt body catches interpretation errors that format enforcement alone doesn't.
+
+## Explicit failure modes
+
+Every prompt we write includes explicit instructions for what Claude should do when the task can't be completed as specified.
+
+For Scoutr: "If you cannot find products with clear price information, return an empty products array. Do not estimate prices that aren't present on the page."
+
+For The Hyve's AI team member: "If the retrieved context doesn't answer the question, say so explicitly. Don't synthesise an answer from context that isn't relevant."
+
+The reason this matters: Claude defaults to being helpful. In most contexts that's great. In product contexts, helpfulness that invents answers or estimates values that should be grounded is worse than a clear "I can't do that here." We've had to debug production issues caused by Claude completing tasks it should have declined. Every such issue was fixed by making the failure mode explicit.
+
+## Tone instructions at the end, not the beginning
+
+Our early prompts put tone instructions at the start. "Be concise. Be professional." We moved them to the end after noticing it made no difference where they were in terms of following — but it made a difference in how much the role declaration "stuck."
+
+The theory: tone instructions are processing instructions, not context. They don't contribute to the semantic frame the way a role declaration does. Putting them at the start dilutes the role signal. Putting them at the end keeps the semantic setup clean.
+
+We now use a consistent closing block across all products:
+
+```
+Tone: precise and specific. No padding. No restating the question. Lead with the answer.
+Length: match the complexity of the task. Short answers for simple lookups, structured responses for complex analysis.
+```
+
+The explicit "lead with the answer" instruction has had the largest effect of any tone instruction we've tried. It removes the verbal wind-up that often precedes useful content.
+
+## Contextual injection pattern
+
+All three products inject context at different points in the conversation flow. Scoutr injects the scraped product data. The Hyve injects retrieved project history. The Marqet injects the listing category context.
+
+The pattern we've converged on: injected context goes in a clearly delimited block between the system prompt and the user message. We use a simple convention:
+
+```
+<context>
+{injected_content}
+</context>
+```
+
+The explicit delimiters do two things. They tell Claude where the injected context starts and ends, which improves how reliably it's treated as background context rather than as instruction. And they make the prompt template easy to inspect — injected content is never mixed with instructions.
+
+We tried several delimiter conventions before settling on XML-style tags. Named XML tags outperformed triple-backtick blocks and markdown sections in our informal testing across Scoutr's product data injection.
+
+## Temperature calibration by task type
+
+We use different temperature settings across different product contexts:
+
+**Low temperature (0.1–0.3):** Scoutr's product analysis, any calculation that needs a specific answer, structured data extraction. Low temperature produces more consistent outputs when the task is lookup or calculation.
+
+**Medium temperature (0.5–0.7):** The Hyve's general responses, conversational interactions. Medium temperature allows Claude to produce varied, natural responses without drifting.
+
+**Default (1.0):** The Marqet's listing generation during the content pipeline. For creative/generative tasks where we want Claude to find varied approaches, the default or slightly above produces better output diversity than lowering it.
+
+The pattern: temperature should reflect the nature of the task, not just a default setting. Products that mix task types (like The Hyve) use different settings for different calls rather than one global setting.
+
+## What hasn't mattered as much as expected
+
+Chain-of-thought prompting ("Let's think step by step") improved accuracy on some tasks but not others. We no longer add it by default — we add it when we see a specific reasoning error that it corrects.
+
+Prompt length. Longer prompts don't consistently outperform shorter ones. A well-structured 200-token prompt often outperforms a diffuse 800-token one. We've stopped adding content to prompts unless there's a specific output quality gap it closes.
+
+Few-shot examples. More examples don't always help. For Scoutr, 2-3 input/output examples produced as good results as 8-10. For content generation tasks (The Marqet), 3-4 high-quality examples outperformed 10 average-quality ones. The marginal return on examples drops quickly. Invest in example quality over quantity.
