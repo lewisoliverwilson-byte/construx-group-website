@@ -31,9 +31,9 @@ const variants = {
 };
 
 const sizes = {
-  sm: 'text-sm px-4 py-2 rounded-lg',
-  md: 'text-sm px-5 py-2.5 rounded-xl',
-  lg: 'text-base px-7 py-3.5 rounded-xl',
+  sm: 'font-mono text-xs px-4 py-2 uppercase tracking-wider',
+  md: 'font-mono text-xs px-5 py-2.5 uppercase tracking-wider',
+  lg: 'font-mono text-sm px-7 py-3.5 uppercase tracking-wider',
 };
 
 export default function Button({

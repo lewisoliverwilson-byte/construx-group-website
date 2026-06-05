@@ -122,10 +122,11 @@ export default async function VenturePage({ params }: Props) {
                 href={venture.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-black transition-all hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-semibold text-black transition-all hover:scale-[1.02] uppercase tracking-wider"
                 style={{
                   backgroundColor: venture.accent,
                   boxShadow: `0 0 24px ${venture.accent}44`,
+                  borderRadius: '3px',
                 }}
               >
                 Visit {venture.name} <ArrowUpRight size={15} />
@@ -133,14 +134,16 @@ export default async function VenturePage({ params }: Props) {
             ) : (
               <Link
                 href="/contact"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)]"
+                className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] uppercase tracking-wider"
+              style={{ borderRadius: '3px' }}
               >
                 Get early access <ChevronRight size={15} />
               </Link>
             )}
             <Link
               href="/contact"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx/40 transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx/40 transition-all uppercase tracking-wider"
+              style={{ borderRadius: '3px' }}
             >
               Get in touch
             </Link>
@@ -281,8 +284,8 @@ export default async function VenturePage({ params }: Props) {
                 <Link
                   key={v.id}
                   href={`/ventures/${v.slug}`}
-                  className="group flex items-center gap-4 px-5 py-4 rounded-2xl transition-all bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
-                  style={{ border: `1px solid ${v.accent}18` }}
+                  className="group flex items-center gap-4 px-5 py-4 transition-all bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
+                  style={{ border: `1px solid ${v.accent}18`, borderRadius: '3px' }}
                 >
                   <div
                     className="h-10 w-10 rounded-full flex-shrink-0"

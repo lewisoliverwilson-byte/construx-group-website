@@ -131,7 +131,7 @@ export default function Nav() {
                       <Link
                         href={href}
                         className={cn(
-                          'flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all',
+                          'flex items-center px-4 py-3 font-mono text-sm font-medium transition-all uppercase tracking-wider',
                           active
                             ? 'text-construx bg-construx-dim'
                             : 'text-text-muted hover:text-text-base hover:bg-subtle'

@@ -79,7 +79,8 @@ export default function WorkWithUsPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/contact"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_24px_rgba(249,115,22,0.3)] hover:shadow-[0_0_40px_rgba(249,115,22,0.5)] hover:scale-[1.02]"
+              className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_24px_rgba(249,115,22,0.3)] hover:shadow-[0_0_40px_rgba(249,115,22,0.5)] hover:scale-[1.02] uppercase tracking-wider"
+              style={{ borderRadius: '3px' }}
             >
               Start the conversation <ArrowRight size={14} />
             </Link>
@@ -96,15 +97,16 @@ export default function WorkWithUsPage() {
           {capabilities.map(({ icon: Icon, title, body, accent }) => (
             <div
               key={title}
-              className="rounded-2xl p-6 flex flex-col gap-4"
+              className="p-6 flex flex-col gap-4"
               style={{
                 background: 'rgba(5,5,18,0.88)',
                 border: `1px solid ${accent}18`,
+                borderRadius: '3px',
               }}
             >
               <div
-                className="h-10 w-10 rounded-xl flex items-center justify-center"
-                style={{ background: `${accent}14`, color: accent }}
+                className="h-10 w-10 flex items-center justify-center"
+                style={{ background: `${accent}14`, color: accent, borderRadius: '3px' }}
               >
                 <Icon size={18} />
               </div>
@@ -117,9 +119,12 @@ export default function WorkWithUsPage() {
 
       {/* How it works */}
       <section className="px-5 py-12 pb-20 mx-auto max-w-4xl border-t border-border">
-        <h2 className="text-heading-xl text-text-base mb-12">
-          How an engagement works
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-10">
+          // HOW IT WORKS
         </h2>
+        <h3 className="text-heading-xl text-text-base mb-10">
+          How an engagement works
+        </h3>
         <div className="flex flex-col gap-0">
           {process.map((p, i) => (
             <div key={p.step} className="relative flex gap-7 pb-12 last:pb-0">
@@ -128,8 +133,8 @@ export default function WorkWithUsPage() {
               )}
               <div className="flex-shrink-0">
                 <div
-                  className="h-10 w-10 rounded-xl flex items-center justify-center text-xs font-bold text-construx"
-                  style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.22)' }}
+                  className="h-10 w-10 flex items-center justify-center font-mono text-xs font-bold text-construx"
+                  style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.22)', borderRadius: '3px' }}
                 >
                   {p.step}
                 </div>
@@ -242,7 +247,8 @@ export default function WorkWithUsPage() {
         </p>
         <Link
           href="/contact"
-          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02]"
+          className="inline-flex items-center gap-2 px-7 py-3.5 font-mono text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02] uppercase tracking-wider"
+          style={{ borderRadius: '3px' }}
         >
           Get in touch <ArrowRight size={16} />
         </Link>

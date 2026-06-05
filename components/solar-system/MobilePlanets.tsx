@@ -14,11 +14,12 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: 0.6, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-      className="relative rounded-2xl overflow-hidden"
+      className="relative overflow-hidden"
       style={{
         background: 'rgba(5,5,18,0.88)',
         border: `1px solid ${venture.accent}22`,
         boxShadow: `0 0 40px ${venture.accent}10`,
+        borderRadius: '3px',
       }}
     >
       {/* Accent stripe */}
@@ -41,8 +42,8 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={venture.status} />
               <span
-                className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded"
-                style={{ color: venture.accent, background: `${venture.accent}14` }}
+                className="font-mono text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5"
+                style={{ color: venture.accent, background: `${venture.accent}14`, border: `1px solid ${venture.accent}20`, borderRadius: '2px' }}
               >
                 {venture.category}
               </span>
@@ -63,15 +64,16 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
               href={venture.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-black transition-all hover:scale-[1.02]"
-              style={{ backgroundColor: venture.accent, boxShadow: `0 0 16px ${venture.accent}44` }}
+              className="flex items-center gap-1.5 px-4 py-2 font-mono text-xs font-semibold text-black transition-all hover:scale-[1.02] uppercase tracking-wider"
+              style={{ backgroundColor: venture.accent, boxShadow: `0 0 16px ${venture.accent}44`, borderRadius: '3px' }}
             >
               Visit Site <ArrowUpRight size={14} />
             </a>
           ) : null}
           <Link
             href={`/ventures/${venture.slug}`}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-text-muted border border-border hover:border-border-bright hover:text-text-base transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 font-mono text-xs font-medium text-text-muted border border-border hover:border-border-bright hover:text-text-base transition-all uppercase tracking-wider"
+            style={{ borderRadius: '3px' }}
           >
             Learn More
           </Link>
@@ -109,8 +111,8 @@ export default function MobilePlanets() {
               }}
             />
           ))}
-          <p className="text-center text-xs font-semibold text-text-dim mt-6 tracking-widest uppercase">
-            Construx Group
+          <p className="text-center font-mono text-[9px] text-text-dim mt-6 tracking-[0.3em] uppercase">
+            CONSTRUX.GROUP
           </p>
         </div>
       </motion.div>
@@ -131,8 +133,8 @@ export default function MobilePlanets() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="relative rounded-2xl overflow-hidden border border-border px-6 py-5"
-          style={{ background: 'rgba(5,5,18,0.5)' }}
+          className="relative overflow-hidden border border-border px-6 py-5"
+          style={{ background: 'rgba(5,5,18,0.5)', borderRadius: '3px' }}
         >
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
@@ -145,8 +147,8 @@ export default function MobilePlanets() {
               ))}
             </div>
             <div>
-              <p className="text-sm font-semibold text-text-muted">More in incubation</p>
-              <p className="text-xs text-text-dim">New ventures orbiting into view</p>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-text-muted">More in incubation</p>
+              <p className="font-mono text-[9px] uppercase tracking-widest text-text-dim opacity-60 mt-0.5">Orbiting into view</p>
             </div>
           </div>
         </motion.div>

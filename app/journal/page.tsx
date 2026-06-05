@@ -36,8 +36,8 @@ export default function JournalPage() {
       <section className="px-5 py-20 mx-auto max-w-3xl">
         {posts.length === 0 ? (
           <div
-            className="rounded-2xl px-8 py-12 text-center"
-            style={{ background: 'rgba(5,5,18,0.5)', border: '1px dashed rgba(255,255,255,0.07)' }}
+            className="px-8 py-12 text-center"
+            style={{ background: 'rgba(5,5,18,0.5)', border: '1px dashed rgba(255,255,255,0.07)', borderRadius: '3px' }}
           >
             <p className="text-text-dim">First post incoming.</p>
           </div>

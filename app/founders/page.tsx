@@ -50,11 +50,12 @@ export default function FoundersPage() {
           {founders.map((f) => (
             <article
               key={f.name}
-              className="rounded-2xl overflow-hidden"
+              className="overflow-hidden"
               style={{
                 background: 'rgba(5,5,18,0.88)',
                 border: `1px solid ${f.accent}20`,
                 boxShadow: `0 0 40px ${f.accent}08`,
+                borderRadius: '3px',
               }}
             >
               <div
@@ -66,11 +67,12 @@ export default function FoundersPage() {
                 {/* Avatar placeholder */}
                 <div className="mb-6">
                   <div
-                    className="h-20 w-20 rounded-2xl flex items-center justify-center text-2xl font-bold"
+                    className="h-20 w-20 flex items-center justify-center text-2xl font-bold"
                     style={{
                       background: `radial-gradient(circle at 30% 30%, ${f.accent}55, ${f.accent}11)`,
                       border: `1px solid ${f.accent}28`,
                       color: f.accent,
+                      borderRadius: '3px',
                     }}
                   >
                     {f.name.charAt(0)}
@@ -114,10 +116,11 @@ export default function FoundersPage() {
 
         {/* Origin story */}
         <div
-          className="mt-16 rounded-2xl p-10"
+          className="mt-16 p-10"
           style={{
             background: 'rgba(5,5,18,0.8)',
             border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: '3px',
           }}
         >
           <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
@@ -144,7 +147,8 @@ export default function FoundersPage() {
         <div className="mt-12 text-center">
           <Link
             href="/work-with-us"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)]"
+            className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] uppercase tracking-wider"
+            style={{ borderRadius: '3px' }}
           >
             Work with us <ArrowRight size={14} />
           </Link>

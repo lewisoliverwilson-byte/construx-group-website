@@ -190,8 +190,8 @@ export default function ContactPage() {
 
               {status === 'error' && (
                 <div
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm text-red-400"
-                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
+                  className="flex items-center gap-2 px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-red-400"
+                  style={{ borderRadius: '2px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
                 >
                   <AlertCircle size={14} />
                   Something went wrong. Try again or email us directly.

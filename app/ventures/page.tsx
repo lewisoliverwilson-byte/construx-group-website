@@ -34,18 +34,19 @@ export default function VenturesPage() {
 
       {/* Live ventures */}
       <section className="relative px-5 pb-8 mx-auto max-w-6xl">
-        <h2 className="text-xs font-semibold tracking-[0.28em] uppercase text-text-dim mb-6">
-          Live
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
+          // LIVE
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {live.map((v) => (
             <article
               key={v.id}
-              className="group relative rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.015]"
+              className="group relative overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.015]"
               style={{
                 background: 'rgba(5,5,18,0.88)',
                 border: `1px solid ${v.accent}20`,
                 boxShadow: `0 0 40px ${v.accent}08`,
+                borderRadius: '3px',
               }}
             >
               {/* Top accent bar */}
@@ -71,8 +72,8 @@ export default function VenturesPage() {
                     <div className="flex items-center gap-2 mt-1">
                       <StatusBadge status={v.status} />
                       <span
-                        className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded"
-                        style={{ color: v.accent, background: `${v.accent}14` }}
+                        className="font-mono text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5"
+                        style={{ color: v.accent, background: `${v.accent}14`, border: `1px solid ${v.accent}20`, borderRadius: '2px' }}
                       >
                         {v.category}
                       </span>
@@ -112,10 +113,11 @@ export default function VenturesPage() {
                       href={v.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-black transition-all hover:scale-[1.03]"
+                      className="flex items-center gap-1.5 px-4 py-2 font-mono text-xs font-semibold text-black transition-all hover:scale-[1.03] uppercase tracking-wider"
                       style={{
                         backgroundColor: v.accent,
                         boxShadow: `0 0 16px ${v.accent}44`,
+                        borderRadius: '3px',
                       }}
                     >
                       Visit Site <ArrowUpRight size={13} />
@@ -137,18 +139,19 @@ export default function VenturesPage() {
       {/* Other / coming soon */}
       {other.length > 0 && (
         <section className="relative px-5 py-8 mx-auto max-w-6xl">
-          <h2 className="text-xs font-semibold tracking-[0.28em] uppercase text-text-dim mb-6">
-            Coming soon
+          <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
+            // COMING SOON
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {other.map((v) => (
               <Link
                 key={v.id}
                 href={`/ventures/${v.slug}`}
-                className="group relative rounded-2xl overflow-hidden transition-all duration-200 hover:border-border-bright"
+                className="group relative overflow-hidden transition-all duration-200 hover:border-border-bright"
                 style={{
                   background: 'rgba(5,5,18,0.5)',
                   border: '1px dashed rgba(255,255,255,0.08)',
+                  borderRadius: '3px',
                 }}
               >
                 <div className="p-7 flex items-center gap-4">
@@ -174,14 +177,15 @@ export default function VenturesPage() {
 
       {/* Incubation teaser */}
       <section className="relative px-5 pb-28 mx-auto max-w-6xl">
-        <h2 className="text-xs font-semibold tracking-[0.28em] uppercase text-text-dim mb-6">
-          In Incubation
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
+          // IN INCUBATION
         </h2>
         <div
-          className="rounded-2xl px-8 py-8 flex flex-col sm:flex-row items-start sm:items-center gap-6"
+          className="px-8 py-8 flex flex-col sm:flex-row items-start sm:items-center gap-6"
           style={{
             background: 'rgba(5,5,18,0.5)',
             border: '1px dashed rgba(255,255,255,0.07)',
+            borderRadius: '3px',
           }}
         >
           <div className="flex -space-x-3">
@@ -194,18 +198,18 @@ export default function VenturesPage() {
             ))}
           </div>
           <div>
-            <p className="text-sm font-semibold text-text-muted">
-              More ventures are in the asteroid belt.
+            <p className="font-mono text-[10px] uppercase tracking-widest text-text-muted">
+              More ventures in the asteroid belt.
             </p>
-            <p className="text-xs text-text-dim mt-1">
-              Each one orbiting into view when it's ready. Follow the journal for first looks.
+            <p className="font-mono text-[9px] uppercase tracking-widest text-text-dim opacity-60 mt-1">
+              Orbiting into view when ready.
             </p>
           </div>
           <Link
             href="/journal"
-            className="flex-shrink-0 flex items-center gap-1.5 text-sm text-construx hover:text-orange-400 transition-colors font-medium"
+            className="flex-shrink-0 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-construx hover:text-orange-400 transition-colors"
           >
-            Journal <ChevronRight size={14} />
+            Journal <ChevronRight size={12} />
           </Link>
         </div>
       </section>

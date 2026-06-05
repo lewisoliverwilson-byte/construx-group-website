@@ -73,10 +73,11 @@ export default function ManifestoPage() {
                 {/* Number */}
                 <div className="flex-shrink-0 pt-1">
                   <div
-                    className="h-10 w-10 rounded-xl flex items-center justify-center text-xs font-bold text-construx"
+                    className="h-10 w-10 flex items-center justify-center font-mono text-xs font-bold text-construx"
                     style={{
                       background: 'rgba(249,115,22,0.08)',
                       border: '1px solid rgba(249,115,22,0.2)',
+                      borderRadius: '3px',
                     }}
                   >
                     {s.number}
@@ -104,10 +105,11 @@ export default function ManifestoPage() {
 
         {/* Sign-off */}
         <div
-          className="rounded-2xl px-8 py-8 mt-4"
+          className="px-8 py-8 mt-4"
           style={{
             background: 'rgba(5,5,18,0.8)',
             border: '1px solid rgba(249,115,22,0.18)',
+            borderRadius: '3px',
           }}
         >
           <p className="text-text-muted leading-relaxed mb-4">
@@ -117,13 +119,15 @@ export default function ManifestoPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/contact"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)]"
+              className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] uppercase tracking-wider"
+              style={{ borderRadius: '3px' }}
             >
               Get in touch <ArrowRight size={14} />
             </Link>
             <Link
               href="/founders"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all uppercase tracking-wider"
+              style={{ borderRadius: '3px' }}
             >
               Meet the founders
             </Link>

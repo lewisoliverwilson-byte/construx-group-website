@@ -109,13 +109,15 @@ export default function HomePage() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   href="/manifesto"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)]"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)]"
+                  style={{ borderRadius: '3px' }}
                 >
                   Read the manifesto <ArrowRight size={15} />
                 </Link>
                 <Link
                   href="/work-with-us"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all"
+                  style={{ borderRadius: '3px' }}
                 >
                   Work with us
                 </Link>
@@ -128,10 +130,10 @@ export default function HomePage() {
                 <Link
                   key={v.id}
                   href={`/ventures/${v.slug}`}
-                  className="group relative flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-200 bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
+                  className="group relative flex items-center gap-4 px-5 py-4 transition-all duration-200 bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
                   style={{
-                    border: `1px solid ${v.accent}1A`,
-                    animationDelay: `${i * 80}ms`,
+                    border: `1px solid ${v.accent}18`,
+                    borderRadius: '3px',
                   }}
                 >
                   <div
@@ -161,8 +163,8 @@ export default function HomePage() {
                 </Link>
               ))}
               <div
-                className="flex items-center gap-4 px-5 py-4 rounded-2xl"
-                style={{ background: 'rgba(5,5,18,0.35)', border: '1px dashed rgba(255,255,255,0.07)' }}
+                className="flex items-center gap-4 px-5 py-4"
+                style={{ background: 'rgba(5,5,18,0.35)', border: '1px dashed rgba(255,255,255,0.07)', borderRadius: '3px' }}
               >
                 <div className="flex -space-x-1.5">
                   {[0.3, 0.2, 0.12].map((o, i) => (
@@ -174,8 +176,8 @@ export default function HomePage() {
                   ))}
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-text-dim">More ventures in incubation</p>
-                  <p className="text-xs text-text-dim opacity-60">Entering orbit soon</p>
+                  <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">More ventures in incubation</p>
+                  <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest opacity-60">Entering orbit soon</p>
                 </div>
               </div>
             </div>
@@ -213,7 +215,8 @@ export default function HomePage() {
           </p>
           <Link
             href="/contact"
-            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-base font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 px-7 py-3.5 text-base font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02]"
+            style={{ borderRadius: '3px' }}
           >
             Get in touch <ArrowRight size={16} />
           </Link>
