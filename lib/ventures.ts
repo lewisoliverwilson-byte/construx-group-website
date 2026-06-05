@@ -21,6 +21,7 @@ export interface Venture {
   category: string;
   stats: VentureStat[];
   features: string[];
+  journalSlugs?: string[];
 }
 
 export const ventures: Venture[] = [
@@ -54,6 +55,7 @@ export const ventures: Venture[] = [
       'Claude-powered product classification',
       'Works across retail, wholesale, and clearance pages',
     ],
+    journalSlugs: ['building-scoutr', 'portfolio-model'],
   },
   {
     id: 'the-marqet',
@@ -85,6 +87,7 @@ export const ventures: Venture[] = [
       'New listings added weekly',
       'Built exclusively for Claude Projects',
     ],
+    journalSlugs: ['the-marqet-167-listings', 'portfolio-model'],
   },
   {
     id: 'the-hyve',
@@ -116,6 +119,7 @@ export const ventures: Venture[] = [
       'First-class AI team member — not a chatbot, a colleague',
       'Replaces Slack, Notion, GitHub discussions, and Discord in one tab',
     ],
+    journalSlugs: ['building-the-hyve', 'portfolio-model'],
   },
 ];
 

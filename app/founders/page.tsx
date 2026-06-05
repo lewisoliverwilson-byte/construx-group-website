@@ -146,13 +146,20 @@ export default function FoundersPage() {
         </div>
 
         {/* CTA */}
-        <div className="mt-12 text-center">
+        <div className="mt-12 flex flex-wrap justify-center gap-3">
           <Link
             href="/work-with-us"
             className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] uppercase tracking-wider"
             style={{ borderRadius: '3px' }}
           >
             Work with us <ArrowRight size={14} />
+          </Link>
+          <Link
+            href="/manifesto"
+            className="inline-flex items-center gap-2 px-6 py-3 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all uppercase tracking-wider"
+            style={{ borderRadius: '3px' }}
+          >
+            Read the manifesto
           </Link>
         </div>
       </section>

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowUpRight, ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpRight, ArrowLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { ventures, getVentureBySlug } from '@/lib/ventures';
+import { getAllPostMeta } from '@/lib/posts';
+import { formatDate } from '@/lib/utils';
 import StatusBadge from '@/components/ui/StatusBadge';
 
 interface Props {
@@ -29,6 +31,11 @@ export default async function VenturePage({ params }: Props) {
   if (!venture) notFound();
 
   const others = ventures.filter((v) => v.id !== venture.id).slice(0, 2);
+
+  const allPosts = getAllPostMeta();
+  const relatedPosts = (venture.journalSlugs ?? [])
+    .map((slug) => allPosts.find((p) => p.slug === slug))
+    .filter(Boolean) as (typeof allPosts)[number][];
 
   return (
     <div className="min-h-screen">
@@ -279,6 +286,55 @@ export default async function VenturePage({ params }: Props) {
             </Link>
           </div>
         </div>
+
+        {/* Related journal posts */}
+        {relatedPosts.length > 0 && (
+          <div className="mt-16 pt-12 border-t border-border">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-text-dim">
+                // FROM THE JOURNAL
+              </h2>
+              <Link
+                href="/journal"
+                className="font-mono text-[10px] text-construx hover:text-orange-400 transition-colors uppercase tracking-widest flex items-center gap-1"
+              >
+                All posts <ChevronRight size={11} />
+              </Link>
+            </div>
+            <div className="flex flex-col gap-1">
+              {relatedPosts.map((post) => (
+                <Link
+                  key={post.slug}
+                  href={`/journal/${post.slug}`}
+                  className="group flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 px-5 py-4 transition-all hover:bg-subtle border border-transparent hover:border-construx/15"
+                  style={{ borderRadius: '3px', background: 'rgba(5,5,18,0.5)' }}
+                >
+                  <div className="flex items-center gap-2 sm:w-40 flex-shrink-0">
+                    <BookOpen size={11} className="text-text-dim flex-shrink-0" />
+                    <time dateTime={post.date} className="font-mono text-[10px] text-text-dim tabular-nums">
+                      {formatDate(post.date)}
+                    </time>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span
+                        className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+                        style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '2px' }}
+                      >
+                        {post.tag}
+                      </span>
+                      <span className="font-mono text-[10px] text-text-dim">{post.readingTime} min read</span>
+                    </div>
+                    <p className="text-sm font-semibold text-text-base group-hover:text-text-base transition-colors leading-snug">
+                      {post.title}
+                    </p>
+                  </div>
+                  <ChevronRight size={13} className="flex-shrink-0 text-text-dim group-hover:text-text-muted group-hover:translate-x-0.5 transition-all" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Other ventures */}
         {others.length > 0 && (
