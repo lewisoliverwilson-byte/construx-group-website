@@ -39,6 +39,11 @@ export default async function VenturePage({ params }: Props) {
           background: `radial-gradient(ellipse 80% 60% at 50% -5%, ${venture.accent}14, transparent 65%), #000008`,
         }}
       >
+        {/* Top accent stripe */}
+        <div
+          className="absolute inset-x-0 top-0 h-px pointer-events-none"
+          style={{ background: `linear-gradient(90deg, transparent, ${venture.accent}, transparent)` }}
+        />
         {/* Grid */}
         <div
           className="absolute inset-0 pointer-events-none"

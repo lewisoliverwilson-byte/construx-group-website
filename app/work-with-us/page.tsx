@@ -192,7 +192,7 @@ export default function WorkWithUsPage() {
               {/* Corner accent */}
               <div
                 className="h-px w-full mb-5"
-                style={{ background: `linear-gradient(90deg, ${item.accent}, transparent)` }}
+                style={{ background: `linear-gradient(90deg, transparent, ${item.accent}, transparent)` }}
               />
               <div className="flex items-center gap-3 mb-4">
                 <div
@@ -238,6 +238,9 @@ export default function WorkWithUsPage() {
 
       {/* CTA */}
       <section className="px-5 py-24 text-center mx-auto max-w-2xl">
+        <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4">
+          // ENGAGE
+        </p>
         <h2 className="text-display-sm text-text-base mb-5">
           Ready to build something?
         </h2>
