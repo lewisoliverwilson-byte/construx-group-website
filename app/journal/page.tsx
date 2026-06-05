@@ -45,15 +45,19 @@ export default function JournalPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-4 animate-fade-up" style={{ animationDelay: '440ms' }}>
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="font-mono text-[9px] font-medium px-2.5 py-1 text-text-dim uppercase tracking-widest"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px' }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                  {tags.map((tag) => {
+                    const count = posts.filter((p) => p.tag === tag).length;
+                    return (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1.5 font-mono text-[9px] font-medium px-2.5 py-1 text-text-dim uppercase tracking-widest"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px' }}
+                      >
+                        {tag}
+                        <span className="text-construx/60">{count}</span>
+                      </span>
+                    );
+                  })}
                 </div>
               </>
             );
@@ -79,12 +83,17 @@ export default function JournalPage() {
                 className={`group relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7 px-6 py-5 transition-all hover:bg-subtle border border-transparent hover:border-construx/20${i % 2 === 0 ? ' bg-[rgba(5,5,18,0.6)]' : ''}`}
                 style={{ borderRadius: '3px' }}
               >
-                <time
-                  dateTime={post.date}
-                  className="font-mono text-[10px] text-text-dim tabular-nums flex-shrink-0 sm:w-32"
-                >
-                  {fd(post.date)}
-                </time>
+                <div className="flex items-center gap-4 flex-shrink-0 sm:w-44">
+                  <span className="font-mono text-[9px] text-construx/40 tabular-nums w-6 text-right flex-shrink-0">
+                    #{String(posts.length - i).padStart(3, '0')}
+                  </span>
+                  <time
+                    dateTime={post.date}
+                    className="font-mono text-[10px] text-text-dim tabular-nums"
+                  >
+                    {fd(post.date)}
+                  </time>
+                </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
