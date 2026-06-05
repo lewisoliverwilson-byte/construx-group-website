@@ -104,16 +104,17 @@ export default function ContactPage() {
             className="px-8 py-12 text-center"
             style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '3px' }}
           >
-            <CheckCircle className="mx-auto mb-4 text-emerald-400" size={36} />
+            <CheckCircle className="mx-auto mb-5 text-emerald-400" size={32} />
+            <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-emerald-400 mb-3">TRANSMISSION.OK</p>
             <h2 className="text-lg font-bold text-text-base mb-3">Message sent.</h2>
             <p className="text-sm text-text-muted leading-relaxed">
               We've received your message and will get back to you shortly.
             </p>
             <button
               onClick={() => setStatus('idle')}
-              className="mt-6 text-xs text-construx hover:text-orange-400 transition-colors"
+              className="mt-6 font-mono text-[10px] uppercase tracking-widest text-construx hover:text-orange-400 transition-colors"
             >
-              Send another →
+              Send another ›
             </button>
           </div>
         ) : (

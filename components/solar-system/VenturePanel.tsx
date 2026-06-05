@@ -194,7 +194,7 @@ export default function VenturePanel({ venture, onClose }: Props) {
                   href={venture.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-black transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 font-mono text-xs font-semibold text-black transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wider"
                   style={{
                     backgroundColor: venture.accent,
                     borderRadius: '3px',

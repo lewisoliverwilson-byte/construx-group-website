@@ -125,9 +125,9 @@ export default function VenturesPage() {
                   )}
                   <Link
                     href={`/ventures/${v.slug}`}
-                    className="flex items-center gap-1 text-sm text-text-dim hover:text-text-muted transition-colors"
+                    className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-text-dim hover:text-text-muted transition-colors"
                   >
-                    Learn more <ChevronRight size={13} />
+                    Full details <ChevronRight size={12} />
                   </Link>
                 </div>
               </div>

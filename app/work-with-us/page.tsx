@@ -119,7 +119,7 @@ export default function WorkWithUsPage() {
 
       {/* How it works */}
       <section className="px-5 py-12 pb-20 mx-auto max-w-4xl border-t border-border">
-        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-10">
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-3">
           // HOW IT WORKS
         </h2>
         <h3 className="text-heading-xl text-text-base mb-10">

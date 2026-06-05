@@ -41,22 +41,23 @@ export default function DragHint() {
         >
           <button
             onClick={dismiss}
-            className="flex items-center gap-3 px-5 py-3 rounded-full text-xs font-medium text-text-muted cursor-pointer select-none hover:text-text-base transition-colors"
+            className="flex items-center gap-3 px-5 py-2.5 font-mono text-[9px] uppercase tracking-widest text-text-muted cursor-pointer select-none hover:text-text-base transition-colors"
             style={{
-              background: 'rgba(5,5,18,0.82)',
+              background: 'rgba(5,5,18,0.88)',
               backdropFilter: 'blur(16px)',
               border: '1px solid rgba(255,255,255,0.09)',
               boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+              borderRadius: '3px',
             }}
             aria-label="Dismiss hint"
           >
-            <MousePointer2 size={13} className="text-construx" />
-            <span>Drag to explore</span>
-            <span className="text-text-dim">·</span>
-            <ZoomIn size={13} className="text-construx" />
-            <span>Scroll to zoom</span>
-            <span className="text-text-dim">·</span>
-            <span>Click a planet</span>
+            <MousePointer2 size={12} className="text-construx" />
+            <span>Drag</span>
+            <span className="text-text-dim opacity-40">·</span>
+            <ZoomIn size={12} className="text-construx" />
+            <span>Zoom</span>
+            <span className="text-text-dim opacity-40">·</span>
+            <span>Click planet</span>
           </button>
         </motion.div>
       )}
