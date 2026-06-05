@@ -165,12 +165,20 @@ export default function ContactPage() {
 
               {/* Message */}
               <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="message"
-                  className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim"
-                >
-                  Message
-                </label>
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="message"
+                    className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim"
+                  >
+                    Message
+                  </label>
+                  <span
+                    className="font-mono text-[9px] tabular-nums uppercase tracking-widest"
+                    style={{ color: form.message.length < 20 ? 'rgba(240,239,255,0.2)' : 'rgba(249,115,22,0.5)' }}
+                  >
+                    {String(form.message.length).padStart(4, '0')} CHR
+                  </span>
+                </div>
                 <textarea
                   id="message"
                   rows={6}
