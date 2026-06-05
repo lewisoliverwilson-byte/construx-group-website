@@ -4,6 +4,7 @@ import './globals.css';
 import Nav from '@/components/nav/Nav';
 import Footer from '@/components/footer/Footer';
 import PostHogProvider from '@/components/PostHogProvider';
+import ConsoleGreeting from '@/components/ConsoleGreeting';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <PostHogProvider>
+          <ConsoleGreeting />
           <Nav />
           <main id="main-content">{children}</main>
           <Footer />
