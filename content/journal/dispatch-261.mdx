@@ -1,0 +1,142 @@
+---
+title: "Type safety at the API boundary: the pattern we use instead of tRPC"
+date: "2027-02-01"
+excerpt: "tRPC gives you end-to-end type safety between your server and client. We evaluated it but didn't adopt it across the portfolio. Here's what we use instead and why the simpler approach is more maintainable for two-person teams."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+tRPC is compelling. Define your server procedures once, import them on the client, get full type inference on both ends with no code generation step. It's the right tool when your team needs strict compile-time guarantees across a complex API surface.
+
+We evaluated it. We didn't adopt it across all three products. Here's the reasoning and what we use instead.
+
+## The tRPC value proposition
+
+tRPC eliminates the serialisation gap. Without it, your server knows the type of the data it returns; your client has to trust that what arrives is what was promised. A server-side change breaks the client silently unless you have excellent test coverage.
+
+tRPC makes this gap impossible at compile time. Change the server type, the client fails to build.
+
+This is genuinely valuable in large teams where different people own the server and client code. The compiler enforces the contract across the boundary.
+
+## Why we didn't adopt it
+
+**App Router is already type-safe for the common case.** When you fetch data in a Server Component and pass it as props to a Client Component, the props are typed by TypeScript. There's no serialisation gap — the Server Component runs on the server, passes typed data to the client rendering. The boundary is in JSX, not in an HTTP call.
+
+This covers 80% of our data flow. For the remaining 20% that does go through API routes (form submissions, SSE endpoints, file uploads), we use Zod.
+
+**tRPC works best with the Pages Router pattern.** tRPC's `useQuery` and `useMutation` hooks are a client-first data fetching model. The App Router encourages server-first data fetching — you fetch in Server Components, not in client hooks. Mixing tRPC's client hooks with RSC creates architectural awkwardness.
+
+Vercel's own recommendation for App Router: use Server Actions for mutations, Server Components for queries. tRPC for RSC is possible but requires additional configuration and loses some of the ergonomics.
+
+**Two people maintaining two API contracts is manageable.** tRPC's main benefit is preventing schema drift across teams. When both the server and client are owned by the same two people, the overhead of maintaining a tRPC router exceeds the benefit of the type safety it provides. We can review each other's API changes in the same PR.
+
+## What we use instead
+
+**For mutations:** Zod-validated API routes. Client sends JSON, server validates with Zod, returns a typed response. The client imports the Zod schema and uses `z.infer<typeof Schema>` to type the request.
+
+**For server-to-client data in RSC:** direct props. Server Component fetches from the database, passes typed data as props to Client Components.
+
+**For shared types:** a `types/` directory that both the server and client import from. Not generated — just TypeScript.
+
+```ts
+// types/scan.ts — imported by both API route and client
+export interface ScanRequest {
+  url: string;
+  force?: boolean;
+}
+
+export interface ScanResult {
+  status: 'success' | 'error';
+  asin?: string;
+  margin?: number;
+  confidence?: 'STRONG' | 'GOOD' | 'MODERATE' | 'LOW';
+  error?: string;
+}
+```
+
+```ts
+// app/api/scan/route.ts
+import type { ScanRequest, ScanResult } from '@/types/scan';
+import { ScanRequestSchema } from '@/lib/schemas/scan';
+
+export async function POST(req: Request): Promise<Response> {
+  const body: ScanRequest = await req.json();
+  const result = ScanRequestSchema.safeParse(body);
+
+  if (!result.success) {
+    return Response.json({ status: 'error', error: 'Invalid request' } satisfies ScanResult, { status: 400 });
+  }
+
+  // ...
+  return Response.json(scanResult satisfies ScanResult);
+}
+```
+
+```ts
+// components/ScanForm.tsx
+'use client';
+import type { ScanRequest, ScanResult } from '@/types/scan';
+
+async function submitScan(url: string): Promise<ScanResult> {
+  const body: ScanRequest = { url };
+  const res = await fetch('/api/scan', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return res.json() as Promise<ScanResult>;
+}
+```
+
+The `satisfies` keyword on the server-side response asserts that the returned data conforms to `ScanResult` at compile time. TypeScript will error if the shape doesn't match. This is the key win: not full tRPC-level inference, but compile-time verification that the server is sending what the types say it should.
+
+The downside: the client's `res.json() as Promise<ScanResult>` is a type assertion, not a type check. TypeScript trusts us that the API returns a `ScanResult`. Runtime validation (Zod on the client) would catch mismatches, but we don't do this in practice — the cost/benefit doesn't justify it for internal APIs.
+
+## When we'd use tRPC
+
+We'd reach for tRPC on The Hyve's internal API if it grew significantly in complexity — more procedures, more consumers, more people touching both sides of the boundary. At that point, the compiler enforcement would prevent the kinds of silent breakage that become expensive to debug.
+
+We'd also use it for any public API that third-party developers consume. External consumers can't see the source code, so compile-time guarantees need to be surfaced through generated API clients or SDKs. tRPC's code generation story is good for this.
+
+For a two-person team building internal APIs against a Next.js App Router codebase: the Zod + shared types approach is simpler to set up, easier to reason about, and easy to migrate later if the team scales.
+
+## The Server Action alternative
+
+For mutations specifically, React's Server Actions are worth evaluating:
+
+```tsx
+// app/scan/actions.ts
+'use server';
+
+import { ScanRequestSchema } from '@/lib/schemas/scan';
+import type { ScanResult } from '@/types/scan';
+
+export async function submitScan(formData: FormData): Promise<ScanResult> {
+  const url = formData.get('url') as string;
+  const result = ScanRequestSchema.safeParse({ url });
+
+  if (!result.success) {
+    return { status: 'error', error: 'Invalid URL' };
+  }
+
+  return await runScan(result.data.url);
+}
+```
+
+```tsx
+// components/ScanForm.tsx
+'use client';
+import { submitScan } from '@/app/scan/actions';
+
+function ScanForm() {
+  return (
+    <form action={submitScan}>
+      <input name="url" />
+      <button type="submit">Scan</button>
+    </form>
+  );
+}
+```
+
+Server Actions give you full type inference from client to server with no manual type declaration — you import the action directly. No API route, no JSON serialisation, no Zod needed for the transport layer (though you still want Zod for the input validation inside the action).
+
+We've been migrating mutations to Server Actions where the RSC patterns make it clean. The tRPC-vs-REST question becomes less relevant when your mutations are Actions.
