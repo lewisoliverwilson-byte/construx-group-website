@@ -1,0 +1,136 @@
+---
+title: "Multi-tenancy patterns: how we isolate workspaces in The Hyve"
+date: "2027-02-11"
+excerpt: "Multi-tenant SaaS is a set of deceptively simple questions: how do you make sure one tenant's data stays invisible to another? The answer determines your query patterns, your schema design, and your security posture. Here's what we chose for The Hyve and why."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Multi-tenancy is the property that makes SaaS possible: many customers sharing the same infrastructure, each seeing only their own data. Getting it wrong is a category-level security failure — one tenant seeing another's data is a breach, not a bug.
+
+There are three standard approaches. Here's why we chose the one we did.
+
+## The three approaches
+
+**Database-per-tenant:** Each customer gets their own database. Isolation is absolute — a query that somehow escapes the application layer still can't touch another tenant's data, because another tenant's database is a different connection string.
+
+The cost: operational complexity scales with tenants. 100 customers means 100 databases. Schema migrations run 100 times. Connection pool management becomes a problem. Works well for enterprise deals where the customer is paying enough to justify the complexity.
+
+**Schema-per-tenant (PostgreSQL schemas):** All tenants in one database, but each in their own schema. `SET search_path = tenant_123; SELECT * FROM messages;` sees only tenant 123's messages.
+
+Lower overhead than database-per-tenant, still strong isolation. But schema-per-tenant still means N migrations for N tenants, and connection pool scoping to the right schema adds application complexity.
+
+**Row-level isolation with workspace_id:** All tenants in the same schema, isolation enforced by a `workspace_id` column on every tenant-scoped table and a `WHERE workspace_id = ?` on every query.
+
+Simplest to operate — one database, one schema, one migration. The weakness: isolation is application-enforced, not database-enforced. A missing `WHERE` clause in a query is a data leak.
+
+## What we chose and why
+
+We use row-level isolation with an additional defense layer: PostgreSQL Row Level Security (RLS).
+
+The schema is straightforward:
+
+```sql
+CREATE TABLE messages (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL REFERENCES workspaces(id),
+  channel_id   UUID NOT NULL REFERENCES channels(id),
+  user_id      UUID NOT NULL REFERENCES users(id),
+  content      TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ON messages (workspace_id, channel_id, created_at DESC);
+```
+
+Every tenant-scoped table has `workspace_id`. The application always queries with `WHERE workspace_id = session.workspaceId`.
+
+Row Level Security adds the database-enforced layer:
+
+```sql
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY messages_workspace_isolation ON messages
+  FOR ALL
+  USING (workspace_id = current_setting('app.workspace_id')::uuid);
+```
+
+Before any query, the application sets the workspace context:
+
+```ts
+// In middleware, after authenticating the user
+await db.execute(
+  sql`SELECT set_config('app.workspace_id', ${workspaceId}, TRUE)`
+);
+```
+
+With RLS enabled, a query without `app.workspace_id` set returns zero rows — not an error, just empty. A query with the wrong `app.workspace_id` set also returns zero rows. Even if a developer forgets the `WHERE workspace_id = ?` clause, the database catches it.
+
+## The authentication layer
+
+Workspace context comes from the session. After a user authenticates with Clerk, the session contains their `userId`. The application resolves `userId` to their current `workspaceId`:
+
+```ts
+// middleware.ts
+export async function middleware(request: NextRequest) {
+  const { userId } = auth();
+  if (!userId) return redirectToSignIn();
+  
+  // Resolve workspace from the authenticated user
+  const session = await getWorkspaceSession(userId);
+  if (!session) return redirectToOnboarding();
+  
+  // Set workspace context for downstream handlers
+  const headers = new Headers(request.headers);
+  headers.set('x-workspace-id', session.workspaceId);
+  
+  return NextResponse.next({ request: { headers } });
+}
+```
+
+Route handlers and Server Components read `workspaceId` from the request headers — never from query parameters, never from the request body.
+
+## Cross-workspace access
+
+Some users belong to multiple workspaces (invited collaborators). The pattern: the current active workspace is stored in the session, and the user can switch workspaces explicitly. There is no implicit cross-workspace access — a request is always scoped to exactly one workspace.
+
+Admin users who need cross-workspace visibility (support, debugging) use a separate admin interface backed by a separate connection string that bypasses RLS. The admin interface is explicitly out-of-band — it's not the same code path as the product.
+
+## What this prevents
+
+With workspace_id on every row and RLS enforcing it:
+
+- A SQL injection that bypasses the application layer still can't see another tenant's data (RLS is database-level)
+- A developer forgetting a WHERE clause returns empty results, not another tenant's data
+- An application bug that sends the wrong workspace context returns empty results for the wrong workspace, which is a bug but not a breach
+
+What it doesn't prevent: a logic bug that resolves the wrong workspaceId for a user. That's handled at the session layer — the authentication and workspace resolution need to be correct. RLS is a defense-in-depth measure, not the primary control.
+
+## The query pattern
+
+Every query against a tenant-scoped table uses the workspace context:
+
+```ts
+// lib/db/messages.ts
+export async function getChannelMessages(
+  channelId: string,
+  workspaceId: string,
+  limit = 50,
+) {
+  return db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.workspaceId, workspaceId),
+        eq(messages.channelId, channelId),
+      )
+    )
+    .orderBy(desc(messages.createdAt))
+    .limit(limit);
+}
+```
+
+The `workspaceId` is always passed explicitly — it's never a global, never inferred. This makes the isolation visible at the call site and makes code review straightforward: any query against a tenant-scoped table should have `workspaceId` in the WHERE clause.
+
+RLS is the safety net. Explicit `workspaceId` in queries is the primary control. The combination gives isolation at multiple layers without the operational complexity of per-tenant databases.

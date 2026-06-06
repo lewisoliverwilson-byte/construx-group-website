@@ -1,0 +1,172 @@
+---
+title: "Webhook ingestion: how we handle external events without dropping them"
+date: "2027-02-05"
+excerpt: "Webhooks are the internet's event bus. They're unreliable by design — the sender fires and forgets. Here's the pattern we use across Construx products to receive, validate, queue, and process webhook events without data loss."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Webhooks are how external services tell you something happened. Stripe tells you a payment succeeded. Clerk tells you a user signed up. GitHub tells you a push landed. The sender fires an HTTP POST and doesn't wait for you to finish processing — they just want an acknowledgment that you received it.
+
+This is a good design for the sender. It's a trap for the receiver. Here's how we don't fall into it.
+
+## The naive pattern and why it fails
+
+The naive implementation: receive the webhook, process it, return 200.
+
+```ts
+// Bad: processing inline with response
+export async function POST(req: Request) {
+  const payload = await req.json();
+  
+  // This might take 2-10 seconds
+  await createUserWorkspace(payload.userId);
+  await sendWelcomeEmail(payload.email);
+  await syncToAnalytics(payload);
+  
+  return new Response('OK');
+}
+```
+
+Three problems:
+
+**Timeout.** Most webhook senders timeout at 3-30 seconds. If your processing takes longer, the sender gets a timeout, marks the delivery as failed, and retries. Now you process the event twice.
+
+**Transient failures.** If any step in the processing fails, you return a 5xx. The sender retries. You process again. If the failure is non-idempotent (like inserting a row without a unique constraint), you now have a duplicate.
+
+**Tight coupling.** Your response latency is tied to your processing latency. Any downstream slowness (database overloaded, email provider slow) causes webhook delivery failures.
+
+## The correct pattern: receive then process
+
+The fix is to separate receiving from processing. Acknowledge immediately, process asynchronously.
+
+```ts
+export async function POST(req: Request) {
+  const rawBody = await req.text();
+  
+  // Validate the signature first — reject early if invalid
+  const signature = req.headers.get('svix-signature') ?? '';
+  if (!isValidSignature(rawBody, signature, WEBHOOK_SECRET)) {
+    return new Response('Invalid signature', { status: 401 });
+  }
+  
+  const payload = JSON.parse(rawBody);
+  
+  // Store the raw event for processing
+  await db.insert(webhookEvents).values({
+    id: payload.id,        // Use the sender's ID — idempotency key
+    source: 'clerk',
+    type: payload.type,
+    payload: payload,
+    receivedAt: new Date(),
+    status: 'pending',
+  }).onConflictDoNothing();  // Idempotent: duplicate delivery does nothing
+  
+  // Acknowledge immediately
+  return new Response('Received', { status: 200 });
+}
+```
+
+The event is persisted to a `webhook_events` table. A background processor picks it up, processes it, and marks it as done.
+
+## The webhook_events table
+
+```sql
+CREATE TABLE webhook_events (
+  id          TEXT PRIMARY KEY,          -- sender's event ID
+  source      TEXT NOT NULL,             -- 'clerk', 'stripe', etc.
+  type        TEXT NOT NULL,             -- 'user.created', 'payment.succeeded'
+  payload     JSONB NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at TIMESTAMPTZ,
+  status      TEXT NOT NULL DEFAULT 'pending',  -- pending | processing | done | failed
+  error       TEXT,
+  attempts    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX ON webhook_events (status, received_at) WHERE status = 'pending';
+```
+
+Using the sender's event ID as the primary key with `ON CONFLICT DO NOTHING` gives idempotency for free. A duplicate delivery is a no-op.
+
+## The processor
+
+A background job polls the `webhook_events` table for pending events:
+
+```ts
+async function processWebhookEvents() {
+  const events = await db
+    .select()
+    .from(webhookEvents)
+    .where(
+      and(
+        eq(webhookEvents.status, 'pending'),
+        lt(webhookEvents.attempts, 5),
+      )
+    )
+    .orderBy(webhookEvents.receivedAt)
+    .limit(10)
+    .for('update', { skipLocked: true });  // PostgreSQL advisory lock
+
+  for (const event of events) {
+    await db
+      .update(webhookEvents)
+      .set({ status: 'processing', attempts: sql`attempts + 1` })
+      .where(eq(webhookEvents.id, event.id));
+
+    try {
+      await dispatchEvent(event);
+      await db
+        .update(webhookEvents)
+        .set({ status: 'done', processedAt: new Date() })
+        .where(eq(webhookEvents.id, event.id));
+    } catch (err) {
+      await db
+        .update(webhookEvents)
+        .set({
+          status: event.attempts >= 4 ? 'failed' : 'pending',
+          error: String(err),
+        })
+        .where(eq(webhookEvents.id, event.id));
+    }
+  }
+}
+```
+
+The `FOR UPDATE SKIP LOCKED` clause is the key: it lets multiple processor instances run simultaneously without double-processing the same event. Locked rows are skipped, not waited on.
+
+## Signature validation
+
+Every webhook provider signs their payloads. Always validate before touching the payload.
+
+For Clerk (which uses Svix):
+
+```ts
+import { Webhook } from 'svix';
+
+function isValidSignature(
+  rawBody: string,
+  svixSignature: string,
+  secret: string,
+): boolean {
+  const wh = new Webhook(secret);
+  try {
+    wh.verify(rawBody, {
+      'svix-signature': svixSignature,
+      'svix-id': '',
+      'svix-timestamp': '',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+```
+
+Read the raw body as text before parsing as JSON. Once parsed, the signature won't validate against the reconstituted JSON (key ordering, whitespace).
+
+## Dead letter handling
+
+Events with 5+ failed attempts get status `failed` and stop being retried. We have an admin view that shows failed events with their error messages. Most failed events are transient (downstream service down); retrying them manually after fixing the underlying issue is straightforward.
+
+Failed events that need manual intervention are the ones where the payload was valid but the processing logic had a bug. Fixing the bug and re-queuing the event is the recovery path — which is exactly why keeping the raw payload is essential.
