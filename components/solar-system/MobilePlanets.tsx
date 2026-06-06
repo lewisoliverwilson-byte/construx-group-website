@@ -39,6 +39,11 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
           ● live
         </span>
       </div>
+      {/* Shell prompt */}
+      <div className="px-4 py-1.5 select-none" style={{ borderBottom: `1px solid ${venture.accent}08`, background: 'rgba(255,255,255,0.01)' }}>
+        <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+        <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`construx ventures --open ${venture.slug}`}</span>
+      </div>
 
       <div className="p-6">
         <div className="flex items-center gap-3 mb-4">
@@ -186,6 +191,11 @@ export default function MobilePlanets() {
               asteroid.belt — classified.tx
             </span>
             <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.4)' }}>◈ SOON</span>
+          </div>
+          {/* Shell prompt */}
+          <div className="px-3 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(168,85,247,0.06)', background: 'rgba(255,255,255,0.01)' }}>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>cat /var/construx/ventures/incubation.json</span>
           </div>
           <div className="flex items-center gap-3 px-5 py-4">
             <div className="flex -space-x-2">
