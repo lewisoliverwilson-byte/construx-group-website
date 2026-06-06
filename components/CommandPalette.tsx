@@ -172,12 +172,30 @@ export default function CommandPalette({ posts }: Props) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* title bar */}
+        <div
+          className="flex items-center gap-3 px-4 py-2.5"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,8,0.6)' }}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+          </div>
+          <span className="flex-1 text-center font-mono text-[10px] text-text-dim/40 uppercase tracking-[0.2em]">
+            construx.search
+          </span>
+          <span className="font-mono text-[9px] text-text-dim/30 uppercase tracking-widest">
+            ⌘K
+          </span>
+        </div>
+
         {/* search bar */}
         <div
           className="flex items-center gap-3 px-4 py-3.5"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
         >
-          <span className="font-mono text-[11px] text-construx/60 select-none shrink-0">⌘K</span>
+          <span className="font-mono text-[11px] text-construx/60 select-none shrink-0">&gt;_</span>
           <input
             ref={inputRef}
             value={query}
@@ -306,24 +324,29 @@ export default function CommandPalette({ posts }: Props) {
 
         {/* footer */}
         <div
-          className="flex items-center gap-4 px-4 py-2.5"
+          className="flex items-center justify-between px-4 py-2.5"
           style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
         >
-          {[
-            ['↑↓', 'navigate'],
-            ['↵', 'open'],
-            ['ESC', 'close'],
-          ].map(([key, label]) => (
-            <span key={key} className="flex items-center gap-1.5">
-              <kbd
-                className="font-mono text-[9px] px-1 py-0.5 bg-white/5 border border-white/10"
-                style={{ borderRadius: '2px' }}
-              >
-                {key}
-              </kbd>
-              <span className="font-mono text-[9px] text-text-dim/40 uppercase tracking-widest">{label}</span>
-            </span>
-          ))}
+          <div className="flex items-center gap-4">
+            {[
+              ['↑↓', 'navigate'],
+              ['↵', 'open'],
+              ['ESC', 'close'],
+            ].map(([key, label]) => (
+              <span key={key} className="flex items-center gap-1.5">
+                <kbd
+                  className="font-mono text-[9px] px-1 py-0.5 bg-white/5 border border-white/10"
+                  style={{ borderRadius: '2px' }}
+                >
+                  {key}
+                </kbd>
+                <span className="font-mono text-[9px] text-text-dim/40 uppercase tracking-widest">{label}</span>
+              </span>
+            ))}
+          </div>
+          <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: results.length > 0 ? 'rgba(249,115,22,0.4)' : 'rgba(240,239,255,0.15)' }}>
+            {results.length} result{results.length !== 1 ? 's' : ''}
+          </span>
         </div>
       </div>
     </div>
