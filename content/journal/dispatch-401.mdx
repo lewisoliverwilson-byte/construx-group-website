@@ -1,0 +1,187 @@
+---
+title: "Image optimisation in Next.js: next/image, formats, and CDN delivery"
+date: "2028-03-30"
+excerpt: "Images are typically 60-80% of page weight. Next.js's built-in Image component handles format conversion, lazy loading, and responsive sizing automatically — but you have to use it right."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+An unoptimised image can add 2-3 seconds to page load. `next/image` handles most of the heavy lifting automatically: WebP/AVIF conversion, lazy loading, responsive sizes, blur-up placeholder. The job is configuring it correctly.
+
+## The basics
+
+```tsx
+import Image from 'next/image';
+
+// Known dimensions — use these when you know the size
+<Image
+  src="/hero.jpg"
+  alt="Hero image"
+  width={1200}
+  height={630}
+  priority  // Above-fold images should not lazy-load
+  quality={85}
+/>
+
+// Fill container — use for responsive images where layout controls size
+<div className="relative aspect-video">
+  <Image
+    src="/thumbnail.jpg"
+    alt="Video thumbnail"
+    fill
+    sizes="(max-width: 768px) 100vw, 50vw"
+    className="object-cover"
+  />
+</div>
+```
+
+`priority` prevents lazy loading. Use it for above-the-fold images — LCP images in particular. Not using `priority` on the LCP image is one of the most common Core Web Vitals mistakes.
+
+## The `sizes` attribute is critical
+
+Without `sizes`, Next.js generates and serves the largest image for every viewport. With it, the browser requests the correctly-sized image:
+
+```tsx
+// Homepage hero — full width
+<Image sizes="100vw" />
+
+// 3-column grid on desktop, full width on mobile
+<Image sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+
+// Fixed sidebar — always 256px wide
+<Image sizes="256px" />
+
+// Thumbnail in a list
+<Image sizes="(max-width: 640px) 48px, 64px" />
+```
+
+The `sizes` value maps to the CSS media queries that control your layout. If the image is always 25% of the viewport, `sizes="25vw"` is correct.
+
+## Remote images and CDN
+
+To use images from external sources, add their domains to `next.config.ts`:
+
+```ts
+// next.config.ts
+const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.construxgroup.io',
+      },
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+      },
+    ],
+  },
+};
+```
+
+For a dedicated CDN with automatic format conversion:
+
+```ts
+// Using a custom image loader — Cloudflare Images
+const nextConfig: NextConfig = {
+  images: {
+    loader: 'custom',
+    loaderFile: './lib/image-loader.ts',
+  },
+};
+```
+
+```ts
+// lib/image-loader.ts
+export default function cloudflareLoader({
+  src,
+  width,
+  quality,
+}: {
+  src: string;
+  width: number;
+  quality?: number;
+}) {
+  const params = [`width=${width}`, `quality=${quality ?? 80}`, 'format=auto'];
+  return `https://cdn.construxgroup.io/cdn-cgi/image/${params.join(',')}/${src}`;
+}
+```
+
+## Blur placeholder — the right way
+
+```tsx
+// Static import — blur hash generated at build time
+import heroImage from '/public/hero.jpg';
+
+<Image
+  src={heroImage}
+  alt="Hero"
+  placeholder="blur"
+  priority
+/>
+
+// Remote image — provide blurDataURL
+<Image
+  src="https://cdn.example.com/photo.jpg"
+  alt="Photo"
+  width={800}
+  height={600}
+  placeholder="blur"
+  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgAB..."
+/>
+```
+
+For remote images, generate the blur hash at upload time using `plaiceholder`:
+
+```ts
+// At upload time — store the blurDataURL alongside the image URL
+import { getPlaiceholder } from 'plaiceholder';
+
+const { base64 } = await getPlaiceholder(imageBuffer);
+await db.insert(images).values({ url, blurDataURL: base64 });
+```
+
+## Format selection
+
+Next.js serves WebP by default if the browser supports it (all modern browsers do). AVIF offers 20-50% better compression but slower encoding. Enable both:
+
+```ts
+const nextConfig: NextConfig = {
+  images: {
+    formats: ['image/avif', 'image/webp'],
+  },
+};
+```
+
+The browser requests the first supported format. AVIF first — if the browser doesn't support it, it falls back to WebP.
+
+## Cache configuration
+
+Next.js caches optimised images in `.next/cache/images`. For production, configure the cache TTL:
+
+```ts
+const nextConfig: NextConfig = {
+  images: {
+    minimumCacheTTL: 31536000,  // 1 year
+  },
+};
+```
+
+On Vercel, image optimisation is handled on the CDN edge. The TTL controls how long the CDN caches the optimised version before re-optimising from the source.
+
+## Sprite sheets for icons
+
+Don't use `next/image` for icons. A 16px PNG image costs an HTTP request, layout space, and has no color control. Use inline SVG or a sprite sheet:
+
+```tsx
+// Inline SVG — zero requests, full CSS control
+function Icon({ name, size = 16 }: { name: string; size?: number }) {
+  return (
+    <svg width={size} height={size} aria-hidden="true">
+      <use href={`/sprites.svg#${name}`} />
+    </svg>
+  );
+}
+```
+
+Rule: `next/image` for photographs and large images. SVG for icons and illustrations. Never JPEG for icons, never PNG for photos.

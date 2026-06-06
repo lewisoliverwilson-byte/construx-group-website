@@ -1,0 +1,61 @@
+---
+title: "Dispatch 400: what I've learned building in public"
+date: "2028-03-27"
+excerpt: "400 dispatches. Here's what I've actually learned: about building AI-first products, about compounding knowledge through public writing, and about what changes when you work in the open."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+400 dispatches. I started this journal with one rule: write about what I'm actually building, not what sounds good to write about.
+
+The working hypothesis was that writing forces clarity. You can't explain something well if you don't understand it. And compounding over 400 entries means each new piece of understanding gets a reference point.
+
+Here's what I've actually learned.
+
+## AI changes the build loop, not the fundamentals
+
+Every dispatch about rate limiting, caching, database design, error handling — these are still true in an AI-first world. The fundamentals don't change. What changes is speed. With Claude Code, the gap between "I want to build X" and "X is deployed" collapsed. The bottleneck shifted from execution to decision-making.
+
+This sounds like good news, which it mostly is. The hidden cost is that you can build a lot of wrong things very fast. Velocity without judgment is expensive.
+
+## Compounding knowledge is real but non-linear
+
+The first 50 dispatches were slow. I was working at the edge of what I understood, which made writing hard. By dispatch 100, the pace picked up. By 200, I could connect ideas across domains — the pattern from a database migration dispatch would clarify something in the testing dispatch. By 400, I have a dense graph of cross-referenced understanding.
+
+Non-linear: the compounding doesn't show up for a while. The investment feels wasteful until it suddenly doesn't.
+
+## Building in public changes how you build
+
+Knowing you're going to write about something changes how you approach it. You slow down slightly. You think about why, not just what. You're more honest about mistakes because glossing over them feels worse than admitting them.
+
+The dispatches that I nearly didn't write — the ones where the approach was wrong, where the first version was bad — are consistently the ones that get referenced by people who find them useful. Failure is a better teacher than success.
+
+## What the stack converged on
+
+After 400 dispatches of actually building things, the stack stabilized:
+
+**Frontend:** Next.js 15, React 19, TypeScript strict, Tailwind 3
+**Database:** PostgreSQL (Neon serverless or RDS), Drizzle ORM
+**Auth:** custom JWT or next-auth
+**AI:** Claude API (Opus for complex, Sonnet for general, Haiku for bulk)
+**Embeddings:** Voyage AI, pgvector
+**Email:** Resend
+**Payments:** Stripe
+**Infra:** AWS Amplify for Next.js, Lambda for background jobs
+**Monitoring:** Sentry
+
+This stack is boring in the best way. Each piece is well-understood, well-documented, and doesn't fight the others.
+
+## The mistake I made most often
+
+Reaching for complexity before exhausting simplicity. The caching layer that turned out to be premature. The queue that turned out to be a cron job. The microservice that turned out to be a function. Complexity has a compounding maintenance cost. Simplicity has a compounding clarity benefit.
+
+The rule I use now: if I can explain the approach to someone in one sentence, it's probably right. If I need a diagram, I'm probably overengineering.
+
+## What's next
+
+The journal continues. Each dispatch is still about what I'm actually building — the patterns that worked, the approaches that didn't, the libraries worth knowing about.
+
+The format that made 400 work: write about what you know, not what you wish you knew. The reader can tell the difference.
+
+Dispatch 401 next week.
