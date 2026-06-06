@@ -12,6 +12,7 @@ import NetstatPanel from '@/components/NetstatPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import StraceProcPanel from '@/components/StraceProcPanel';
 import TcpdumpPanel from '@/components/TcpdumpPanel';
+import SarPanel from '@/components/SarPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -392,8 +393,13 @@ export default function StatsPage() {
       </div>
 
       {/* Packet capture */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TcpdumpPanel />
+      </div>
+
+      {/* CPU utilisation over time */}
+      <div className="mt-6 pb-10">
+        <SarPanel />
       </div>
     </div>
   );

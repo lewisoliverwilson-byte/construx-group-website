@@ -1,0 +1,99 @@
+---
+title: "Prisma Accelerate: connection pooling and query caching at the edge"
+date: "2030-10-13"
+excerpt: "Prisma Accelerate is a global proxy that sits between your application and your database. It maintains a persistent connection pool so your serverless functions do not exhaust database connections on cold start. It also provides a query cache with configurable TTLs so frequently-executed queries are served from memory instead of hitting the database on every request."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Serverless functions do not hold persistent database connections — each invocation opens a new connection. Under load, this exhausts the connection limit of any Postgres instance quickly. Accelerate solves this by pooling connections at the proxy layer where a persistent process can hold them.
+
+## Install
+
+```bash
+npm install @prisma/extension-accelerate
+```
+
+## Set up
+
+```ts
+// lib/db.ts
+import { PrismaClient }         from '@prisma/client';
+import { withAccelerate }       from '@prisma/extension-accelerate';
+
+export const db = new PrismaClient().$extends(withAccelerate());
+```
+
+```bash
+# .env
+DATABASE_URL="prisma://accelerate.prisma-data.net/?api_key=your_accelerate_key"
+DIRECT_URL="postgresql://user:pass@db.construxgroup.io:5432/construx"
+```
+
+```prisma
+// schema.prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // Accelerate URL
+  directUrl = env("DIRECT_URL")     // Direct Postgres for migrations
+}
+```
+
+## Connection pooling (automatic)
+
+Once Accelerate is set up, connection pooling happens automatically. Your Prisma queries go to the Accelerate proxy; Accelerate maintains a pool of persistent connections to your database. Under load, 1000 serverless function invocations share a pool of 20-50 connections instead of opening 1000 new ones.
+
+## Query caching
+
+```ts
+// Cache for 60 seconds — cached at the Accelerate edge node nearest to the request
+const posts = await db.posts.findMany({
+  where:   { published: true },
+  orderBy: { publishedAt: 'desc' },
+  take:    20,
+  cacheStrategy: {
+    ttl:      60,   // seconds
+    swr:       30,   // stale-while-revalidate
+  },
+});
+
+// Cache by tags — invalidate on mutation
+const post = await db.posts.findUnique({
+  where: { slug: params.slug },
+  cacheStrategy: {
+    ttl:  3600,
+    tags: [`post:${params.slug}`],
+  },
+});
+
+// Invalidate the cache when the post is updated
+await db.posts.update({
+  where: { slug },
+  data:  { title, content },
+});
+await db.$accelerate.invalidate({ tags: [`post:${slug}`] });
+```
+
+## Metrics (via Prisma Data Platform)
+
+Accelerate exposes metrics for:
+- Connection pool utilisation
+- Cache hit rate per query
+- Query latency (P50, P95, P99)
+- Geographic distribution of requests
+
+## When caching makes sense
+
+Use `cacheStrategy` on:
+- Queries that are read frequently and change infrequently (homepage content, published posts, product listings)
+- Expensive aggregate queries (counts, sums, grouped results)
+- Queries that all users see the same result for
+
+Do not cache:
+- User-specific queries (inbox, personalised feeds, session data)
+- Mutations (they modify data — cache them and you will return stale writes)
+- Queries where fresh data is critical (inventory counts, financial balances)
+
+## Prisma Accelerate vs PgBouncer vs Neon
+
+Prisma Accelerate: managed, zero-config, Prisma-native, query cache built in. Expensive at scale. PgBouncer: self-hosted connection pooler, works with any client, free, no cache. Neon: serverless Postgres with built-in connection pooling, no separate proxy needed. If you are using Prisma and deploying to serverless, Accelerate is the lowest-friction path. If you are cost-sensitive and comfortable with infrastructure, PgBouncer or Neon's native pooling are better options.
