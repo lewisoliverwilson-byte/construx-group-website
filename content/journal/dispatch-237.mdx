@@ -1,0 +1,68 @@
+---
+title: "Design in code: why we don't use Figma for the site"
+date: "2027-01-08"
+excerpt: "This site was designed entirely in code — no Figma files, no mockups, no handoff process. Here's why a code-first design approach is faster for small teams who can build what they design, and where it breaks down."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+This site has no Figma file. The design decisions for every page — typography, spacing, colour, layout — were made directly in the code, in a browser, in real time.
+
+This is a deliberate choice, not laziness. Here's why it works and where it would stop working.
+
+## Why most teams use Figma
+
+Figma exists because design and development are typically separate disciplines. A designer makes decisions about how something should look; a developer implements those decisions. The Figma file is the handoff document: it contains enough information for the developer to build what the designer specified.
+
+The separation makes sense when the people making visual decisions can't implement them. If your designer doesn't write code, you need a medium for communicating design intent.
+
+The separation also adds cost: design must be complete (or complete enough) before development begins. Changes late in development require updating the design file and re-implementing. Designers prototype in Figma; developers prototype in code; neither prototype represents the final product.
+
+## When code-first design works
+
+Code-first design — making visual decisions directly in the browser — is viable when:
+
+1. **The implementer and the designer are the same person**, or when design decisions can be made by whoever is writing the code
+2. **The target medium is the browser**, so the code is the most accurate representation of the design
+3. **The design language is established** — a consistent set of spacing, type, and colour decisions that can be applied without re-deciding from scratch each time
+
+All three apply to Construx Group's site. We write code and make design decisions. The browser is the final medium. Tailwind CSS provides the design system: a constrained set of spacing multiples, type sizes, and colour values that make consistent decisions easy.
+
+## The concrete advantages
+
+**Speed.** Making a decision in code takes as long as typing it. Making a decision in Figma, then implementing it, then realising the font size is wrong in context, then going back to Figma, then re-implementing — this is slower. Code-first collapses design and implementation into a single step.
+
+**Real-context decisions.** Figma renders an approximation of the browser. Text rendering, scroll behaviour, hover states, loading states, mobile viewport behaviour — these are all invisible in Figma. In code, you see exactly what the user will see. Decisions made in context are better decisions.
+
+**No sync drift.** The Figma file and the codebase drift apart over time unless you invest in keeping them in sync. In code-first design, the code is the source of truth. There's no drift because there's no other version.
+
+**Interactive states are first-class.** Hover effects, focus states, error states, loading states — these exist in the browser from the moment you write them. In Figma, they're static overlays that require additional work to represent. In code-first design, you implement them as you design them.
+
+## The design system as the foundation
+
+Code-first design doesn't mean no system. Without a design system, you'd make arbitrary decisions about spacing and typography on every element, and the result would be inconsistent.
+
+Tailwind CSS provides the structure:
+- **Spacing**: multiples of 4px. `p-4` is 16px, `p-6` is 24px, `p-10` is 40px
+- **Type sizes**: a preset scale. `text-sm` is 14px, `text-base` is 16px, `text-xl` is 20px
+- **Colours**: semantic names. `text-text-base`, `text-text-muted`, `text-text-dim` — defined once in `tailwind.config.ts`, used everywhere
+
+These constraints mean most design decisions are choosing from a small set of valid options rather than making arbitrary choices. The constraint reduces decision fatigue and produces consistency automatically.
+
+## Where code-first design breaks down
+
+**Multiple designers or stakeholders.** If more than one person needs to review and approve design decisions, a code prototype is harder to share than a Figma mock. Stakeholders who don't read code need Figma.
+
+**Complex interaction design.** Figma's prototyping tools are better for designing multi-step flows, complex animations, and interaction sequences before building them. For a site like this — primarily content presentation — the interactions are simple enough that designing them in code is fine.
+
+**Design at scale.** A product with dozens of distinct UI patterns benefits from Figma as a pattern library and communication tool across a larger team. A two-person team building a marketing site doesn't have this coordination problem.
+
+**When design comes before budget.** If you need to show a client or investor what you're building before building it, Figma is faster than code for the initial visual communication. We don't have this constraint — we're building for ourselves.
+
+## The hybrid approach
+
+We do use Figma for one thing: brand assets for the ventures. Logos, icons, and marketing assets for Scoutr, The Marqet, and The Hyve are designed in Figma, then exported. These are the artefacts where precise visual control at the vector level matters.
+
+Everything else — layouts, typography, components, page designs — is designed in code.
+
+The test for whether to use Figma: is the output a vector asset that needs to be exported, or is it HTML that will run in a browser? If the latter, design it in the medium where it will live.
