@@ -1,0 +1,201 @@
+---
+title: "Accessible components: what you have to get right"
+date: "2029-05-03"
+excerpt: "WCAG compliance is the floor. Accessible components are components that work for keyboard users, screen reader users, and people with motor or cognitive differences — and that don't require separate 'accessible versions'. Here's what actually matters."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Accessibility is mostly framed as compliance (WCAG 2.1 AA, legal requirements). The more useful frame: it's about whether your product works. Screen reader users, keyboard-only users, and people using switch access control aren't edge cases — they're users. The practices that make products accessible also make them more usable for everyone.
+
+## The keyboard navigation baseline
+
+Every interactive element must be reachable and operable via keyboard alone.
+
+```tsx
+// ❌ div with onClick is not keyboard accessible
+<div onClick={handleAction} className="cursor-pointer">
+  Delete item
+</div>
+
+// ✅ button is keyboard accessible, focusable, and fire on Enter/Space
+<button onClick={handleAction}>Delete item</button>
+
+// ✅ For custom components, at minimum:
+<div
+  role="button"
+  tabIndex={0}
+  onClick={handleAction}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleAction();
+    }
+  }}
+>
+  Delete item
+</div>
+```
+
+Use semantic HTML wherever possible — `<button>`, `<a href>`, `<input>`, `<select>`. They get keyboard handling, focus management, and screen reader announcements for free.
+
+## ARIA labels and roles
+
+ARIA fills the gap when semantic HTML can't express the meaning:
+
+```tsx
+// Icon-only button needs a label
+<button aria-label="Close dialog">
+  <XIcon size={16} aria-hidden />
+</button>
+
+// Dynamic content that updates
+<div role="status" aria-live="polite">
+  {searchResults.length} results for "{query}"
+</div>
+
+// Error messages associated with inputs
+<div>
+  <label htmlFor="email">Email</label>
+  <input
+    id="email"
+    type="email"
+    aria-describedby="email-error"
+    aria-invalid={!!errors.email}
+  />
+  {errors.email && (
+    <span id="email-error" role="alert">
+      {errors.email.message}
+    </span>
+  )}
+</div>
+```
+
+`aria-live="polite"` announces content changes to screen readers without interrupting. `role="alert"` announces immediately (for errors). `aria-describedby` links an input to its error message so screen readers read both together.
+
+## Focus management in modals and dialogs
+
+When a modal opens, focus should move into it. When it closes, focus should return to the trigger.
+
+```tsx
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { createPortal }      from 'react-dom';
+
+export function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+  const modalRef  = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      // Save the element that opened the modal
+      triggerRef.current = document.activeElement as HTMLElement;
+      // Move focus into the modal
+      modalRef.current?.focus();
+    } else {
+      // Return focus to the trigger
+      triggerRef.current?.focus();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+      // Trap focus inside modal
+      if (e.key === 'Tab') {
+        const focusable = modalRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        ) as NodeListOf<HTMLElement>;
+        const first = focusable[0];
+        const last  = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      ref={modalRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center"
+    >
+      <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full">
+        <h2 id="modal-title">Confirm action</h2>
+        {children}
+        <button onClick={onClose}>Cancel</button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+```
+
+Radix UI (which shadcn/ui wraps) handles all of this — focus trapping, Escape to close, aria attributes — in its Dialog, AlertDialog, Popover, and Select components. Use Radix primitives rather than building this from scratch.
+
+## Colour contrast
+
+Text must meet contrast ratios: 4.5:1 for normal text, 3:1 for large text (18px+ or 14px+ bold). Browser DevTools → Accessibility → Contrast ratio checks this instantly.
+
+```tsx
+// ❌ Low contrast — #888 on white is 3.5:1 (fails AA)
+<p className="text-gray-400">Supporting text</p>
+
+// ✅ Higher contrast — #555 on white is 5.9:1 (passes AA)
+<p className="text-gray-600">Supporting text</p>
+```
+
+## Skip links
+
+Allow keyboard users to skip repeated navigation:
+
+```tsx
+// app/layout.tsx
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-construx focus:text-white"
+        >
+          Skip to main content
+        </a>
+        <nav>...</nav>
+        <main id="main-content">{children}</main>
+      </body>
+    </html>
+  );
+}
+```
+
+The link is visually hidden (`sr-only`) until it receives focus, then it becomes visible. Tab on any page and it's the first focusable element.
+
+## The minimum viable checklist
+
+1. Every interactive element reachable and operable by keyboard
+2. Meaningful `alt` text on every meaningful image (`alt=""` for decorative images)
+3. Form inputs have labels (`<label htmlFor>` or `aria-label`)
+4. Errors are announced (`role="alert"` or `aria-live="polite"`)
+5. Colour contrast 4.5:1 for body text
+6. Modal dialogs trap focus and return it on close
+7. Skip link at the top of every page
+
+The browser's built-in accessibility checker (Lighthouse → Accessibility) catches most of these. Fix those first, then test with a real screen reader (VoiceOver on Mac, NVDA on Windows).

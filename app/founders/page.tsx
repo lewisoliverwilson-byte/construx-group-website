@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { getAllPostMeta } from '@/lib/posts';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import WhoamiPanel from '@/components/WhoamiPanel';
+import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -446,6 +447,11 @@ export default function FoundersPage() {
         {/* Identity panel */}
         <div className="mt-6">
           <WhoamiPanel />
+        </div>
+
+        {/* GPG key fingerprints */}
+        <div className="mt-6">
+          <GpgFingerprintPanel />
         </div>
 
         {/* CTA */}

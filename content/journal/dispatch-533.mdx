@@ -1,0 +1,170 @@
+---
+title: "React 19: Actions, useOptimistic, and useFormStatus"
+date: "2029-04-30"
+excerpt: "React 19 formalised the patterns that were already emerging with Server Actions: async transitions, optimistic state, and form status. The new hooks remove the boilerplate that made these patterns verbose in React 18. Here's what changed."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React 19 shipped with a set of new primitives designed around the Server Actions model. The core change: transitions can be async, and several hooks were added to handle the common patterns that async transitions create — pending state, optimistic updates, and form submission status.
+
+## useTransition with async functions
+
+In React 18, `startTransition` only accepted synchronous functions. In React 19, it accepts async:
+
+```tsx
+// React 18 — async in startTransition not allowed
+startTransition(() => {
+  // ❌ Can't await here
+  fetchData().then(setData);
+});
+
+// React 19 — async transitions work
+const [isPending, startTransition] = useTransition();
+
+startTransition(async () => {
+  const data = await fetchData();  // ✅ awaitable
+  setData(data);
+});
+```
+
+`isPending` stays `true` until the async function resolves. This enables loading states without manual state management.
+
+## useActionState
+
+`useActionState` (previously `useFormState` in React 18 experimental) manages the state of a Server Action with form integration:
+
+```tsx
+'use client';
+
+import { useActionState } from 'react';
+import { submitContact }  from '@/app/actions/contact';
+
+const initialState = { error: null, success: false };
+
+export function ContactForm() {
+  const [state, formAction, isPending] = useActionState(submitContact, initialState);
+
+  return (
+    <form action={formAction}>
+      <input name="email" type="email" required />
+      <textarea name="message" required />
+
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Sending...' : 'Send message'}
+      </button>
+
+      {state.error && <p className="text-red-500">{state.error}</p>}
+      {state.success && <p className="text-green-500">Message sent!</p>}
+    </form>
+  );
+}
+```
+
+```ts
+// app/actions/contact.ts
+'use server';
+
+export async function submitContact(
+  prevState: { error: string | null; success: boolean },
+  formData: FormData,
+) {
+  const email   = formData.get('email') as string;
+  const message = formData.get('message') as string;
+
+  try {
+    await sendEmail({ to: 'contact@construxgroup.io', from: email, body: message });
+    return { error: null, success: true };
+  } catch {
+    return { error: 'Failed to send. Please try again.', success: false };
+  }
+}
+```
+
+`formAction` is passed directly to the `<form action>` prop — no `onSubmit` handler needed.
+
+## useFormStatus
+
+Shows the pending state of the nearest parent form — useful for submit buttons in child components:
+
+```tsx
+'use client';
+
+import { useFormStatus } from 'react-dom';
+
+export function SubmitButton({ children }: { children: React.ReactNode }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button type="submit" disabled={pending}>
+      {pending ? 'Loading...' : children}
+    </button>
+  );
+}
+
+// Parent form — SubmitButton gets pending state automatically
+<form action={formAction}>
+  <input name="query" />
+  <SubmitButton>Search</SubmitButton>
+</form>
+```
+
+`useFormStatus` reads from context — it only works inside a `<form>` element.
+
+## useOptimistic
+
+`useOptimistic` was covered in dispatch 516, but the React 19 API is the stable version:
+
+```tsx
+'use client';
+
+import { useOptimistic, startTransition } from 'react';
+import { toggleLike } from '@/app/actions';
+
+export function LikeButton({ postId, likes }: { postId: string; likes: number }) {
+  const [optimisticLikes, addOptimisticLike] = useOptimistic(
+    likes,
+    (currentLikes, increment: number) => currentLikes + increment,
+  );
+
+  async function handleLike() {
+    startTransition(async () => {
+      addOptimisticLike(1);          // Apply immediately
+      await toggleLike(postId);      // Server action — confirms or reverts
+    });
+  }
+
+  return (
+    <button onClick={handleLike}>
+      ♥ {optimisticLikes}
+    </button>
+  );
+}
+```
+
+The optimistic value shows while the action is pending. If the action throws, React reverts to the original value.
+
+## use() for Promises and Context
+
+`use()` is a new primitive that lets you read a Promise or a Context value in the middle of a component — including inside conditionals and loops:
+
+```tsx
+// Read a Promise in a component (suspends until resolved)
+function UserName({ userPromise }: { userPromise: Promise<User> }) {
+  const user = use(userPromise);  // Suspends this component until resolved
+  return <span>{user.name}</span>;
+}
+
+// Read Context in conditions (previously not allowed with useContext)
+function ConditionalContext({ showTheme }: { showTheme: boolean }) {
+  if (showTheme) {
+    const theme = use(ThemeContext);  // ✅ OK in React 19
+    return <div style={{ color: theme.primary }} />;
+  }
+  return null;
+}
+```
+
+## The pattern shift
+
+React 19's changes push toward a model where forms are the primary way to trigger mutations. `<form action={serverAction}>` with `useActionState` and `useFormStatus` replaces the `onSubmit` + `useState` + `fetch` pattern for most form interactions. The code is shorter, progressive enhancement works (forms work without JavaScript), and loading states are automatic.
