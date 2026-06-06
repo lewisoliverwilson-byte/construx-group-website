@@ -543,6 +543,12 @@ export default function HomePage() {
               </span>
             </div>
 
+            {/* Shell prompt */}
+            <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(249,115,22,0.06)', background: 'rgba(249,115,22,0.02)' }}>
+              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.2)' }}>construx contact --intent=build --priority=high</span>
+            </div>
+
             {/* Body */}
             <div className="px-8 py-10">
               {/* Shell lines */}
