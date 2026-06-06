@@ -10,6 +10,7 @@ const navLinks = [
   { href: '/work-with-us', label: 'Work With Us' },
   { href: '/journal', label: 'Journal' },
   { href: '/uses', label: 'Uses' },
+  { href: '/now', label: 'Now' },
   { href: '/contact', label: 'Contact' },
 ];
 
