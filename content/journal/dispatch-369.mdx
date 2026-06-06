@@ -1,0 +1,253 @@
+---
+title: "Accessibility in Next.js: the practical checklist for production apps"
+date: "2027-12-23"
+excerpt: "Accessibility is not a feature. It's a constraint that determines who can use your product. The checklist for a Next.js app: semantic HTML, keyboard navigation, focus management, ARIA labels, and color contrast."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Accessibility failures exclude real users: people who navigate by keyboard, use screen readers, have low vision, or have motor impairments. In the UK, roughly 14 million people have a disability. In most jurisdictions, WCAG 2.1 AA is the legal baseline. Beyond compliance, accessible products work better — for everyone.
+
+This is the practical checklist. Not every accessibility pattern, just the ones that most often fail in production.
+
+## Semantic HTML
+
+The foundation. Most screen readers and assistive technologies derive meaning from HTML semantics:
+
+```tsx
+// Wrong
+<div onClick={handleClick}>Submit</div>
+<div className="nav">...</div>
+<div className="article">...</div>
+
+// Right
+<button onClick={handleClick}>Submit</button>
+<nav aria-label="Primary navigation">...</nav>
+<article>...</article>
+```
+
+Use `<button>` for interactive elements (not `<div onClick>`). Use `<nav>`, `<main>`, `<article>`, `<section>`, `<aside>`, `<header>`, `<footer>` for landmark regions. These give screen reader users the ability to jump between page sections.
+
+## Image alt text
+
+```tsx
+// Informative image
+<Image src={product} alt="Scoutr dashboard showing a product scan with 34% margin" />
+
+// Decorative image — empty string hides from screen readers
+<Image src={pattern} alt="" aria-hidden />
+
+// Icon button — describe the action, not the icon
+<button aria-label="Close dialog">
+  <X size={16} aria-hidden />
+</button>
+```
+
+Alt text describes what the image conveys, not what it looks like. "Button with an X icon" is wrong. "Close dialog" is right.
+
+## Keyboard navigation
+
+Every interactive element must be reachable and operable by keyboard:
+
+```tsx
+// Custom dropdown — handle keyboard events
+function Dropdown({ options, onSelect }: Props) {
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (open) onSelect(options[highlighted]);
+        setOpen(!open);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlighted((h) => Math.min(h + 1, options.length - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlighted((h) => Math.max(h - 1, 0));
+        break;
+      case 'Escape':
+        setOpen(false);
+        break;
+    }
+  };
+
+  return (
+    <div role="combobox" aria-expanded={open} aria-haspopup="listbox">
+      <button onKeyDown={handleKeyDown} onClick={() => setOpen(!open)}>
+        Select option
+      </button>
+      {open && (
+        <ul role="listbox">
+          {options.map((opt, i) => (
+            <li
+              key={opt.value}
+              role="option"
+              aria-selected={i === highlighted}
+              onClick={() => onSelect(opt)}
+            >
+              {opt.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
+## Focus management for dialogs
+
+When a modal opens, focus must move into it. When it closes, focus must return to the trigger:
+
+```tsx
+'use client';
+
+import { useEffect, useRef } from 'react';
+import FocusTrap from 'focus-trap-react';
+
+function Modal({ isOpen, onClose, children }: Props) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      triggerRef.current?.focus();  // restore focus on close
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <FocusTrap>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <h2 id="modal-title">Dialog title</h2>
+        {children}
+        <button onClick={onClose}>Close</button>
+      </div>
+    </FocusTrap>
+  );
+}
+```
+
+`focus-trap-react` keeps focus inside the modal while it's open. The `aria-modal="true"` attribute tells screen readers to treat the modal as a separate context.
+
+## Live regions for dynamic content
+
+When content changes without a page navigation, screen readers need to be notified:
+
+```tsx
+// Announce status messages to screen readers
+function StatusMessage({ message, type }: { message: string; type: 'success' | 'error' }) {
+  return (
+    <div
+      role="status"  // polite: reads after current content
+      aria-live="polite"  // for success/info
+      // role="alert" + aria-live="assertive" for errors
+    >
+      {message}
+    </div>
+  );
+}
+
+// Loading state
+<div role="status" aria-live="polite">
+  {loading ? 'Loading results...' : `${results.length} results found`}
+</div>
+```
+
+`aria-live="polite"` announces when the user is idle. `aria-live="assertive"` interrupts immediately — use only for errors.
+
+## Skip links
+
+The first focusable element on every page should be a "skip to content" link:
+
+```tsx
+// components/SkipLink.tsx
+export function SkipLink() {
+  return (
+    <a
+      href="#main-content"
+      className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-construx focus:text-black focus:font-mono"
+    >
+      Skip to main content
+    </a>
+  );
+}
+
+// In your layout
+<SkipLink />
+<Nav />
+<main id="main-content">
+  {children}
+</main>
+```
+
+Without this, keyboard users must tab through the entire navigation on every page.
+
+## Color contrast
+
+WCAG AA requires 4.5:1 contrast ratio for normal text, 3:1 for large text (18px+ bold or 24px+ regular). Check with a browser extension (axe, Accessibility Insights) or the Chrome DevTools accessibility panel.
+
+Common failures: light gray text on white, placeholder text, disabled button states.
+
+## Form labels
+
+Every input needs a label that's programmatically associated:
+
+```tsx
+// Wrong — visual label without association
+<span>Email</span>
+<input type="email" />
+
+// Right — explicit association
+<label htmlFor="email">Email address</label>
+<input id="email" type="email" />
+
+// Also right — wrapping label
+<label>
+  Email address
+  <input type="email" />
+</label>
+
+// Required field indication
+<label htmlFor="email">
+  Email address
+  <span aria-label="required" aria-hidden="false">*</span>
+</label>
+<input id="email" type="email" aria-required="true" />
+```
+
+## Testing
+
+Automated tools catch ~30% of accessibility issues. Manual testing catches the rest:
+
+```bash
+npm install -D @axe-core/playwright
+```
+
+```ts
+// e2e/accessibility.spec.ts
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('no accessibility violations on home page', async ({ page }) => {
+  await page.goto('/');
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+```
+
+Manual testing checklist:
+- Tab through every interactive element on every page
+- Use a screen reader (VoiceOver on Mac, NVDA on Windows) on at least the sign-up and checkout flows
+- Set browser zoom to 200% — does the layout break?
+- Turn off CSS — is the content still understandable?

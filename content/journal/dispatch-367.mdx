@@ -1,0 +1,182 @@
+---
+title: "Multi-tenant SaaS architecture: isolating data and routing requests"
+date: "2027-12-17"
+excerpt: "Multi-tenancy determines whether your SaaS can serve thousands of organisations with one codebase. The three patterns — shared database with RLS, schema-per-tenant, and database-per-tenant — have very different performance and isolation trade-offs."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Multi-tenancy is the architectural pattern that lets you serve many organisations with one deployment. Every B2B SaaS needs it. The three main patterns differ in isolation level, operational complexity, and scaling characteristics.
+
+## Pattern 1: Shared database with row-level security
+
+All tenants share one database. Every table has a `tenantId` column. PostgreSQL Row Level Security (RLS) enforces isolation at the database layer.
+
+```sql
+-- Enable RLS on all tenant-scoped tables
+ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "tenant_isolation" ON posts
+  USING (tenant_id = current_setting('app.tenant_id')::text);
+
+-- Read and write policy
+CREATE POLICY "tenant_isolation" ON posts
+  FOR ALL USING (tenant_id = current_setting('app.tenant_id')::text)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::text);
+```
+
+```ts
+// Set the tenant context before every query
+export async function withTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`);
+    return fn();
+  });
+}
+
+// Usage
+const posts = await withTenant(tenantId, () =>
+  db.query.posts.findMany({ orderBy: [desc(posts.createdAt)] })
+);
+```
+
+**Pros**: simple to operate, lowest cost, easy cross-tenant analytics.
+**Cons**: a bug in the RLS policy leaks data between tenants. Noisy neighbour problem — one tenant's heavy queries affect others.
+
+Best for: early stage, cost-sensitive, low compliance requirements.
+
+## Pattern 2: Schema per tenant
+
+Each tenant gets their own PostgreSQL schema within the same database:
+
+```sql
+-- Create a schema for a new tenant
+CREATE SCHEMA tenant_acme;
+
+-- Create tables in that schema (or use a migration tool)
+CREATE TABLE tenant_acme.posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+```
+
+```ts
+// Route queries to the right schema
+function getTenantDb(tenantId: string) {
+  const schemaName = `tenant_${tenantId.replace(/-/g, '_')}`;
+  return drizzle(client, { schema, logger: true })
+    .execute(sql`SET search_path TO ${sql.identifier(schemaName)}, public`);
+}
+```
+
+**Pros**: strong isolation (SQL queries can't accidentally cross schemas), easy per-tenant backup, simpler compliance story.
+**Cons**: schema migrations must run N times (once per tenant), harder to run cross-tenant queries, PostgreSQL has practical limits around 10,000 schemas.
+
+Best for: mid-market B2B where data isolation matters to buyers, regulated industries.
+
+## Pattern 3: Database per tenant
+
+The most isolated option: each tenant has their own database instance. Common with Neon's branching feature — create a database branch per tenant.
+
+```ts
+// lib/tenant-db.ts
+import { neon } from '@neondatabase/serverless';
+
+const tenantConnections = new Map<string, ReturnType<typeof neon>>();
+
+export function getTenantClient(tenantId: string) {
+  if (!tenantConnections.has(tenantId)) {
+    const url = getTenantDatabaseUrl(tenantId);  // stored in your tenant registry
+    tenantConnections.set(tenantId, neon(url));
+  }
+  return tenantConnections.get(tenantId)!;
+}
+
+async function getTenantDatabaseUrl(tenantId: string): Promise<string> {
+  const tenant = await registryDb.query.tenants.findFirst({
+    where: eq(tenants.id, tenantId),
+  });
+  return tenant!.databaseUrl;
+}
+```
+
+**Pros**: true isolation — impossible to leak data between tenants, per-tenant scaling, simplest compliance.
+**Cons**: highest cost, complex provisioning, migrations are a distributed systems problem.
+
+Best for: enterprise customers with strict data residency or compliance requirements, or very large tenants that need dedicated resources.
+
+## Routing tenants to the right schema
+
+Regardless of pattern, you need to identify the tenant on every request:
+
+```ts
+// lib/tenant.ts
+import { headers } from 'next/headers';
+import { db } from '@/db';
+import { tenants } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+
+export async function getCurrentTenant() {
+  const requestHeaders = await headers();
+
+  // Method 1: subdomain (acme.construxhq.io)
+  const host = requestHeaders.get('host') ?? '';
+  const subdomain = host.split('.')[0];
+
+  // Method 2: custom domain (app.acme.com → mapped to tenant)
+  const tenant = await db.query.tenants.findFirst({
+    where: eq(tenants.subdomain, subdomain),
+  });
+
+  if (!tenant) throw new Error('Tenant not found');
+  return tenant;
+}
+```
+
+```ts
+// middleware.ts
+export async function middleware(req: NextRequest) {
+  const host = req.headers.get('host') ?? '';
+  const subdomain = host.split('.')[0];
+
+  if (subdomain && subdomain !== 'www' && subdomain !== 'app') {
+    // Forward the tenant to route handlers via header
+    const response = NextResponse.next();
+    response.headers.set('x-tenant-id', subdomain);
+    return response;
+  }
+
+  return NextResponse.next();
+}
+```
+
+## Provisioning new tenants
+
+```ts
+// app/api/tenants/route.ts
+export async function POST(req: Request) {
+  const { organizationName, subdomain, adminEmail } = await req.json();
+
+  await db.transaction(async (tx) => {
+    // 1. Create the tenant record
+    const [tenant] = await tx.insert(tenants)
+      .values({ name: organizationName, subdomain })
+      .returning();
+
+    // 2. Create the admin user
+    const [user] = await tx.insert(users)
+      .values({ email: adminEmail, tenantId: tenant.id, role: 'admin' })
+      .returning();
+
+    // 3. Provision schema/database (schema-per-tenant example)
+    await tx.execute(sql`CREATE SCHEMA ${sql.identifier(`tenant_${tenant.id}`)}`);
+    await runMigrations(tenant.id);
+
+    // 4. Send welcome email
+    await sendEmail({ to: adminEmail, subject: 'Your workspace is ready', ... });
+  });
+}
+```
+
+The rule: pick the lowest isolation level that your compliance requirements allow. Shared database with RLS handles 90% of SaaS products. Move to schema-per-tenant when enterprise customers start asking about it.
