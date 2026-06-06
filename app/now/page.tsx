@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import RecentCommitsPanel from '@/components/RecentCommitsPanel';
+import TerminalCalPanel from '@/components/TerminalCalPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -298,6 +299,11 @@ export default function NowPage() {
         {/* Recent commits across all repos */}
         <div className="mt-10">
           <RecentCommitsPanel />
+        </div>
+
+        {/* Schedule calendar */}
+        <div className="mt-6">
+          <TerminalCalPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

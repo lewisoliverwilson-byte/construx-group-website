@@ -1,0 +1,228 @@
+---
+title: "Three.js and React Three Fiber: 3D in the browser"
+date: "2028-12-16"
+excerpt: "Three.js handles the WebGL complexity. React Three Fiber wraps it in a declarative React API. Together they make 3D scenes maintainable. Here's the setup for the interactive patterns that actually ship: scene setup, geometry, materials, animation, and performance."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Three.js is the standard WebGL abstraction for the browser — it handles shaders, geometry, lighting, and the render loop. React Three Fiber (R3F) makes it React: components, hooks, JSX. The Construx Group website's solar system hero is built with R3F.
+
+## Installation
+
+```bash
+npm install three @react-three/fiber @react-three/drei
+npm install -D @types/three
+```
+
+## Scene setup
+
+```tsx
+// components/Scene.tsx
+'use client';
+
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Stars } from '@react-three/drei';
+import { Suspense } from 'react';
+
+export default function Scene() {
+  return (
+    <Canvas
+      camera={{ position: [0, 0, 10], fov: 60 }}
+      gl={{ antialias: true, alpha: true }}
+      style={{ width: '100%', height: '600px' }}
+      dpr={[1, 2]}  // Limit pixel ratio for performance
+    >
+      <Suspense fallback={null}>
+        {/* Ambient + directional lighting */}
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[5, 5, 5]} intensity={1.2} castShadow />
+        <pointLight position={[-5, -5, -5]} intensity={0.8} color="#4ade80" />
+
+        {/* Environment */}
+        <Stars radius={80} depth={30} count={3000} factor={3} saturation={0} />
+
+        {/* Scene content */}
+        <Planet position={[0, 0, 0]} radius={1.5} color="#F97316" />
+        <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} />
+      </Suspense>
+    </Canvas>
+  );
+}
+```
+
+## Geometry and materials
+
+```tsx
+// components/Planet.tsx
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import type { Mesh } from 'three';
+
+interface PlanetProps {
+  position: [number, number, number];
+  radius: number;
+  color: string;
+}
+
+export function Planet({ position, radius, color }: PlanetProps) {
+  const meshRef = useRef<Mesh>(null);
+
+  // R3F render loop — runs every frame
+  useFrame((state, delta) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y += delta * 0.3;
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} position={position}>
+      <sphereGeometry args={[radius, 64, 64]} />
+      <meshStandardMaterial
+        color={color}
+        roughness={0.7}
+        metalness={0.2}
+        emissive={color}
+        emissiveIntensity={0.05}
+      />
+    </mesh>
+  );
+}
+```
+
+## Orbital animation
+
+```tsx
+// components/OrbitingBody.tsx
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { Group } from 'three';
+
+interface OrbitingBodyProps {
+  radius: number;       // Orbital radius
+  speed: number;        // Radians per second
+  children: React.ReactNode;
+}
+
+export function OrbitingBody({ radius, speed, children }: OrbitingBodyProps) {
+  const groupRef = useRef<Group>(null);
+
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * speed;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      {/* Offset child to orbital radius */}
+      <group position={[radius, 0, 0]}>
+        {children}
+      </group>
+    </group>
+  );
+}
+
+// Usage
+<OrbitingBody radius={4} speed={0.4}>
+  <Planet radius={0.5} color="#7dd3fc" position={[0, 0, 0]} />
+</OrbitingBody>
+```
+
+## Interactivity
+
+```tsx
+// Hover and click events — same as DOM events in R3F
+import { useState } from 'react';
+
+function InteractivePlanet() {
+  const [hovered, setHovered] = useState(false);
+  const [selected, setSelected] = useState(false);
+
+  return (
+    <mesh
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+      onClick={() => setSelected((s) => !s)}
+    >
+      <sphereGeometry args={[1, 32, 32]} />
+      <meshStandardMaterial
+        color={selected ? '#F97316' : hovered ? '#ffad60' : '#ffffff'}
+        emissive={hovered ? '#F97316' : '#000000'}
+        emissiveIntensity={hovered ? 0.2 : 0}
+      />
+    </mesh>
+  );
+}
+```
+
+## Post-processing effects
+
+```bash
+npm install @react-three/postprocessing
+```
+
+```tsx
+import { EffectComposer, Bloom, ChromaticAberration } from '@react-three/postprocessing';
+
+<Canvas>
+  {/* Scene content */}
+  <EffectComposer>
+    <Bloom
+      intensity={0.4}
+      luminanceThreshold={0.8}
+      luminanceSmoothing={0.9}
+    />
+    <ChromaticAberration offset={[0.0005, 0.0005]} />
+  </EffectComposer>
+</Canvas>
+```
+
+Bloom makes emissive materials glow. `luminanceThreshold={0.8}` limits the effect to bright pixels — prevents it from washing out the scene.
+
+## Performance
+
+```tsx
+// Drei helpers for performance
+import { Instances, Instance } from '@react-three/drei';
+
+// Instanced rendering — 1000 spheres with 1 draw call
+<Instances limit={1000}>
+  <sphereGeometry args={[0.1, 8, 8]} />
+  <meshBasicMaterial color="#4ade80" />
+  {positions.map((pos, i) => (
+    <Instance key={i} position={pos} />
+  ))}
+</Instances>
+```
+
+```tsx
+// useFrame performance — skip work when tab is not visible
+useFrame((state, delta) => {
+  if (!state.gl.domElement.isConnected) return;
+  // ... animation
+});
+```
+
+Key performance rules:
+- Use `dpr={[1, 2]}` to cap pixel density on high-DPI screens
+- Keep geometries simple (16-32 segments for distant objects, 64+ for closeups)
+- Use `useMemo` for geometry/material creation — avoid creating new Three.js objects every frame
+- `Instances` for repeated geometry — 1000 instances at the cost of 1
+- Suspend heavy operations (model loading, texture decoding) with React `Suspense`
+
+## Loading models
+
+```tsx
+import { useGLTF } from '@react-three/drei';
+
+function SpaceCraft() {
+  const { scene } = useGLTF('/models/spacecraft.glb');
+  return <primitive object={scene} scale={0.5} />;
+}
+
+// Preload at route level
+useGLTF.preload('/models/spacecraft.glb');
+```
+
+R3F renders everything inside a WebGL canvas. The component tree is virtual — there's no DOM inside. `primitive` bridges Three.js objects (like a loaded GLTF scene) into the R3F component tree.

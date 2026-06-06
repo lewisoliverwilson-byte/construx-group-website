@@ -1,0 +1,234 @@
+---
+title: "Input validation with Zod: schemas at the boundary"
+date: "2028-12-13"
+excerpt: "Zod is a TypeScript-first schema validation library. Define your shape once, get runtime validation and TypeScript types from the same definition. Here's how it maps to real application boundaries: API route inputs, environment variables, form submissions, and external API responses."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The premise: trust nothing at a system boundary. User input, API payloads, environment variables, webhook bodies — all should be validated before they enter your application's type-safe core. Zod makes this low-friction by generating TypeScript types from the same schema you use for validation.
+
+## Basic schemas
+
+```ts
+import { z } from 'zod';
+
+// Primitives
+const name = z.string().min(1).max(100);
+const age = z.number().int().min(0).max(150);
+const email = z.string().email().toLowerCase();
+const url = z.string().url();
+const uuid = z.string().uuid();
+
+// Optional and nullable
+const bio = z.string().optional();        // string | undefined
+const avatar = z.string().nullable();     // string | null
+const handle = z.string().nullish();      // string | null | undefined
+
+// Enums
+const role = z.enum(['admin', 'user', 'moderator']);
+const alertLevel = z.enum(['high', 'medium', 'low']);
+
+// Objects
+const CreateUserSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(100).trim(),
+  role: z.enum(['admin', 'user']).default('user'),
+  scanLimit: z.number().int().min(0).max(1000).default(50),
+});
+
+// Infer TypeScript types
+type CreateUser = z.infer<typeof CreateUserSchema>;
+```
+
+## API route validation
+
+```ts
+// app/api/users/route.ts
+import { z } from 'zod';
+import { ZodError } from 'zod';
+
+const CreateUserSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  name: z.string().min(1, 'Name is required').max(100, 'Name too long').trim(),
+  role: z.enum(['admin', 'user']).default('user'),
+});
+
+export async function POST(req: Request) {
+  let body: unknown;
+
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  const parsed = CreateUserSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return Response.json({
+      error: 'Validation failed',
+      fields: parsed.error.flatten().fieldErrors,
+    }, { status: 400 });
+  }
+
+  // parsed.data is typed as { email: string; name: string; role: 'admin' | 'user' }
+  const user = await db.insert(users).values(parsed.data).returning();
+  return Response.json(user[0], { status: 201 });
+}
+```
+
+## Environment variable validation
+
+```ts
+// env.ts — validate at startup, crash if misconfigured
+import { z } from 'zod';
+
+const EnvSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  ANTHROPIC_API_KEY: z.string().startsWith('sk-ant-'),
+  JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
+  NEXT_PUBLIC_SITE_URL: z.string().url(),
+  RESEND_API_KEY: z.string().startsWith('re_'),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1000).max(65535).default(3000),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+});
+
+// Throws at startup if env vars are missing or wrong — loud failure is better than silent bugs
+export const env = EnvSchema.parse(process.env);
+```
+
+```ts
+// Import env everywhere instead of process.env directly
+import { env } from '@/env';
+
+const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+```
+
+## Form validation
+
+Zod works with React Hook Form via the `@hookform/resolvers` adapter:
+
+```tsx
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const ContactSchema = z.object({
+  email: z.string().email('Invalid email'),
+  subject: z.string().min(5, 'Subject too short').max(200, 'Subject too long'),
+  message: z.string().min(20, 'Message too short').max(5000, 'Message too long'),
+  intent: z.enum(['build', 'partnership', 'other']),
+});
+
+type ContactFormData = z.infer<typeof ContactSchema>;
+
+export function ContactForm() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ContactFormData>({
+    resolver: zodResolver(ContactSchema),
+  });
+
+  const onSubmit = async (data: ContactFormData) => {
+    // data is typed and validated
+    await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register('email')} />
+      {errors.email && <p>{errors.email.message}</p>}
+
+      <textarea {...register('message')} />
+      {errors.message && <p>{errors.message.message}</p>}
+
+      <button type="submit" disabled={isSubmitting}>Send</button>
+    </form>
+  );
+}
+```
+
+## Discriminated unions
+
+```ts
+const WebhookEvent = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('checkout.completed'),
+    data: z.object({
+      sessionId: z.string(),
+      customerId: z.string(),
+      amount: z.number(),
+    }),
+  }),
+  z.object({
+    type: z.literal('subscription.cancelled'),
+    data: z.object({
+      subscriptionId: z.string(),
+      userId: z.string(),
+      cancelledAt: z.string().datetime(),
+    }),
+  }),
+  z.object({
+    type: z.literal('payment.failed'),
+    data: z.object({
+      invoiceId: z.string(),
+      amount: z.number(),
+      reason: z.string(),
+    }),
+  }),
+]);
+
+type WebhookEvent = z.infer<typeof WebhookEvent>;
+
+function handleWebhook(event: WebhookEvent) {
+  switch (event.type) {
+    case 'checkout.completed':
+      // TypeScript knows event.data has sessionId, customerId, amount
+      return processCheckout(event.data);
+    case 'subscription.cancelled':
+      return cancelSubscription(event.data.subscriptionId);
+    case 'payment.failed':
+      return handleFailedPayment(event.data.invoiceId);
+  }
+}
+```
+
+## Parsing external API responses
+
+```ts
+const ProductSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  price: z.number(),
+  currency: z.string().length(3).toUpperCase(),
+  inStock: z.boolean(),
+  images: z.array(z.string().url()).default([]),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+async function fetchProduct(id: string) {
+  const response = await fetch(`https://api.supplier.com/products/${id}`);
+  const raw = await response.json();
+
+  // Throws if the response doesn't match — catches API contract changes early
+  return ProductSchema.parse(raw);
+}
+
+// Or use safeParse to handle gracefully:
+const result = ProductSchema.safeParse(raw);
+if (!result.success) {
+  console.error('API response changed:', result.error.issues);
+  return null;
+}
+return result.data;
+```
+
+The key insight: one schema definition generates both the runtime validation logic and the TypeScript type. When the schema changes, both update together — no manually-maintained types that diverge from the actual validation.
