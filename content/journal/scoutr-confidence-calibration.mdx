@@ -1,0 +1,87 @@
+---
+title: "Scoutr's confidence score: how we calibrate AI outputs to be honest"
+date: "2026-10-05"
+excerpt: "An AI confidence score that's always high isn't a confidence score — it's noise. Here's how we built and continue to calibrate Scoutr's profitability confidence to be genuinely informative."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A confidence score that's always 85-95% tells a user nothing. It's a badge that says "AI thinks this is probably fine" without actually conveying anything about the quality of the underlying analysis.
+
+Scoutr's confidence score was initially miscalibrated. Here's how we fixed it and what calibration actually means in practice.
+
+## What the confidence score represents
+
+Scoutr's confidence score (0-100) represents our estimate of how likely the product is to be profitable if purchased at the scanned retail price and sold on eBay at the current market rate.
+
+This is not the probability of a profitable sale — that depends on the buyer's execution, their eBay seller rating, their shipping costs, and many other factors. It's the probability that the underlying analysis is correct: that the margin estimate is accurate given the available data.
+
+Two separate things determine the score:
+
+**Data quality.** How much eBay sold data is available for this product? Are there recent sold listings? Are the prices consistent, or is there high variance? A product with 50+ completed sales in the last 30 days at consistent prices warrants high confidence. A product with 2 completed sales 90 days ago warrants low confidence.
+
+**Margin estimate.** Given the data, is the estimated margin clearly positive, clearly negative, or borderline? A product with a 40% estimated margin (well above the threshold for profitability) warrants higher confidence than one with a 5% margin (close to the threshold where uncertainty matters).
+
+## The initial miscalibration
+
+The first version of the confidence scoring prompt asked Claude to "estimate the probability that this product is profitable based on the available data." The resulting scores clustered between 65 and 92. Almost nothing scored below 65.
+
+The problem: Claude was interpreting the question charitably. When data was sparse, instead of expressing low confidence, it would express moderate confidence with caveats. The caveats appeared in the reasoning text but not in the score.
+
+The user sees the score, not primarily the reasoning text. A score of 75 with a caveat-filled reasoning is functionally the same as a score of 75 without caveats — the user sees 75 and proceeds.
+
+## The calibration approach
+
+We built a validation set: 200 products where we knew the actual outcome (we or a user had purchased and sold the product). We ran the scoring prompt against these products and compared the model's confidence scores to the actual outcomes.
+
+The calibration analysis:
+- Products scored 80-100: 72% were actually profitable
+- Products scored 60-80: 58% were actually profitable
+- Products scored 40-60: 41% were actually profitable
+- Products scored below 40: 28% were actually profitable
+
+A perfectly calibrated model would show 80% profitability for 80-scored products, 60% for 60-scored products, etc. Our model was overconfident: 80-100 scored products were profitable only 72% of the time.
+
+## The fix
+
+We revised the scoring prompt to explicitly anchor on data quality and to penalise uncertainty:
+
+```
+Data quality signals that should LOWER confidence:
+- Fewer than 10 completed eBay sales in the past 30 days
+- High price variance (>30% standard deviation across completed sales)
+- Sales more than 60 days old
+- Category with high fee variance or shipping complexity
+
+Assign confidence 20-40 when data quality is poor, regardless of estimated margin.
+Assign confidence 40-70 when data quality is moderate and margin is close to threshold.
+Assign confidence 70-90 when data quality is strong and margin is clearly positive.
+Reserve confidence above 90 for products with exceptional data quality AND clear margin.
+```
+
+The explicit anchors produced a better-spread distribution. We re-ran the validation set:
+- Products scored 80-100: 78% actually profitable (improved from 72%)
+- Products scored 60-80: 63% actually profitable (improved from 58%)
+- Products scored 40-60: 45% actually profitable (improved from 41%)
+- Products scored below 40: 24% actually profitable (slightly worse — the model was now more often correctly cautious about borderline products)
+
+The overall calibration improved. The distribution of scores became wider — more products in the 30-60 range where the data genuinely warranted moderate confidence.
+
+## The ongoing calibration
+
+We add to the validation set as we accumulate outcome data. Every month, we sample 20-30 products where Scoutr gave a confidence score and for which we know the actual outcome (either from user feedback or from tracking the eBay listing).
+
+The calibration runs quarterly:
+1. Compare predicted confidence to actual profitability.
+2. Identify systematic biases (consistently overconfident for specific categories, consistently underconfident for others).
+3. Update the scoring prompt to address the biases.
+
+The most recent finding: Scoutr is systematically overconfident for products in the electronics category, where eBay selling fees are higher and competition is more intense than in other categories. We've added an electronics-specific instruction to the prompt.
+
+## The user experience of calibration
+
+A well-calibrated confidence score changes how users use the product. When users trust that a low confidence score means "insufficient data, don't rely on this" and a high confidence score means "strong data, reliable estimate," they make better decisions.
+
+We've seen this in the data: users with higher time-on-platform (who've experienced both high-confidence and low-confidence scores and seen them correlate with outcomes) have higher conversion-to-purchase rates on high-confidence products and lower rates on low-confidence products. New users show less discrimination — they haven't yet learned to trust the calibration.
+
+The implication: calibration trust is built over time. A confidence score on day one means less to a user than the same score on month six. We're building toward tools that surface this trust-building explicitly — showing users how the confidence score has correlated with their own past outcomes.
