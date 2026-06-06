@@ -1,0 +1,167 @@
+---
+title: "TanStack Query v5: server state without the ceremony"
+date: "2030-11-21"
+excerpt: "TanStack Query (formerly React Query) manages server state — data that lives on the server and needs to be fetched, cached, synchronized, and updated. v5 simplified the API: one unified useQuery hook, better TypeScript inference, and a smaller bundle. It handles loading, error, and stale states so you do not have to write that logic yourself. The devtools show you exactly what is cached and when it will re-fetch."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Server state is not the same as client state. It belongs on the server, has a cache lifetime, and can go stale. TanStack Query manages all of that.
+
+## Install
+
+```bash
+npm install @tanstack/react-query
+npm install -D @tanstack/react-query-devtools
+```
+
+## Setup
+
+```tsx
+// app/providers.tsx
+'use client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools }               from '@tanstack/react-query-devtools';
+import { useState }                          from 'react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60 * 1000,  // 1 minute
+        retry:     1,
+      },
+    },
+  }));
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <ReactQueryDevtools />
+    </QueryClientProvider>
+  );
+}
+```
+
+## useQuery
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+
+interface Post {
+  id:      string;
+  title:   string;
+  content: string;
+}
+
+async function fetchPosts(): Promise<Post[]> {
+  const res = await fetch('/api/posts');
+  if (!res.ok) throw new Error('Failed to fetch posts');
+  return res.json();
+}
+
+function PostList() {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['posts'],
+    queryFn:  fetchPosts,
+  });
+
+  if (isLoading) return <div>Loading…</div>;
+  if (isError)   return <div>Error: {error.message}</div>;
+
+  return (
+    <ul>
+      {data.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## useMutation
+
+```tsx
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+function CreatePostForm() {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (post: { title: string; content: string }) => {
+      const res = await fetch('/api/posts', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(post),
+      });
+      if (!res.ok) throw new Error('Failed to create post');
+      return res.json();
+    },
+    onSuccess: () => {
+      // Invalidate and re-fetch
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+
+  return (
+    <button
+      onClick={() => mutation.mutate({ title: 'New Post', content: '…' })}
+      disabled={mutation.isPending}
+    >
+      {mutation.isPending ? 'Creating…' : 'Create Post'}
+    </button>
+  );
+}
+```
+
+## Query keys
+
+Query keys are the cache key. Structure them for easy invalidation:
+
+```ts
+// Flat
+useQuery({ queryKey: ['posts'], queryFn: fetchPosts });
+
+// Parameterised — unique cache entry per ID
+useQuery({ queryKey: ['posts', postId], queryFn: () => fetchPost(postId) });
+
+// Hierarchical — invalidate all posts queries at once
+queryClient.invalidateQueries({ queryKey: ['posts'] });
+
+// Factory pattern — keeps keys consistent across components
+export const postKeys = {
+  all:    () => ['posts'] as const,
+  lists:  () => [...postKeys.all(), 'list'] as const,
+  detail: (id: string) => [...postKeys.all(), 'detail', id] as const,
+};
+```
+
+## Optimistic updates
+
+```ts
+const mutation = useMutation({
+  mutationFn: toggleLike,
+  onMutate: async (postId) => {
+    await queryClient.cancelQueries({ queryKey: postKeys.detail(postId) });
+    const previous = queryClient.getQueryData(postKeys.detail(postId));
+
+    queryClient.setQueryData(postKeys.detail(postId), (old: Post) => ({
+      ...old,
+      liked:     !old.liked,
+      likeCount: old.liked ? old.likeCount - 1 : old.likeCount + 1,
+    }));
+
+    return { previous };
+  },
+  onError: (err, postId, context) => {
+    queryClient.setQueryData(postKeys.detail(postId), context?.previous);
+  },
+  onSettled: (data, err, postId) => {
+    queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
+  },
+});
+```
+
+## When TanStack Query is not needed
+
+In Next.js App Router with Server Components, data fetching happens on the server. You do not need TanStack Query for data that is fetched once and rendered. TanStack Query shines for: data that re-fetches in the background, client-side mutations with cache invalidation, pagination, infinite scroll, and real-time updates via polling. Use Server Components for the initial data load and TanStack Query for interactive, client-side data management.
