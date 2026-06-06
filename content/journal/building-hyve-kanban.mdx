@@ -1,0 +1,93 @@
+---
+title: "Building The Hyve's kanban: event-driven task management"
+date: "2026-06-29"
+excerpt: "The Hyve's kanban board syncs in real time across team members and integrates with the AI agent. Here's how we built it: the event-driven architecture, the optimistic state model, and the AI task generation feature."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The kanban board is one of The Hyve's core features. Tasks move between columns (Backlog, In Progress, Review, Done), team members can be assigned, and changes sync across all active sessions in real time. The AI agent can create tasks from channel conversations and break down large tasks into subtasks.
+
+Building it required solving three distinct problems: the data model, the real-time sync, and the AI integration.
+
+## The data model
+
+A kanban task needs to store more than its content. It needs a position within its column (so you can drag to reorder), its column assignment (which stage it's in), its history (who moved it, when, from where), and its relationships to other tasks (subtasks, blocking relationships).
+
+The schema we landed on:
+
+```sql
+tasks (
+  id uuid primary key,
+  board_id uuid references boards(id),
+  column_id uuid references columns(id),
+  title text,
+  description text,
+  assignee_id uuid references users(id),
+  position float8,
+  created_at timestamptz,
+  created_by uuid references users(id)
+)
+
+task_events (
+  id uuid primary key,
+  task_id uuid references tasks(id),
+  event_type text,  -- 'moved', 'assigned', 'created', 'completed'
+  payload jsonb,
+  created_at timestamptz,
+  created_by uuid references users(id)
+)
+```
+
+The `position` field is a floating-point number rather than an integer. This allows inserting a task between two others without renumbering: if tasks A (position 1.0) and B (position 2.0) need a task C between them, C gets position 1.5. Only when position values get close enough to cause floating-point comparison issues (after many re-orderings) do we normalise all positions.
+
+The `task_events` table is the activity log. Every change to a task is an event. The current state of a task can be derived from its event history, but for performance we store the current state directly in `tasks` and use events only for history.
+
+## Real-time sync via WebSockets
+
+When a user moves a task, the sequence is:
+
+1. Optimistic update: the task moves immediately in the client state.
+2. API call: a PATCH request updates the task position in the database and creates a `moved` event.
+3. WebSocket broadcast: the server sends a task event to all connected clients in the same workspace.
+4. Client update: other clients receive the event and update their local state.
+
+The event structure is minimal: `{ type: 'task:moved', taskId, fromColumnId, toColumnId, newPosition, movedBy }`. Clients apply this event to their local state rather than re-fetching the full board.
+
+The conflict case: two users try to move the same task simultaneously. We handle this with last-write-wins at the server. The server processes API calls sequentially; whichever move arrives first wins, and the conflicted client receives the server's authoritative state via the broadcast.
+
+## Optimistic updates
+
+Every interaction with the kanban feels instant because we apply changes locally before the server confirms them.
+
+The risk: the server rejects the change (permissions, validation, conflict). We handle this with a rollback mechanism: if the API call fails, we dispatch a rollback event that reverts the local state to the pre-change version. A toast notification explains what happened.
+
+The engineering detail: the optimistic update needs to be reversible. When you apply an optimistic state change, you store the previous state. If the API call fails within a timeout (we use 5 seconds), you restore the previous state.
+
+In practice, rollbacks happen rarely and usually for permission-related reasons (someone trying to modify a task they don't own). The happy path — update succeeds, WebSocket broadcast reaches other clients — is what users experience almost all the time.
+
+## AI task generation
+
+The most distinctive feature of The Hyve's kanban is AI task generation from channel conversations.
+
+When a team member sends a message in a channel that sounds like a plan — "we need to fix the login page, update the billing docs, and test the new export feature" — the AI agent can identify the implicit tasks and offer to create them.
+
+The implementation: a background process watches for AI agent messages that mention task-like items. When the agent identifies tasks, it presents them as a structured list with a "Create these tasks" action. Clicking the action calls the task creation API with the identified items.
+
+The task generation prompt template includes the channel's existing column structure (so the AI creates tasks in the right columns — new tasks usually go to Backlog, but some contexts suggest In Progress), the team member who sent the original message (assigned as creator), and any context about the board's conventions.
+
+## The activity log
+
+Every event in `task_events` feeds a board-level activity log: a chronological list of everything that happened to the board. This serves two purposes.
+
+For team members: an audit trail. "Who moved this to Done?" is a common question. The activity log answers it without requiring anyone to remember.
+
+For the AI agent: context about the board's history. When someone asks the AI "what's the status of the billing integration?", the agent reads the activity log for tasks related to billing and summarises where things stand.
+
+The activity log doesn't require separate instrumentation — it's a natural output of the event-driven architecture. Every change creates an event; reading the events produces the log.
+
+## What we'd do differently
+
+The position-as-float approach works but requires periodic normalisation for heavily reordered boards. A fractional indexing library would handle this more cleanly — libraries like `fractional-indexing` implement the same pattern with better edge case handling than our hand-rolled version.
+
+The AI task generation is conservative: it only creates tasks when the AI is fairly confident about what the tasks are. A more aggressive version would proactively suggest tasks more often, but with a higher false-positive rate. We've left this tuning conservative for now.

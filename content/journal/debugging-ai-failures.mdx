@@ -1,0 +1,96 @@
+---
+title: "The debugging process for AI output failures"
+date: "2026-06-30"
+excerpt: "AI failures don't look like conventional software failures. No stack trace, no clear error message — just output that's wrong in a way that requires reasoning about why. Here's the debugging process we've developed."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+When a conventional function produces wrong output, debugging follows a familiar path: find the input, trace the execution, identify the line where something goes wrong. The system is deterministic; the bug is reproducible.
+
+When an AI feature produces wrong output, the debugging path is different. The system is probabilistic. There's no stack trace. The failure might not reproduce on the same input. The "bug" might be in the prompt, the model, the input preprocessing, or the output postprocessing — and telling these apart requires a different kind of reasoning.
+
+Here's the process we've developed.
+
+## Step 1: characterise the failure
+
+Before debugging, understand what kind of failure this is.
+
+**Format failures**: the output is in the wrong structure. JSON that isn't valid JSON, a list that's missing items, a field that's the wrong type. These are usually prompt failures — the format instruction is unclear or incomplete.
+
+**Classification failures**: the output classifies something incorrectly. Scoutr putting a product in the wrong fee category. The Hyve's AI agent responding to a question about project X with context from project Y. These are usually context or prompt failures.
+
+**Quality failures**: the output is in the correct format and classification but the content is poor. A summary that misses the main point. A task breakdown that's too coarse. An explanation that's technically accurate but not useful. These are harder to diagnose and often require tuning rather than fixing.
+
+**Consistency failures**: the output is correct most of the time but wrong in specific cases. Usually a specific type of input that the prompt doesn't handle well.
+
+Characterising the failure type shapes what you look at first.
+
+## Step 2: isolate the input
+
+Reproduce the failure with the smallest input that still produces it.
+
+For a Scoutr fee classification failure, this might mean:
+- Start with the full product page that caused the failure
+- Remove sections that seem irrelevant to fee classification
+- Find the minimum product description that still causes the wrong classification
+
+The minimum input is easier to reason about, easier to test with prompt changes, and sometimes reveals the failure cause directly (the product description is ambiguous in a way you hadn't considered).
+
+If the failure doesn't reproduce at all with the same input — it was a one-off — that's information too. Check whether the model has been updated, whether the prompt was changed, or whether the input format changed slightly. One-off failures that can't be reproduced are usually transient (model variance) or caused by recent changes.
+
+## Step 3: inspect the prompt
+
+Read the prompt that was used for the failing call. Look for:
+
+**Ambiguous instructions**: where the prompt could reasonably be interpreted in multiple ways. "Classify the product category" is ambiguous when there are multiple applicable categories. "Classify the product's primary Amazon fee category" is less ambiguous.
+
+**Missing constraints**: cases the prompt doesn't cover. If a product could reasonably be in three categories and the prompt doesn't specify how to handle this, the model will make a choice that might not match your expectation.
+
+**Contradictory instructions**: instructions that conflict. "Be concise" and "include all relevant details" can conflict. The model resolves these in ways you might not expect.
+
+**Stale context**: instructions that were correct when written but are no longer accurate. A fee schedule that's changed, a category list that's grown, domain rules that have been updated.
+
+## Step 4: test prompt variants
+
+Develop a hypothesis about what's wrong with the prompt and test it.
+
+The testing approach:
+1. Write a minimal prompt change that implements your hypothesis
+2. Test it on the failing input
+3. Test it on 10-20 other inputs to verify it doesn't break things that were working
+
+The common trap: fixing the failing case while breaking other cases. A more specific instruction that handles the edge case correctly might over-specify in a way that produces wrong output for inputs that were previously handled correctly.
+
+This is why the test suite matters. Without a set of reference inputs and expected outputs, you can't tell whether your prompt change is an improvement or just a tradeoff.
+
+## Step 5: decide whether this is a prompt problem or a model problem
+
+Sometimes the right prompt can't produce the right output. The model doesn't have the knowledge, can't reason through the required inference, or consistently produces the wrong output despite clear instructions.
+
+For fee classification, we've encountered cases where Claude consistently misclassifies products in an edge case category regardless of how we frame the instruction. The classification is genuinely ambiguous — Claude's misclassification matches how a human expert might classify the product differently on different days.
+
+When this happens, the decision is:
+- **Accept the failure rate**: some percentage of outputs will be wrong in this edge case. This is acceptable if the edge case is rare and the failure is caught by users before they act on it.
+- **Change the scope**: redesign the feature to avoid the problem. Instead of asking Claude to classify a category it struggles with, use a lookup table for that category's products.
+- **Add a fallback**: detect the edge case and route it differently. If the classification confidence is low (which you can infer from the output or by asking Claude for its confidence), flag it for manual review.
+
+The debugging process should produce a clear diagnosis of where the failure lives. Prompt changes fix prompt problems. Scope changes fix scope problems. Model limitations are facts to design around, not bugs to fix.
+
+## Logging for debuggability
+
+The single most useful practice for AI debugging: log every AI call with its full input and output.
+
+When a user reports a problem, you want to be able to find the exact call that produced the wrong output, see exactly what was in the prompt, and understand what context was provided. Without logging, you're reconstructing from memory and guessing about inputs.
+
+We log:
+- The full prompt (system + user messages)
+- The model used
+- The full output
+- The call timestamp
+- The user identifier (not content — just who triggered the call)
+- The call latency
+
+We do not log user-identifiable content in detail. The log is for debugging AI behavior, not for storing user data. The balance: enough context to diagnose failures, nothing that creates unnecessary privacy risk.
+
+Logs are retained for 30 days. Most debugging happens within 24 hours of a failure being reported. The 30-day window covers edge cases where a failure isn't noticed immediately.
