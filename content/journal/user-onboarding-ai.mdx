@@ -1,0 +1,76 @@
+---
+title: "User onboarding for AI products: setting the right mental model"
+date: "2026-07-02"
+excerpt: "Onboarding for AI products has to do something conventional onboarding doesn't: establish an accurate mental model of how the AI works. Get this wrong and users form expectations the product can't meet."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+User onboarding is about getting someone from "I just signed up" to "I understand this and am getting value." For most products, this means showing features, guiding through setup, and demonstrating the core workflow.
+
+For AI products, there's an additional requirement: establishing an accurate mental model of how the AI works. This is harder than it sounds, and failing at it causes a specific category of user disappointment.
+
+## The mental model problem
+
+Users arrive at AI products with existing mental models, usually wrong ones in specific ways:
+
+**The search engine model**: users expect to type a query and get a result, and they expect the result to be correct. When AI output is wrong or uncertain, they feel misled.
+
+**The human assistant model**: users expect the AI to understand context from prior interactions, to remember their preferences, to be consistent across sessions. When it isn't, they feel abandoned.
+
+**The magic model**: users expect the AI to be impressive in ways they can't predict. When the AI is consistently useful but not impressive, they feel underwhelmed.
+
+None of these models are right. The accurate model is more specific: the AI reasons from the context you give it, within the constraints of its training, to produce output that's probabilistically correct for the task you've specified.
+
+Onboarding has to establish this model without making it sound limiting.
+
+## What Scoutr's onboarding has to communicate
+
+Scoutr processes product URLs and returns fee-adjusted margin estimates. The mental model users need:
+
+1. **Scoutr is only as good as the product data on the page.** If the product listing has incomplete information (no dimensions, vague category), Scoutr's estimates are less accurate. Users need to know this so they know when to verify.
+
+2. **The estimates are projections, not certainties.** Fee estimates are correct for the specified product category. If the category is misclassified, the fee is wrong. Scoutr tells users which category it used; they can verify.
+
+3. **The product list is everything on the page, ranked by margin.** Users sometimes expect Scoutr to filter to only "profitable" products. It doesn't — it returns everything and lets the user decide what profitable means for their strategy.
+
+Our first onboarding was a five-step tour that explained features. It produced users who knew how to use the interface but didn't understand how to interpret the output. The second version focused on the interpretation: what the margin estimate represents, how to read the fee breakdown, when to verify rather than act directly.
+
+## The first run experience
+
+The most important moment in onboarding is the first successful use. For Scoutr: a user pastes their first URL, the scan completes, they see products with margin estimates for the first time.
+
+What this moment needs to communicate:
+- The output format (what each number means)
+- The confidence level (what's calculated vs estimated)
+- The action to take (how to use this to make a decision)
+
+We show a tooltip overlay on the first scan that highlights each section of the output with a one-sentence explanation. Not a feature tour — an interpretation guide. "This number is the projected margin after Amazon fees, calculated using the product's listed dimensions and the fee schedule for this category."
+
+The tooltip overlay disappears after the first scan and never returns. It's enough for the initial orientation; after that, users learn from use.
+
+## Setting failure expectations
+
+AI products fail in specific, predictable ways. Onboarding should prepare users for the expected failure modes rather than leaving them to discover them as surprises.
+
+For Scoutr, the common failure modes:
+- Products where dimensions aren't listed, so the fee estimate is less accurate
+- Categories where Claude's classification doesn't match Amazon's actual category
+- Product pages with unusual formats that affect how product data is extracted
+
+We mention these in the initial onboarding — not as disclaimers, as transparency about how the system works. A user who knows that dimension-based fee calculations are estimates will verify before committing to a large order. A user who wasn't told this will be surprised when the actual fees differ from the estimate.
+
+Setting failure expectations isn't pessimism — it's calibration. Users who understand what the product can and can't do are more satisfied than users who are surprised by limitations they weren't warned about.
+
+## The progressive reveal
+
+Not everything needs to be in the initial onboarding. Users can't absorb everything at once, and overwhelming the first experience hurts more than it helps.
+
+The structure we've found works:
+1. **Session 1**: core workflow (here's how to do the thing you came here to do)
+2. **Session 2-3**: interpretation guidance (here's how to read the output)
+3. **Session 4+**: advanced features (here's how to do more with what you've learned)
+
+The progressive reveal requires noticing when a user encounters something for the first time. For Scoutr: showing the dimension estimate breakdown when a user first clicks into a product's fee detail. For The Hyve: explaining the vector memory system when the AI first references a past decision.
+
+This contextual guidance feels helpful rather than obligatory. It appears when it's relevant, not on a schedule.
