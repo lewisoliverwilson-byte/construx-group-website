@@ -1,55 +1,135 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Copy, Check } from 'lucide-react';
+import { useState, useRef, Children } from 'react';
+import { Check, Copy } from 'lucide-react';
+
+function detectLang(className?: string): string {
+  if (!className) return '';
+  const m = className.match(/language-(\w+)/);
+  if (!m) return '';
+  const map: Record<string, string> = {
+    ts: 'TypeScript', tsx: 'TypeScript/JSX', js: 'JavaScript', jsx: 'JavaScript/JSX',
+    python: 'Python', py: 'Python', sql: 'SQL', sh: 'Shell', bash: 'Shell',
+    css: 'CSS', json: 'JSON', yaml: 'YAML', yml: 'YAML', html: 'HTML',
+    rust: 'Rust', go: 'Go', java: 'Java', markdown: 'Markdown', md: 'Markdown',
+    typescript: 'TypeScript', javascript: 'JavaScript',
+  };
+  return map[m[1].toLowerCase()] ?? m[1].toUpperCase();
+}
+
+function getChildClassName(children: React.ReactNode): string | undefined {
+  const arr = Children.toArray(children);
+  for (const child of arr) {
+    if (child && typeof child === 'object' && 'props' in child) {
+      const props = (child as React.ReactElement<{ className?: string }>).props;
+      if (props.className) return props.className;
+    }
+  }
+  return undefined;
+}
 
 export default function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) {
   const [copied, setCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
 
   const handleCopy = async () => {
-    const code = preRef.current?.querySelector('code')?.textContent ?? '';
+    const text = preRef.current?.querySelector('code')?.textContent ?? '';
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard unavailable */
-    }
+    } catch { /* clipboard unavailable */ }
   };
 
+  const langClass = getChildClassName(children);
+  const lang = detectLang(langClass);
+  const lineCount = (preRef.current?.querySelector('code')?.textContent ?? '').split('\n').filter(Boolean).length;
+
   return (
-    <div className="relative group">
-      <pre ref={preRef} {...props}>
-        {children}
-      </pre>
-      <button
-        onClick={handleCopy}
-        aria-label={copied ? 'Copied' : 'Copy code'}
-        className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+    <div
+      className="relative my-6 overflow-hidden"
+      style={{
+        background: 'rgba(0,0,8,0.95)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: '6px',
+        boxShadow: '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+      }}
+    >
+      {/* Title bar */}
+      <div
+        className="flex items-center gap-3 px-4 py-2.5 select-none"
         style={{
-          background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.12)',
-          border: copied ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(249,115,22,0.2)',
-          borderRadius: '2px',
-          padding: '3px 8px',
+          background: 'rgba(255,255,255,0.02)',
+          borderBottom: '1px solid rgba(255,255,255,0.055)',
         }}
       >
-        {copied ? (
-          <>
-            <Check size={10} style={{ color: '#86efac' }} />
-            <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#86efac' }}>
-              COPIED
-            </span>
-          </>
-        ) : (
-          <>
-            <Copy size={10} style={{ color: 'rgba(249,115,22,0.6)' }} />
-            <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.6)' }}>
-              COPY
-            </span>
-          </>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 3px rgba(255,95,87,0.4)' }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 3px rgba(255,189,46,0.3)' }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 3px rgba(40,200,64,0.3)' }} />
+        </div>
+        {lang && (
+          <span
+            className="font-mono text-[9px] uppercase tracking-widest flex-1 text-center"
+            style={{ color: 'rgba(255,255,255,0.22)' }}
+          >
+            {lang}
+          </span>
         )}
-      </button>
+        <button
+          onClick={handleCopy}
+          aria-label={copied ? 'Copied' : 'Copy code'}
+          className="flex items-center gap-1 transition-all ml-auto"
+          style={{
+            background: copied ? 'rgba(34,197,94,0.12)' : 'rgba(249,115,22,0.1)',
+            border: copied ? '1px solid rgba(34,197,94,0.25)' : '1px solid rgba(249,115,22,0.18)',
+            borderRadius: '2px',
+            padding: '2px 7px',
+          }}
+        >
+          {copied ? (
+            <>
+              <Check size={9} style={{ color: '#86efac' }} />
+              <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: '#86efac' }}>COPIED</span>
+            </>
+          ) : (
+            <>
+              <Copy size={9} style={{ color: 'rgba(249,115,22,0.55)' }} />
+              <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.55)' }}>COPY</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Code area */}
+      <pre
+        ref={preRef}
+        {...props}
+        style={{
+          margin: 0,
+          borderRadius: 0,
+          background: 'transparent',
+          ...props.style,
+        }}
+      >
+        {children}
+      </pre>
+
+      {/* Footer bar */}
+      <div
+        className="flex items-center gap-4 px-4 py-1.5 select-none"
+        style={{
+          borderTop: '1px solid rgba(255,255,255,0.04)',
+          background: 'rgba(255,255,255,0.01)',
+        }}
+      >
+        <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.14)' }}>
+          construx/construx-group-website
+        </span>
+        <span className="font-mono text-[8px] tabular-nums ml-auto" style={{ color: 'rgba(255,255,255,0.14)' }}>
+          {lang || 'code'}
+        </span>
+      </div>
     </div>
   );
 }
