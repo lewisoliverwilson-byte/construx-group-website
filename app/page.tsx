@@ -8,6 +8,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import SolarSystemLoader from '@/components/solar-system/SolarSystemLoader';
 import CountUp from '@/components/ui/CountUp';
 import SystemLog from '@/components/SystemLog';
+import SysBootSequence from '@/components/SysBootSequence';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -133,6 +134,11 @@ export default function HomePage() {
 
         <SolarSystemLoader />
       </section>
+
+      {/* Boot sequence */}
+      <div className="py-10">
+        <SysBootSequence />
+      </div>
 
       {/* Below-fold: What is Construx */}
       <section className="relative py-28 px-5 grid-bg overflow-hidden" aria-labelledby="what-construx">
