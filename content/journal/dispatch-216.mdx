@@ -1,0 +1,169 @@
+---
+title: "TypeScript strict mode: why we turned on every flag and kept them on"
+date: "2026-12-17"
+excerpt: "TypeScript has a strictness spectrum. You can write TypeScript that's little more than annotated JavaScript, or TypeScript that makes entire categories of bugs impossible. We chose the latter. Here's what strict mode catches and why the cost is worth it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript's `strict` flag is a shorthand for a set of compiler options that collectively enforce a much stricter type system than the defaults. Enabling it on a codebase that wasn't written with it in mind is painful. Enabling it from the start costs almost nothing and prevents a surprising range of bugs.
+
+All Construx products use TypeScript strict mode from day one. Here's what it actually catches.
+
+## What `strict: true` enables
+
+The `strict` flag enables several options:
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true
+    // Equivalent to:
+    // "noImplicitAny": true,
+    // "strictNullChecks": true,
+    // "strictFunctionTypes": true,
+    // "strictBindCallApply": true,
+    // "strictPropertyInitialization": true,
+    // "noImplicitThis": true,
+    // "useUnknownInCatchVariables": true,
+    // "alwaysStrict": true
+  }
+}
+```
+
+The two that catch the most real bugs: `noImplicitAny` and `strictNullChecks`.
+
+## `noImplicitAny`: no implicit escape hatch
+
+Without `noImplicitAny`, TypeScript infers `any` for parameters and variables it can't type, silently disabling type checking in that scope.
+
+```ts
+// Without noImplicitAny: TypeScript accepts this, `data` is `any`
+function processData(data) {
+  return data.user.name; // No error — could throw at runtime
+}
+
+// With noImplicitAny: TypeScript requires an explicit type
+function processData(data: UserData) {
+  return data.user.name; // TypeScript knows the shape
+}
+```
+
+The benefit: you can't accidentally write an untyped function. Every function parameter has a type, which means TypeScript can check every call site.
+
+## `strictNullChecks`: null is not a value
+
+Without `strictNullChecks`, `null` and `undefined` are assignable to every type. This is JavaScript's default behaviour, and it's the cause of most runtime crashes.
+
+```ts
+// Without strictNullChecks: TypeScript accepts this
+function getUser(id: string): User {
+  return null; // Acceptable without strictNullChecks
+}
+
+const user = getUser('123');
+console.log(user.name); // Runtime crash: Cannot read properties of null
+
+// With strictNullChecks: TypeScript rejects this at compile time
+function getUser(id: string): User | null {
+  return null; // Must declare nullable
+}
+
+const user = getUser('123');
+if (user) {
+  console.log(user.name); // TypeScript knows user is non-null here
+}
+```
+
+`strictNullChecks` forces you to handle the null case explicitly. Every function that might return null says so in its return type. Every caller must handle that possibility.
+
+## `useUnknownInCatchVariables`: catch blocks
+
+In TypeScript before strict mode, the `catch` variable was typed as `any`. With `useUnknownInCatchVariables`, it's typed as `unknown`, which forces you to narrow the type before using it.
+
+```ts
+// Without useUnknownInCatchVariables
+try {
+  await riskyOperation();
+} catch (error) {
+  console.log(error.message); // Silently any — could fail at runtime if error isn't an Error
+}
+
+// With useUnknownInCatchVariables
+try {
+  await riskyOperation();
+} catch (error) {
+  if (error instanceof Error) {
+    console.log(error.message); // TypeScript knows it's an Error
+  }
+}
+```
+
+This catches a real pattern in production code: assuming that caught errors are always `Error` instances. They're not — you can throw strings, numbers, or any value.
+
+## Beyond `strict`: additional flags we use
+
+We also enable:
+
+```json
+{
+  "noUncheckedIndexedAccess": true,
+  "exactOptionalPropertyTypes": true,
+  "noImplicitReturns": true,
+  "noFallthroughCasesInSwitch": true
+}
+```
+
+**`noUncheckedIndexedAccess`:** Array index access and object property access with string keys returns `T | undefined`, not `T`. This forces you to handle the case where the index doesn't exist.
+
+```ts
+const items = ['a', 'b', 'c'];
+const first = items[0]; // Type: string | undefined (not string)
+if (first) {
+  console.log(first.toUpperCase()); // Safe
+}
+```
+
+**`noImplicitReturns`:** Every code path in a function that returns a value must have an explicit `return`. No falling off the end of the function.
+
+## The cost
+
+Strict mode generates more type annotations. Some patterns that "just work" in looser TypeScript require explicit handling. The learning curve is real for developers used to implicit `any`.
+
+The refactoring cost on an existing codebase is significant — enabling strict mode on a large project will produce hundreds of type errors that all need resolution.
+
+Starting with strict mode from day one costs almost nothing. The type annotations you'd write anyway are already correct. The patterns that strict mode rejects are patterns you shouldn't be writing.
+
+## What it doesn't catch
+
+Strict mode eliminates type-level bugs. It doesn't catch:
+- Logic errors (your algorithm is correct by type but wrong by semantics)
+- Runtime errors from external data (API responses that don't match their declared types)
+- Test coverage gaps
+
+For external data validation, we use Zod at API boundaries to validate that the response matches our expected schema:
+
+```ts
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email(),
+});
+
+type User = z.infer<typeof UserSchema>;
+
+const parsed = UserSchema.safeParse(apiResponse);
+if (!parsed.success) {
+  throw new Error(`Invalid API response: ${parsed.error.message}`);
+}
+const user: User = parsed.data; // Validated at runtime AND typed at compile time
+```
+
+TypeScript strict mode + Zod runtime validation covers both the compile-time and runtime cases. This combination eliminates the vast majority of type-related bugs in production.
+
+## The practical result
+
+After 215 dispatches worth of development across three products, we've had zero `Cannot read properties of undefined` errors in production from code that TypeScript could have caught. The category of "this function can return null and I forgot to check" bug doesn't exist. Catch clauses handle both Error and non-Error thrown values correctly.
+
+These aren't bugs we're clever enough to avoid manually. They're bugs the compiler prevents automatically. That's what strict mode is for.

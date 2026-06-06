@@ -1,0 +1,84 @@
+---
+title: "Monorepo vs. separate repos: how we structure three products in one team"
+date: "2026-12-19"
+excerpt: "Construx runs three separate products. We could put them all in a monorepo or keep them in separate repositories. We chose separate repos. Here's the reasoning, the trade-offs, and the cases where we'd have chosen differently."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Three products: Scoutr, The Marqet, The Hyve. Two founders. The question of how to organise the code is actually a question about how you organise the work.
+
+We use separate repositories. Here's why, and the cases where a monorepo would have been the better choice.
+
+## How separate repos works for us
+
+Each product has its own repository:
+- `scoutr` — Next.js frontend + API routes + scrapers
+- `the-marqet` — Next.js frontend + API routes + escrow service
+- `the-hyve` — Next.js frontend + WebSocket server + AI agent
+
+Shared utilities (auth helpers, common TypeScript types, Zod schemas) are either duplicated or extracted to a private npm package (`@construx/shared`). We have a fourth repository for the Construx Group website.
+
+Deployments are independent: changes to Scoutr don't trigger The Marqet to rebuild. AWS Amplify watches each repo independently.
+
+## The case for separate repos
+
+**Cognitive isolation.** When working on The Hyve, the only code in scope is The Hyve's code. No risk of accidentally breaking The Marqet while refactoring something that looked shared. The boundary is explicit.
+
+**Independent deployment cadence.** Scoutr ships on its own schedule. A hotfix to The Marqet doesn't require the rest of the codebase to be in a deployable state.
+
+**Clear ownership.** In a two-person team, it's clear which product is currently being worked on. The active repo is the active work.
+
+**Simpler CI/CD.** Each repo has its own simple CI pipeline. There's no need for path-based filtering to determine which service to rebuild on a given change.
+
+**Independent dependency management.** Scoutr uses a different version of Drizzle than The Hyve (we upgraded one before the other). This is fine with separate repos; in a monorepo with shared lock files it would require more coordination.
+
+## The case for a monorepo (that we didn't take)
+
+**Code sharing.** The biggest argument for a monorepo is sharing code between products. The separate repo approach requires either duplicating shared code or maintaining a private npm package. Duplication creates divergence. A private package creates a publishing and versioning workflow.
+
+For us, the amount of genuinely shared code is smaller than it might appear. Authentication is handled by the same Clerk configuration but the integration code is specific to each product's schema. Drizzle schemas are product-specific. The UI is completely separate (each product has its own design).
+
+**Atomic changes across products.** If a change to the shared `@construx/shared` package requires a corresponding change in two product repos, you have to manage the coordination manually. A monorepo lets you make both changes in a single commit and PR.
+
+**Single search and navigation.** Finding code that exists somewhere across the portfolio requires knowing which repo it's in. In a monorepo, `grep -r` finds everything.
+
+## The shared package approach
+
+Our `@construx/shared` package contains:
+
+```ts
+// Types shared across products
+export type UserId = string & { readonly brand: 'UserId' };
+export type WorkspaceId = string & { readonly brand: 'WorkspaceId' };
+
+// Zod schemas for shared API payloads
+export const PaginationSchema = z.object({
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+
+// Common utilities
+export { formatCurrency } from './currency';
+export { validateEmail } from './validation';
+```
+
+We publish it as a private package scoped to our GitHub org and pin specific versions in each product's `package.json`. When the shared package changes, each product upgrades on its own schedule. This decouples the products even when sharing code.
+
+## When we'd choose a monorepo
+
+A monorepo would have been better in these scenarios:
+
+**If the products shared significant UI.** A shared component library used across all three products would be much easier to maintain in a monorepo. Changes would propagate automatically; there'd be no publish step.
+
+**If we had more people.** Monorepos with tooling like Turborepo or Nx shine at scale — when you have multiple teams working across the same codebase and need a single view of "what depends on what." Two founders don't need that level of coordination tooling.
+
+**If the products were more closely coupled.** If Scoutr and The Hyve shared authentication state, user accounts, or data, a monorepo would simplify the cross-product integration. They don't — users of Scoutr are a different user base from users of The Hyve.
+
+## The honest trade-off
+
+Separate repos win on simplicity and cognitive isolation. They lose on code sharing and cross-product atomicity.
+
+For a two-person team building three products that are architecturally independent, the wins outweigh the losses. If we grew to a 10-person team, or if the products became more deeply integrated, we'd revisit the decision.
+
+The right repository structure depends on how your team works and how your products relate to each other. Neither separate repos nor monorepos are categorically better — they optimise for different trade-offs.

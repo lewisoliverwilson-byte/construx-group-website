@@ -1,0 +1,189 @@
+---
+title: "Webhooks: building an outbound event system for The Marqet's integrations"
+date: "2026-12-18"
+excerpt: "The Marqet needs to notify external systems when things happen — a transaction completes, a listing is approved, a dispute is opened. Webhooks are the standard mechanism. Here's how we built a reliable outbound webhook system that handles retries, signatures, and delivery guarantees."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A webhook is an HTTP POST to a URL that a developer configured. When something happens in The Marqet — a transaction completes, a new listing is approved, a dispute is opened — we POST the event payload to every configured endpoint. The developer's server receives it and does something: update their records, trigger a notification, sync with their own database.
+
+Webhooks are simple in principle. Building a webhook system that's reliable, secure, and debuggable requires more thought than it first appears.
+
+## The delivery problem
+
+The naive webhook implementation: when the event happens, make an HTTP request to the webhook URL. If it succeeds, done. If it fails, it fails.
+
+This is wrong for several reasons:
+
+1. **Synchronous coupling:** The event handler waits for every webhook to respond before it can return. A slow or down endpoint blocks the main event flow.
+2. **No retries:** If the endpoint is temporarily down, the event is lost.
+3. **No audit trail:** No record of what was sent, when, and whether it succeeded.
+
+The correct approach: decouple event generation from event delivery.
+
+```
+Event occurs
+    ↓
+Write to webhook_deliveries table (pending)
+    ↓
+Background worker picks up pending deliveries
+    ↓
+Attempt delivery via HTTP POST
+    ↓
+Mark delivery as succeeded or failed
+    ↓
+Retry failed deliveries with exponential backoff
+```
+
+The event handler is fast (just a database write). Delivery is asynchronous. Failures are retried automatically.
+
+## The database schema
+
+```sql
+CREATE TABLE webhook_endpoints (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL REFERENCES workspaces(id),
+  url         TEXT NOT NULL,
+  secret      TEXT NOT NULL,  -- HMAC signing secret (hashed)
+  events      TEXT[] NOT NULL, -- ['transaction.completed', 'listing.approved']
+  active      BOOLEAN DEFAULT true,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE webhook_deliveries (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  endpoint_id  UUID NOT NULL REFERENCES webhook_endpoints(id),
+  event_type   TEXT NOT NULL,
+  payload      JSONB NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'pending', -- pending | succeeded | failed
+  attempts     INT DEFAULT 0,
+  last_attempt TIMESTAMPTZ,
+  next_attempt TIMESTAMPTZ DEFAULT now(),
+  response_code INT,
+  response_body TEXT,
+  created_at   TIMESTAMPTZ DEFAULT now()
+);
+```
+
+When an event fires:
+1. Find all webhook endpoints subscribed to that event type
+2. Insert a `webhook_deliveries` row for each endpoint
+3. Return (event handler is done)
+
+## The delivery worker
+
+A BullMQ worker picks up pending deliveries and attempts them:
+
+```ts
+const webhookQueue = new Queue('webhook-delivery', { connection: redis });
+const webhookWorker = new Worker('webhook-delivery', async (job) => {
+  const { deliveryId } = job.data;
+  const delivery = await getDelivery(deliveryId);
+  const endpoint = await getEndpoint(delivery.endpointId);
+
+  const signature = signPayload(endpoint.secret, delivery.payload);
+
+  try {
+    const res = await fetch(endpoint.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Marqet-Signature': signature,
+        'X-Marqet-Event': delivery.eventType,
+        'X-Marqet-Delivery': delivery.id,
+      },
+      body: JSON.stringify(delivery.payload),
+      signal: AbortSignal.timeout(10_000), // 10-second timeout
+    });
+
+    await markDelivered(deliveryId, res.status, await res.text());
+  } catch (err) {
+    await markFailed(deliveryId, err);
+    throw err; // BullMQ handles retry scheduling
+  }
+}, { connection: redis });
+```
+
+BullMQ handles retry scheduling with exponential backoff. We configure: 5 attempts, delays of 30s, 5m, 30m, 2h, 24h.
+
+## Webhook signatures
+
+Sending raw event data to a URL the developer configured is a security concern: anyone who knows the endpoint URL can forge requests. Webhook signatures prove that the payload came from us.
+
+```ts
+import { createHmac } from 'crypto';
+
+function signPayload(secret: string, payload: unknown): string {
+  const body = JSON.stringify(payload);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signed = `${timestamp}.${body}`;
+  const hmac = createHmac('sha256', secret).update(signed).digest('hex');
+  return `t=${timestamp},v1=${hmac}`;
+}
+
+// On the developer's server:
+function verifySignature(secret: string, signature: string, body: string): boolean {
+  const parts = signature.split(',');
+  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
+  const v1 = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+  if (!timestamp || !v1) return false;
+
+  // Verify timestamp is recent (within 5 minutes)
+  const age = Math.floor(Date.now() / 1000) - parseInt(timestamp);
+  if (age > 300) return false; // Replay attack protection
+
+  const expected = createHmac('sha256', secret)
+    .update(`${timestamp}.${body}`)
+    .digest('hex');
+  
+  return timingSafeEqual(Buffer.from(v1), Buffer.from(expected));
+}
+```
+
+The timestamp-in-signature approach prevents replay attacks: a captured request can't be replayed more than 5 minutes later. `timingSafeEqual` prevents timing attacks.
+
+## The payload format
+
+Every webhook payload has a consistent envelope:
+
+```json
+{
+  "id": "evt_01HX...",
+  "type": "transaction.completed",
+  "created": 1704067200,
+  "data": {
+    "id": "txn_01HX...",
+    "amount": 25000,
+    "currency": "GBP",
+    "buyer_id": "usr_01HX...",
+    "seller_id": "usr_01HX...",
+    "listing_id": "lst_01HX...",
+    "completed_at": "2026-12-18T10:00:00Z"
+  }
+}
+```
+
+`type` is always a `noun.verb` pattern. `data` contains the full object — not just an ID — so developers don't need to make a follow-up API call to get the transaction details.
+
+## The developer experience
+
+The webhook system is only useful if developers can debug it. We provide:
+
+**Delivery log:** A list of all delivery attempts for an endpoint, showing event type, timestamp, HTTP response code, and response body. Developers can see exactly what we sent and what their server responded with.
+
+**Event catalog:** Documentation of every event type, with example payloads.
+
+**Test delivery:** Developers can trigger a test delivery for any event type to verify their endpoint is working before going live.
+
+**Retry on demand:** Failed deliveries can be manually retried from the dashboard, rather than waiting for the next scheduled attempt.
+
+## What we'll add
+
+**Event filtering:** Currently developers subscribe to broad event types (`transaction.completed`). Eventually they'll want field-level filtering (`transaction.completed` only when amount > £500).
+
+**Multiple signing keys:** Allow rotation of signing secrets without downtime (keep the old key valid for 24 hours while the new key is rolled out).
+
+**Delivery rate limiting:** Per-endpoint rate limiting to prevent a slow endpoint from clogging the delivery queue.
+
+The current system handles the common cases reliably. The edge cases get added as developers hit them.
