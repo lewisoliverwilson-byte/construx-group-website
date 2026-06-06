@@ -8,6 +8,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import TopProcessPanel from '@/components/TopProcessPanel';
 import SsSocketPanel from '@/components/SsSocketPanel';
 import SensorsPanel from '@/components/SensorsPanel';
+import NetstatPanel from '@/components/NetstatPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -370,6 +371,11 @@ export default function StatsPage() {
       {/* Hardware temperature sensors */}
       <div className="mt-6">
         <SensorsPanel />
+      </div>
+
+      {/* Listening sockets */}
+      <div className="mt-6">
+        <NetstatPanel />
       </div>
     </div>
   );

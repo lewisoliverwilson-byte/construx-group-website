@@ -1,0 +1,126 @@
+---
+title: "WebAssembly: running compiled code in the browser"
+date: "2029-11-29"
+excerpt: "WebAssembly (Wasm) is a binary instruction format that runs in browsers at near-native speed. You compile C, C++, Rust, or Go to Wasm and it runs in a JavaScript environment — same sandbox, same security model, but without the JIT overhead of JavaScript. It's how Figma renders at 60fps, how SQLite runs in the browser, and how ffmpeg ships as a web app."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+WebAssembly is not a replacement for JavaScript. It's a compilation target for code that needs to be fast: image processing, cryptography, audio codecs, physics engines, parsers. JavaScript handles the DOM, event handling, and application logic. Wasm handles the compute-intensive work.
+
+## The basics
+
+Wasm runs in the browser's JavaScript engine, sandboxed like JavaScript. It has no access to the DOM directly — it communicates through JavaScript bindings. The execution model: linear memory (a typed array), a stack machine, and a set of typed functions.
+
+From the browser's perspective, Wasm is a module:
+
+```js
+// Load and instantiate a Wasm module
+const response  = await fetch('/module.wasm');
+const buffer    = await response.arrayBuffer();
+const { instance } = await WebAssembly.instantiate(buffer, {
+  env: {
+    // Functions the Wasm module can call from JavaScript
+    log: (ptr, len) => {
+      const bytes = new Uint8Array(instance.exports.memory.buffer, ptr, len);
+      console.log(new TextDecoder().decode(bytes));
+    },
+  },
+});
+
+// Call an exported Wasm function
+const result = instance.exports.add(3, 4);  // returns 7
+```
+
+## Rust to Wasm
+
+Rust is the most ergonomic path to Wasm. `wasm-bindgen` generates the JavaScript bindings automatically.
+
+```bash
+cargo install wasm-pack
+```
+
+```rust
+// src/lib.rs
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn fibonacci(n: u32) -> u32 {
+    match n {
+        0 => 0,
+        1 => 1,
+        _ => fibonacci(n - 1) + fibonacci(n - 2),
+    }
+}
+
+#[wasm_bindgen]
+pub fn process_image(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+    // Gaussian blur, grayscale, etc.
+    // Returns processed pixel data
+    data.to_vec()
+}
+```
+
+```bash
+wasm-pack build --target web
+```
+
+This produces a `pkg/` directory with the `.wasm` file and JavaScript/TypeScript bindings:
+
+```ts
+// Use in TypeScript
+import init, { fibonacci, process_image } from './pkg/my_module';
+
+await init();  // load and instantiate the Wasm module
+
+console.log(fibonacci(40));  // 102334155 — fast
+
+const canvas  = document.getElementById('canvas') as HTMLCanvasElement;
+const ctx     = canvas.getContext('2d')!;
+const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+const result  = process_image(imgData.data, canvas.width, canvas.height);
+```
+
+## C/C++ with Emscripten
+
+Emscripten compiles C/C++ to Wasm. This is how SQLite, ffmpeg, and OpenCV ship as browser libraries.
+
+```bash
+brew install emscripten
+
+# Compile C to Wasm
+emcc hello.c -o hello.js -s EXPORTED_FUNCTIONS="['_add', '_malloc', '_free']"
+```
+
+Emscripten generates both `.wasm` and a JavaScript loader. The generated JS handles module instantiation, memory management, and the libc polyfills the C code needs.
+
+## WASI: Wasm outside the browser
+
+WebAssembly System Interface (WASI) is a standard ABI that lets Wasm modules run outside the browser — on the server, in edge functions, or as CLI tools.
+
+```bash
+# Run a Wasm module with Wasmtime
+wasmtime my-module.wasm
+
+# Node.js
+import { WASI } from 'wasi';
+const wasi = new WASI({ args: process.argv, env: process.env });
+const { instance } = await WebAssembly.instantiate(buffer, { wasi_snapshot_preview1: wasi.wasiImport });
+wasi.start(instance);
+```
+
+Cloudflare Workers supports Wasm modules natively — you can run Rust/Go/C code at the edge without containers.
+
+## When Wasm makes sense
+
+**Good fits**: video/image processing, audio codecs, cryptography (SHA, AES, argon2), physics simulations, parsers for binary formats (PDF, protobuf, ZIP), porting existing C/C++ libraries to the web.
+
+**Poor fits**: DOM manipulation, event handling, network requests, anything where the bottleneck is I/O rather than CPU. JavaScript is already fast for these.
+
+The rule: if you're doing hundreds of millions of operations per second and JavaScript's JIT isn't fast enough, try Wasm. If the bottleneck is a database query or a network round-trip, Wasm won't help.
+
+## Performance reality
+
+Wasm is typically 1.2–2x faster than optimised JavaScript for compute-intensive work. It's not 10x faster. The V8 and SpiderMonkey JIT compilers are very good. Wasm's advantage is more predictable performance (no GC pauses, no JIT deoptimisation) rather than raw speed.
+
+For most web applications, JavaScript is fast enough. Wasm is for the specific cases where it isn't.

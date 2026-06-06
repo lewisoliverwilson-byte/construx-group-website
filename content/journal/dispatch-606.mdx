@@ -1,0 +1,152 @@
+---
+title: "Postgres full-text search: tsvector, tsquery, and ranking"
+date: "2029-12-05"
+excerpt: "Postgres has built-in full-text search. You convert text to a tsvector (a processed list of lexemes), write queries as tsquery expressions, and use a GIN index to make it fast. It handles stemming (running → run), stop words (the, and, is), language configuration, and result ranking. For most applications, this replaces Elasticsearch entirely."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Full-text search is finding documents that contain certain words, with the flexibility of stemming (run matches running, runner), stop word removal, and relevance ranking. Postgres does this natively — no external search service required for most use cases.
+
+## tsvector: the document representation
+
+A `tsvector` is a sorted list of lexemes (normalised word stems) with their positions:
+
+```sql
+SELECT to_tsvector('english', 'The quick brown fox jumped over the lazy dog');
+-- 'brown':3 'dog':9 'fox':4 'jump':5 'lazi':8 'quick':2
+```
+
+`to_tsvector` strips stop words (the, over), stems words (jumped → jump, lazy → lazi), and records positions. The positions enable phrase search and proximity ranking.
+
+## tsquery: the search expression
+
+```sql
+-- AND: both words must appear
+to_tsquery('english', 'typescript & postgres')
+
+-- OR
+to_tsquery('english', 'typescript | javascript')
+
+-- NOT
+to_tsquery('english', 'typescript & !javascript')
+
+-- Phrase (words must be adjacent)
+phraseto_tsquery('english', 'type safety')
+
+-- Prefix matching
+to_tsquery('english', 'type:*')    -- matches typescript, typed, types
+
+-- plainto_tsquery: user-friendly (no operators needed)
+plainto_tsquery('english', 'typescript postgres guide')
+-- → 'typescr' & 'postgr' & 'guid'
+```
+
+`plainto_tsquery` is safe for user input — it doesn't require operators and handles arbitrary strings without erroring.
+
+## Schema: generated tsvector column
+
+```sql
+ALTER TABLE posts ADD COLUMN search_vector tsvector
+  GENERATED ALWAYS AS (
+    setweight(to_tsvector('english', coalesce(title, '')),   'A') ||
+    setweight(to_tsvector('english', coalesce(excerpt, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(content, '')), 'C')
+  ) STORED;
+
+CREATE INDEX idx_posts_search ON posts USING GIN (search_vector);
+```
+
+`setweight` assigns weights A (highest), B, C, D to sections. Title matches rank higher than body matches. The generated column updates automatically on insert/update — no manual maintenance.
+
+## Querying
+
+```sql
+-- Basic search
+SELECT id, title, excerpt
+FROM posts
+WHERE search_vector @@ plainto_tsquery('english', 'typescript performance')
+ORDER BY ts_rank(search_vector, plainto_tsquery('english', 'typescript performance')) DESC;
+
+-- With pagination
+SELECT id, title, excerpt,
+       ts_rank(search_vector, query) AS rank
+FROM posts,
+     plainto_tsquery('english', 'typescript performance') AS query
+WHERE search_vector @@ query
+ORDER BY rank DESC
+LIMIT 10 OFFSET 0;
+```
+
+`ts_rank` scores the match — higher is better. The score considers position weights (A/B/C) and term frequency.
+
+## Headline: highlighted snippets
+
+```sql
+SELECT
+  title,
+  ts_headline(
+    'english',
+    content,
+    plainto_tsquery('english', 'typescript performance'),
+    'MaxWords=35, MinWords=15, MaxFragments=2, StartSel=<mark>, StopSel=</mark>'
+  ) AS snippet
+FROM posts
+WHERE search_vector @@ plainto_tsquery('english', 'typescript performance');
+```
+
+`ts_headline` returns a fragment of the document with search terms highlighted. Outputs HTML with `<mark>` tags (or whatever `StartSel`/`StopSel` you set).
+
+## TypeScript integration with Prisma
+
+```ts
+// Raw query for full-text search (Prisma doesn't abstract tsquery)
+const results = await prisma.$queryRaw<Array<{ id: string; title: string; rank: number }>>`
+  SELECT
+    id,
+    title,
+    ts_rank(search_vector, plainto_tsquery('english', ${query})) AS rank
+  FROM posts
+  WHERE search_vector @@ plainto_tsquery('english', ${query})
+    AND status = 'published'
+  ORDER BY rank DESC
+  LIMIT ${limit}
+  OFFSET ${offset}
+`;
+```
+
+`$queryRaw` with tagged template literals parameterises the query safely — no SQL injection risk from `${query}`.
+
+## Multi-language support
+
+```sql
+-- Check available language configurations
+SELECT cfgname FROM pg_ts_config;
+-- english, french, german, spanish, simple, ...
+
+-- Per-row language (for multilingual content)
+ALTER TABLE posts ADD COLUMN lang text DEFAULT 'english';
+
+ALTER TABLE posts ADD COLUMN search_vector tsvector
+  GENERATED ALWAYS AS (
+    to_tsvector(lang::regconfig, coalesce(title, '') || ' ' || coalesce(content, ''))
+  ) STORED;
+```
+
+The `simple` configuration skips stemming — useful for code snippets, usernames, or other text you want to match exactly.
+
+## When to use Postgres FTS vs Elasticsearch
+
+Use Postgres FTS when:
+- Your data is already in Postgres
+- You need transactional consistency (search results include uncommitted data correctly)
+- Your query volume is moderate (< 100 queries/second)
+- You don't need advanced features like semantic search or ML-based ranking
+
+Use Elasticsearch/OpenSearch when:
+- You need sub-100ms search across hundreds of millions of documents
+- You need advanced aggregations and analytics
+- You need semantic/vector search with embeddings
+- Your search index is a separate system from your primary data store
+
+For most applications — a blog, a product catalogue, an internal knowledge base — Postgres FTS is fast, accurate, and eliminates the operational complexity of running a separate search cluster.

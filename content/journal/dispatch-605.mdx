@@ -1,0 +1,148 @@
+---
+title: "Monorepo tooling: Turborepo, Nx, and Lerna compared"
+date: "2029-12-02"
+excerpt: "A monorepo puts multiple packages in one repository. The tooling problem: when you change one package, you only want to rebuild and test what actually depends on it — not the entire repo. Turborepo, Nx, and Lerna each solve this with different philosophies. Here's what each one does, where each fits, and which one to pick for a TypeScript full-stack project in 2029."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A monorepo is a single Git repository containing multiple packages. The benefits: shared tooling, atomic cross-package commits, easier refactoring across package boundaries. The problem: naive setups rebuild and test everything on every change. You need a task runner that understands the dependency graph.
+
+## The dependency graph problem
+
+If you have:
+
+```
+apps/web        → depends on packages/ui, packages/types
+apps/api        → depends on packages/db, packages/types
+packages/ui     → depends on packages/types
+packages/db     → depends on packages/types
+packages/types  → no dependencies
+```
+
+And you change `packages/types`, you need to rebuild: `packages/types`, then `packages/ui`, `packages/db` (in parallel), then `apps/web`, `apps/api` (in parallel). A naive `npm run build` in each package doesn't know this order.
+
+## Turborepo
+
+Turborepo builds a task dependency graph from your `turbo.json` and `package.json` files. It runs tasks in parallel where possible, in order where required.
+
+```json
+// turbo.json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],  // run 'build' in dependencies first
+      "outputs":   [".next/**", "dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "cache":     false  // don't cache test results
+    },
+    "dev": {
+      "cache":     false,
+      "persistent": true
+    }
+  }
+}
+```
+
+```bash
+turbo build                   # build all packages in dependency order
+turbo build --filter=apps/web # build only web and its dependencies
+turbo typecheck               # run tsc across all packages in parallel
+```
+
+The key feature: **remote caching**. Turborepo stores task outputs (build artifacts, test results) in a content-addressed cache. If you run `turbo build` and nothing has changed, it replays cached results in milliseconds. With Vercel's remote cache, this persists across CI runs and developer machines.
+
+**Best for**: TypeScript/JavaScript monorepos, Next.js projects, teams using Vercel.
+
+## Nx
+
+Nx is more opinionated than Turborepo. It understands what kind of thing each project is (Next.js app, NestJS API, React library) and provides project-specific generators and executors.
+
+```json
+// project.json (per project)
+{
+  "name":      "web",
+  "targets": {
+    "build": {
+      "executor": "@nx/next:build",
+      "options":  { "outputPath": "dist/apps/web" }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options":  { "jestConfig": "apps/web/jest.config.ts" }
+    }
+  }
+}
+```
+
+```bash
+nx build web           # build the web app
+nx affected --target=build  # build only affected projects
+nx graph               # visualise the dependency graph
+```
+
+Nx has a richer plugin ecosystem: generators for creating new packages with the right scaffolding, executors that wrap build tools, and `nx affected` that computes affected projects from Git diff.
+
+**Best for**: large teams, polyglot repos (TypeScript + Java + Python), projects that benefit from Nx's generators and IDE plugin.
+
+## Lerna
+
+Lerna is the original monorepo tool, now maintained by Nrwl (the Nx team). It manages versioning and publishing of npm packages across a monorepo.
+
+```bash
+lerna publish       # bump versions and publish changed packages
+lerna version       # bump versions only
+lerna run build     # run 'build' in each package (delegates to npm workspaces)
+```
+
+Lerna's task running is weaker than Turborepo and Nx — it delegates to npm workspaces for actual execution. Its strength is **versioning and publishing**: it tracks which packages changed, determines semantic version bumps, and publishes to npm with the correct dependencies updated.
+
+**Best for**: publishing open-source library packages to npm. Don't use it for task running — use Turborepo or Nx for that.
+
+## Comparison
+
+| Feature            | Turborepo          | Nx                   | Lerna              |
+|--------------------|--------------------|-----------------------|--------------------|
+| Task scheduling    | Excellent          | Excellent             | Basic              |
+| Remote caching     | Vercel (built-in)  | Nx Cloud (paid/free)  | None               |
+| Code generators    | None               | Excellent             | None               |
+| npm publishing     | None               | Basic                 | Excellent          |
+| Config complexity  | Low                | Medium-High           | Low                |
+| Plugin ecosystem   | Growing            | Extensive             | Minimal            |
+
+## The Construx setup
+
+```
+construx-group/
+  apps/
+    web/      (Next.js)
+    api/      (Node + Fastify)
+  packages/
+    ui/       (React components)
+    db/       (Prisma schema + client)
+    types/    (shared TypeScript types)
+    config/   (shared ESLint, tsconfig)
+```
+
+Turborepo for task scheduling (build, typecheck, lint), npm workspaces for package linking. No Nx (too much config), no Lerna (not publishing packages publicly).
+
+```bash
+# Root package.json
+{
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build":     "turbo build",
+    "dev":       "turbo dev",
+    "typecheck": "turbo typecheck",
+    "lint":      "turbo lint"
+  }
+}
+```
+
+This setup handles 99% of monorepo needs with minimal configuration.
