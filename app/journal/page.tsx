@@ -13,6 +13,7 @@ import SitemapIndexPanel from '@/components/SitemapIndexPanel';
 import RssFeedPanel from '@/components/RssFeedPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
+import GitBlamePanel from '@/components/GitBlamePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -197,6 +198,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* Core Web Vitals */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <WebVitalsPanel />
+      </section>
+
+      {/* Git blame — source authorship */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GitBlamePanel />
       </section>
 
       {/* Posts */}

@@ -1,0 +1,153 @@
+---
+title: "Zustand: React state management without the ceremony"
+date: "2030-12-18"
+excerpt: "Zustand manages client-side state with a minimal API. One function creates a store — a hook you call anywhere in your component tree. No Provider wrapping, no reducers, no context boilerplate. The store holds state and actions together. Components subscribe to only the slices they use, so unrelated state changes do not cause re-renders. For local UI state, useState. For shared client state, Zustand."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redux was designed for large teams sharing complex state. Zustand is designed for shipping features.
+
+## Install
+
+```bash
+npm install zustand
+```
+
+## Create a store
+
+```ts
+// src/stores/ui.ts
+import { create } from 'zustand';
+
+interface UIState {
+  theme:      'dark' | 'light';
+  sidebarOpen: boolean;
+  setTheme:    (theme: 'dark' | 'light') => void;
+  toggleSidebar: () => void;
+}
+
+export const useUIStore = create<UIState>((set) => ({
+  theme:       'dark',
+  sidebarOpen: false,
+  setTheme:     (theme) => set({ theme }),
+  toggleSidebar: ()    => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+}));
+```
+
+```tsx
+// Any component — no Provider needed
+function Header() {
+  const { theme, setTheme, toggleSidebar } = useUIStore();
+
+  return (
+    <header>
+      <button onClick={toggleSidebar}>Menu</button>
+      <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+        {theme}
+      </button>
+    </header>
+  );
+}
+```
+
+## Selectors — prevent unnecessary re-renders
+
+```ts
+// Re-renders only when theme changes — not when sidebarOpen changes
+const theme = useUIStore((state) => state.theme);
+
+// Re-renders only when count changes
+const count = useCountStore((state) => state.count);
+```
+
+Calling `useUIStore()` without a selector subscribes to the entire store — the component re-renders on any state change. Use selectors for frequently-updating stores.
+
+## Async actions
+
+```ts
+import { create } from 'zustand';
+
+interface PostsState {
+  posts:     Post[];
+  loading:   boolean;
+  error:     string | null;
+  fetchPosts: () => Promise<void>;
+}
+
+export const usePostsStore = create<PostsState>((set) => ({
+  posts:   [],
+  loading: false,
+  error:   null,
+
+  fetchPosts: async () => {
+    set({ loading: true, error: null });
+    try {
+      const res   = await fetch('/api/posts');
+      const posts = await res.json();
+      set({ posts, loading: false });
+    } catch (error) {
+      set({ error: 'Failed to load posts', loading: false });
+    }
+  },
+}));
+```
+
+## Persist to localStorage
+
+```ts
+import { create }    from 'zustand';
+import { persist }   from 'zustand/middleware';
+
+interface PrefsState {
+  theme:    'dark' | 'light';
+  fontSize: number;
+  setTheme: (theme: 'dark' | 'light') => void;
+}
+
+export const usePrefsStore = create<PrefsState>()(
+  persist(
+    (set) => ({
+      theme:    'dark',
+      fontSize: 14,
+      setTheme: (theme) => set({ theme }),
+    }),
+    { name: 'construx-prefs' },
+  ),
+);
+```
+
+State survives page refreshes. The `persist` middleware handles serialization and hydration.
+
+## Immer for complex updates
+
+```ts
+import { create }  from 'zustand';
+import { immer }   from 'zustand/middleware/immer';
+
+export const useCartStore = create<CartState>()(
+  immer((set) => ({
+    items: [],
+
+    addItem: (item: Item) =>
+      set((state) => {
+        // Mutate directly — Immer creates an immutable update
+        const existing = state.items.find((i) => i.id === item.id);
+        if (existing) {
+          existing.quantity += 1;
+        } else {
+          state.items.push({ ...item, quantity: 1 });
+        }
+      }),
+
+    removeItem: (id: string) =>
+      set((state) => {
+        state.items = state.items.filter((i) => i.id !== id);
+      }),
+  })),
+);
+```
+
+## Zustand vs Context vs Redux Toolkit vs Jotai
+
+Zustand: minimal API, fast, no Provider, shared state across components. React Context: built-in, good for rarely-updating values (theme, user), causes all consumers to re-render on change. Redux Toolkit: structured, devtools, good for large teams with complex state machines. Jotai: atom-based, fine-grained subscriptions, great for derived state. The Construx stack default: Zustand for shared client state that is not server state. TanStack Query for server state. useState for local component state.

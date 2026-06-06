@@ -1,0 +1,132 @@
+---
+title: "CSS Cascade Layers: the end of specificity wars"
+date: "2030-12-21"
+excerpt: "CSS Cascade Layers let you define explicit ordering for your styles. A rule in a lower-priority layer never overrides a rule in a higher-priority layer, regardless of specificity. This means you can use third-party styles, utility frameworks, and your own components without fighting specificity. Declare your layers once at the top, import third-party CSS into lower layers, and your component styles always win."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Specificity is a source of bugs. Cascade Layers replace implicit specificity battles with an explicit ordering you control.
+
+## Declaring layers
+
+```css
+/* globals.css */
+
+/* Declare layer order — later = higher priority */
+@layer reset, base, tokens, components, utilities, overrides;
+```
+
+Once declared, a rule in `utilities` always wins over `components`, regardless of selector specificity. A class in `reset` can never override a tag selector in `components`.
+
+## Assigning styles to layers
+
+```css
+/* Reset — lowest priority */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 0; }
+  img  { max-width: 100%; display: block; }
+}
+
+/* Design tokens */
+@layer tokens {
+  :root {
+    --color-brand:    #F97316;
+    --color-bg:       #01010a;
+    --font-mono:      'JetBrains Mono', monospace;
+    --radius-sm:      3px;
+  }
+}
+
+/* Component styles */
+@layer components {
+  .btn {
+    display:       inline-flex;
+    align-items:   center;
+    padding:       0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    font-weight:   600;
+    transition:    background 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--color-brand);
+    color:      white;
+  }
+}
+
+/* Utility classes — always win over components */
+@layer utilities {
+  .mt-0  { margin-top: 0 !important; }
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute;
+    width:    1px;
+    height:   1px;
+    overflow: hidden;
+    clip:     rect(0,0,0,0);
+  }
+}
+```
+
+## Importing third-party CSS into a layer
+
+```css
+/* Third-party CSS goes into a named layer — it can never override your own layers */
+@import url('https://cdn.example.com/some-library.css') layer(third-party);
+
+/* Or import a local file */
+@import './vendor/normalize.css' layer(reset);
+```
+
+```css
+/* layers.css */
+@layer reset, third-party, tokens, components, utilities;
+
+@layer third-party {
+  @import './node_modules/some-ui/dist/styles.css';
+}
+
+@layer components {
+  /* Your styles — always win over third-party */
+  .card { border-radius: 4px; }
+}
+```
+
+## With Tailwind CSS v4
+
+Tailwind v4 uses CSS Cascade Layers internally. Your custom styles always have priority:
+
+```css
+/* app/globals.css */
+@import 'tailwindcss';
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded font-semibold transition-colors;
+    /* Custom property that Tailwind cannot override */
+    letter-spacing: 0.05em;
+  }
+}
+
+@layer utilities {
+  /* Custom utilities at the same layer as Tailwind utilities */
+  .text-construx { color: #F97316; }
+}
+```
+
+## Anonymous layers
+
+```css
+/* Anonymous layer — reachable only from within this block */
+@layer {
+  .internal-component { color: red; }
+}
+```
+
+Anonymous layers have lower priority than named layers declared after them. Useful for third-party code you do not want to pollute your named layers.
+
+## Browser support
+
+Cascade Layers have been supported in all major browsers since 2022. No polyfill needed. The PostCSS plugin `@csstools/postcss-cascade-layers` adds support for older targets if needed. For new projects in 2030, use layers without hesitation.
