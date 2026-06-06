@@ -1,0 +1,234 @@
+---
+title: "Streaming UI with React Suspense: loading states without waterfalls"
+date: "2028-07-25"
+excerpt: "React Suspense lets you show a fallback while async data loads, then stream the real content when it's ready. Combined with Server Components, it eliminates loading waterfalls: each component fetches its own data, loads independently, and streams to the client as it resolves."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The traditional pattern for loading states: fetch everything at the top, wait for all data, then render. This creates waterfalls — each fetch must complete before the next one starts, and the user sees nothing until everything is ready.
+
+Suspense flips this: each component declares its own loading boundary. Components that are ready render immediately. Slow components show a fallback and stream in when their data resolves.
+
+## Basic Suspense
+
+```tsx
+// app/dashboard/page.tsx
+import { Suspense } from 'react';
+import UserProfile from './UserProfile';
+import RecentPosts from './RecentPosts';
+import Analytics from './Analytics';
+
+export default function Dashboard() {
+  return (
+    <div>
+      {/* Each component has its own loading boundary */}
+      <Suspense fallback={<ProfileSkeleton />}>
+        <UserProfile />
+      </Suspense>
+
+      <Suspense fallback={<PostsSkeleton />}>
+        <RecentPosts />
+      </Suspense>
+
+      <Suspense fallback={<AnalyticsSkeleton />}>
+        <Analytics />    {/* slow — loads independently */}
+      </Suspense>
+    </div>
+  );
+}
+```
+
+```tsx
+// UserProfile.tsx — Server Component, fetches its own data
+async function UserProfile() {
+  const user = await getUser();  // suspends while fetching
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
+    </div>
+  );
+}
+```
+
+UserProfile, RecentPosts, and Analytics all fetch in parallel. The first to resolve streams to the client. The user sees content as it arrives, not after everything loads.
+
+## Skeleton fallbacks
+
+```tsx
+function ProfileSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="h-10 w-48 bg-white/5 rounded mb-2" />
+      <div className="h-4 w-64 bg-white/5 rounded" />
+    </div>
+  );
+}
+
+function PostsSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="animate-pulse">
+          <div className="h-4 bg-white/5 rounded mb-1" style={{ width: `${60 + i * 10}%` }} />
+          <div className="h-3 w-24 bg-white/5 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Streaming with nested Suspense
+
+Nest Suspense boundaries to control what renders first:
+
+```tsx
+export default function PostPage({ params }: { params: { slug: string } }) {
+  return (
+    <article>
+      {/* Post content loads first — critical path */}
+      <Suspense fallback={<ContentSkeleton />}>
+        <PostContent slug={params.slug} />
+      </Suspense>
+
+      {/* Sidebar loads independently — not blocking */}
+      <aside>
+        <Suspense fallback={<RelatedSkeleton />}>
+          <RelatedPosts slug={params.slug} />
+        </Suspense>
+
+        <Suspense fallback={null}>  {/* no fallback — just renders when ready */}
+          <AuthorBio slug={params.slug} />
+        </Suspense>
+      </aside>
+    </article>
+  );
+}
+```
+
+The critical content (post body) streams first. The sidebar streams in when it resolves — without blocking the main content.
+
+## Error boundaries
+
+Combine with error boundaries to handle fetch failures gracefully:
+
+```tsx
+// app/error.tsx
+'use client';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <div>
+      <h2>Failed to load</h2>
+      <button onClick={reset}>Try again</button>
+    </div>
+  );
+}
+```
+
+```tsx
+// Granular error handling per section
+import { ErrorBoundary } from 'react-error-boundary';
+
+<ErrorBoundary fallback={<WidgetError />}>
+  <Suspense fallback={<WidgetSkeleton />}>
+    <SlowWidget />
+  </Suspense>
+</ErrorBoundary>
+```
+
+## Loading UI file convention
+
+Next.js treats `loading.tsx` as a Suspense fallback for the entire route segment:
+
+```
+app/
+  dashboard/
+    loading.tsx   ← shown while dashboard/page.tsx is loading
+    page.tsx
+  profile/
+    loading.tsx   ← shown while profile/page.tsx is loading
+    page.tsx
+```
+
+```tsx
+// app/dashboard/loading.tsx
+export default function DashboardLoading() {
+  return (
+    <div className="space-y-6 p-6">
+      <div className="animate-pulse h-8 w-48 bg-white/5 rounded" />
+      <div className="grid grid-cols-3 gap-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="animate-pulse h-24 bg-white/5 rounded" />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## use() hook for client components
+
+For client components that need to read a promise:
+
+```tsx
+'use client';
+
+import { use } from 'react';
+
+// Pass a promise from a Server Component
+export default function ClientWidget({ dataPromise }: { dataPromise: Promise<Data> }) {
+  const data = use(dataPromise);  // suspends until resolved
+  return <div>{data.value}</div>;
+}
+```
+
+```tsx
+// Server Component — passes the promise, doesn't await it
+export default function Page() {
+  const dataPromise = fetchData();  // NOT awaited
+
+  return (
+    <Suspense fallback={<Skeleton />}>
+      <ClientWidget dataPromise={dataPromise} />
+    </Suspense>
+  );
+}
+```
+
+## Preloading data
+
+Start fetching early by calling the function before the component tree renders:
+
+```tsx
+// Start fetching as soon as the route loads
+import { preload } from 'react-dom';
+
+export default async function PostPage({ params }: { params: { slug: string } }) {
+  // Start fetching immediately, before rendering
+  const postPromise = getPost(params.slug);
+  const relatedPromise = getRelatedPosts(params.slug);
+
+  return (
+    <div>
+      <Suspense fallback={<ContentSkeleton />}>
+        <PostContent postPromise={postPromise} />
+      </Suspense>
+      <Suspense fallback={<RelatedSkeleton />}>
+        <RelatedPosts relatedPromise={relatedPromise} />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+The pattern: keep Suspense boundaries close to the component that needs the data. Don't hoist everything to the top level — that recreates the waterfall problem. Each component should own its data fetching and its loading state.

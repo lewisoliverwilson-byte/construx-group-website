@@ -4,6 +4,7 @@ import { ArrowUpRight, ChevronRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 import StatusBadge from '@/components/ui/StatusBadge';
 import CountUp from '@/components/ui/CountUp';
+import VentureProcessTable from '@/components/VentureProcessTable';
 
 export const metadata: Metadata = {
   title: 'Ventures',
@@ -101,8 +102,13 @@ export default function VenturesPage() {
         </div>
       </section>
 
+      {/* Process table */}
+      <section className="relative px-5 pt-10 pb-4 mx-auto max-w-6xl">
+        <VentureProcessTable />
+      </section>
+
       {/* Live ventures */}
-      <section className="relative px-5 pt-10 pb-8 mx-auto max-w-6xl">
+      <section className="relative px-5 pt-6 pb-8 mx-auto max-w-6xl">
         <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
           // LIVE
         </h2>
