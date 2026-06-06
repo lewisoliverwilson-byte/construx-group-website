@@ -1,0 +1,170 @@
+---
+title: "Drizzle ORM migrations: the workflow that doesn't lose data"
+date: "2027-01-28"
+excerpt: "Drizzle's migration system is different from Prisma's. There's no 'reset' button in production. Here's the migration workflow we've settled on across three products, including how to handle the failure modes that Drizzle doesn't protect you from."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Drizzle ORM generates SQL migration files from schema changes. This sounds mechanical — change the schema, run `drizzle-kit generate`, apply the migration. In practice, migrations are the riskiest part of database work.
+
+Here's the workflow and the failure modes.
+
+## The generate cycle
+
+Every schema change goes through this cycle:
+
+```bash
+# 1. Edit the schema
+# app/db/schema.ts — add a column, change a type, add an index
+
+# 2. Generate the migration
+npx drizzle-kit generate
+
+# 3. Review the generated SQL
+# drizzle/migrations/0003_add_confidence_score.sql
+
+# 4. Apply to development database
+npx drizzle-kit push
+# or: apply the SQL file directly
+
+# 5. Test the application
+# ...
+
+# 6. Deploy (applies migration automatically in production)
+```
+
+Step 3 is the one most people skip. Don't skip it.
+
+## Reading the generated SQL
+
+A migration that adds a column looks fine:
+
+```sql
+ALTER TABLE "scan_results" ADD COLUMN "confidence" text NOT NULL DEFAULT 'MODERATE';
+```
+
+A migration that renames a column looks like this:
+
+```sql
+ALTER TABLE "scan_results" DROP COLUMN "confidence_level";
+ALTER TABLE "scan_results" ADD COLUMN "confidence" text NOT NULL DEFAULT 'MODERATE';
+```
+
+The rename is `DROP + ADD`. If the original column had data, it's gone. Drizzle doesn't know you renamed it — it sees a deletion and an addition. This is the main failure mode of Drizzle's migration generation.
+
+The fix: write the migration manually when renaming. Instead of:
+
+```sql
+ALTER TABLE "scan_results" DROP COLUMN "confidence_level";
+ALTER TABLE "scan_results" ADD COLUMN "confidence" text NOT NULL DEFAULT 'MODERATE';
+```
+
+You want:
+
+```sql
+ALTER TABLE "scan_results" RENAME COLUMN "confidence_level" TO "confidence";
+```
+
+Drizzle lets you edit generated migrations before applying them. Edit the SQL to do the safe thing, then update your schema to match.
+
+## Column type changes
+
+Changing a column type is another category of destructive migration:
+
+```sql
+-- Drizzle generates this for text → integer:
+ALTER TABLE "scan_results" DROP COLUMN "scan_count";
+ALTER TABLE "scan_results" ADD COLUMN "scan_count" integer NOT NULL DEFAULT 0;
+```
+
+Again: `DROP + ADD`. If you wanted to convert existing data, you need to write it yourself:
+
+```sql
+ALTER TABLE "scan_results" ALTER COLUMN "scan_count" TYPE integer
+  USING scan_count::integer;
+```
+
+The `USING` clause tells Postgres how to convert existing values. If you're going from `text` to `integer`, this works only if all existing values are valid integers — otherwise Postgres throws.
+
+The safe pattern for risky type changes:
+
+1. Add a new column with the new type
+2. Run a data migration to copy + convert
+3. Deploy code that reads from the new column
+4. Drop the old column once the deployment is stable
+
+This is three migrations instead of one, but it's reversible at every step.
+
+## The migration lock
+
+Multiple deployments running simultaneously can try to apply the same migration twice. We use Drizzle's `migrate` function which takes a lock before applying:
+
+```ts
+// db/migrate.ts — run at startup
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { db } from './index';
+
+await migrate(db, { migrationsFolder: './drizzle/migrations' });
+```
+
+Drizzle creates a `__drizzle_migrations` table and uses a transaction to record applied migrations. If two instances start simultaneously, one acquires the transaction lock; the other waits. Migrations are applied once, in order.
+
+We run `migrate()` on startup in production, not as a separate CI step. This means migrations always run on the same machine and database that will serve traffic. The downside: startup is slower by the migration time. For small migrations (seconds) this is acceptable.
+
+## Reverting a migration
+
+Drizzle doesn't have a built-in rollback command. You write a down migration manually if needed.
+
+In practice, we've found that forward-only migrations (never rollback) are the correct model for production. Instead of rolling back:
+
+1. Write a new migration that undoes the previous one
+2. Deploy it
+3. Rollback the application code if needed
+
+This means the database schema is always in a forward state. Keeping track of "which migration is the current rollback point" across multiple services is error-prone.
+
+## Zero-downtime migrations
+
+Adding a nullable column with no default is safe for zero-downtime:
+
+```sql
+ALTER TABLE "users" ADD COLUMN "avatar_url" text;
+```
+
+Postgres adds nullable columns without locking the table (in modern versions). Existing rows get `NULL` in the new column.
+
+Adding a `NOT NULL` column with a default is also safe in Postgres 11+:
+
+```sql
+ALTER TABLE "users" ADD COLUMN "plan" text NOT NULL DEFAULT 'free';
+```
+
+Postgres 11+ adds the default without rewriting the table. Older versions would lock the table and rewrite every row.
+
+Adding an index is safe but can be slow on large tables:
+
+```sql
+CREATE INDEX CONCURRENTLY idx_scan_results_user_id ON scan_results (user_id);
+```
+
+`CONCURRENTLY` builds the index without locking the table. Drizzle doesn't generate `CONCURRENTLY` by default — you have to add it manually to the generated SQL for large-table indexes.
+
+**Not safe for zero-downtime:**
+
+- Dropping a column that application code is still reading
+- Changing a column's NOT NULL constraint from nullable to required (existing rows with NULL will fail)
+- Renaming a column (application code still uses the old name)
+
+For all of these, the pattern is expand-contract:
+1. **Expand:** add the new thing (new column, new constraint) while keeping the old
+2. **Deploy code** that writes to both old and new
+3. **Migrate data** from old to new
+4. **Deploy code** that reads from new only
+5. **Contract:** remove the old thing
+
+## The testing gap
+
+We don't test migrations against production data. We test against a representative subset (a few thousand rows of realistic data). For Construx's current scale, this is sufficient.
+
+At scale, you'd run migrations against a production clone before applying to production. Neon's database branching (see dispatch #235) is designed for exactly this — branch the production database, apply the migration to the branch, test it, then apply to the main branch. We haven't needed this yet but it's the right pattern when the stakes get higher.
