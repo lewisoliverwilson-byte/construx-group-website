@@ -1,0 +1,142 @@
+---
+title: "esbuild: the JavaScript bundler that changed the baseline"
+date: "2030-05-31"
+excerpt: "esbuild bundles JavaScript and TypeScript 10-100x faster than webpack or Rollup. It's written in Go, uses all CPU cores, and avoids unnecessary work. A 1000-module production build in under a second. Most developers use esbuild indirectly — it powers Vite's dev transforms and production build optimisations in dozens of tools — but using it directly gives you a zero-config fast bundler for scripts, libraries, and CLIs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The JavaScript ecosystem was accustomed to slow builds. 30-second webpack builds were normal. esbuild shipped in 2020 and redefined expectations: the same work in 400ms. The design reason is deliberate scope limitation — no plugin system heavy enough to defeat parallelism, no AST passes for things that can be avoided, no JavaScript in the hot path.
+
+## Setup
+
+```bash
+npm install -D esbuild
+```
+
+## CLI usage
+
+```bash
+# Bundle a single entry point for production
+npx esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --minify
+
+# Browser target with code splitting
+npx esbuild src/main.tsx --bundle --outdir=dist --splitting --format=esm \
+  --target=es2020 --minify --sourcemap
+
+# Watch mode (rebuilds on change)
+npx esbuild src/index.ts --bundle --outfile=dist/index.js --watch
+
+# Dev server
+npx esbuild src/main.tsx --bundle --outdir=dist --servedir=dist --serve=3000
+```
+
+## JavaScript API
+
+```ts
+import { build, context } from 'esbuild';
+
+// Production build
+await build({
+  entryPoints:  ['src/index.ts'],
+  bundle:       true,
+  outfile:      'dist/index.js',
+  platform:     'node',
+  target:       ['node22'],
+  format:       'esm',
+  minify:       true,
+  sourcemap:    true,
+  external:     ['react', 'react-dom'],  // don't bundle these
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+  },
+});
+
+// Watch mode with context API
+const ctx = await context({
+  entryPoints: ['src/main.tsx'],
+  bundle:      true,
+  outdir:      'dist',
+  format:      'esm',
+});
+
+await ctx.watch();
+// Rebuilds on file change; dispose() to stop watching
+process.on('SIGTERM', () => ctx.dispose());
+```
+
+## Library build
+
+```ts
+// Build a package that ships both ESM and CJS
+await Promise.all([
+  build({
+    entryPoints: ['src/index.ts'],
+    bundle:      true,
+    outfile:     'dist/index.esm.js',
+    format:      'esm',
+    external:    ['react', 'react-dom'],
+    minify:      true,
+    sourcemap:   true,
+  }),
+  build({
+    entryPoints: ['src/index.ts'],
+    bundle:      true,
+    outfile:     'dist/index.cjs.js',
+    format:      'cjs',
+    external:    ['react', 'react-dom'],
+    minify:      true,
+    sourcemap:   true,
+  }),
+]);
+```
+
+## Plugins
+
+```ts
+import { build } from 'esbuild';
+
+// Plugins intercept module resolution and load
+const cssModulesPlugin = {
+  name: 'css-modules',
+  setup(build) {
+    build.onLoad({ filter: /\.module\.css$/ }, async (args) => {
+      // Transform CSS module file into JS that exports classnames
+      const css = await fs.readFile(args.path, 'utf8');
+      const { exports, css: processedCss } = await transformCssModule(css);
+      return {
+        contents: `export default ${JSON.stringify(exports)}`,
+        loader:   'js',
+      };
+    });
+  },
+};
+
+await build({ plugins: [cssModulesPlugin], ... });
+```
+
+The plugin system is intentionally limited to module loading — it can't add new AST transformation passes, which is what keeps esbuild fast.
+
+## TypeScript
+
+esbuild strips TypeScript types — it does not type-check. Type checking is a separate step:
+
+```json
+// package.json scripts
+{
+  "build":       "esbuild src/index.ts --bundle --outfile=dist/index.js",
+  "type-check":  "tsc --noEmit",
+  "ci":          "npm run type-check && npm run build"
+}
+```
+
+Type checking with tsc is slow compared to esbuild — run them in parallel in CI:
+
+```bash
+# Parallel: tsc and esbuild run simultaneously
+npx tsc --noEmit & npx esbuild src/index.ts --bundle --outfile=dist/index.js && wait
+```
+
+## esbuild vs Rollup vs webpack vs Vite
+
+esbuild: fastest, fewest features, no plugin ecosystem for complex transformations. Best for scripts, CLIs, and server-side code. Rollup: excellent tree-shaking, good for library builds, plugin ecosystem for complex needs. webpack: slowest, largest ecosystem, handles every edge case — still dominant for legacy enterprise projects. Vite: uses esbuild for dev transforms, Rollup for production — the best of both for application builds. For new server-side code and simple CLI tooling, reach for esbuild directly.

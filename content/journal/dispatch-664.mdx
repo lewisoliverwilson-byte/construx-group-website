@@ -1,0 +1,172 @@
+---
+title: "React Query: async state management for server data"
+date: "2030-05-28"
+excerpt: "TanStack Query (React Query) manages server state in React applications. Fetch, cache, synchronise, and update remote data with automatic background refetching, stale-while-revalidate semantics, optimistic updates, and pagination — without building any of this yourself. It handles loading and error states, deduplicates concurrent requests, and keeps the UI consistent with the server."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Most state management libraries were designed for client state — UI toggles, form values, selected items. Server data is different: it's asynchronous, it goes stale, multiple components might want the same data, and it needs to sync with the server after mutations. React Query is designed specifically for this category of state.
+
+## Setup
+
+```bash
+npm install @tanstack/react-query @tanstack/react-query-devtools
+```
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools }               from '@tanstack/react-query-devtools';
+import { useState }                         from 'react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(
+    () => new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime:        60 * 1000,   // 1 minute
+          gcTime:           5 * 60 * 1000, // 5 minutes
+          retry:            2,
+          refetchOnWindowFocus: true,
+        },
+      },
+    }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  );
+}
+```
+
+## useQuery
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+
+async function fetchUser(id: string) {
+  const res = await fetch(`/api/users/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch user');
+  return res.json() as Promise<User>;
+}
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['user', userId],         // cache key — unique per user
+    queryFn:  () => fetchUser(userId),
+    staleTime: 5 * 60 * 1000,          // fresh for 5 minutes
+    enabled:   !!userId,               // don't run if no userId
+  });
+
+  if (isLoading) return <Skeleton />;
+  if (isError)   return <ErrorBanner message={error.message} />;
+
+  return <div>{data.name}</div>;
+}
+```
+
+Two components rendering `useQuery({ queryKey: ['user', userId] })` share one network request. The second render gets data from cache instantly.
+
+## useMutation
+
+```tsx
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+function UpdateUserForm({ user }: { user: User }) {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (updates: Partial<User>) =>
+      fetch(`/api/users/${user.id}`, { method: 'PATCH', body: JSON.stringify(updates) })
+        .then((r) => r.json()),
+
+    // Optimistic update: apply the change immediately before the server responds
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries({ queryKey: ['user', user.id] });
+      const previous = queryClient.getQueryData(['user', user.id]);
+      queryClient.setQueryData(['user', user.id], (old: User) => ({ ...old, ...updates }));
+      return { previous };
+    },
+
+    // Roll back if the mutation fails
+    onError: (_err, _updates, context) => {
+      queryClient.setQueryData(['user', user.id], context?.previous);
+    },
+
+    // Sync with the server after success or failure
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['user', user.id] });
+    },
+  });
+
+  return (
+    <button onClick={() => mutation.mutate({ name: 'New Name' })} disabled={mutation.isPending}>
+      {mutation.isPending ? 'Saving…' : 'Save'}
+    </button>
+  );
+}
+```
+
+## Infinite queries (pagination)
+
+```tsx
+import { useInfiniteQuery } from '@tanstack/react-query';
+
+function PostFeed() {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['posts'],
+    queryFn:  ({ pageParam }) => fetch(`/api/posts?cursor=${pageParam}`).then((r) => r.json()),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam:  (lastPage) => lastPage.nextCursor,
+  });
+
+  return (
+    <>
+      {data?.pages.flatMap((page) => page.posts).map((post) => (
+        <PostCard key={post.id} post={post} />
+      ))}
+      <button onClick={() => fetchNextPage()} disabled={!hasNextPage || isFetchingNextPage}>
+        {isFetchingNextPage ? 'Loading…' : hasNextPage ? 'Load more' : 'End'}
+      </button>
+    </>
+  );
+}
+```
+
+## Prefetching
+
+```ts
+// Prefetch data in a Server Component or loader
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
+
+export default async function Page({ params }: { params: { id: string } }) {
+  const queryClient = new QueryClient();
+  await queryClient.prefetchQuery({
+    queryKey: ['user', params.id],
+    queryFn:  () => fetchUser(params.id),
+  });
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <UserProfile userId={params.id} />
+    </HydrationBoundary>
+  );
+}
+```
+
+Client components receive the data already populated — no loading state on first render.
+
+## React Query vs SWR vs zustand
+
+React Query: full-featured, optimistic updates, infinite queries, prefetching, devtools. SWR: simpler API, fewer features, Vercel-backed. Zustand: client state management — not designed for server data at all. For most apps with significant data fetching, React Query is the right choice.

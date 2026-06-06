@@ -9,6 +9,7 @@ import IostatPanel from '@/components/IostatPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import WhoPanel from '@/components/WhoPanel';
 import TimezoneClockPanel from '@/components/TimezoneClockPanel';
+import PsAuxPanel from '@/components/PsAuxPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -338,8 +339,13 @@ export default function NowPage() {
         </div>
 
         {/* World clocks */}
-        <div className="mt-6">
+        <div className="mt-6 pb-6">
           <TimezoneClockPanel />
+        </div>
+
+        {/* Process table */}
+        <div className="mt-6 pb-10">
+          <PsAuxPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
