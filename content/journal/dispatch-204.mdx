@@ -1,0 +1,87 @@
+---
+title: "RSC vs. Client Components: how we split the rendering boundary in Next.js App Router"
+date: "2026-12-05"
+excerpt: "Next.js App Router makes every component a server component by default. The choice of when to add 'use client' has real performance consequences. Here's the mental model we use to decide the rendering boundary across all Construx products."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js App Router introduced React Server Components (RSC) as the default rendering mode. Server components render on the server, ship no JavaScript to the browser, and have direct access to databases and server-only resources. Client components are the pre-App Router world — they run in the browser and can use hooks, event listeners, and browser APIs.
+
+The architecture decision is: where do you draw the `'use client'` boundary?
+
+## The default: server everywhere
+
+RSC's benefit is zero JavaScript for server components. A server component that renders a blog post, a product listing, or a user profile doesn't need to ship React hooks, event handlers, or state management to the browser. The HTML arrives pre-rendered; the browser doesn't need to hydrate or re-render.
+
+This matters for performance:
+- Smaller JavaScript bundles (client components add to the bundle; server components don't)
+- No hydration latency (hydration is the process of attaching React to server-rendered HTML; server components skip this)
+- Direct database access without an API layer (server components query Postgres directly)
+
+The rule: start server. Add `'use client'` only when you need browser-only capabilities.
+
+## When we add `'use client'`
+
+**useState or useEffect:** Any component that manages local state or runs effects after mount requires a client component. The journal's `ReadingProgress` component (tracks scroll position), `BackToTop` (shows at 600px scroll), `CommandPalette` (manages open/close state, search query, keyboard events) — all client components.
+
+**Browser APIs:** `window`, `document`, `navigator`, `localStorage`, `IntersectionObserver`, `ResizeObserver` — these don't exist on the server. Any component that accesses them must be a client component.
+
+**Event listeners beyond `onClick` on static elements:** `window.addEventListener` for keydown shortcuts, custom mouse tracking, scroll tracking — all require the client.
+
+**Framer Motion animations:** The `motion` components in Framer Motion are client components because they manage animation state and use browser APIs.
+
+**Real-time subscriptions:** The Hyve's message list subscribes to SSE events. That subscription is browser-only — client component.
+
+## The actual patterns we use
+
+**Pattern 1: Server parent, client child.** Most pages are server components. They fetch data, render structure, and pass data to client components that handle interactivity.
+
+```tsx
+// app/journal/[slug]/page.tsx — Server Component
+export default async function JournalPostPage({ params }) {
+  const post = await getPostBySlug(slug);  // Direct DB access
+  const headings = extractHeadings(post.content);
+  
+  return (
+    <div>
+      <ReadingProgress />       {/* Client: tracks scroll */}
+      <TableOfContents headings={headings} />  {/* Client: highlights active section */}
+      <article>{/* ... */}</article>
+      <BackToTop />             {/* Client: shows/hides on scroll */}
+    </div>
+  );
+}
+```
+
+The page component runs on the server; the interactive widgets run on the client.
+
+**Pattern 2: Minimal client surface.** Client components should be as small as possible — just the interactive part, not the surrounding layout. A "like button" that fetches a count and handles a click should be a small client component, not the entire card it appears in.
+
+**Pattern 3: Pushing state down.** If only one part of a large component tree needs interactivity, don't make the parent a client component. Push the interactive part into a small child component with `'use client'`, and keep the parent as a server component.
+
+**Pattern 4: Server component in client boundary.** You can import a server component into a client component if you pass it as `children`. The server component renders on the server; the client component wraps it in the browser. This pattern allows interactive layout without converting the content to client rendering.
+
+```tsx
+// Client: the interactive nav shell
+'use client';
+export function NavShell({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  // ...
+  return <div>{children}</div>;  // children is a server-rendered server component
+}
+```
+
+## What we don't do
+
+**Over-specifying `'use client'` at page level:** A common pattern (inherited from the Pages Router days) is adding `'use client'` to the page file itself. This converts the entire page to client rendering, losing all RSC benefits. We avoid this.
+
+**Context provider hell:** Using React Context requires a client component provider. Wrapping large parts of the tree in context providers negates RSC benefits for everything inside the provider. We use Zustand for global client state (no context required) and URL params for shareable state.
+
+**Fetching on the client when the server works:** An API call from a client component adds round-trip latency and requires an API route. A server component can query the database directly. We prefer the server fetch when the data doesn't need to change in response to user interaction.
+
+## The performance reality
+
+For this journal site: the article content, the list of posts, the venture data — all server-rendered. The interactive widgets (reading progress, keyboard shortcuts, command palette, solar system) — client-rendered. The split is approximately 70% server / 30% client by component count.
+
+The result: the page loads fully rendered from the server, the interactive widgets hydrate progressively, and no content requires waiting for JavaScript to execute before it's visible. For a content-heavy site like this journal, that's the right trade-off.

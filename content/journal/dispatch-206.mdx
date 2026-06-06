@@ -1,0 +1,49 @@
+---
+title: "Building in public: what actually happens when you share everything"
+date: "2026-12-07"
+excerpt: "206 dispatches about the technical and strategic decisions behind three live companies. Here's the honest account of what building in public has done — and hasn't done — for Construx over 9 months."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Building in public is the practice of sharing the process of building a company transparently — the decisions, the mistakes, the metrics, the architecture. The theory: transparency builds trust, attracts users, and creates accountability.
+
+After 9 months and 206 dispatches, here's the honest accounting.
+
+## What it did
+
+**Discovery.** A significant fraction of the people who've found Construx found it through the journal. Not through paid search, social media, or press — through someone reading a dispatch about prompt caching, or background jobs, or marketplace cold starts, and clicking through to understand who wrote it. Technical content in depth attracts technically sophisticated readers. Those readers are the audience we want.
+
+**Credibility compression.** A reader who spends an hour in the journal knows more about how we work than most investors know about most companies they fund. The journal communicates work ethic, technical depth, and honesty faster than any pitch deck. Multiple inbound conversations have started with "I've been reading your journal for two months" — the credibility is already established before the first conversation.
+
+**Discipline.** The journal forces consistent shipping of both code and writing. The code gets shipped because there's a post to write about it. The post gets written because the code just shipped. The two activities reinforce each other.
+
+**Accountability to reality.** Writing about what we're building requires understanding what we're building precisely enough to explain it. Several decisions changed because the act of writing exposed their weaknesses. Dispatch #176 (the Scoutr confidence score post, earlier version) led directly to revising the algorithm to handle zero-sales-data products better.
+
+**A recruitment signal.** Every potential collaborator or hire who wants to understand what they'd be working on can read 206 detailed posts about it. The self-selection is strong: people who want to build this way will be excited by the journal; people who prefer opaque organisations will self-select out.
+
+## What it didn't do
+
+**Protect against competition.** The fear that competitors would copy the strategy or technical approach has not materialised. The competitors who could credibly execute on what we're building already know how to build it — they don't need our blog posts. The ones who couldn't execute well don't become dangerous because they read a dispatch about our database schema.
+
+**Drive viral growth.** Building in public doesn't, by itself, produce explosive growth. The journal produces slow, consistent, compounding discovery. Individual posts reach large audiences occasionally; most posts reach a few hundred readers. The aggregate across 206 posts is significant; any single post is modest.
+
+**Replace execution.** The journal talks about what we build. The products still have to be built. A beautiful build log about a product that doesn't work is a beautiful build log about a product that doesn't work. The journal doesn't paper over product failures.
+
+**Create financial returns directly.** Journal readers become users, but the conversion is indirect and slow. No post has produced a wave of immediate sign-ups. The path is: reader finds journal → reader reads for months → reader tries the product when they have a relevant need → reader converts if the product is good. That path is long; the value is real but deferred.
+
+## The unexpected effects
+
+**The journal became an asset.** Not just for discovery — the posts serve as documentation. When we're making a decision that intersects with something we've written about, we reference the dispatch. The reasoning is written down; we don't have to reconstruct it.
+
+**The public commitment changed the work.** Knowing that a decision will be written about changes how you make it. You're less likely to take shortcuts when you know you'll have to explain the trade-offs publicly. This is accountability without a board or investors — the audience is the accountability mechanism.
+
+**The most technical posts perform best.** The dispatches about confidence score algorithms, row-level security, and pipeline patterns outperform the strategy posts for discovery. Technical depth is the differentiator. Anyone can write a high-level "here's what I learned" post; fewer people write a detailed algorithm post with actual code. The latter is what builds domain credibility.
+
+## What comes next
+
+The journal continues. The discipline of consistent publishing is now embedded — the question is never "should we write this week?" but "what's the most useful thing to write about this week?"
+
+The posts are getting more specific and technical as the products mature. The early dispatches covered broad decisions ("why we chose Next.js"); the current ones cover specific algorithms, race conditions, and product psychology research. The specificity increases as the problems get harder.
+
+Whether 206 dispatches becomes 500 depends on whether the products succeed. A successful company produces more hard problems to write about. The journal compounds.

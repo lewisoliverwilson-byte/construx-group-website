@@ -1,0 +1,174 @@
+---
+title: "Scoutr's confidence score algorithm: how we calculate buy vs. pass"
+date: "2026-12-06"
+excerpt: "Scoutr's primary output is a confidence score — a number from 0-100 indicating how likely a product is to be profitable and worth buying. Here's the full algorithm: what inputs it uses, how they're weighted, and where the model is deliberately conservative."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Scoutr scans a product URL and returns a margin estimate and a confidence score. The margin is straightforward: source price minus costs equals margin. The confidence score is harder — it answers the question "how much do we trust this margin calculation, and how likely is this opportunity to remain viable?"
+
+Here's the full algorithm.
+
+## The inputs
+
+```ts
+interface ScanInputs {
+  // Source product data
+  sourcePrice: number;
+  sourceTitle: string;
+  sourceAvailability: 'in_stock' | 'limited' | 'pre_order' | 'out_of_stock';
+  sourcePriceHistory?: { price: number; date: string }[];  // Not always available
+  
+  // eBay market data
+  activeListing: EbayListing | null;      // Existing eBay listing for this product
+  soldListings: SoldListing[];             // Completed eBay sales
+  ebayCategory: string;                    // eBay category ID
+  competitorCount: number;                 // Active sellers for this product
+  
+  // Calculated
+  margin: number;                          // Gross margin in GBP
+  marginPct: number;                       // Gross margin as percentage
+  feeRate: number;                         // eBay fee rate for category
+}
+```
+
+## The scoring factors
+
+The confidence score is a weighted sum of component scores, each 0-100:
+
+### 1. Margin signal (weight: 35%)
+
+```ts
+function marginScore(marginPct: number): number {
+  if (marginPct < 0) return 0;
+  if (marginPct < 5) return 10;   // Viable but too thin for shipping variation
+  if (marginPct < 10) return 25;  // Tight — small price change erases profit
+  if (marginPct < 15) return 50;  // Acceptable
+  if (marginPct < 25) return 75;  // Good
+  if (marginPct < 40) return 90;  // Excellent
+  return 95;                       // Cap at 95 — extreme margins are a signal to verify
+}
+```
+
+Very high margins (>40%) are often errors (wrong category, outdated pricing, unusual listing). We cap the margin signal rather than rewarding extreme values.
+
+### 2. Sales velocity (weight: 30%)
+
+How many units sold in the last 30 days on eBay for this product:
+
+```ts
+function velocityScore(soldListings: SoldListing[]): number {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  
+  const recent = soldListings.filter(s => new Date(s.soldDate) > cutoff);
+  const count = recent.length;
+  
+  if (count === 0) return 15;    // No sales data — uncertain, not zero
+  if (count < 3) return 30;     // Very low velocity
+  if (count < 10) return 55;    // Moderate
+  if (count < 25) return 75;    // Good velocity
+  if (count < 50) return 90;    // High velocity
+  return 95;                     // Excellent
+}
+```
+
+Zero sales data is scored at 15 (not 0) because no completed listings doesn't mean no demand — the product might be new to eBay, or all current sellers might be pricing it correctly with buy-it-now at no discount.
+
+### 3. Competition level (weight: 20%)
+
+```ts
+function competitionScore(count: number, marginPct: number): number {
+  // With high margin, competition is less concerning
+  // With thin margin, competition is more concerning
+  const competitionPenalty = count * (marginPct < 15 ? 5 : 3);
+  return Math.max(0, 100 - competitionPenalty);
+}
+```
+
+Zero competitors scores 100. Each additional competitor reduces the score by 3-5 points depending on margin thickness. A 20% margin with 10 competitors is riskier than a 30% margin with 10 competitors.
+
+### 4. Source availability (weight: 10%)
+
+```ts
+function availabilityScore(availability: string): number {
+  switch (availability) {
+    case 'in_stock': return 100;
+    case 'limited':  return 60;   // May run out during the selling window
+    case 'pre_order': return 30;  // Delivery uncertain
+    default: return 0;            // Out of stock — don't buy
+  }
+}
+```
+
+### 5. Price stability (weight: 5%)
+
+If source price history is available:
+
+```ts
+function stabilityScore(history?: { price: number; date: string }[]): number {
+  if (!history || history.length < 3) return 70;  // Unknown, assume moderate
+  
+  const prices = history.map(h => h.price);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const volatility = (max - min) / min;
+  
+  if (volatility < 0.05) return 100;  // Stable
+  if (volatility < 0.10) return 85;
+  if (volatility < 0.20) return 65;
+  if (volatility < 0.35) return 40;
+  return 20;                           // Highly volatile price
+}
+```
+
+High price volatility means the source price (and thus the margin) could change significantly overnight.
+
+## The final score
+
+```ts
+function computeConfidenceScore(inputs: ScanInputs): number {
+  const components = {
+    margin:       marginScore(inputs.marginPct) * 0.35,
+    velocity:     velocityScore(inputs.soldListings) * 0.30,
+    competition:  competitionScore(inputs.competitorCount, inputs.marginPct) * 0.20,
+    availability: availabilityScore(inputs.sourceAvailability) * 0.10,
+    stability:    stabilityScore(inputs.sourcePriceHistory) * 0.05,
+  };
+  
+  const raw = Object.values(components).reduce((sum, v) => sum + v, 0);
+  
+  // Hard overrides
+  if (inputs.marginPct < 0) return 0;                    // Never buy a loss
+  if (inputs.sourceAvailability === 'out_of_stock') return 0;  // Can't source it
+  if (inputs.soldListings.length === 0 && inputs.marginPct < 15) return Math.min(raw, 25);  // Low confidence without sales evidence
+  
+  return Math.round(raw);
+}
+```
+
+## The interpretation
+
+The score maps to three zones:
+
+| Score | Interpretation |
+|-------|---------------|
+| 0-29  | PASS — not recommended |
+| 30-59 | MARGINAL — buy only if you understand the risk |
+| 60-79 | BUY — reasonable opportunity |
+| 80+   | STRONG BUY — high-confidence opportunity |
+
+The UI displays the score with the zone label and shows the contributing factors so users can understand what's driving the recommendation.
+
+## The deliberate conservatism
+
+The algorithm is biased conservative — it would rather produce false negatives (miss a good opportunity) than false positives (recommend a bad one). Users who act on a false positive lose money; users who miss a false negative just missed an opportunity.
+
+The conservatism is expressed in:
+- Capping the margin signal at 95 (extreme margins may be errors)
+- Penalising missing sales data (uncertainty is penalised, not ignored)
+- The hard override for out-of-stock (even a 40% margin is worthless if you can't source the product)
+- The minimum confidence cap for products without sales evidence
+
+We've backtested the algorithm against a set of known-good and known-bad historical opportunities. The main failure mode at current version: underconfident on new products with high margins but no eBay sales history. We're working on a supplementary signal (Amazon BSR rank as a demand proxy) to address this.
