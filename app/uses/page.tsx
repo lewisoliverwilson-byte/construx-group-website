@@ -5,6 +5,7 @@ import NeofetchPanel from '@/components/NeofetchPanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import VscodeExtensionsPanel from '@/components/VscodeExtensionsPanel';
 import LshwPanel from '@/components/LshwPanel';
+import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -334,6 +335,11 @@ export default function UsesPage() {
         {/* Server hardware info */}
         <div className="mt-6">
           <LshwPanel />
+        </div>
+
+        {/* Tmux sessions */}
+        <div className="mt-6">
+          <TmuxSessionsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

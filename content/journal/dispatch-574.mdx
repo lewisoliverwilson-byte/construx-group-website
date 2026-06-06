@@ -1,0 +1,184 @@
+---
+title: "IndexedDB: persistent client-side storage for complex data"
+date: "2029-08-31"
+excerpt: "IndexedDB is the browser's built-in database for large, structured, persistent data. Unlike localStorage, it's asynchronous, can store complex objects, and supports indexes for fast queries. The raw API is verbose — libraries like Dexie.js make it usable. Here's when to reach for it and how."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+`localStorage` stores strings. It blocks the main thread. It maxes out around 5-10MB depending on the browser. For most simple use cases (persisting a theme preference, a filter value, a session flag) it's fine.
+
+IndexedDB is the step up when you need more: complex objects, large datasets, offline capability, or fast indexed lookups. It's asynchronous, quota is measured in hundreds of MB, and it supports transactions and indexes.
+
+The raw API is terrible. Every operation requires request event listeners. Dexie.js wraps it in a promise-based API that's actually usable.
+
+## Dexie.js: the usable wrapper
+
+```ts
+import Dexie, { type Table } from 'dexie';
+
+interface Post {
+  id:        string;
+  title:     string;
+  content:   string;
+  authorId:  string;
+  createdAt: Date;
+  synced:    boolean;
+}
+
+class AppDB extends Dexie {
+  posts!: Table<Post>;
+
+  constructor() {
+    super('construx-app');
+
+    this.version(1).stores({
+      posts: 'id, authorId, createdAt, synced',
+      // 'id' is the primary key. Other fields listed here get indexes.
+    });
+  }
+}
+
+export const db = new AppDB();
+```
+
+The schema string in `stores` lists the primary key and indexed fields. Only fields you'll query should be indexed — indexes take space and slow writes.
+
+## Basic operations
+
+```ts
+// Create
+await db.posts.add({
+  id:        crypto.randomUUID(),
+  title:     'My post',
+  content:   '...',
+  authorId:  'user-123',
+  createdAt: new Date(),
+  synced:    false,
+});
+
+// Read by primary key
+const post = await db.posts.get('post-id');
+
+// Query with index
+const userPosts = await db.posts
+  .where('authorId').equals('user-123')
+  .sortBy('createdAt');
+
+// Query unsynced
+const unsynced = await db.posts
+  .where('synced').equals(0)  // false = 0 in IndexedDB
+  .toArray();
+
+// Update
+await db.posts.update('post-id', { synced: true });
+
+// Delete
+await db.posts.delete('post-id');
+```
+
+## Offline-first with background sync
+
+The pattern: write to IndexedDB immediately (optimistic), sync to the server in the background.
+
+```ts
+async function createPost(data: Omit<Post, 'id' | 'synced' | 'createdAt'>) {
+  const post: Post = {
+    ...data,
+    id:        crypto.randomUUID(),
+    createdAt: new Date(),
+    synced:    false,
+  };
+
+  await db.posts.add(post);  // immediate local write
+  syncToServer(post);         // fire-and-forget
+  return post;
+}
+
+async function syncToServer(post: Post) {
+  try {
+    await fetch('/api/posts', {
+      method: 'POST',
+      body: JSON.stringify(post),
+    });
+    await db.posts.update(post.id, { synced: true });
+  } catch {
+    // Will retry next time syncUnsynced() runs
+  }
+}
+
+// Run periodically or on reconnect
+async function syncUnsynced() {
+  const unsynced = await db.posts.where('synced').equals(0).toArray();
+  await Promise.allSettled(unsynced.map(syncToServer));
+}
+```
+
+The UI reads from IndexedDB — data appears instantly regardless of network state. The sync runs separately and updates the `synced` flag when it completes.
+
+## In React with Dexie's hooks
+
+Dexie has a `@dexie/react-hooks` package with a `useLiveQuery` hook that re-renders when the queried data changes:
+
+```tsx
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/lib/db';
+
+function PostList({ authorId }: { authorId: string }) {
+  const posts = useLiveQuery(
+    () => db.posts
+      .where('authorId').equals(authorId)
+      .sortBy('createdAt'),
+    [authorId]
+  );
+
+  if (!posts) return <Spinner />;
+
+  return (
+    <ul>
+      {posts.map((post) => (
+        <li key={post.id}>
+          {post.title}
+          {!post.synced && <span> (syncing...)</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+`useLiveQuery` subscribes to the query. When any write to the `posts` table matches the query, the component re-renders automatically — no manual state management needed.
+
+## Schema migrations
+
+IndexedDB has versioned schemas. When you need to change the schema:
+
+```ts
+this.version(1).stores({
+  posts: 'id, authorId, createdAt, synced',
+});
+
+this.version(2).stores({
+  posts: 'id, authorId, createdAt, synced, tags',
+  // Added 'tags' as a multi-entry index
+}).upgrade(async (tx) => {
+  // Migrate existing data
+  await tx.table('posts').toCollection().modify((post) => {
+    post.tags = [];
+  });
+});
+```
+
+Dexie handles the migration when the user's browser opens the new version.
+
+## When to use IndexedDB vs alternatives
+
+**localStorage**: string values, small data, synchronous reads are acceptable. Theme, language, JWT token.
+
+**IndexedDB**: structured objects, large data (> a few KB), offline support, indexed queries. Draft posts, cached API responses, user-generated content.
+
+**In-memory state (React, Zustand, etc.)**: data that doesn't need to survive a page refresh. Filter state, selected items, UI state.
+
+**Server database**: source of truth. IndexedDB is always a cache or a temporary store, not the permanent record.
+
+IndexedDB makes sense when the data is too large or complex for localStorage, needs to persist across sessions, and benefits from local querying — draft content being the canonical example.
