@@ -1,0 +1,247 @@
+---
+title: "React Hook Form: forms without the pain"
+date: "2028-08-09"
+excerpt: "React Hook Form solves the form performance problem: it controls inputs without re-rendering the form on every keystroke. Combine it with Zod for validation, Server Actions for submission, and you have a complete form stack that's performant, type-safe, and minimal."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React forms have a well-known problem: controlled components re-render on every keystroke. In a complex form with 20 fields, that's thousands of renders. React Hook Form uses uncontrolled inputs and ref-based DOM access to avoid this entirely.
+
+## Setup
+
+```bash
+npm install react-hook-form @hookform/resolvers zod
+```
+
+## Basic form
+
+```tsx
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const schema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  message: z.string().min(10, 'Message must be at least 10 characters'),
+});
+
+type FormData = z.infer<typeof schema>;
+
+export default function ContactForm() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting, isSubmitSuccessful },
+    reset,
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: '', email: '', message: '' },
+  });
+
+  const onSubmit = async (data: FormData) => {
+    const response = await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) throw new Error('Failed to send');
+    reset();
+  };
+
+  if (isSubmitSuccessful) {
+    return <p className="text-green-400">Message sent successfully.</p>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div>
+        <input
+          {...register('name')}
+          placeholder="Name"
+          className="w-full p-3 bg-white/5 border border-white/10 rounded"
+        />
+        {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name.message}</p>}
+      </div>
+
+      <div>
+        <input
+          {...register('email')}
+          type="email"
+          placeholder="Email"
+          className="w-full p-3 bg-white/5 border border-white/10 rounded"
+        />
+        {errors.email && <p className="text-red-400 text-sm mt-1">{errors.email.message}</p>}
+      </div>
+
+      <div>
+        <textarea
+          {...register('message')}
+          placeholder="Message"
+          rows={4}
+          className="w-full p-3 bg-white/5 border border-white/10 rounded resize-none"
+        />
+        {errors.message && <p className="text-red-400 text-sm mt-1">{errors.message.message}</p>}
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full py-3 bg-orange-500 text-black font-semibold rounded disabled:opacity-50"
+      >
+        {isSubmitting ? 'Sending...' : 'Send message'}
+      </button>
+    </form>
+  );
+}
+```
+
+## With Server Actions
+
+```tsx
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useTransition } from 'react';
+import { submitContactForm } from '@/app/actions/contact';
+import { contactSchema, type ContactFormData } from '@/lib/schemas';
+
+export default function ContactForm() {
+  const [isPending, startTransition] = useTransition();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setError,
+    reset,
+  } = useForm<ContactFormData>({
+    resolver: zodResolver(contactSchema),
+  });
+
+  const onSubmit = (data: ContactFormData) => {
+    startTransition(async () => {
+      const result = await submitContactForm(data);
+
+      if (result.error) {
+        // Map server-side errors to form fields
+        if (result.fieldErrors) {
+          for (const [field, messages] of Object.entries(result.fieldErrors)) {
+            setError(field as keyof ContactFormData, {
+              message: messages[0],
+            });
+          }
+        } else {
+          setError('root', { message: result.error });
+        }
+        return;
+      }
+
+      reset();
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      {/* fields... */}
+      {errors.root && <p className="text-red-400">{errors.root.message}</p>}
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Sending...' : 'Send'}
+      </button>
+    </form>
+  );
+}
+```
+
+## Watched values and conditional fields
+
+```tsx
+const { register, watch } = useForm<FormData>();
+const accountType = watch('accountType');
+
+return (
+  <form>
+    <select {...register('accountType')}>
+      <option value="personal">Personal</option>
+      <option value="business">Business</option>
+    </select>
+
+    {accountType === 'business' && (
+      <input
+        {...register('companyName', { required: 'Company name is required' })}
+        placeholder="Company name"
+      />
+    )}
+  </form>
+);
+```
+
+## Dynamic field arrays
+
+```tsx
+import { useFieldArray } from 'react-hook-form';
+
+const { control, register } = useForm<{ tags: { value: string }[] }>();
+const { fields, append, remove } = useFieldArray({ control, name: 'tags' });
+
+return (
+  <div>
+    {fields.map((field, index) => (
+      <div key={field.id} className="flex gap-2">
+        <input {...register(`tags.${index}.value`)} />
+        <button type="button" onClick={() => remove(index)}>Remove</button>
+      </div>
+    ))}
+    <button type="button" onClick={() => append({ value: '' })}>Add tag</button>
+  </div>
+);
+```
+
+## Custom components with Controller
+
+For UI library components that don't accept ref:
+
+```tsx
+import { Controller } from 'react-hook-form';
+import { Select } from '@/components/ui/Select';
+
+<Controller
+  name="category"
+  control={control}
+  render={({ field }) => (
+    <Select
+      options={categories}
+      value={field.value}
+      onChange={field.onChange}
+      onBlur={field.onBlur}
+    />
+  )}
+/>
+```
+
+## Form state
+
+```tsx
+const {
+  formState: {
+    errors,         // field errors
+    isSubmitting,   // form is submitting
+    isSubmitSuccessful, // last submission succeeded
+    isDirty,        // any field changed from default
+    isValid,        // all validations pass
+    touchedFields,  // fields the user has interacted with
+    dirtyFields,    // fields that differ from defaults
+  },
+} = useForm();
+
+// Show validation errors only after field is touched
+{touchedFields.email && errors.email && (
+  <p>{errors.email.message}</p>
+)}
+```
+
+The pattern: React Hook Form + Zod covers every common form case with minimal code. The integration is tight — define the schema once, get validation on both client and server.

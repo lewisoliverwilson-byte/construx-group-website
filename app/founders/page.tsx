@@ -264,9 +264,94 @@ export default function FoundersPage() {
           ))}
         </div>
 
+        {/* Auth log panel */}
+        <div
+          className="mt-16 overflow-hidden font-mono"
+          style={{
+            background: 'rgba(1,1,10,0.95)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: '3px',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
+          }}
+        >
+          {/* Title bar */}
+          <div
+            className="flex items-center gap-2.5 px-4 py-2.5 select-none"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 3px rgba(255,95,87,0.4)' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 3px rgba(255,189,46,0.3)' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 3px rgba(40,200,64,0.3)' }} />
+            </div>
+            <span className="text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              construx@sys — auth.log — who is online
+            </span>
+            <span className="text-[8px] flex items-center gap-1.5" style={{ color: 'rgba(74,222,128,0.5)' }}>
+              <span className="inline-block w-1 h-1 rounded-full status-blink" style={{ background: '#4ade80' }} />
+              2 ONLINE
+            </span>
+          </div>
+          {/* Shell prompt */}
+          <div
+            className="px-4 py-1.5 select-none"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
+          >
+            <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+            <span className="text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>
+              {`w --short && tail -n 6 /var/log/auth.log | grep "Accepted"`}
+            </span>
+          </div>
+          {/* w output */}
+          <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div className="flex items-center gap-3 mb-1">
+              {[['USER', '10ch'], ['TTY', '6ch'], ['FROM', '18ch'], ['LOGIN@', '8ch'], ['IDLE', '5ch'], ['WHAT', 'auto']].map(([h]) => (
+                <span key={h} className="text-[8px] uppercase tracking-[0.12em]" style={{ color: 'rgba(255,255,255,0.18)', minWidth: h === 'WHAT' ? 'auto' : undefined }}>{h}</span>
+              ))}
+            </div>
+            {[
+              { user: 'lewis', tty: 'pts/0', from: '185.199.108.153', login: '09:14', idle: '0:00', what: 'construx build --venture=scoutr' },
+              { user: 'dan',   tty: 'pts/1', from: '203.0.113.42',    login: '09:31', idle: '2:14', what: 'figma-bridge --sync --target=thehyve' },
+            ].map((row) => (
+              <div key={row.user} className="flex items-center gap-3">
+                <span className="text-[9px] tabular-nums" style={{ color: '#F97316', minWidth: '10ch' }}>{row.user}</span>
+                <span className="text-[9px] tabular-nums" style={{ color: 'rgba(255,255,255,0.25)', minWidth: '6ch' }}>{row.tty}</span>
+                <span className="text-[9px] tabular-nums" style={{ color: 'rgba(103,232,249,0.6)', minWidth: '18ch' }}>{row.from}</span>
+                <span className="text-[9px] tabular-nums" style={{ color: 'rgba(255,255,255,0.3)', minWidth: '8ch' }}>{row.login}</span>
+                <span className="text-[9px] tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', minWidth: '5ch' }}>{row.idle}</span>
+                <span className="text-[9px]" style={{ color: 'rgba(240,239,255,0.4)' }}>{row.what}</span>
+              </div>
+            ))}
+          </div>
+          {/* Auth log entries */}
+          <div className="px-4 py-3">
+            {[
+              { ts: `${new Date().toISOString().slice(0, 10)} 09:14:02`, msg: 'Accepted publickey for lewis from 185.199.108.153 port 52341 ssh2', color: 'rgba(74,222,128,0.6)' },
+              { ts: `${new Date().toISOString().slice(0, 10)} 09:31:17`, msg: 'Accepted publickey for dan from 203.0.113.42 port 49112 ssh2', color: 'rgba(74,222,128,0.6)' },
+              { ts: `${new Date().toISOString().slice(0, 10)} 08:00:01`, msg: 'pam_unix(sshd:session): session opened for user construx by (uid=0)', color: 'rgba(255,255,255,0.2)' },
+              { ts: `${new Date().toISOString().slice(0, 10)} 07:59:58`, msg: 'Accepted publickey for construx from 127.0.0.1 port 22 ssh2 — runtime boot', color: 'rgba(255,255,255,0.2)' },
+            ].map((line, i) => (
+              <div key={i} className="flex items-baseline gap-3 mb-0.5">
+                <span className="text-[8px] tabular-nums flex-shrink-0" style={{ color: 'rgba(255,255,255,0.15)' }}>{line.ts}</span>
+                <span className="text-[8px]" style={{ color: line.color }}>{line.msg}</span>
+              </div>
+            ))}
+          </div>
+          {/* Footer */}
+          <div
+            className="flex items-center justify-between px-4 py-1.5 select-none"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.3)' }}
+          >
+            <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
+              auth.log · uptime {tenure}d
+            </span>
+            <span className="text-[8px]" style={{ color: 'rgba(74,222,128,0.3)' }}>construx@sys</span>
+          </div>
+        </div>
+
         {/* Origin story */}
         <div
-          className="mt-16 overflow-hidden"
+          className="mt-8 overflow-hidden"
           style={{
             background: 'rgba(5,5,18,0.8)',
             border: '1px solid rgba(255,255,255,0.07)',
