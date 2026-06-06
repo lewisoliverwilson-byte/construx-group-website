@@ -1,0 +1,181 @@
+---
+title: "Middleware patterns in Next.js: auth, redirects, and edge logic"
+date: "2028-03-15"
+excerpt: "Next.js middleware runs on every request at the edge, before any route is served. It's the right place for auth checks, redirects, locale detection, and A/B assignment. Here's what belongs in middleware and what doesn't."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Middleware runs before a response is returned — before Server Components render, before Route Handlers execute, before static files are served. It's the only place in Next.js where you can intercept every request and modify it before it reaches any other code.
+
+## The anatomy of middleware
+
+```ts
+// middleware.ts — must be at the project root
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(req: NextRequest) {
+  // Run on every request
+  return NextResponse.next();
+}
+
+export const config = {
+  // Only run on these paths — always define a matcher
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+  ],
+};
+```
+
+The `matcher` is critical. Without it, middleware runs on every file including `_next/static` assets — slow and unnecessary.
+
+## Auth gate pattern
+
+The most common use: redirect unauthenticated users before the page renders:
+
+```ts
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/api/auth', '/manifesto', '/journal', '/ventures'];
+
+function isPublic(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Skip public paths
+  if (isPublic(pathname)) return NextResponse.next();
+
+  // Check session cookie
+  const session = req.cookies.get('session')?.value;
+  if (!session) {
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|public/).*)', '/api/:path*'],
+};
+```
+
+For JWT validation at the edge, use a lightweight library — full database calls aren't possible in Edge Runtime:
+
+```ts
+import { jwtVerify } from 'jose';
+
+async function validateSession(token: string): Promise<boolean> {
+  try {
+    await jwtVerify(
+      token,
+      new TextEncoder().encode(process.env.JWT_SECRET!),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+```
+
+## Request enrichment — passing data downstream
+
+Middleware can't return data directly to Server Components, but it can forward data via request headers:
+
+```ts
+export async function middleware(req: NextRequest) {
+  const response = NextResponse.next();
+
+  // Add request ID for tracing
+  const requestId = crypto.randomUUID();
+  response.headers.set('x-request-id', requestId);
+
+  // Validate session and pass user ID to Server Components
+  const token = req.cookies.get('session')?.value;
+  if (token) {
+    const payload = await validateJwt(token);
+    if (payload) {
+      response.headers.set('x-user-id', payload.sub);
+      response.headers.set('x-user-plan', payload.plan);
+    }
+  }
+
+  return response;
+}
+```
+
+```ts
+// In a Server Component — read the enriched header
+import { headers } from 'next/headers';
+
+async function getCurrentUser() {
+  const userId = (await headers()).get('x-user-id');
+  if (!userId) return null;
+  // Fetch full user from DB using the ID
+  return db.query.users.findFirst({ where: eq(users.id, userId) });
+}
+```
+
+## Redirects and rewrites
+
+```ts
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Redirect old URL structure to new
+  if (pathname.startsWith('/blog/')) {
+    const newPath = pathname.replace('/blog/', '/journal/');
+    return NextResponse.redirect(new URL(newPath, req.url), { status: 301 });
+  }
+
+  // Rewrite — serve different content at the same URL
+  if (pathname === '/docs') {
+    return NextResponse.rewrite(new URL('/docs/introduction', req.url));
+  }
+
+  return NextResponse.next();
+}
+```
+
+## Geo-based logic
+
+Edge Runtime has access to geolocation data from Vercel's infrastructure:
+
+```ts
+export function middleware(req: NextRequest) {
+  const country = req.geo?.country ?? 'US';
+  const response = NextResponse.next();
+
+  // Pass geo to components via header
+  response.headers.set('x-country', country);
+
+  // Redirect EU users to EU-hosted domain for GDPR
+  if (['DE', 'FR', 'IT', 'ES', 'NL'].includes(country)) {
+    const euUrl = req.nextUrl.clone();
+    euUrl.hostname = 'eu.construxgroup.io';
+    return NextResponse.redirect(euUrl);
+  }
+
+  return response;
+}
+```
+
+## What doesn't belong in middleware
+
+Middleware runs on every request at the edge. Edge Runtime has constraints:
+
+- **No Node.js APIs** — no `fs`, no `crypto.createHash`, no native modules
+- **No database calls** — the edge has no persistent connection pool
+- **No heavy computation** — add latency to every request
+
+Move complex logic to Route Handlers or Server Components. Middleware should be fast — a few milliseconds at most.
+
+The rule: middleware handles cross-cutting concerns that need to run before routing. Auth redirects, request enrichment, A/B assignments, and redirects from old URL patterns are good candidates. Business logic, database queries, and heavy computation are not.
