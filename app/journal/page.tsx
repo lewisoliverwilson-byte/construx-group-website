@@ -4,6 +4,7 @@ import { ChevronRight, X } from 'lucide-react';
 import { getAllPostMeta } from '@/lib/posts';
 import { formatDate as fd } from '@/lib/utils';
 import ActivityHistogram from '@/components/journal/ActivityHistogram';
+import JournalStats from '@/components/journal/JournalStats';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -44,6 +45,19 @@ export default async function JournalPage({ searchParams }: Props) {
     count,
     pct: count / maxCount,
   }));
+
+  const totalReadingTime = allPosts.reduce((sum, p) => sum + p.readingTime, 0);
+  const avgReadingTime = allPosts.length > 0 ? Math.round(totalReadingTime / allPosts.length) : 0;
+  const peakMonthEntry = sortedMonths.reduce((a, b) => (b[1] > a[1] ? b : a), ['', 0]);
+  const peakMonthLabel = peakMonthEntry[0]
+    ? new Date(peakMonthEntry[0] + '-02').toLocaleString('en', { month: 'short', year: '2-digit' })
+    : '—';
+  const statsRows = [
+    { label: 'DISPATCHES', value: String(allPosts.length).padStart(3, '0'), accent: '#F97316' },
+    { label: 'READ TIME', value: `${totalReadingTime}m`, accent: 'rgba(240,239,255,0.85)' },
+    { label: 'AVG LENGTH', value: `${avgReadingTime}m`, accent: 'rgba(240,239,255,0.85)' },
+    { label: 'PEAK MONTH', value: peakMonthLabel, accent: 'rgba(103,232,249,0.85)' },
+  ];
 
   return (
     <div className="min-h-screen">
@@ -86,6 +100,8 @@ export default async function JournalPage({ searchParams }: Props) {
               </span>
             )}
           </div>
+
+          {!activeTag && <JournalStats rows={statsRows} />}
 
           {/* Tag filter chips */}
           <div
