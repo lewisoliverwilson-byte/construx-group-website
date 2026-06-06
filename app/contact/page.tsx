@@ -13,6 +13,7 @@ import TlsHandshakePanel from '@/components/TlsHandshakePanel';
 import MtrPanel from '@/components/MtrPanel';
 import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
 import TsharkPacketPanel from '@/components/TsharkPacketPanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -377,8 +378,13 @@ export default function ContactPage() {
       </section>
 
       {/* Packet capture */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <TsharkPacketPanel />
+      </section>
+
+      {/* Caddy access log */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CaddyAccessPanel />
       </section>
     </div>
   );

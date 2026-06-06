@@ -1,0 +1,138 @@
+---
+title: "Partytown: run third-party scripts in a web worker"
+date: "2031-03-06"
+excerpt: "Partytown moves third-party scripts — analytics, tag managers, chat widgets — off the main thread and into a web worker. The main thread stays unblocked for your application code. Google Analytics, Segment, Intercom, and most tag manager payloads work with minimal configuration. For sites where third-party scripts are the main source of Time to Interactive regression, Partytown is the most direct fix."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Third-party scripts on the main thread are the easiest performance win to fix.
+
+## The problem
+
+A typical analytics + tag manager setup loads 300-600kB of JavaScript on the main thread. This blocks rendering and delays TTI. The scripts are not yours — you can't reduce their size or defer their work. Partytown moves them to a worker thread, which has no access to the DOM but can still fire network requests.
+
+## Install with Next.js
+
+```bash
+npm install @builder.io/partytown
+```
+
+```ts
+// next.config.ts
+import { withPartytown } from '@builder.io/partytown/utils';
+
+const nextConfig = withPartytown({
+  partytown: {
+    forward: ['dataLayer.push', 'gtag', 'analytics.track'],
+  },
+});
+
+export default nextConfig;
+```
+
+Copy the Partytown lib files to `public/~partytown/`:
+
+```ts
+// scripts/copy-partytown.ts
+import { copyLibFiles } from '@builder.io/partytown/utils';
+import path from 'path';
+
+await copyLibFiles(path.join(process.cwd(), 'public/~partytown'));
+```
+
+```json
+// package.json
+{
+  "scripts": {
+    "postinstall": "bun run scripts/copy-partytown.ts"
+  }
+}
+```
+
+## Wire up in Next.js App Router
+
+```tsx
+// app/layout.tsx
+import Script from 'next/script';
+import { Partytown } from '@builder.io/partytown/react';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <head>
+        {/* Partytown snippet — must be before any forwarded scripts */}
+        <Partytown forward={['dataLayer.push', 'gtag']} />
+      </head>
+      <body>
+        {children}
+
+        {/* Google Tag Manager — runs in worker thread */}
+        <Script
+          id="gtm"
+          type="text/partytown"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(w,d,s,l,i){
+                w[l]=w[l]||[];
+                w[l].push({'gtm.start': new Date().getTime(), event:'gtm.js'});
+                var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';
+                j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+                f.parentNode.insertBefore(j,f);
+              })(window,document,'script','dataLayer','GTM-XXXXXXX');
+            `,
+          }}
+        />
+      </body>
+    </html>
+  );
+}
+```
+
+The key change: `type="text/partytown"` instead of `type="text/javascript"`. Partytown intercepts scripts with this type and runs them in the worker.
+
+## Forwarding calls to the worker
+
+Scripts in the worker can't directly call `window.dataLayer.push`. Partytown proxies these calls through a `SharedArrayBuffer` channel:
+
+```ts
+// partytown.config.ts
+export const partytownConfig = {
+  forward: [
+    'dataLayer.push',        // GTM
+    'gtag',                  // Google Analytics
+    'analytics.track',       // Segment
+    'fbq',                   // Facebook Pixel
+    'intercomSettings',      // Intercom
+  ],
+  resolveUrl(url: URL) {
+    // Proxy third-party requests through your domain to avoid CORS issues
+    if (url.hostname === 'www.googletagmanager.com') {
+      const proxyUrl = new URL('https://construxgroup.io/proxy');
+      proxyUrl.searchParams.append('url', url.href);
+      return proxyUrl;
+    }
+    return url;
+  },
+};
+```
+
+## Measure the impact
+
+```bash
+# Before Partytown
+npx lighthouse https://construxgroup.io --only-categories=performance
+
+# After Partytown
+npx lighthouse https://construxgroup.io --only-categories=performance
+```
+
+Typical results: TTI improves 800ms-2s on mobile, TBT drops by 60-80%. The main thread is unblocked — your React app hydrates faster.
+
+## Partytown limitations
+
+- Scripts that manipulate the DOM directly won't work (they run in a context without DOM access)
+- Some scripts check `window.self === window.top` and break when run in a worker context
+- Requires COOP/COEP headers for SharedArrayBuffer in some configurations
+
+For most tag manager payloads that only fire network requests and read cookies, Partytown works without modification.
