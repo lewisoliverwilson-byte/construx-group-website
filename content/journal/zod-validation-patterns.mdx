@@ -1,0 +1,175 @@
+---
+title: "Zod validation: every boundary, every time"
+date: "2026-10-07"
+excerpt: "We validate all external input — user requests, API responses, environment variables, LLM outputs — using Zod. Here's the patterns we've settled on and why consistent boundary validation matters."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Zod is a TypeScript-first schema validation library. The pattern it enables: define the shape of data once, validate it at runtime, and get TypeScript inference for free.
+
+We use Zod at every boundary in our systems. Here's what that looks like in practice.
+
+## The core pattern
+
+```ts
+import { z } from 'zod';
+
+// Define the schema
+const ScanRequestSchema = z.object({
+  productUrl: z.string().url('Must be a valid URL'),
+  userId: z.string().uuid(),
+  options: z.object({
+    includeHistorical: z.boolean().default(false),
+    maxResults: z.number().int().min(1).max(50).default(10),
+  }).optional(),
+});
+
+// Validate at the boundary
+export async function POST(req: Request) {
+  const body = await req.json();
+  const parsed = ScanRequestSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return Response.json(
+      { error: 'Invalid request', details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  // parsed.data is fully typed: { productUrl: string, userId: string, options?: {...} }
+  return performScan(parsed.data);
+}
+```
+
+`safeParse` returns `{ success: true, data: T }` or `{ success: false, error: ZodError }`. We use `safeParse` (not `parse`) everywhere because it doesn't throw on failure — unhandled throws in API routes produce 500 errors with unhelpful messages.
+
+## Environment variable validation
+
+Environment variables are strings at runtime. Without validation, accessing `process.env.CLAUDE_API_KEY` returns `string | undefined` — you discover missing env vars at the point of first use, usually in a way that's hard to diagnose.
+
+We validate all env vars at startup:
+
+```ts
+// lib/env.ts
+import { z } from 'zod';
+
+const EnvSchema = z.object({
+  CLAUDE_API_KEY:        z.string().min(1),
+  DATABASE_URL:          z.string().url(),
+  STRIPE_SECRET_KEY:     z.string().startsWith('sk_'),
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_'),
+  REDIS_URL:             z.string().url(),
+  NEXT_PUBLIC_SITE_URL:  z.string().url().optional(),
+  RESEND_API_KEY:        z.string().optional(), // not yet configured in prod
+  NODE_ENV:              z.enum(['development', 'production', 'test']).default('development'),
+});
+
+export const env = (() => {
+  const parsed = EnvSchema.safeParse(process.env);
+  if (!parsed.success) {
+    console.error('Invalid environment variables:');
+    console.error(parsed.error.flatten());
+    process.exit(1);
+  }
+  return parsed.data;
+})();
+```
+
+This runs when the module is first imported. If a required env var is missing, the application exits with a clear error before serving any requests. Missing env vars are surfaced immediately, not at runtime.
+
+## LLM output validation
+
+Claude's API returns text. We ask it to return JSON; it usually does. But "usually" isn't "always," and production needs "always."
+
+```ts
+const AnalysisOutputSchema = z.object({
+  isOpportunity:    z.boolean(),
+  confidenceScore:  z.number().min(0).max(100),
+  estimatedMargin:  z.number(),
+  reasoning:        z.string().min(10).max(500),
+  dataQuality:      z.enum(['poor', 'moderate', 'good', 'excellent']),
+});
+
+async function analyseProduct(data: ProductData): Promise<AnalysisOutput> {
+  let attempts = 0;
+  const MAX_ATTEMPTS = 3;
+
+  while (attempts < MAX_ATTEMPTS) {
+    attempts++;
+    const rawResponse = await callClaude(buildPrompt(data));
+
+    try {
+      const parsed = JSON.parse(rawResponse);
+      const validated = AnalysisOutputSchema.safeParse(parsed);
+
+      if (validated.success) return validated.data;
+
+      console.warn(`Attempt ${attempts}: invalid LLM output:`, validated.error.flatten());
+    } catch (e) {
+      console.warn(`Attempt ${attempts}: JSON parse failed:`, rawResponse.slice(0, 200));
+    }
+  }
+
+  throw new Error(`Failed to get valid analysis output after ${MAX_ATTEMPTS} attempts`);
+}
+```
+
+The retry loop is important: LLM outputs are non-deterministic, and an occasional invalid response is expected. Two or three retries resolve most transient formatting issues. If all retries fail, we throw — which triggers the caller's error handling and eventually surfaces a user-facing error.
+
+## Webhook validation
+
+Stripe webhooks must be verified before processing. Stripe provides the `constructEvent` function, which validates the webhook signature. After verification, we validate the event payload shape:
+
+```ts
+const StripePaymentIntentSchema = z.object({
+  id:       z.string().startsWith('pi_'),
+  amount:   z.number().int(),
+  currency: z.literal('gbp'),
+  status:   z.enum(['succeeded', 'requires_capture', 'canceled']),
+  metadata: z.object({
+    transactionId: z.string().uuid(),
+    listingId:     z.string().uuid(),
+  }),
+});
+
+export async function POST(req: Request) {
+  const body = await req.text();
+  const sig = req.headers.get('stripe-signature');
+  
+  const event = stripe.webhooks.constructEvent(body, sig!, process.env.STRIPE_WEBHOOK_SECRET!);
+  
+  if (event.type === 'payment_intent.succeeded') {
+    const parsed = StripePaymentIntentSchema.safeParse(event.data.object);
+    if (!parsed.success) {
+      // Log but don't fail — we don't want to retry a payment_intent we've already processed
+      console.error('Unexpected payment_intent shape:', parsed.error);
+      return Response.json({ received: true });
+    }
+    await handlePaymentSuccess(parsed.data);
+  }
+  
+  return Response.json({ received: true });
+}
+```
+
+Note the intentional choice not to return an error on validation failure for webhooks: Stripe will retry failed webhook deliveries, and we don't want to retry a payment we've already processed. We log the validation failure and return 200 regardless.
+
+## The validation discipline
+
+The rule we follow: if data crosses a boundary into our system from an external source, it goes through Zod. External sources include:
+
+- HTTP request bodies
+- URL search parameters
+- Environment variables
+- External API responses (Stripe, eBay, Claude)
+- Database results from legacy tables without type inference
+
+The boundary test: if the data came from code we wrote and control, we can trust TypeScript. If it came from anywhere outside our TypeScript compilation boundary, we validate.
+
+This discipline has caught three production bugs before they reached users:
+1. A Stripe webhook field that changed shape after an API version update.
+2. An eBay API response that included `null` for a field documented as always-present.
+3. A Claude output that included a `confidenceScore` outside the 0-100 range (returned 0 for a product with no data).
+
+Each would have produced a confusing runtime error without Zod validation. With it, each was caught at the boundary and handled appropriately.

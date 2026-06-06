@@ -1,0 +1,88 @@
+---
+title: "Designing The Marqet's buyer journey: from search to completed transaction"
+date: "2026-10-08"
+excerpt: "A marketplace purchase involves trust at every step. Here's how we designed The Marqet's buyer journey to build that trust incrementally — and what we got wrong on the first version."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+A marketplace has two sides and two separate journeys. The seller journey (creating a listing, managing orders, getting paid) and the buyer journey (finding what they need, trusting it, buying it, receiving it). We've written about the seller side. Here's the buyer side.
+
+## The trust problem
+
+A marketplace buyer is considering giving money to a stranger. This is uncomfortable by default. Every element of the buyer journey is an opportunity to either increase or decrease the comfort with that transaction.
+
+The main anxiety points:
+1. Is this seller legitimate?
+2. Is this service actually what I need?
+3. Will I actually receive what I paid for?
+4. What happens if something goes wrong?
+
+A well-designed buyer journey answers all four questions before asking for payment.
+
+## The first version: feature-complete, trust-incomplete
+
+The first version of The Marqet had:
+- Listing search and browse
+- Listing detail pages with seller profiles
+- Stripe payment
+- Order management
+
+It was missing:
+- Seller verification indicators
+- Example deliverables
+- A clear escrow explanation
+- Visible refund/dispute policy
+- Seller response time data
+
+We launched anyway, because the alternative was not launching. The conversion rate from listing view to purchase was 1.8%. We thought this was low; we didn't know how to diagnose why.
+
+We ran user interviews with buyers who'd browsed but not purchased. The patterns:
+
+**"I wasn't sure if this person was real"** — 40% of non-converting browsers cited seller legitimacy concerns.
+
+**"I didn't understand exactly what I'd receive"** — 35% cited unclear deliverables.
+
+**"I wasn't sure what would happen if they didn't deliver"** — 25% cited payment safety concerns.
+
+## The redesign
+
+We redesigned the listing detail page to address all three concerns in sequence:
+
+**Trust signal: seller profile.** Added a verification section to seller profiles showing: account age, total completed orders, average delivery time (computed from actual order history), and whether the seller has been manually reviewed by Construx. The "Construx Verified" badge appears on sellers who've completed 5+ orders with no disputes.
+
+**Clarity: example deliverables.** Added a "What you'll receive" section to the listing creation form — sellers can upload screenshots or describe the format of the deliverable in structured fields. This is now a recommended (not required) field. 67% of sellers complete it; conversion on listings with example deliverables is 2.4x listings without.
+
+**Safety: escrow explanation.** Added a persistent "How payments work" section to every listing page:
+
+> Your payment is held securely until you confirm delivery. If the seller doesn't deliver or the delivery doesn't match the listing, you're covered under our buyer protection.
+
+This appears before the purchase button, not after. The order matters — you address the concern before asking for the commitment.
+
+**Safety: dispute policy.** Added a visible link to the dispute policy page, and a one-sentence summary on the listing page: "Raise a dispute within 72 hours of delivery if something is wrong — we'll review and resolve within 48 hours."
+
+## The result
+
+Listing view-to-purchase conversion went from 1.8% to 4.3% in the month following the redesign. Not all of this is attributable to the trust improvements (we also improved the search and made listing quality improvements in the same month), but the user interview qualitative data correlates.
+
+More telling: the specific concerns that drove non-conversion in our interviews virtually disappeared in subsequent interviews. "I wasn't sure if this person was real" dropped from 40% to 12% of stated concerns. The redesign addressed what users were actually worried about.
+
+## The friction/trust balance
+
+There's a tension in marketplace design between reducing friction (fewer clicks to purchase) and building trust (more information before purchase).
+
+Every trust signal is also friction — it's one more thing to read, one more decision to make. The question is: does this element reduce purchase anxiety enough to offset the time it adds to the journey?
+
+The escrow explanation passes this test. It adds ~10 seconds to the buyer journey. Conversion data suggests it reduces purchase anxiety significantly — buyers who read it purchase at a higher rate than buyers who don't reach it.
+
+The "Construx Verified" badge also passes. It's a quick signal (icon + text) that reduces the effort required to evaluate seller legitimacy.
+
+What we removed: a detailed FAQ section that appeared on every listing page. It added 30 seconds to the average session for buyers who read it, but purchase rates for those buyers weren't meaningfully higher than buyers who didn't read it. The FAQ is still accessible (linked from the help section), but it's no longer part of the primary listing page flow.
+
+The principle: friction is acceptable when it reduces purchase anxiety proportionally. When friction doesn't convert to trust, remove it.
+
+## The repeat buyer experience
+
+First-time buyers need all the trust signals. Repeat buyers who've successfully completed a transaction need fewer. We personalise the listing experience slightly: buyers who've completed two or more purchases on The Marqet see a shorter trust signal section — the "How payments work" detail is collapsed by default.
+
+This is a small personalisation but it reduces friction for our most engaged users without removing the trust signals that new buyers need.
