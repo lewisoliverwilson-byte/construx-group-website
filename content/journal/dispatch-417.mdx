@@ -1,0 +1,190 @@
+---
+title: "Edge functions: global latency and the limits of the edge runtime"
+date: "2028-05-17"
+excerpt: "Edge functions run in data centers closest to the user — not in a single AWS region. They're fast for auth, redirects, and personalization. They're limited for database queries and large compute. Here's when to use them and when not to."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The edge runtime is a V8 isolate, not a full Node.js environment. It runs in Vercel's network at 40+ locations worldwide — the code executes in the region nearest to the user. Round trips from London to a US database are avoided. But the runtime is constrained: no native Node.js modules, a 4MB code size limit, no filesystem access.
+
+## What runs on the edge
+
+**Good candidates:**
+- Authentication (verify JWT, check session cookie)
+- Redirects and rewrites (A/B tests, geo-routing, locale detection)
+- Rate limiting (check Redis counter, return 429 if exceeded)
+- Request transformation (add headers, rewrite URLs)
+- Personalization (serve different content based on user segment)
+
+**Bad candidates:**
+- Database queries (latency from edge to single-region DB defeats the purpose)
+- CPU-intensive work (edge functions have low CPU limits)
+- Large dependencies (4MB code budget is tight)
+- Operations needing Node.js APIs (child_process, fs, crypto beyond SubtleCrypto)
+
+## Edge middleware
+
+Next.js middleware always runs on the edge:
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { verifyToken } from '@/lib/edge-auth';  // must be edge-compatible
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Auth check — fast, no DB
+  if (pathname.startsWith('/dashboard')) {
+    const token = req.cookies.get('session')?.value;
+
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+
+    try {
+      const payload = await verifyToken(token);  // JWT verification only
+      const response = NextResponse.next();
+      response.headers.set('x-user-id', payload.userId);
+      return response;
+    } catch {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+  }
+
+  // Geo routing
+  const country = req.geo?.country ?? 'US';
+  if (country === 'DE' && !pathname.startsWith('/de')) {
+    return NextResponse.redirect(new URL(`/de${pathname}`, req.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/((?!api|_next|_vercel|.*\\..*).*)'],
+};
+```
+
+## Edge Route Handlers
+
+```ts
+// app/api/auth/verify/route.ts
+export const runtime = 'edge';
+
+import { verifyToken } from '@/lib/edge-auth';
+
+export async function GET(req: Request) {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return Response.json({ valid: false }, { status: 401 });
+  }
+
+  const token = authHeader.slice(7);
+  try {
+    const payload = await verifyToken(token);
+    return Response.json({ valid: true, userId: payload.userId });
+  } catch {
+    return Response.json({ valid: false }, { status: 401 });
+  }
+}
+```
+
+## JWT verification on the edge
+
+The edge runtime supports the Web Crypto API (`crypto.subtle`), which is sufficient for JWT verification:
+
+```ts
+// lib/edge-auth.ts — edge-compatible JWT verification
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
+
+export async function verifyToken(token: string) {
+  const [headerB64, payloadB64, signatureB64] = token.split('.');
+
+  const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signature = base64UrlDecode(signatureB64);
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    JWT_SECRET,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify'],
+  );
+
+  const valid = await crypto.subtle.verify('HMAC', key, signature, data);
+  if (!valid) throw new Error('Invalid token');
+
+  const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+  if (payload.exp && payload.exp < Date.now() / 1000) throw new Error('Token expired');
+
+  return payload as { userId: string; email: string; exp: number };
+}
+
+function base64UrlDecode(input: string): Uint8Array {
+  const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return new Uint8Array(Array.from(raw, (c) => c.charCodeAt(0)));
+}
+```
+
+## Edge-compatible rate limiting with Redis
+
+Upstash Redis has an HTTP API — no native TCP connections required, so it works on the edge:
+
+```ts
+// lib/edge-rate-limit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(10, '10 s'),  // 10 req per 10 seconds
+});
+
+export async function checkRateLimit(identifier: string) {
+  const { success, remaining, reset } = await ratelimit.limit(identifier);
+  return { success, remaining, reset };
+}
+```
+
+```ts
+// middleware.ts — rate limit at the edge before the request hits your app
+const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
+const { success } = await checkRateLimit(ip);
+
+if (!success) {
+  return new Response('Too Many Requests', { status: 429 });
+}
+```
+
+## A/B testing at the edge
+
+```ts
+// middleware.ts — assign variant without a server round trip
+export function middleware(req: NextRequest) {
+  const variantCookie = req.cookies.get('ab-variant');
+
+  if (!variantCookie) {
+    const variant = Math.random() < 0.5 ? 'a' : 'b';
+    const response = NextResponse.next();
+    response.cookies.set('ab-variant', variant, { maxAge: 60 * 60 * 24 * 30 });
+
+    // Rewrite to variant-specific page
+    if (variant === 'b') {
+      return NextResponse.rewrite(new URL('/landing-b', req.url));
+    }
+
+    return response;
+  }
+
+  if (variantCookie.value === 'b') {
+    return NextResponse.rewrite(new URL('/landing-b', req.url));
+  }
+
+  return NextResponse.next();
+}
+```
+
+The pattern: edge for auth, redirects, rate limiting, and personalization. Node.js runtime for anything that needs a real database connection, large dependencies, or significant compute. The edge is a traffic cop, not a compute layer.
