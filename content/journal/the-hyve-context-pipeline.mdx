@@ -1,0 +1,129 @@
+---
+title: "The Hyve's context pipeline: making the AI agent actually remember"
+date: "2026-09-26"
+excerpt: "An AI agent that forgets everything between conversations isn't useful for a workspace tool. Here's how we built The Hyve's context pipeline to give the agent relevant memory without overwhelming the context window."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+An AI agent in a team workspace has a problem that standalone AI tools don't: it needs to remember things across sessions. The agent should know what the team has discussed, what decisions were made, and what's currently being worked on — without someone having to explain it every time.
+
+Context window limitations make this hard. You can't just dump the entire channel history into every prompt.
+
+## The naive approach and its failure
+
+The initial implementation of The Hyve's AI agent included the last 50 messages from the current channel in every prompt. 50 messages was enough to fill the majority of the context window on longer conversations. The agent had context about recent messages but no memory of older decisions.
+
+The failure mode: a team had a long discussion about a strategic decision in March. In May, the agent had no knowledge of that decision. A team member asked the agent "what did we decide about the pricing model?" and the agent replied "I don't have information about that decision."
+
+This is worse than useless — it creates false confidence in the agent's ability to retrieve team memory.
+
+## The retrieval-augmented generation approach
+
+We rebuilt the context pipeline using RAG (retrieval-augmented generation). The architecture:
+
+1. **Ingestion:** Every message in The Hyve is embedded (via vector embedding) and stored in a pgvector table.
+2. **Retrieval:** When the AI agent receives a query, we embed the query and retrieve the N most semantically similar messages from channel history.
+3. **Augmentation:** The retrieved messages are included in the prompt as "relevant context."
+4. **Generation:** The agent generates a response informed by both the recent messages and the retrieved historical context.
+
+The key insight: instead of including *recent* history, we include *relevant* history. "What did we decide about pricing?" retrieves messages from March that contain the pricing discussion, not the last 50 messages which might be about something entirely different.
+
+## The schema
+
+```sql
+CREATE TABLE channel_messages (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel_id  uuid NOT NULL REFERENCES channels(id),
+  user_id     uuid REFERENCES users(id),
+  content     text NOT NULL,
+  embedding   vector(1536),        -- claude embedding dimension
+  created_at  timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_messages_embedding ON channel_messages
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+```
+
+The HNSW index (Hierarchical Navigable Small World) enables approximate nearest-neighbour search — efficient retrieval from potentially thousands of messages in milliseconds.
+
+## The retrieval query
+
+When the agent receives a message:
+
+```ts
+async function retrieveContext(
+  query: string,
+  channelId: string,
+  limit = 15,
+): Promise<Message[]> {
+  const queryEmbedding = await embedText(query);
+
+  const relevant = await db
+    .select()
+    .from(channelMessages)
+    .where(eq(channelMessages.channelId, channelId))
+    .orderBy(sql`embedding <=> ${pgvector.toSql(queryEmbedding)}`)
+    .limit(limit);
+
+  return relevant;
+}
+```
+
+The `<=>` operator computes cosine distance. We retrieve the 15 most semantically similar messages across all channel history.
+
+## The prompt construction
+
+The final prompt includes three sections:
+
+1. **System context:** Who the agent is, what workspace it's in, the current date.
+2. **Relevant history:** The 15 retrieved messages, sorted chronologically, with author and timestamp.
+3. **Recent context:** The last 10 messages in the channel, providing conversational continuity.
+4. **User query:** The message the agent is responding to.
+
+```ts
+const systemPrompt = `
+You are the Hyve AI, a collaborative assistant for the ${workspace.name} workspace.
+Today is ${formatDate(new Date())}. You have access to relevant historical context 
+retrieved from this channel's history.
+
+When referencing past decisions or discussions, cite when they occurred.
+If you don't have information about something, say so clearly — don't speculate.
+`;
+
+const historicalContext = relevantMessages
+  .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+  .map(m => `[${formatDate(m.createdAt)}, ${m.authorName}]: ${m.content}`)
+  .join('\n');
+
+const recentContext = recentMessages
+  .map(m => `${m.authorName}: ${m.content}`)
+  .join('\n');
+
+const fullPrompt = `${systemPrompt}
+
+RELEVANT HISTORICAL CONTEXT:
+${historicalContext}
+
+RECENT CONVERSATION:
+${recentContext}
+
+User query: ${userMessage}`;
+```
+
+## The results
+
+The "what did we decide about pricing?" query now works correctly. The retrieval system finds the pricing discussion from March, includes it as historical context, and the agent answers with specific reference to the decision and when it was made.
+
+More importantly, the agent can now synthesise across time. "Summarise our key strategic decisions from the last six months" produces a coherent summary by retrieving decisions from across the channel history, not just the most recent messages.
+
+## The tradeoffs
+
+**Retrieval latency.** The embedding call + vector search adds ~300ms to agent response time. This is acceptable; users expect AI responses to take a moment.
+
+**Context window management.** 15 historical messages + 10 recent messages can still fill a significant portion of the context window for very long messages. We truncate long messages at 500 characters in the retrieved context, including a note when truncation occurs.
+
+**Retrieval quality.** The retrieval quality depends on how well the embedding model captures semantic similarity. Technical discussions and natural language discussions embed differently. We've found that the retrieval works well for decisions and strategy, less well for specific code snippets. For code discussions, we plan to add a code-specific embedding track.
+
+**Cold start.** New channels have no history to retrieve from. The agent's quality for new channels is lower than for established channels with rich history. This is expected behaviour, and we communicate it: "I'm new to this channel — I'll get better at providing context as we build up discussion history."
