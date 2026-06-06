@@ -1,0 +1,186 @@
+---
+title: "Postgres full-text search: fast search without Elasticsearch"
+date: "2028-08-06"
+excerpt: "Postgres has built-in full-text search that handles most use cases without adding Elasticsearch or Algolia to your stack. tsvector for documents, tsquery for queries, GIN indexes for speed, and ranking for relevance. Here's how to implement search in a Next.js + Drizzle app."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Full-text search in Postgres is underused. Most developers reach for Elasticsearch or Algolia before trying what their database already has. For most search use cases — a docs search, a blog search, a product search with hundreds of thousands of records — Postgres FTS is fast enough and orders of magnitude simpler.
+
+## Core concepts
+
+**tsvector**: a preprocessed document. Words are stemmed, stop words removed, and positions recorded.
+**tsquery**: a query expression. Supports AND (`&`), OR (`|`), NOT (`!`), and prefix matching (`:`*`).
+**GIN index**: the index type for tsvector. Makes search fast.
+**ts_rank**: scores relevance for ordering results.
+
+## Schema setup
+
+```sql
+-- Add a tsvector column to store the search document
+ALTER TABLE posts ADD COLUMN search_vector tsvector;
+
+-- Create a GIN index on it
+CREATE INDEX posts_search_idx ON posts USING GIN(search_vector);
+
+-- Fill the column for existing rows
+UPDATE posts SET search_vector = 
+  setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+  setweight(to_tsvector('english', coalesce(excerpt, '')), 'B') ||
+  setweight(to_tsvector('english', coalesce(content, '')), 'C');
+
+-- Trigger to keep it updated automatically
+CREATE OR REPLACE FUNCTION update_post_search_vector()
+RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('english', coalesce(NEW.title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(NEW.excerpt, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(NEW.content, '')), 'C');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER posts_search_vector_update
+  BEFORE INSERT OR UPDATE ON posts
+  FOR EACH ROW EXECUTE FUNCTION update_post_search_vector();
+```
+
+The `setweight` function assigns different weights to fields. 'A' is highest, 'D' is lowest. This means title matches rank higher than body matches.
+
+## Querying
+
+```sql
+-- Basic search
+SELECT id, title, excerpt,
+  ts_rank(search_vector, query) AS rank
+FROM posts, to_tsquery('english', 'typescript & generics') query
+WHERE search_vector @@ query
+ORDER BY rank DESC
+LIMIT 20;
+
+-- With plainto_tsquery (no syntax required)
+SELECT id, title,
+  ts_rank(search_vector, query) AS rank
+FROM posts, plainto_tsquery('english', 'typescript generics') query
+WHERE search_vector @@ query
+ORDER BY rank DESC;
+
+-- Prefix search for autocomplete
+SELECT id, title
+FROM posts, to_tsquery('english', 'typescri:*') query
+WHERE search_vector @@ query;
+
+-- Highlight matching terms
+SELECT title,
+  ts_headline('english', excerpt, query,
+    'StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=15'
+  ) AS highlighted_excerpt
+FROM posts, plainto_tsquery('english', 'typescript') query
+WHERE search_vector @@ query;
+```
+
+## Drizzle integration
+
+```ts
+// lib/db/schema.ts
+import { pgTable, text, uuid, customType } from 'drizzle-orm/pg-core';
+
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
+
+export const posts = pgTable('posts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  excerpt: text('excerpt').notNull(),
+  content: text('content').notNull(),
+  searchVector: tsvector('search_vector'),
+});
+```
+
+```ts
+// lib/search.ts
+import { db } from './db';
+import { posts } from './db/schema';
+import { sql } from 'drizzle-orm';
+
+export async function searchPosts(query: string, limit = 20) {
+  if (!query.trim()) return [];
+
+  const results = await db.execute(sql`
+    SELECT
+      id,
+      title,
+      excerpt,
+      ts_rank(search_vector, plainto_tsquery('english', ${query})) AS rank,
+      ts_headline(
+        'english',
+        excerpt,
+        plainto_tsquery('english', ${query}),
+        'StartSel=<mark>, StopSel=</mark>, MaxWords=25, MinWords=10'
+      ) AS highlighted_excerpt
+    FROM posts
+    WHERE search_vector @@ plainto_tsquery('english', ${query})
+    ORDER BY rank DESC
+    LIMIT ${limit}
+  `);
+
+  return results.rows as Array<{
+    id: string;
+    title: string;
+    excerpt: string;
+    rank: number;
+    highlighted_excerpt: string;
+  }>;
+}
+```
+
+## Search API route
+
+```ts
+// app/api/search/route.ts
+import { searchPosts } from '@/lib/search';
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const query = searchParams.get('q')?.trim();
+
+  if (!query || query.length < 2) {
+    return Response.json({ results: [], query: '' });
+  }
+
+  const results = await searchPosts(query, 20);
+  return Response.json({ results, query });
+}
+```
+
+## Performance
+
+```sql
+-- Check index is being used
+EXPLAIN ANALYZE
+SELECT id FROM posts
+WHERE search_vector @@ plainto_tsquery('english', 'typescript');
+
+-- Should show: Index Scan using posts_search_idx
+-- NOT: Seq Scan (which means the index isn't being used)
+```
+
+For large tables (millions of rows), consider:
+- Partitioning by date
+- Storing `ts_rank_cd` instead of `ts_rank` for more accurate ranking
+- Using `websearch_to_tsquery` (Postgres 11+) for Google-style query parsing
+
+## When to upgrade to Algolia or Typesense
+
+Postgres FTS works well up to ~1M rows with proper indexing. Move to a dedicated search engine when you need:
+- Fuzzy matching (typo tolerance)
+- Faceted search with fast facet counts
+- Geo search
+- Instant search UI with <50ms latency at scale
+
+For most internal tools, blogs, and product catalogs with under 500k records, Postgres FTS is the right choice.

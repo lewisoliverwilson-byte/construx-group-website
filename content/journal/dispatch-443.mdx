@@ -1,0 +1,224 @@
+---
+title: "Stripe billing: subscriptions, webhooks, and the payment lifecycle"
+date: "2028-08-03"
+excerpt: "Stripe's billing stack handles subscriptions, metered usage, trials, upgrades, and cancellations. Getting it right means understanding the webhook lifecycle — Stripe tells you what happened, and your backend updates its state in response. Here's a complete implementation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Stripe billing has two layers: the Stripe object model (customers, subscriptions, invoices) and the webhook event stream. Your database mirrors Stripe's state. Webhooks keep it in sync.
+
+## Setup
+
+```bash
+npm install stripe @stripe/stripe-js
+```
+
+```ts
+// lib/stripe.ts
+import Stripe from 'stripe';
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-12-18',
+  typescript: true,
+});
+
+export const PLANS = {
+  starter: process.env.STRIPE_PRICE_STARTER!,
+  pro:     process.env.STRIPE_PRICE_PRO!,
+  team:    process.env.STRIPE_PRICE_TEAM!,
+} as const;
+```
+
+## Creating a customer and checkout session
+
+```ts
+// app/api/billing/checkout/route.ts
+import { stripe, PLANS } from '@/lib/stripe';
+import { getServerSession } from 'next-auth';
+import { db } from '@/lib/db';
+
+export async function POST(req: Request) {
+  const session = await getServerSession();
+  if (!session?.user?.id) return new Response('Unauthorized', { status: 401 });
+
+  const { planId } = await req.json();
+  const priceId = PLANS[planId as keyof typeof PLANS];
+  if (!priceId) return new Response('Invalid plan', { status: 400 });
+
+  const user = await db.user.findUnique({ where: { id: session.user.id } });
+
+  // Create or retrieve Stripe customer
+  let customerId = user?.stripeCustomerId;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: user!.email!,
+      metadata: { userId: session.user.id },
+    });
+    customerId = customer.id;
+    await db.user.update({
+      where: { id: session.user.id },
+      data: { stripeCustomerId: customer.id },
+    });
+  }
+
+  // Create checkout session
+  const checkoutSession = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/settings/billing?success=true`,
+    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`,
+    subscription_data: {
+      trial_period_days: 14,  // 14-day trial
+      metadata: { userId: session.user.id },
+    },
+    allow_promotion_codes: true,
+  });
+
+  return Response.json({ url: checkoutSession.url });
+}
+```
+
+## Webhook handler — the most important part
+
+The webhook receives events for every state change. Handle each relevant event and update your DB:
+
+```ts
+// app/api/webhooks/stripe/route.ts
+import { stripe } from '@/lib/stripe';
+import { db } from '@/lib/db';
+import type Stripe from 'stripe';
+
+export const runtime = 'nodejs';  // webhooks need the full Node runtime
+
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
+
+export async function POST(req: Request) {
+  const body = await req.text();
+  const signature = req.headers.get('stripe-signature');
+
+  if (!signature) return new Response('Missing signature', { status: 400 });
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(body, signature, WEBHOOK_SECRET);
+  } catch {
+    return new Response('Invalid signature', { status: 400 });
+  }
+
+  try {
+    await handleEvent(event);
+    return new Response('OK');
+  } catch (error) {
+    console.error('Webhook handler failed:', error);
+    return new Response('Internal error', { status: 500 });
+  }
+}
+
+async function handleEvent(event: Stripe.Event) {
+  switch (event.type) {
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+      await syncSubscription(event.data.object as Stripe.Subscription);
+      break;
+
+    case 'customer.subscription.deleted':
+      await cancelSubscription(event.data.object as Stripe.Subscription);
+      break;
+
+    case 'invoice.payment_succeeded':
+      await recordPayment(event.data.object as Stripe.Invoice);
+      break;
+
+    case 'invoice.payment_failed':
+      await handlePaymentFailed(event.data.object as Stripe.Invoice);
+      break;
+
+    case 'checkout.session.completed':
+      // Session completed — subscription created event fires separately
+      break;
+  }
+}
+```
+
+## Sync subscription to DB
+
+```ts
+async function syncSubscription(subscription: Stripe.Subscription) {
+  const userId = subscription.metadata.userId;
+  if (!userId) return;
+
+  const plan = subscription.items.data[0]?.price.id;
+  const planName = getPlanNameFromPriceId(plan);
+
+  await db.subscription.upsert({
+    where: { stripeSubscriptionId: subscription.id },
+    create: {
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: subscription.customer as string,
+      userId,
+      status: subscription.status,
+      plan: planName,
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      trialEnd: subscription.trial_end
+        ? new Date(subscription.trial_end * 1000)
+        : null,
+    },
+    update: {
+      status: subscription.status,
+      plan: planName,
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    },
+  });
+}
+```
+
+## Customer portal
+
+Let users manage their subscription without you building a billing UI:
+
+```ts
+// app/api/billing/portal/route.ts
+export async function POST(req: Request) {
+  const session = await getServerSession();
+  if (!session?.user?.id) return new Response('Unauthorized', { status: 401 });
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { stripeCustomerId: true },
+  });
+
+  if (!user?.stripeCustomerId) {
+    return new Response('No billing account', { status: 404 });
+  }
+
+  const portalSession = await stripe.billingPortal.sessions.create({
+    customer: user.stripeCustomerId,
+    return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/settings/billing`,
+  });
+
+  return Response.json({ url: portalSession.url });
+}
+```
+
+## Testing webhooks locally
+
+```bash
+# Install Stripe CLI
+brew install stripe/stripe-cli/stripe
+
+# Login
+stripe login
+
+# Forward events to your local server
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+
+# Trigger a test event
+stripe trigger checkout.session.completed
+```
+
+The pattern: Stripe owns the billing state; your database mirrors it. Never derive subscription status from checkout success — always trust webhooks. Build idempotent handlers: receiving the same event twice should produce the same result.

@@ -6,6 +6,7 @@ import { formatDate as fd } from '@/lib/utils';
 import ActivityHistogram from '@/components/journal/ActivityHistogram';
 import JournalStats from '@/components/journal/JournalStats';
 import DispatchCalendar from '@/components/journal/DispatchCalendar';
+import DispatchGitLog from '@/components/journal/DispatchGitLog';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -153,6 +154,11 @@ export default async function JournalPage({ searchParams }: Props) {
           {/* Activity histogram */}
           {!activeTag && (
             <ActivityHistogram bars={histogramBars} total={allPosts.length} />
+          )}
+
+          {/* Git commit log */}
+          {!activeTag && (
+            <DispatchGitLog posts={allPosts} total={allPosts.length} />
           )}
         </div>
       </section>
