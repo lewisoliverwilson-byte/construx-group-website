@@ -258,6 +258,11 @@ export default function HomePage() {
                     </span>
                     <span className="font-mono text-[7px] uppercase tracking-widest flex-shrink-0" style={{ color: 'rgba(74,222,128,0.4)' }}>● live</span>
                   </div>
+                  {/* Shell prompt */}
+                  <div className="px-3 py-1 select-none" style={{ borderBottom: `1px solid ${v.accent}06`, background: 'rgba(255,255,255,0.01)' }}>
+                    <span className="font-mono text-[7px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                    <span className="font-mono text-[7px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`construx ventures --open ${v.slug}`}</span>
+                  </div>
                   {/* Content */}
                   <div className="flex items-center gap-4 px-5 py-3.5">
                     <div
@@ -479,6 +484,11 @@ export default function HomePage() {
                     journal.recent — {post.tag.toLowerCase()}
                   </span>
                   <span className="font-mono text-[8px] text-text-dim/30 flex-shrink-0">{post.readingTime}m</span>
+                </div>
+                {/* Shell prompt */}
+                <div className="px-3 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+                  <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                  <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`cat /journal/${post.slug}`}</span>
                 </div>
                 <div className="flex flex-col gap-2 px-4 py-4 flex-1">
                   <span
