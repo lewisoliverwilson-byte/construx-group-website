@@ -1,0 +1,179 @@
+---
+title: "Type-safe API contracts: Zod schemas shared between client and server"
+date: "2027-03-13"
+excerpt: "The runtime behaviour of your API and the TypeScript types describing it are usually maintained separately. They drift. Zod lets you derive both from a single source of truth, and share it between client and server."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript gives you type safety within each layer of your application, but it can't guarantee that your client's assumptions about the API match what the server actually returns. The server's response type is often inferred, hand-typed, or simply trusted. When it drifts, the type error doesn't surface at build time — it surfaces at runtime, in production.
+
+Zod solves this by letting you define API contracts as schemas that do double duty: they validate at runtime and they produce TypeScript types at compile time. One definition, both guarantees.
+
+## The problem with separate types
+
+The naive pattern:
+
+```ts
+// ✗ Types are defined separately and drift over time
+
+// server: app/api/scan/route.ts
+return Response.json({
+  asin: scan.asin,
+  margin: scan.margin,
+  confidence: scan.confidence,
+  scannedAt: scan.createdAt.toISOString(),
+});
+
+// client: types/api.ts (maintained manually, becomes wrong)
+interface ScanResult {
+  asin: string;
+  margin: number;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  scannedAt: string;
+}
+```
+
+When the server adds a field, the client type doesn't update. When the server renames a field, the TypeScript types say nothing. You find out when production breaks.
+
+## Shared Zod schemas
+
+The fix: define the schema once, in a file that both client and server import. Zod derives the TypeScript type from the schema.
+
+```ts
+// lib/schemas/scan.ts — imported by both server and client
+
+import { z } from 'zod';
+
+export const ScanResultSchema = z.object({
+  asin: z.string(),
+  margin: z.number().min(-100).max(100),
+  confidence: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+  scannedAt: z.string().datetime(),
+  title: z.string().optional(),
+  price: z.number().positive().optional(),
+});
+
+// TypeScript type is derived from the schema — single source of truth
+export type ScanResult = z.infer<typeof ScanResultSchema>;
+```
+
+On the server, validate the outgoing response:
+
+```ts
+// app/api/scan/route.ts
+import { ScanResultSchema } from '@/lib/schemas/scan';
+
+export async function GET(req: Request) {
+  const scan = await runScan(asin);
+
+  // Validates the shape before sending — catches schema drift at runtime
+  const result = ScanResultSchema.parse({
+    asin: scan.asin,
+    margin: scan.margin,
+    confidence: scan.confidence,
+    scannedAt: scan.createdAt.toISOString(),
+  });
+
+  return Response.json(result);
+}
+```
+
+On the client, validate the incoming response:
+
+```ts
+// hooks/useScan.ts
+import { ScanResultSchema, type ScanResult } from '@/lib/schemas/scan';
+
+async function fetchScan(asin: string): Promise<ScanResult> {
+  const res = await fetch(`/api/scan?asin=${asin}`);
+  const raw = await res.json();
+
+  // Validates the response shape — catches API drift
+  return ScanResultSchema.parse(raw);
+}
+```
+
+When the server adds a required field and doesn't include it in the response, `.parse()` throws. When the client sends a request with an invalid field, `.parse()` throws. The schema is the contract, and both sides enforce it.
+
+## Request body validation
+
+The same pattern applies to incoming request bodies:
+
+```ts
+// lib/schemas/requests.ts
+import { z } from 'zod';
+
+export const CreatePortfolioSchema = z.object({
+  name: z.string().min(1).max(50),
+  description: z.string().max(200).optional(),
+  asinList: z.array(z.string().regex(/^[A-Z0-9]{10}$/)).max(50),
+});
+
+export type CreatePortfolioRequest = z.infer<typeof CreatePortfolioSchema>;
+```
+
+```ts
+// app/api/portfolio/route.ts
+import { CreatePortfolioSchema } from '@/lib/schemas/requests';
+
+export async function POST(req: Request) {
+  const body = await req.json();
+
+  const parsed = CreatePortfolioSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json(
+      { error: 'Invalid request', details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  // parsed.data is fully typed as CreatePortfolioRequest
+  await createPortfolio(parsed.data);
+  return Response.json({ success: true });
+}
+```
+
+The `safeParse` variant returns `{ success: true, data }` or `{ success: false, error }` instead of throwing. The error's `.flatten()` gives you a structured object of field-level messages that you can return to the client.
+
+## Form integration
+
+Zod schemas compose with React Hook Form via `@hookform/resolvers`:
+
+```ts
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { CreatePortfolioSchema, type CreatePortfolioRequest } from '@/lib/schemas/requests';
+
+function CreatePortfolioForm() {
+  const { register, handleSubmit, formState: { errors } } = useForm<CreatePortfolioRequest>({
+    resolver: zodResolver(CreatePortfolioSchema),
+  });
+
+  const onSubmit = (data: CreatePortfolioRequest) => {
+    // data is validated and typed — same schema as the API
+    fetch('/api/portfolio', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register('name')} />
+      {errors.name && <p>{errors.name.message}</p>}
+      {/* ... */}
+    </form>
+  );
+}
+```
+
+The form, the API route, and the client fetch all share the same Zod schema. Validation runs in three places with one definition.
+
+## Schema evolution
+
+When you add a required field to a schema, both the server and client immediately know about it through the shared import. If the server doesn't provide it, the response parse fails. If the form doesn't collect it, the submission parse fails.
+
+This is the point. Schema drift is a class of bug that's invisible to TypeScript alone. Zod makes it visible, at the boundary, before it becomes a production incident.
+
+We use `.optional()` liberally for fields that might not exist yet during a rollout — add the field optional, migrate the data, make it required. The schema tracks where you are in that progression.

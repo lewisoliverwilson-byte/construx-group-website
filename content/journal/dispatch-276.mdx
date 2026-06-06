@@ -1,0 +1,195 @@
+---
+title: "Error boundaries and graceful degradation in React"
+date: "2027-03-19"
+excerpt: "A single uncaught render error brings down your entire React tree. Error boundaries scope failures to the component that throws, so the rest of the page keeps working. Here's the pattern we use and where we draw the lines."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React's rendering model is all-or-nothing by default. If a component throws during render, the entire tree unmounts. The user sees a blank page. The rest of the application — the navigation, the sidebar, the unrelated widgets — all disappear because one component failed.
+
+Error boundaries limit the blast radius. They wrap a subtree; if anything inside throws during render, the boundary catches it and renders a fallback instead. The parent tree stays alive.
+
+## The class component requirement
+
+Error boundaries must be class components. There is no hook equivalent for catching render errors. This is the one place in a modern React codebase where class syntax is still the correct tool:
+
+```tsx
+// components/ErrorBoundary.tsx
+'use client';
+
+import { Component, type ReactNode } from 'react';
+
+interface Props {
+  fallback: ReactNode;
+  children: ReactNode;
+  onError?: (error: Error, info: { componentStack: string }) => void;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: { componentStack: string }) {
+    this.props.onError?.(error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+```
+
+Wrap it in a convenience component for common usage patterns:
+
+```tsx
+// components/WithErrorBoundary.tsx
+import { ErrorBoundary } from './ErrorBoundary';
+
+interface Props {
+  children: React.ReactNode;
+  name?: string;
+  fallback?: React.ReactNode;
+}
+
+export function WithErrorBoundary({ children, name = 'unknown', fallback }: Props) {
+  const defaultFallback = (
+    <div className="px-4 py-3 font-mono text-[10px] text-text-dim border border-border" style={{ borderRadius: '3px' }}>
+      <span className="text-construx/60">// </span>
+      {name}.error — this section failed to load
+    </div>
+  );
+
+  return (
+    <ErrorBoundary
+      fallback={fallback ?? defaultFallback}
+      onError={(err, info) => {
+        // Ship to your error tracker
+        console.error(JSON.stringify({
+          event: 'render.error',
+          component: name,
+          message: err.message,
+          stack: info.componentStack,
+        }));
+      }}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+```
+
+## Where to place boundaries
+
+The decision of where to draw boundary lines is an information architecture problem. Too coarse (wrapping everything in one boundary) and you still lose large sections of the page. Too fine (wrapping every individual element) and you add overhead and make fallbacks visually confusing.
+
+The pattern we use: wrap each independent section of the page that has a distinct purpose and could fail for distinct reasons.
+
+```tsx
+// app/dashboard/page.tsx
+export default function Dashboard() {
+  return (
+    <div>
+      <DashboardHeader />  {/* core nav — let this propagate if it fails */}
+
+      <div className="grid grid-cols-3 gap-4">
+        <WithErrorBoundary name="scan.feed">
+          <ScanFeed />
+        </WithErrorBoundary>
+
+        <WithErrorBoundary name="portfolio.overview">
+          <PortfolioOverview />
+        </WithErrorBoundary>
+
+        <WithErrorBoundary name="activity.log">
+          <ActivityLog />
+        </WithErrorBoundary>
+      </div>
+
+      <WithErrorBoundary name="market.insights">
+        <MarketInsights />
+      </WithErrorBoundary>
+    </div>
+  );
+}
+```
+
+If `PortfolioOverview` throws, the scan feed and activity log continue working. The user sees a contained error message in the portfolio slot. The page is degraded but usable.
+
+## Async errors and Suspense
+
+Error boundaries only catch errors thrown during the synchronous render phase. Async errors — rejected promises, failed fetches in event handlers — do not propagate to the boundary automatically.
+
+With Next.js Server Components and Suspense, thrown errors in async server components do propagate correctly:
+
+```tsx
+// app/dashboard/portfolio/page.tsx
+import { Suspense } from 'react';
+
+// Server component — async errors bubble to the nearest error.tsx
+async function PortfolioData({ workspaceId }: { workspaceId: string }) {
+  const portfolio = await fetchPortfolio(workspaceId);  // throws if it fails
+  return <PortfolioTable data={portfolio} />;
+}
+
+export default function PortfolioPage() {
+  return (
+    <Suspense fallback={<PortfolioSkeleton />}>
+      <PortfolioData workspaceId={workspaceId} />
+    </Suspense>
+  );
+}
+```
+
+Next.js's `error.tsx` acts as a segment-level error boundary for the App Router. Place one in any route segment to catch async server errors:
+
+```tsx
+// app/dashboard/portfolio/error.tsx
+'use client';
+
+export default function PortfolioError({
+  error,
+  reset,
+}: {
+  error: Error;
+  reset: () => void;
+}) {
+  return (
+    <div className="py-12 text-center">
+      <p className="font-mono text-[10px] uppercase tracking-widest text-text-dim mb-3">
+        // PORTFOLIO.LOAD_ERROR
+      </p>
+      <p className="text-sm text-text-muted mb-4 max-w-sm mx-auto">
+        Failed to load portfolio data. This is usually a temporary issue.
+      </p>
+      <button onClick={reset} className="btn-secondary text-sm">
+        Retry
+      </button>
+    </div>
+  );
+}
+```
+
+The `reset` function re-renders the segment. It retries without a full page reload.
+
+## What we don't wrap
+
+Not everything benefits from isolation. Navigation components, authentication state, and critical layout elements should propagate errors — if they fail, the page state is fundamentally broken and showing a partial fallback is worse than showing nothing.
+
+The heuristic: if the component failing means "this feature is unavailable," use an error boundary. If it means "this page is broken," let it propagate. The line is usually: secondary features get boundaries, primary chrome does not.
+
+Graceful degradation isn't about hiding all errors — it's about scoping failures so that one broken thing doesn't make everything broken.
