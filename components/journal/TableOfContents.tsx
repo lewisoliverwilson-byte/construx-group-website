@@ -78,6 +78,12 @@ export default function TableOfContents({ headings }: Props) {
         </span>
       </div>
 
+      {/* Shell prompt */}
+      <div className="px-3 py-1 select-none" style={{ background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+        <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{` dispatch --toc --sections=${headings.length}`}</span>
+      </div>
+
       {/* Progress line */}
       <div className="h-px w-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
         <div

@@ -96,6 +96,12 @@ export default function VenturePanel({ venture, onClose }: Props) {
               </div>
             </div>
 
+            {/* Shell prompt */}
+            <div className="px-3 py-1.5 flex-shrink-0 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`construx ventures --open ${venture.slug}`}</span>
+            </div>
+
             {/* Header */}
             <div className="flex items-start gap-3 px-5 pt-4 pb-3">
               {/* Planet orb */}
