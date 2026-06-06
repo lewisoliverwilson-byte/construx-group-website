@@ -1,0 +1,189 @@
+---
+title: "Nginx: configuration patterns for production"
+date: "2030-03-02"
+excerpt: "Nginx is a reverse proxy, static file server, and load balancer in one binary. The config language is declarative — server blocks, location blocks, upstream groups. A well-configured Nginx instance handles TLS termination, compression, caching, rate limiting, and health checks before a request ever reaches your application. Understanding the config model unlocks all of it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Nginx sits in front of everything. It handles HTTPS, serves static files at native speed, compresses responses, enforces rate limits, and proxies to your application. Learning the config structure makes all of this simple.
+
+## Core structure
+
+```nginx
+# /etc/nginx/nginx.conf
+worker_processes auto;
+events { worker_connections 1024; }
+
+http {
+  include       mime.types;
+  default_type  application/octet-stream;
+
+  # Logging
+  log_format main '$remote_addr - [$time_local] "$request" '
+                  '$status $body_bytes_sent "$http_referer" '
+                  '"$http_user_agent" $request_time';
+
+  access_log /var/log/nginx/access.log main;
+  error_log  /var/log/nginx/error.log warn;
+
+  # Performance
+  sendfile           on;
+  tcp_nopush         on;
+  keepalive_timeout  65;
+  gzip               on;
+  gzip_types         text/plain text/css application/json application/javascript text/xml;
+
+  include /etc/nginx/sites-enabled/*;
+}
+```
+
+## Reverse proxy to a Node.js app
+
+```nginx
+# /etc/nginx/sites-available/construxgroup.io
+upstream construx_app {
+  server 127.0.0.1:3000;
+  keepalive 32;
+}
+
+server {
+  listen 80;
+  server_name construxgroup.io www.construxgroup.io;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  server_name construxgroup.io www.construxgroup.io;
+
+  ssl_certificate     /etc/letsencrypt/live/construxgroup.io/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/construxgroup.io/privkey.pem;
+  ssl_protocols       TLSv1.2 TLSv1.3;
+  ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
+  ssl_session_cache   shared:SSL:10m;
+  ssl_session_timeout 1d;
+
+  # Security headers
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+  add_header X-Frame-Options DENY always;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+  # Proxy to app
+  location / {
+    proxy_pass         http://construx_app;
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade $http_upgrade;
+    proxy_set_header   Connection 'upgrade';
+    proxy_set_header   Host $host;
+    proxy_set_header   X-Real-IP $remote_addr;
+    proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 60s;
+  }
+
+  # Static assets with long cache
+  location /_next/static/ {
+    proxy_pass http://construx_app;
+    expires    1y;
+    add_header Cache-Control "public, immutable";
+  }
+}
+```
+
+## Rate limiting
+
+```nginx
+http {
+  # Define rate limit zones
+  limit_req_zone $binary_remote_addr zone=api:10m    rate=10r/s;
+  limit_req_zone $binary_remote_addr zone=login:10m  rate=1r/s;
+  limit_conn_zone $binary_remote_addr zone=perip:10m;
+
+  server {
+    # API: 10 req/sec burst of 20, no delay
+    location /api/ {
+      limit_req      zone=api burst=20 nodelay;
+      limit_req_status 429;
+      proxy_pass     http://construx_app;
+    }
+
+    # Login: 1 req/sec burst of 5, with delay
+    location /api/auth/ {
+      limit_req      zone=login burst=5;
+      limit_req_status 429;
+      proxy_pass     http://construx_app;
+    }
+
+    # Max 50 connections per IP
+    limit_conn perip 50;
+  }
+}
+```
+
+## Caching
+
+```nginx
+http {
+  proxy_cache_path /var/cache/nginx
+    levels=1:2
+    keys_zone=app_cache:10m
+    max_size=1g
+    inactive=60m;
+
+  server {
+    location /api/public/ {
+      proxy_cache            app_cache;
+      proxy_cache_valid      200 60s;
+      proxy_cache_valid      404 10s;
+      proxy_cache_use_stale  error timeout updating;
+      proxy_cache_key        "$scheme$request_method$host$request_uri";
+      add_header             X-Cache-Status $upstream_cache_status;
+      proxy_pass             http://construx_app;
+    }
+  }
+}
+```
+
+`X-Cache-Status` will be `HIT`, `MISS`, `BYPASS`, or `STALE` — useful for debugging.
+
+## Load balancing
+
+```nginx
+upstream construx_app {
+  least_conn;                 # route to server with fewest active connections
+  server 10.0.1.10:3000 weight=3;
+  server 10.0.1.11:3000 weight=1;
+  server 10.0.1.12:3000 backup;  # only used when others are down
+  keepalive 64;
+}
+```
+
+Strategies: `round_robin` (default), `least_conn`, `ip_hash` (session affinity), `hash $request_uri consistent` (consistent hashing by URL).
+
+## Useful commands
+
+```bash
+nginx -t                          # test config syntax
+nginx -s reload                   # reload config without downtime
+nginx -s quit                     # graceful shutdown
+
+# Watch access log
+tail -f /var/log/nginx/access.log
+
+# Parse log for slowest requests
+awk '$NF > 1 {print $NF, $7}' /var/log/nginx/access.log | sort -rn | head -20
+
+# Top URLs by request count
+awk '{print $7}' /var/log/nginx/access.log | sort | uniq -c | sort -rn | head -20
+```
+
+## Checking effective config
+
+```bash
+nginx -T 2>/dev/null | grep -A5 'location /'
+```
+
+`nginx -T` dumps the full effective configuration with all includes resolved — useful for verifying that site configs are being picked up correctly.

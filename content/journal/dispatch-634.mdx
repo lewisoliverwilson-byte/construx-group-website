@@ -1,0 +1,194 @@
+---
+title: "React Server Components: what runs on the server, what runs on the client"
+date: "2030-02-27"
+excerpt: "React Server Components execute on the server and stream HTML to the client — no JavaScript bundle, no hydration cost, direct database access. Client Components handle interactivity and live in the browser. The boundary between them is explicit: 'use client' marks where the component tree switches from server to client. Understanding this boundary is the key to building fast Next.js apps."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The mental model: Server Components are like PHP templates — they run on the server, they can query the database directly, and they send HTML. Client Components are traditional React — they run in the browser, they handle state and events, and they cost JavaScript bundle size.
+
+## Server Components: the default in Next.js App Router
+
+```tsx
+// app/posts/page.tsx — Server Component (no 'use client')
+import { db } from '@/db';
+
+export default async function PostsPage() {
+  // Runs on the server — can query DB directly, no useEffect
+  const posts = await db.post.findMany({
+    where:   { status: 'published' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return (
+    <div>
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} />
+      ))}
+    </div>
+  );
+}
+```
+
+No bundle cost. No client-side fetch. No loading state. The HTML arrives pre-rendered with data already in it.
+
+## Client Components: add 'use client'
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+
+export function LikeButton({ postId }: { postId: string }) {
+  const [liked, setLiked]   = useState(false);
+  const [count, setCount]   = useState(0);
+
+  async function handleLike() {
+    setLiked(true);
+    setCount((c) => c + 1);
+    await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+  }
+
+  return (
+    <button onClick={handleLike}>
+      {liked ? '♥' : '♡'} {count}
+    </button>
+  );
+}
+```
+
+`'use client'` means: everything in this file (and everything it imports) is a Client Component. The directive marks the boundary.
+
+## Composing Server and Client Components
+
+```tsx
+// PostCard is a Server Component — no 'use client'
+import { LikeButton } from './LikeButton';  // Client Component
+
+export function PostCard({ post }: { post: Post }) {
+  return (
+    <div>
+      <h2>{post.title}</h2>         {/* server-rendered */}
+      <p>{post.excerpt}</p>          {/* server-rendered */}
+      <LikeButton postId={post.id} />{/* client-rendered */}
+    </div>
+  );
+}
+```
+
+Server Components can render Client Components. The Client Component island gets hydrated in the browser; the surrounding Server Component HTML stays static.
+
+## The rule: Server Components cannot import Client Components that use browser APIs
+
+```tsx
+// ERROR: importing a hook-using Client Component into a Server Component is fine.
+// But a Client Component cannot import a Server Component.
+
+// ✓ OK: Server imports Client
+import { SearchBar } from './SearchBar';  // 'use client', uses useState
+
+// ✗ NOT OK: Client imports Server
+'use client';
+import { PostList } from './PostList';  // Server Component — breaks the model
+```
+
+Pass Server Components as `children` props to Client Components instead:
+
+```tsx
+// Client Component that accepts children
+'use client';
+
+export function Modal({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return open ? <div className="modal">{children}</div> : null;
+}
+```
+
+```tsx
+// Server Component: passes server-rendered content into a Client Component
+import { Modal }    from './Modal';
+import { PostList } from './PostList';  // Server Component
+
+export default function Page() {
+  return (
+    <Modal>
+      <PostList />  {/* Server Component as children — this works */}
+    </Modal>
+  );
+}
+```
+
+## Data fetching patterns
+
+```tsx
+// Pattern 1: fetch in Server Component, pass as props
+export default async function Page() {
+  const data = await fetchData();
+  return <ClientChart data={data} />;
+}
+
+// Pattern 2: parallel fetching (no waterfall)
+export default async function Page() {
+  const [posts, stats] = await Promise.all([
+    getPosts(),
+    getStats(),
+  ]);
+  return <Dashboard posts={posts} stats={stats} />;
+}
+
+// Pattern 3: streaming with Suspense
+export default function Page() {
+  return (
+    <Suspense fallback={<PostsSkeleton />}>
+      <PostList />  {/* fetches its own data */}
+    </Suspense>
+  );
+}
+```
+
+## Server Actions: mutations from Client Components
+
+```tsx
+// app/actions.ts
+'use server';
+
+import { db }          from '@/db';
+import { revalidatePath } from 'next/cache';
+
+export async function createPost(formData: FormData) {
+  const title   = formData.get('title') as string;
+  const content = formData.get('content') as string;
+
+  await db.post.create({ data: { title, content } });
+  revalidatePath('/posts');
+}
+```
+
+```tsx
+'use client';
+
+import { createPost } from '@/app/actions';
+
+export function PostForm() {
+  return (
+    <form action={createPost}>
+      <input name="title"   required />
+      <textarea name="content" required />
+      <button type="submit">Create post</button>
+    </form>
+  );
+}
+```
+
+Server Actions run on the server, have access to the database, and revalidate the cache — called directly from a `<form action>` or programmatically.
+
+## What goes where
+
+| Server Component | Client Component |
+|---|---|
+| Database queries | useState / useEffect |
+| Secret env vars | Browser APIs (localStorage, window) |
+| Large dependencies (kept off bundle) | Event handlers |
+| Static HTML, SEO content | Real-time updates |
+| Async data fetching | useContext, animations |

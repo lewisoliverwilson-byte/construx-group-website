@@ -9,6 +9,7 @@ import TopProcessPanel from '@/components/TopProcessPanel';
 import SsSocketPanel from '@/components/SsSocketPanel';
 import SensorsPanel from '@/components/SensorsPanel';
 import NetstatPanel from '@/components/NetstatPanel';
+import PerfStatPanel from '@/components/PerfStatPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -376,6 +377,11 @@ export default function StatsPage() {
       {/* Listening sockets */}
       <div className="mt-6">
         <NetstatPanel />
+      </div>
+
+      {/* Hardware performance counters */}
+      <div className="mt-6">
+        <PerfStatPanel />
       </div>
     </div>
   );
