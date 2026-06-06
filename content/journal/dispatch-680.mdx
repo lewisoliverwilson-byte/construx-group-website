@@ -1,0 +1,193 @@
+---
+title: "Next.js App Router: server components, streaming, and layouts"
+date: "2030-07-15"
+excerpt: "The App Router is Next.js's current architecture, introduced in Next.js 13 and stable from 14. Every component is a Server Component by default — it runs on the server, fetches data directly, and sends HTML to the client. Client Components opt in with 'use client'. Layouts are persistent across navigation. Streaming delivers content progressively via Suspense boundaries."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Pages Router was a file-system router where every page was a React component rendered on the server or client. The App Router replaces it with a component tree where server and client components compose together — the server handles data fetching and static markup, the client handles interactivity.
+
+## File-system routing
+
+```
+app/
+  layout.tsx              # Root layout (always rendered, persists across navigation)
+  page.tsx                # / route
+  loading.tsx             # Loading UI (Suspense fallback)
+  error.tsx               # Error boundary
+  not-found.tsx           # 404 page
+  journal/
+    layout.tsx            # Journal layout (nested, persists within /journal)
+    page.tsx              # /journal route
+    [slug]/
+      page.tsx            # /journal/[slug] dynamic route
+  api/
+    posts/
+      route.ts            # /api/posts API route (GET, POST, etc.)
+```
+
+## Server Components (default)
+
+```tsx
+// app/journal/page.tsx — runs on the server
+import { db }   from '@/lib/db';
+import { posts } from '@/lib/schema';
+import { desc }  from 'drizzle-orm';
+
+export default async function JournalPage() {
+  // Direct database access — no API call, no useEffect
+  const allPosts = await db
+    .select()
+    .from(posts)
+    .where(eq(posts.published, true))
+    .orderBy(desc(posts.createdAt))
+    .limit(20);
+
+  return (
+    <main>
+      {allPosts.map((post) => (
+        <article key={post.id}>
+          <h2>{post.title}</h2>
+          <p>{post.content.slice(0, 150)}…</p>
+        </article>
+      ))}
+    </main>
+  );
+}
+```
+
+## Client Components
+
+```tsx
+// components/LikeButton.tsx
+'use client';  // this directive makes it a Client Component
+
+import { useState } from 'react';
+
+export function LikeButton({ postId }: { postId: string }) {
+  const [liked, setLiked] = useState(false);
+
+  return (
+    <button onClick={() => setLiked((l) => !l)}>
+      {liked ? '♥ Liked' : '♡ Like'}
+    </button>
+  );
+}
+```
+
+```tsx
+// app/journal/[slug]/page.tsx — Server Component
+import { LikeButton } from '@/components/LikeButton';  // Client Component inside Server Component
+
+export default async function PostPage({ params }: { params: { slug: string } }) {
+  const post = await db.query.posts.findFirst({ where: eq(posts.slug, params.slug) });
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <div dangerouslySetInnerHTML={{ __html: post.content }} />
+      <LikeButton postId={post.id} />  {/* Client Component */}
+    </article>
+  );
+}
+```
+
+## Streaming with Suspense
+
+```tsx
+// app/dashboard/page.tsx
+import { Suspense } from 'react';
+import { RecentActivity } from './RecentActivity';  // slow query
+
+export default function DashboardPage() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <StatsOverview />  {/* fast, renders immediately */}
+      <Suspense fallback={<ActivitySkeleton />}>
+        <RecentActivity />  {/* slow — streams in after the fast content */}
+      </Suspense>
+    </div>
+  );
+}
+```
+
+The page starts streaming immediately — fast components arrive first, slow ones fill in without blocking the entire page.
+
+## Layouts and metadata
+
+```tsx
+// app/layout.tsx
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title:       { default: 'Construx Group', template: '%s | Construx Group' },
+  description: 'We build ventures.',
+  openGraph:   { type: 'website', url: 'https://construxgroup.io' },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Nav />
+        {children}
+        <Footer />
+      </body>
+    </html>
+  );
+}
+```
+
+```tsx
+// app/journal/[slug]/page.tsx — dynamic metadata
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const post = await getPost(params.slug);
+  return {
+    title:       post.title,
+    description: post.excerpt,
+    openGraph:   { images: [`/api/og?title=${post.title}`] },
+  };
+}
+```
+
+## Route handlers (API routes)
+
+```ts
+// app/api/posts/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(req: NextRequest) {
+  const posts = await db.select().from(postsTable).limit(20);
+  return NextResponse.json(posts);
+}
+
+export async function POST(req: NextRequest) {
+  const body   = await req.json();
+  const parsed = CreatePostSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json(parsed.error, { status: 400 });
+
+  const post = await db.insert(postsTable).values(parsed.data).returning();
+  return NextResponse.json(post[0], { status: 201 });
+}
+```
+
+## Caching
+
+```ts
+// Static: cached at build time
+export const dynamic = 'force-static';
+
+// Dynamic: no cache
+export const dynamic = 'force-dynamic';
+
+// Revalidate every N seconds
+export const revalidate = 3600;  // 1 hour
+
+// On-demand revalidation
+import { revalidatePath, revalidateTag } from 'next/cache';
+await revalidatePath('/journal');       // revalidate a route
+await revalidateTag('posts');           // revalidate all fetches with this tag
+```
+
+The App Router's caching model has multiple layers: Request Memoization, Data Cache, Full Route Cache, and Router Cache. Understanding all four is essential for correct caching behaviour in production.
