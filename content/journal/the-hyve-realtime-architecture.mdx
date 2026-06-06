@@ -1,0 +1,107 @@
+---
+title: "The Hyve's real-time layer: WebSockets, Supabase Realtime, and what we actually chose"
+date: "2026-09-13"
+excerpt: "Real-time collaboration requires a real-time transport. We evaluated WebSockets, SSE, and Supabase Realtime before deciding. Here's the honest comparison and the tradeoffs we accepted."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Hyve is a collaborative workspace. Collaboration requires real-time — when one user sends a message, other users need to see it without refreshing. The choice of real-time transport shapes the entire architecture. We spent longer than expected on this decision.
+
+## The options
+
+**Raw WebSockets via Next.js.** Full control over the protocol. You define the message format, the reconnection logic, the presence tracking, the channel subscription model. This is the most flexible option and the most work.
+
+**Server-Sent Events (SSE).** Unidirectional: server pushes events to the client. The client sends new messages via regular HTTP POST requests. Simpler than WebSockets for read-heavy collaboration (showing other users' messages), but creates a split model where sends and receives use different transports.
+
+**Supabase Realtime.** Supabase's built-in real-time layer, built on Phoenix Channels (Elixir). Clients subscribe to database row changes or custom broadcast channels. Presence tracking is built in. The tradeoff: you're coupled to Supabase.
+
+**Pusher / Ably / PartyKit.** Managed WebSocket services. Good APIs, reliable infrastructure, pay-per-connection pricing that gets expensive at scale.
+
+## What we chose and why
+
+We chose **Supabase Realtime** for the initial implementation, for four reasons:
+
+**We were already on Supabase.** The Hyve uses Supabase for its database. Adding Supabase Realtime doesn't add another service dependency — it extends an existing one.
+
+**Presence is built in.** "Who's in this channel right now" is a common real-time collaboration feature that's non-trivial to build from scratch. Supabase Realtime exposes it as a first-class API.
+
+**Row-level change subscriptions.** When a user sends a message (writes to the `messages` table), every other user subscribed to that channel receives the new row automatically. We don't need to implement a message fanout mechanism — the database change IS the real-time event.
+
+**The Phoenix Channels protocol is robust.** Supabase Realtime is built on a battle-tested protocol with reliable reconnection, heartbeats, and backpressure. We'd have spent weeks implementing that reliability from scratch with raw WebSockets.
+
+## The subscription model
+
+Each channel page in The Hyve subscribes to two real-time streams:
+
+```ts
+useEffect(() => {
+  const channel = supabase
+    .channel(`workspace:${workspaceId}:channel:${channelId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `channel_id=eq.${channelId}`,
+      },
+      (payload) => {
+        setMessages(prev => [...prev, payload.new as Message]);
+      }
+    )
+    .on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState<{ userId: string; name: string }>();
+      setPresence(Object.values(state).flat());
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({
+          userId: currentUser.id,
+          name: currentUser.name,
+        });
+      }
+    });
+
+  return () => { supabase.removeChannel(channel); };
+}, [channelId, workspaceId, currentUser]);
+```
+
+`postgres_changes` listens for `INSERT` events on the `messages` table, filtered to the current channel. Presence tracking is handled by the `track()` call on subscription.
+
+## The problems we hit
+
+**Message ordering.** When a user sends a message, there's a brief moment where the local state update (optimistic UI) and the real-time INSERT event can arrive in the wrong order. We solved this with a message deduplication check:
+
+```ts
+setMessages(prev => {
+  if (prev.some(m => m.id === payload.new.id)) return prev; // deduplicate
+  return [...prev, payload.new as Message].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+});
+```
+
+**Presence ghost members.** When a user closes the tab abruptly (rather than navigating away gracefully), their presence can linger for up to 30 seconds before Supabase Realtime times them out. We add a timeout indicator in the presence UI:
+
+```ts
+const isRecent = (ts: string) => Date.now() - new Date(ts).getTime() < 45_000;
+```
+
+Members whose `lastSeen` is more than 45 seconds ago are shown as "away" rather than "active," even if they're technically still in the presence state.
+
+**WebSocket reconnection UI.** When the network drops and reconnects, the subscription re-establishes automatically. But users need feedback that this is happening — otherwise they might send messages during the disconnected window that appear to send but don't. We added a connection status indicator that shows when the real-time connection is reconnecting.
+
+## The performance profile
+
+At the current scale (under 500 concurrent workspace users), Supabase Realtime handles the load comfortably. We haven't approached the connection limits of the Supabase tier we're on.
+
+The row-level subscription model scales with database writes — each message insert triggers one server-to-client push per subscriber. For a channel with 20 active members, one message produces 19 push events (the sender uses optimistic UI, not the push). At current message rates, this is well within normal WebSocket throughput.
+
+Where this could break: a channel with hundreds of active members sending high-frequency messages. At that scale, the subscription model becomes expensive. We'd need to move to a broadcast-only model for large channels, where the channel is a Supabase broadcast channel rather than a postgres_changes subscription.
+
+## What we'd do differently
+
+In retrospect: the choice was correct, but we should have implemented the message deduplication and reconnection UI from day one rather than adding them reactively after seeing the bugs in production. Real-time bugs are subtle — they appear only under specific network conditions — and are harder to reproduce and fix than bugs in synchronous code. Building defensively from the start is cheaper than retrofitting.
+
+The presence ghost member issue was particularly instructive. Real-time presence is never perfectly accurate — the question is what you show the user when the state is uncertain. "Away" is more honest than "active" for stale presence, and more useful than "unknown."

@@ -1,0 +1,59 @@
+---
+title: "Launch timing: why we staggered the three products by six months each"
+date: "2026-09-14"
+excerpt: "We had three product ideas and the conviction to build all three. We didn't launch them simultaneously. Here's the sequencing logic and what we'd do differently."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Building three products simultaneously would have been a mistake. We knew this before we started. What we underestimated was how long the sequencing would take.
+
+## The original plan
+
+The plan was to launch one product, let it stabilise for three months, then build and launch the next. The sequence: Scoutr first (simplest product, clearest user), then The Marqet (more complex, two-sided market), then The Hyve (most complex, requires a critical mass of users to be useful).
+
+The logic: we'd learn from each launch before building the next. The operational overhead of running a live product would be contained to one product at a time during the build phase.
+
+## What actually happened
+
+Scoutr launched on schedule. We stabilised it over six weeks — far faster than the three months we'd budgeted. By week seven, Scoutr was running with minimal ongoing attention. We started building The Marqet while Scoutr was in early growth.
+
+By the time The Marqet launched, we'd had six months of Scoutr in production. The lessons were real:
+
+**Stripe integration:** We'd already done it for Scoutr. The Marqet's Stripe setup took two days instead of the estimated week, because we were copying patterns we'd already tested in production.
+
+**Amplify deployment configuration:** Already solved. The Marqet deployed without the configuration issues that Scoutr had on first deployment.
+
+**Error monitoring and alerting:** Already running. We connected The Marqet to the same alerting infrastructure and had monitoring from day one.
+
+**User communication patterns:** We knew how to write our first user emails, how to handle the first support tickets, what questions users would ask. None of this had to be figured out from scratch.
+
+The sequencing created a compounding learning effect. Each subsequent product benefited from the operational knowledge of the previous one.
+
+## The Marqet to The Hyve transition
+
+The Marqet is a two-sided marketplace. Reaching critical mass was harder than Scoutr. Scoutr is useful for a single user with no other users on the platform; you sign up, you scan, you get value. The Marqet requires both buyers and sellers to be useful.
+
+We spent more time than planned on the supply side — recruiting the first sellers, helping them create their initial listings, manually reviewing and improving listing quality before the automated pipeline was in place. The Marqet's "stable" phase took four months instead of the three we'd expected.
+
+This pushed The Hyve's build start by one month. Not catastrophic, but it compressed the build timeline. The Hyve launched with fewer features than we'd originally planned — we made scope cuts to keep the launch date intact.
+
+The scope cut that turned out to be right: we launched without guest access (joining The Hyve required creating an account). We'd planned to add guest access for easy team onboarding. In the first month, every user who tried The Hyve created an account. The friction of account creation wasn't the adoption blocker we'd worried about; the value of the workspace itself was.
+
+The scope cut we regret: launching without workspace-level analytics. We had no way to show workspace owners how active their team was, which channels were most used, or which users were most engaged with the AI features. This was requested by every workspace admin in the first month. We shipped a basic analytics view six weeks post-launch — it should have been in v1.
+
+## What the sequencing taught us
+
+**Three months is too long.** "Stabilise a product for three months before starting the next" was based on a conservative estimate. In practice, a well-architected product with good monitoring stabilises faster. We would plan for six weeks in the future, with a check-in to assess whether we're actually ready to parallel-build.
+
+**Operational compounding is real.** The savings on The Marqet and The Hyve from not having to solve infrastructure problems from scratch were significant. Every month of production experience reduces the cost of the next launch.
+
+**Two-sided markets need more time.** If we did this again, we'd budget an extra two months for any two-sided marketplace product. The supply side doesn't build itself, and the demand side won't come without supply.
+
+**Scope cuts are not always regressions.** Some of the features we cut from each launch turned out not to matter. Others turned out to be essential and had to be added immediately post-launch. The cut we regret most — The Hyve's analytics — was also the easiest to predict as essential if we'd done better user research before cutting it.
+
+## The current situation
+
+All three products are now in active growth phases simultaneously. We manage them without fully separating context — a decision about The Marqet's pricing model informs thinking about The Hyve's pricing model. Cross-product operational knowledge transfers easily.
+
+The sequencing worked. We wouldn't run all three from day one again. But we'd sequence more aggressively — six weeks between launch and parallel build start, not three months.

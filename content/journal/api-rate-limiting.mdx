@@ -1,0 +1,143 @@
+---
+title: "Rate limiting: protecting our APIs without punishing legitimate users"
+date: "2026-09-12"
+excerpt: "Every public API needs rate limiting. The question is how to do it in a way that stops abuse without degrading the experience for legitimate users who hit limits accidentally."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Rate limiting is one of those things you put off until you get your first abuse attempt. We put it off. Then we got our first abuse attempt — someone running an automated scraper against the Scoutr API, making ~400 requests per minute. We added rate limiting the next day.
+
+Here's how we built it and what we learned.
+
+## What we're protecting against
+
+The threat model for our APIs isn't sophisticated attackers; it's:
+
+**Automated scraping.** Someone using our API as a backend for their own tool, consuming compute and API credits we pay for.
+
+**Accidental hammering.** A developer building an integration who writes a retry loop without backoff — accidentally DoS-ing our API with good intentions.
+
+**Credential stuffing.** Automated attempts to find valid account credentials via the auth endpoints.
+
+**Runaway clients.** A legitimate user's client with a bug that gets stuck in a retry loop.
+
+Each of these has different characteristics and requires slightly different rate limit parameters.
+
+## The implementation
+
+We use Redis for the rate limit counter. The algorithm is sliding window — more accurate than fixed window (which allows bursting at window boundaries) and simpler than token bucket (which is accurate but complex).
+
+```ts
+async function checkRateLimit(
+  identifier: string,
+  limit: number,
+  windowMs: number,
+): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+  const now = Date.now();
+  const windowStart = now - windowMs;
+  const key = `rl:${identifier}`;
+
+  const pipeline = redis.pipeline();
+  pipeline.zremrangebyscore(key, '-inf', windowStart); // remove old entries
+  pipeline.zadd(key, now, `${now}-${Math.random()}`); // add current request
+  pipeline.zcard(key);                                  // count in window
+  pipeline.expire(key, Math.ceil(windowMs / 1000));
+
+  const results = await pipeline.exec();
+  const count = results?.[2]?.[1] as number ?? 0;
+
+  return {
+    allowed: count <= limit,
+    remaining: Math.max(0, limit - count),
+    resetAt: new Date(now + windowMs),
+  };
+}
+```
+
+The sliding window uses a Redis sorted set, where the score is the timestamp. We remove entries older than the window, add the current request, count what's left, and expire the key to clean up automatically.
+
+## The rate limit tiers
+
+We have different limits for different endpoint categories:
+
+```ts
+const RATE_LIMITS = {
+  // Auth endpoints — tightest limits, credential stuffing protection
+  auth: { limit: 10, windowMs: 60_000 },          // 10 per minute
+
+  // API endpoints — per user, generous for legitimate use
+  api: { limit: 60, windowMs: 60_000 },            // 60 per minute
+
+  // Batch submission — heavier compute, lower limit
+  batch: { limit: 5, windowMs: 60_000 },           // 5 per minute
+
+  // AI endpoints — most expensive, most restricted
+  ai: { limit: 20, windowMs: 60_000 },             // 20 per minute
+
+  // Global per-IP — catch unauthenticated hammering
+  globalIp: { limit: 200, windowMs: 60_000 },      // 200 per minute
+} as const;
+```
+
+The identifier for authenticated endpoints is the user ID; for unauthenticated endpoints (including auth itself), it's the client IP.
+
+## The middleware
+
+In Next.js, rate limiting lives in middleware or in the route handler. We put the common rate limit check in a utility function and call it at the top of route handlers:
+
+```ts
+export async function POST(req: Request) {
+  const userId = await getUserId(req);
+  if (!userId) return unauthorized();
+
+  const limit = await checkRateLimit(`user:${userId}:api`, 60, 60_000);
+  if (!limit.allowed) {
+    return Response.json(
+      { error: 'Rate limit exceeded', resetAt: limit.resetAt },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': '60',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(Math.ceil(limit.resetAt.getTime() / 1000)),
+          'Retry-After': String(Math.ceil((limit.resetAt.getTime() - Date.now()) / 1000)),
+        },
+      }
+    );
+  }
+
+  // ... route handler
+}
+```
+
+The `Retry-After` header is important — it tells well-behaved clients exactly how long to wait before retrying. A client that respects `Retry-After` can recover from a rate limit without any manual intervention.
+
+## The 429 response design
+
+The worst rate limit implementations return a bare 429 with no information. The client has no idea when it can retry. This produces exponential backoff loops that take minutes to resolve and frustrated developers who assume something is broken.
+
+Our 429 responses include:
+- `X-RateLimit-Limit`: the limit that was hit
+- `X-RateLimit-Remaining`: always 0 when we return 429
+- `X-RateLimit-Reset`: Unix timestamp when the window resets
+- `Retry-After`: seconds until retry is safe
+- A JSON body with `error` and `resetAt` as ISO string
+
+A developer hitting the limit for the first time can read the response, understand exactly what happened, and fix their retry logic without reading documentation.
+
+## User-facing degradation
+
+For legitimate users who hit rate limits accidentally (usually a mobile network issue causing retries), we show a specific error message in the UI that's distinct from generic errors:
+
+> "You've made too many requests. Wait a few seconds and try again."
+
+We don't show the word "rate limit" to end users — it's technical jargon that creates anxiety. The message is actionable: wait, then retry.
+
+## What changed after implementing rate limiting
+
+We haven't had a scraping incident since the initial implementation. The sliding window algorithm correctly handles burst traffic — a legitimate user making 10 requests in 5 seconds isn't blocked, but someone making 400 requests per minute is.
+
+The auth endpoint limits caught three credential stuffing attempts in the first two months. Each attempt was distributed across ~50 IPs, but the per-IP limit at 10 per minute was enough to slow them to the point of being ineffective.
+
+The `Retry-After` header has been mentioned positively by two API integration developers who specifically noted that it made their retry logic easy to implement correctly. Good API design is documentation you don't have to write.
