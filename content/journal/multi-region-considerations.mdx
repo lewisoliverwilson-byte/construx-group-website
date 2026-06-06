@@ -1,0 +1,75 @@
+---
+title: "Multi-region deployments: when they make sense and when they don't"
+date: "2026-09-08"
+excerpt: "Multi-region adds complexity, cost, and new failure modes. Here's the honest accounting of when it's worth it and when a single well-instrumented region is the right answer."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Multi-region deployments are the kind of thing that sounds like a requirement until you calculate what they cost. Not just money — complexity, latency tradeoffs, data consistency challenges, operational overhead. For most early-stage products, a single well-configured region is the right answer. Here's the honest accounting.
+
+## What multi-region actually solves
+
+Multi-region addresses three distinct problems:
+
+**Latency.** If your users are distributed globally, requests from users who are geographically far from your single region have higher latency. A user in Singapore hitting a server in us-east-1 will have ~200ms of network latency before the application even starts processing. Multi-region with edge locations can reduce that to ~30ms.
+
+**Regional availability.** AWS regions occasionally have incidents that affect availability. A multi-region deployment with automatic failover means a us-east-1 incident doesn't take your product down — traffic fails over to eu-west-1.
+
+**Data residency compliance.** In some regulatory contexts (GDPR in Europe, certain healthcare regulations), data must physically reside within a specific geographic boundary. Multi-region with data locality can satisfy these requirements.
+
+## What it doesn't solve
+
+Multi-region is often proposed as a solution to general reliability problems that have simpler fixes. Before reaching for multi-region, check:
+
+- Is the downtime from slow deployments? Blue-green deployments solve this without multi-region.
+- Is the latency from slow database queries? Query optimisation and caching solve this.
+- Is the reliability issue from a single dependency (a third-party API, a single database)? Retry logic and circuit breakers solve this.
+
+Multi-region adds complexity. Complexity introduces new failure modes. It's possible to be less reliable with multi-region than without it.
+
+## The data consistency problem
+
+Single-region deployments have a simple data model: one database, all reads and writes go there. Multi-region introduces a fundamental tension: if you write data in us-east-1 and a user in eu-west-1 immediately reads it, do they see the new data?
+
+The options:
+
+**Single primary, read replicas.** Writes go to a primary database in one region. Read replicas in other regions replicate from the primary, usually with 10-500ms lag. Reads can be served from the nearest replica; writes route to the primary. This is appropriate when reads significantly outnumber writes and eventual consistency is acceptable.
+
+**Multi-primary (active-active).** Writes are accepted in any region and replicated to all others. This eliminates the write latency problem for distributed users but introduces conflict resolution complexity. If two users in different regions write to the same record simultaneously, what happens? Conflict resolution rules need to be defined and implemented correctly. This is hard.
+
+**Geo-partitioned data.** Users are assigned to a region and their data lives in that region. A US user's data is in us-east-1; a European user's data is in eu-west-1. Cross-region operations (a US user collaborating with a European user) require explicit handling. This works well when user data is naturally isolated.
+
+For most early-stage products, the right answer is: don't do multi-region yet. Build on a single region with good monitoring and deployment practices. Add multi-region if and when there's a specific business requirement that justifies the complexity.
+
+## Where we are
+
+All three Construx products run on a single AWS region: us-east-1. The decision is deliberate.
+
+**Current user distribution:** The majority of users are UK/US based. Latency from us-east-1 to UK is ~80-90ms. This is acceptable; it doesn't materially affect product experience.
+
+**Availability requirements:** We don't have SLA commitments that require multi-region failover. AWS us-east-1 has a published track record of >99.9% availability at the service level. Combined with our application-level retry logic and health monitoring, this is sufficient for our current scale.
+
+**Operational capacity:** We're two people. Operating a multi-region deployment requires more operational work — deployment coordination, cross-region monitoring, failover testing. That capacity is better spent on product development at this stage.
+
+## What we've built instead
+
+Rather than multi-region, we've invested in:
+
+**Edge caching for static content.** Next.js with AWS CloudFront caches static pages and assets at edge locations globally. The HTML for marketing pages and static journal posts is served from the nearest CloudFront edge point — effectively multi-region for read-only content.
+
+**Database connection pooling.** PgBouncer-style connection pooling (via Supabase's built-in pooler) prevents database connection exhaustion, which is a common source of outages that gets misdiagnosed as a capacity problem.
+
+**Graceful degradation.** The AI features in each product are designed to degrade gracefully if the Claude API is unavailable. The core product function continues; AI enhancement fails silently with a logged error and a user-facing "AI analysis unavailable" message.
+
+**Circuit breakers.** Calls to external services (eBay API, Claude API, Stripe) are wrapped in circuit breaker logic that stops retrying when an external service is clearly down, instead of hammering a failing endpoint with retries.
+
+## The threshold for multi-region
+
+We'll add multi-region when one of these conditions is met:
+
+1. A specific enterprise customer requires a European data residency commitment that we can't satisfy through contractual means.
+2. Our user distribution shifts significantly toward high-latency geographies (Asia-Pacific, Latin America) and product analytics show latency correlating with reduced engagement.
+3. We have a regional incident that costs us significant revenue, demonstrating that the failover value exceeds the complexity cost.
+
+Until then, the single-region approach with good instrumentation is the right call. Not everything that sounds enterprise needs to be implemented before there's enterprise demand.

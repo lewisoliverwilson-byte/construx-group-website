@@ -1,0 +1,115 @@
+---
+title: "Next.js image optimisation: what we actually use and what we skip"
+date: "2026-09-06"
+excerpt: "The Next.js Image component does a lot. Not all of it is necessary for every project. Here's how we approach images across the three Construx products."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Next.js `Image` component is one of those things that's easy to misuse. It offers automatic format conversion, lazy loading, responsive sizing, and CDN delivery — but using it naively produces either massive JavaScript bundles or broken layouts. Here's how we actually use it.
+
+## The default: always use `next/image` for user-facing images
+
+We don't use `<img>` tags directly in any Construx product. Every user-facing image goes through `next/image`. The reasons:
+
+**Automatic WebP/AVIF conversion.** The Image component converts PNG and JPEG sources to WebP or AVIF automatically, based on browser support. AVIF is typically 40-60% smaller than JPEG at the same perceived quality. The conversion happens at build time for static exports or at request time for server-rendered pages.
+
+**Lazy loading by default.** Images below the fold are not loaded until they enter the viewport. For listing pages on The Marqet with 24+ product images, this means the initial page load is fast — only the above-fold images load immediately.
+
+**Prevents layout shift.** When you specify `width` and `height` props, the Image component reserves space for the image before it loads. This eliminates cumulative layout shift (CLS) — one of the Core Web Vitals metrics.
+
+## The `sizes` prop
+
+The most misused part of `next/image`. When you use a responsive image (one that changes size at different viewport widths), you need to tell the browser how large the image will be at each breakpoint. This is what `sizes` does:
+
+```tsx
+<Image
+  src={product.imageUrl}
+  alt={product.name}
+  width={400}
+  height={300}
+  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+/>
+```
+
+Without `sizes`, Next.js generates a srcset but the browser doesn't know how to choose between sizes. It defaults to the full viewport width, which means it may download a 1200px wide image for an element that's only 400px wide.
+
+For The Marqet product cards, which are 1-column on mobile, 2-column on tablet, and 3-column on desktop:
+- Mobile (`max-width: 640px`): image takes 100vw
+- Tablet (`max-width: 1024px`): image takes 50vw (2 columns with gap)
+- Desktop: image takes 33vw (3 columns with gap)
+
+Getting this right reduced our Marqet listing page image payload by approximately 40%.
+
+## Priority loading for hero images
+
+Above-the-fold images should not be lazy loaded — they're needed immediately, and lazy loading delays their appearance:
+
+```tsx
+<Image
+  src={heroImage}
+  alt="Hero"
+  fill
+  priority
+  sizes="100vw"
+/>
+```
+
+The `priority` prop disables lazy loading and adds a `<link rel="preload">` tag to the document head, which tells the browser to fetch the image as early as possible in the page load.
+
+We mark as priority: the main hero image on each page, the first product image on listing pages, and user avatar images that appear in the site header.
+
+## The `fill` layout
+
+When an image needs to fill a container of unknown dimensions (the container size is determined by CSS, not by the image), use `fill` instead of explicit `width`/`height`:
+
+```tsx
+<div className="relative aspect-[4/3] w-full overflow-hidden">
+  <Image
+    src={product.imageUrl}
+    alt={product.name}
+    fill
+    className="object-cover"
+    sizes="(max-width: 640px) 100vw, 33vw"
+  />
+</div>
+```
+
+The parent must be `position: relative` (or `absolute`/`fixed`). The `object-cover` class on the image ensures it fills the container without distortion, cropping if necessary.
+
+## What we don't use
+
+**Remote patterns for untrusted sources.** The `remotePatterns` config in `next.config.ts` whitelists external domains for the image optimiser. We only add domains we trust and own — not arbitrary external domains. For The Marqet, where product images come from seller submissions, we have an upload pipeline that stores images in our own S3 bucket before serving them through the image optimiser.
+
+**`unoptimized` prop.** This bypasses all optimisation. We have no legitimate use for it in production. If an image isn't working with the optimiser, we fix the root cause rather than bypassing the optimiser.
+
+**Inline SVGs wrapped in `Image`.** SVG files go through `<Image>` if they're external or if sizing flexibility is needed. Inline SVGs (decorative elements, icons) use React components directly or `next/dynamic` for heavy SVG files.
+
+## The config
+
+Our `next.config.ts` image configuration:
+
+```ts
+const config: NextConfig = {
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.amazonaws.com',
+        pathname: '/construx-assets/**',
+      },
+    ],
+    deviceSizes: [640, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+  },
+};
+```
+
+`deviceSizes` and `imageSizes` control which widths are pre-generated in the srcset. The defaults are fine for most use cases; we've narrowed them slightly to reduce the number of variants generated.
+
+## The result
+
+Across all three products, image weight is consistently under 15% of total page weight on first load. Core Web Vitals scores for LCP (Largest Contentful Paint) are green on mobile and desktop for all three main pages.
+
+Images are one of the biggest performance variables in web products. Getting the optimisation right is a one-time investment with ongoing returns.
