@@ -364,28 +364,42 @@ export default function HomePage() {
 
           {/* Other recent posts */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-            {recentPosts.slice(1).map((post) => (
+            {recentPosts.slice(1).map((post, idx) => (
               <Link
                 key={post.slug}
                 href={`/journal/${post.slug}`}
-                className="group flex flex-col gap-2 px-5 py-4 transition-all hover:bg-subtle border border-transparent hover:border-construx/15"
+                className="group flex flex-col overflow-hidden transition-all border border-transparent hover:border-construx/15"
                 style={{ borderRadius: '3px', background: 'rgba(5,5,18,0.5)' }}
               >
-                <div className="flex items-center gap-2">
+                {/* Terminal title bar */}
+                <div
+                  className="flex items-center gap-2 px-3 py-2 flex-shrink-0 select-none"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.015)' }}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+                    <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+                    <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+                  </div>
+                  <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-construx/40 flex-1 truncate">
+                    journal.recent — {post.tag.toLowerCase()}
+                  </span>
+                  <span className="font-mono text-[8px] text-text-dim/30 flex-shrink-0">{post.readingTime}m</span>
+                </div>
+                <div className="flex flex-col gap-2 px-4 py-4 flex-1">
                   <span
-                    className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+                    className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest self-start"
                     style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '2px' }}
                   >
                     {post.tag}
                   </span>
-                  <span className="font-mono text-[10px] text-text-dim">{post.readingTime} min</span>
+                  <p className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
+                    {post.title}
+                  </p>
+                  <time dateTime={post.date} className="font-mono text-[10px] text-text-dim tabular-nums mt-auto">
+                    {formatDate(post.date)}
+                  </time>
                 </div>
-                <p className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
-                  {post.title}
-                </p>
-                <time dateTime={post.date} className="font-mono text-[10px] text-text-dim tabular-nums">
-                  {formatDate(post.date)}
-                </time>
               </Link>
             ))}
           </div>
