@@ -128,6 +128,19 @@ export default function FoundersPage() {
                 </span>
               </div>
 
+              {/* Shell prompt */}
+              <div
+                className="px-4 py-1.5 select-none"
+                style={{ borderBottom: `1px solid ${f.accent}12`, background: 'rgba(255,255,255,0.01)' }}
+              >
+                <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
+                  construx@sys:~$
+                </span>
+                <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>
+                  {`cat /var/construx/founders/${f.handle.toLowerCase()}.json`}
+                </span>
+              </div>
+
               <div className="p-8">
                 {/* ID panel */}
                 <div
@@ -232,6 +245,16 @@ export default function FoundersPage() {
                   </div>
                 </div>
               </div>
+              {/* Status footer */}
+              <div
+                className="flex items-center justify-between px-4 py-1.5 select-none"
+                style={{ borderTop: `1px solid ${f.accent}12`, background: 'rgba(0,0,0,0.25)' }}
+              >
+                <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: `${f.accent}35` }}>
+                  {f.handle.toLowerCase()}.profile
+                </span>
+                <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.35)' }}>● online</span>
+              </div>
             </article>
           ))}
         </div>
@@ -257,6 +280,18 @@ export default function FoundersPage() {
             </div>
             <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
               construx.origin — how we started
+            </span>
+          </div>
+          {/* Shell prompt */}
+          <div
+            className="px-4 py-1.5 select-none"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
+          >
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
+              construx@sys:~$
+            </span>
+            <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>
+              cat /var/construx/origin.log
             </span>
           </div>
           <div className="p-10">
@@ -298,6 +333,16 @@ export default function FoundersPage() {
             The result is a small group that operates like something much larger, without
             compromising on quality or pace.
           </p>
+          </div>
+          {/* Status footer */}
+          <div
+            className="flex items-center justify-between px-4 py-1.5 select-none"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}
+          >
+            <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
+              construx.origin
+            </span>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>exit: 0</span>
           </div>
         </div>
 
