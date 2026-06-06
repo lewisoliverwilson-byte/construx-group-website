@@ -518,21 +518,38 @@ export default async function VenturePage({ params }: Props) {
                 <Link
                   key={v.id}
                   href={`/ventures/${v.slug}`}
-                  className="group flex items-center gap-4 px-5 py-4 transition-all bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
-                  style={{ border: `1px solid ${v.accent}18`, borderRadius: '3px' }}
+                  className="group overflow-hidden transition-all"
+                  style={{ border: `1px solid ${v.accent}18`, borderRadius: '3px', background: 'rgba(5,5,18,0.6)' }}
                 >
+                  {/* Terminal title bar */}
                   <div
-                    className="h-10 w-10 rounded-full flex-shrink-0"
-                    style={{
-                      background: `radial-gradient(circle at 35% 35%, ${v.accent}bb, ${v.accent}44)`,
-                      boxShadow: `0 0 14px ${v.accent}44`,
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-text-base">{v.name}</p>
-                    <p className="text-xs text-text-dim truncate">{v.tagline}</p>
+                    className="flex items-center gap-2 px-3 py-1.5 select-none"
+                    style={{ borderBottom: `1px solid ${v.accent}12`, background: `${v.accent}05` }}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                    </div>
+                    <span className="font-mono text-[7px] uppercase tracking-[0.2em] flex-1 text-center truncate" style={{ color: `${v.accent}45` }}>
+                      construx.{v.slug} — {v.category.toLowerCase()}
+                    </span>
+                    <span className="font-mono text-[7px] uppercase tracking-widest flex-shrink-0" style={{ color: 'rgba(74,222,128,0.4)' }}>● live</span>
                   </div>
-                  <ChevronRight size={14} className="text-text-dim group-hover:text-text-muted transition-colors" />
+                  <div className="flex items-center gap-4 px-5 py-4">
+                    <div
+                      className="h-10 w-10 rounded-full flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
+                      style={{
+                        background: `radial-gradient(circle at 35% 35%, ${v.accent}bb, ${v.accent}44)`,
+                        boxShadow: `0 0 14px ${v.accent}44`,
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-text-base group-hover:text-white transition-colors">{v.name}</p>
+                      <p className="text-xs text-text-dim truncate">{v.tagline}</p>
+                    </div>
+                    <ChevronRight size={14} className="text-text-dim group-hover:text-text-muted group-hover:translate-x-0.5 transition-all" />
+                  </div>
                 </Link>
               ))}
             </div>
