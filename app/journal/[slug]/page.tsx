@@ -10,6 +10,7 @@ import ReadingProgress from '@/components/journal/ReadingProgress';
 import CopyLink from '@/components/journal/CopyLink';
 import TableOfContents from '@/components/journal/TableOfContents';
 import BackToTop from '@/components/journal/BackToTop';
+import CodeBlock from '@/components/journal/CodeBlock';
 import { extractHeadings, slugify } from '@/lib/headings';
 
 interface Props {
@@ -75,6 +76,7 @@ export default async function JournalPostPage({ params }: Props) {
       const id = slugify(String(children));
       return <h3 id={id}>{children}</h3>;
     },
+    pre: CodeBlock,
   };
 
   const dispatchNumber = String(allPosts.length - currentIndex).padStart(3, '0');
