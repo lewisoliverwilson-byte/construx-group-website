@@ -232,6 +232,19 @@ export default function ManifestoPage() {
             </span>
           </div>
 
+          {/* Shell prompt */}
+          <div
+            className="px-4 py-1.5 select-none"
+            style={{ borderBottom: '1px solid rgba(249,115,22,0.07)', background: 'rgba(0,0,6,0.35)' }}
+          >
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
+              construx@sys:~$
+            </span>
+            <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.25)' }}>
+              construx engage --init
+            </span>
+          </div>
+
           <div className="px-8 py-8">
             <p className="text-text-muted leading-relaxed mb-4">
               If this resonates — as a user, a collaborator, or someone who wants to build with us —
