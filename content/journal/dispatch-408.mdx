@@ -1,0 +1,220 @@
+---
+title: "Background jobs: durable task execution with Trigger.dev"
+date: "2028-04-20"
+excerpt: "Some work is too slow or too unreliable for a request-response cycle. Background jobs handle email sending, PDF generation, AI processing, and webhook delivery. Here's how to build durable, retryable jobs with Trigger.dev."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Serverless functions have a time limit (up to 15 minutes on Lambda, 60 seconds on Vercel). AI pipelines, PDF generation, and bulk data processing don't fit. Background jobs move this work off the request path: the user gets a response immediately, the work happens asynchronously.
+
+The additional requirement: durability. If the job fails halfway through (deployment, crash, external API timeout), it should retry from where it left off — not restart from scratch.
+
+## Trigger.dev setup
+
+Trigger.dev runs jobs as durable functions. Each step checkpoints so retries restart from the last completed step.
+
+```bash
+npx trigger.dev@latest init
+```
+
+```ts
+// trigger.config.ts
+import { defineConfig } from '@trigger.dev/sdk/v3';
+
+export default defineConfig({
+  project: 'proj_construx_abc123',
+  runtime: 'node',
+  logLevel: 'log',
+  retries: {
+    enabledInDev: false,
+    default: {
+      maxAttempts: 3,
+      minTimeoutInMs: 1000,
+      maxTimeoutInMs: 10000,
+      factor: 2,
+    },
+  },
+  dirs: ['./src/trigger'],
+});
+```
+
+## Defining a job
+
+```ts
+// src/trigger/send-welcome-email.ts
+import { task } from '@trigger.dev/sdk/v3';
+import { sendEmail } from '@/lib/email';
+import { db } from '@/lib/db';
+import { users } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+
+export const sendWelcomeEmail = task({
+  id: 'send-welcome-email',
+  retry: {
+    maxAttempts: 5,
+  },
+  async run(payload: { userId: string }) {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, payload.userId),
+    });
+
+    if (!user) throw new Error(`User ${payload.userId} not found`);
+
+    await sendEmail({
+      to: user.email,
+      subject: 'Welcome to Construx',
+      template: 'welcome',
+      data: { name: user.name },
+    });
+
+    await db.update(users)
+      .set({ welcomeEmailSentAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    return { sent: true, email: user.email };
+  },
+});
+```
+
+## Multi-step jobs with checkpoints
+
+Long jobs should be broken into steps. Each step is independently retried if it fails:
+
+```ts
+// src/trigger/generate-report.ts
+import { task, wait } from '@trigger.dev/sdk/v3';
+import { logger } from '@trigger.dev/sdk/v3';
+
+export const generateReport = task({
+  id: 'generate-report',
+  machine: { preset: 'large-2x' },  // 4 vCPU, 8GB RAM for heavy work
+  async run(payload: { tenantId: string; reportType: string; dateRange: [string, string] }) {
+    logger.log('Fetching data', { tenantId: payload.tenantId });
+
+    // Step 1 — fetch data
+    const rawData = await fetchReportData(payload.tenantId, payload.dateRange);
+    logger.log('Data fetched', { rows: rawData.length });
+
+    // Step 2 — process (CPU-intensive)
+    const processed = await processData(rawData, payload.reportType);
+    logger.log('Data processed', { outputRows: processed.length });
+
+    // Step 3 — generate PDF
+    const pdfBuffer = await generatePDF(processed, payload.reportType);
+    logger.log('PDF generated', { sizeKb: Math.round(pdfBuffer.length / 1024) });
+
+    // Step 4 — upload
+    const url = await uploadToS3(pdfBuffer, `reports/${payload.tenantId}/${Date.now()}.pdf`);
+    logger.log('PDF uploaded', { url });
+
+    // Step 5 — notify user
+    await notifyUser(payload.tenantId, url);
+
+    return { url };
+  },
+});
+```
+
+## Triggering a job from a Route Handler
+
+```ts
+// app/api/reports/generate/route.ts
+import { generateReport } from '@/trigger/generate-report';
+
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { reportType, dateRange } = await req.json();
+
+  const handle = await generateReport.trigger({
+    tenantId: session.user.tenantId,
+    reportType,
+    dateRange,
+  });
+
+  return Response.json({ jobId: handle.id });
+}
+```
+
+The client gets a `jobId` immediately. Poll status or use Trigger.dev's realtime API to push completion to the client.
+
+## Scheduled jobs (cron)
+
+```ts
+// src/trigger/daily-digest.ts
+import { schedules } from '@trigger.dev/sdk/v3';
+
+export const dailyDigest = schedules.task({
+  id: 'daily-digest',
+  cron: '0 9 * * *',  // 9am UTC every day
+  async run(payload) {
+    const { timestamp } = payload;
+    logger.log('Running daily digest', { timestamp });
+
+    const activeUsers = await getActiveUsersForDigest();
+
+    for (const user of activeUsers) {
+      await sendDigestEmail.trigger({ userId: user.id });
+    }
+
+    return { sent: activeUsers.length };
+  },
+});
+```
+
+## Idempotency
+
+Jobs should be idempotent — running them twice should produce the same result. This matters because retries are guaranteed:
+
+```ts
+export const processWebhook = task({
+  id: 'process-stripe-webhook',
+  async run(payload: { stripeEventId: string; eventType: string; data: unknown }) {
+    // Check if already processed
+    const existing = await db.query.processedWebhooks.findFirst({
+      where: eq(processedWebhooks.stripeEventId, payload.stripeEventId),
+    });
+
+    if (existing) {
+      logger.log('Webhook already processed, skipping', { id: payload.stripeEventId });
+      return { skipped: true };
+    }
+
+    // Process
+    await handleStripeEvent(payload.eventType, payload.data);
+
+    // Mark as processed
+    await db.insert(processedWebhooks).values({
+      stripeEventId: payload.stripeEventId,
+      processedAt: new Date(),
+    });
+
+    return { processed: true };
+  },
+});
+```
+
+## Batching
+
+Trigger.dev supports triggering many instances in parallel:
+
+```ts
+// Trigger a job for each user in one call
+await sendWelcomeEmail.batchTrigger(
+  users.map((user) => ({ payload: { userId: user.id } }))
+);
+```
+
+Each triggered job runs independently and retries independently.
+
+## Local development
+
+```bash
+npx trigger.dev@latest dev
+```
+
+This connects your local server to Trigger.dev's cloud infrastructure via a secure tunnel. Jobs execute locally, with full access to your local database and environment variables, while being triggered from the Trigger.dev dashboard.
+
+The pattern: trigger from Route Handlers, checkpoint expensive steps, write idempotent handlers, use scheduled tasks for recurring work. Background jobs are the right answer any time the work takes longer than a few seconds or touches external APIs that can fail.
