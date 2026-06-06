@@ -1,0 +1,160 @@
+---
+title: "Astro Content Collections: typed content layers"
+date: "2031-04-23"
+excerpt: "Astro Content Collections organize content files (MDX, Markdown, JSON, YAML) into typed collections with Zod schemas. The schema is defined once; Astro generates TypeScript types from it. Every entry is validated at build time — a missing frontmatter field is a build error, not a runtime null. For content-heavy sites, Collections eliminate the frontmatter type assertion problem entirely."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Content files with types. The build fails if frontmatter doesn't match the schema.
+
+## Define a collection
+
+```ts
+// src/content/config.ts
+import { defineCollection, z } from 'astro:content';
+
+const blogCollection = defineCollection({
+  type:   'content',  // .md and .mdx files
+  schema: z.object({
+    title:       z.string(),
+    date:        z.coerce.date(),
+    excerpt:     z.string().max(200),
+    author:      z.string(),
+    tags:        z.array(z.string()).default([]),
+    draft:       z.boolean().default(false),
+    coverImage:  z.string().optional(),
+  }),
+});
+
+const productsCollection = defineCollection({
+  type:   'data',   // .json and .yaml files
+  schema: z.object({
+    name:     z.string(),
+    price:    z.number().positive(),
+    sku:      z.string(),
+    inStock:  z.boolean(),
+    variants: z.array(z.object({
+      color:  z.string(),
+      size:   z.string(),
+    })),
+  }),
+});
+
+export const collections = {
+  blog:     blogCollection,
+  products: productsCollection,
+};
+```
+
+## Query a collection
+
+```ts
+// src/pages/blog/index.astro
+---
+import { getCollection } from 'astro:content';
+
+// Fully typed — TypeScript knows the shape of each entry
+const posts = await getCollection('blog', ({ data }) => !data.draft);
+
+const sorted = posts.sort((a, b) =>
+  b.data.date.getTime() - a.data.date.getTime()
+);
+---
+
+<ul>
+  {sorted.map((post) => (
+    <li>
+      <a href={`/blog/${post.slug}`}>{post.data.title}</a>
+      <time>{post.data.date.toLocaleDateString()}</time>
+    </li>
+  ))}
+</ul>
+```
+
+## Render a collection entry
+
+```ts
+// src/pages/blog/[slug].astro
+---
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map((post) => ({
+    params: { slug: post.slug },
+    props:  { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content, headings, remarkPluginFrontmatter } = await render(post);
+---
+
+<article>
+  <h1>{post.data.title}</h1>
+  <time>{post.data.date.toLocaleDateString()}</time>
+  <Content />
+</article>
+```
+
+## References between collections
+
+```ts
+// src/content/config.ts
+import { defineCollection, reference, z } from 'astro:content';
+
+const authorsCollection = defineCollection({
+  type:   'data',
+  schema: z.object({
+    name:   z.string(),
+    email:  z.string().email(),
+    avatar: z.string(),
+  }),
+});
+
+const blogCollection = defineCollection({
+  type:   'content',
+  schema: z.object({
+    title:  z.string(),
+    date:   z.coerce.date(),
+    // Reference to an author entry — validated at build time
+    author: reference('authors'),
+  }),
+});
+```
+
+```ts
+// src/pages/blog/[slug].astro
+import { getEntry } from 'astro:content';
+
+// Resolves the reference — types flow through
+const author = await getEntry(post.data.author);
+// author.data.name, author.data.email etc. are all typed
+```
+
+## Content Layer API (Astro 5+)
+
+Astro 5 introduced the Content Layer API — you can source content from anywhere, not just the filesystem:
+
+```ts
+// src/content/config.ts
+import { defineCollection } from 'astro:content';
+import { glob }    from 'astro/loaders';
+import { notionLoader } from 'notion-astro-loader';
+
+export const collections = {
+  // Local files
+  blog: defineCollection({
+    loader: glob({ pattern: '**/*.mdx', base: 'src/content/blog' }),
+    schema: z.object({ title: z.string(), date: z.coerce.date() }),
+  }),
+  // Remote data — Notion database
+  products: defineCollection({
+    loader:    notionLoader({ databaseId: process.env.NOTION_DB_ID! }),
+    schema:    z.object({ name: z.string(), price: z.number() }),
+  }),
+};
+```
+
+The Content Layer API separates the loader (where data comes from) from the schema (what shape it has). Any data source — CMS, API, database — becomes a typed collection.

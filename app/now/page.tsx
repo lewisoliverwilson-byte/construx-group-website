@@ -14,6 +14,7 @@ import UfwStatusPanel from '@/components/UfwStatusPanel';
 import SystemdTimersPanel from '@/components/SystemdTimersPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
+import WireGuardPanel from '@/components/WireGuardPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -368,8 +369,13 @@ export default function NowPage() {
         </div>
 
         {/* OpenTelemetry distributed trace waterfall */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OtelTracesPanel />
+        </div>
+
+        {/* WireGuard VPN peer status */}
+        <div className="mt-6 pb-10">
+          <WireGuardPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
