@@ -5,6 +5,7 @@ import { getAllPostMeta } from '@/lib/posts';
 import { formatDate as fd } from '@/lib/utils';
 import ActivityHistogram from '@/components/journal/ActivityHistogram';
 import JournalStats from '@/components/journal/JournalStats';
+import DispatchCalendar from '@/components/journal/DispatchCalendar';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -45,6 +46,11 @@ export default async function JournalPage({ searchParams }: Props) {
     count,
     pct: count / maxCount,
   }));
+
+  const dateCounts: Record<string, number> = {};
+  allPosts.forEach((p) => {
+    dateCounts[p.date] = (dateCounts[p.date] ?? 0) + 1;
+  });
 
   const totalReadingTime = allPosts.reduce((sum, p) => sum + p.readingTime, 0);
   const avgReadingTime = allPosts.length > 0 ? Math.round(totalReadingTime / allPosts.length) : 0;
@@ -102,6 +108,7 @@ export default async function JournalPage({ searchParams }: Props) {
           </div>
 
           {!activeTag && <JournalStats rows={statsRows} />}
+          {!activeTag && <DispatchCalendar dateCounts={dateCounts} />}
 
           {/* Tag filter chips */}
           <div
