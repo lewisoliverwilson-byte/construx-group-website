@@ -11,6 +11,7 @@ import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import EnvPanel from '@/components/EnvPanel';
 import LsofPanel from '@/components/LsofPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -368,8 +369,13 @@ export default function UsesPage() {
         </div>
 
         {/* Open network file descriptors */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LsofPanel />
+        </div>
+
+        {/* npm outdated — dependency freshness */}
+        <div className="mt-6 pb-10">
+          <NpmOutdatedPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
