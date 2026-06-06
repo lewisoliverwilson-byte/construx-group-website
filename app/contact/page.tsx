@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Send, CheckCircle, AlertCircle } from 'lucide-react';
+import LatencyMapPanel from '@/components/LatencyMapPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -313,6 +314,11 @@ export default function ContactPage() {
             </div>
           </form>
         )}
+      </section>
+
+      {/* Latency map */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LatencyMapPanel />
       </section>
     </div>
   );
