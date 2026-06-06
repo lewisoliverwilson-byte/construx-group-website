@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://construxgroup.io/now' },
 };
 
-const LAST_UPDATED = 'December 2026';
+const LAST_UPDATED = 'January 2027';
 
 const nowItems = [
   {
@@ -50,8 +50,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '224 dispatches and continuing',
-        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover caching architecture, TypeScript strict mode, webhook design, row-level security, and prompt caching economics. The journal compounds.',
+        title: '236 dispatches and continuing',
+        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover pgvector semantic search, Neon vs Supabase vs Railway, rate limiting API routes with Upstash Redis, the Lattice demand test methodology, and the 2026 year in review. The journal compounds.',
         status: 'ONGOING',
       },
     ],
@@ -61,7 +61,7 @@ const nowItems = [
     items: [
       {
         title: 'The Lattice: AI practitioner network',
-        body: "Running a 60-day demand test: a landing page for a professional network for AI practitioners. Targeting 500 email signups before committing to the build. At day 30 we have 180 — on track but not confirmed.",
+        body: "Running a 60-day demand test: a landing page for a professional network for AI practitioners. Targeting 500 email signups before committing to the build. At day 30 we have 284 — referral rate 18.2%, email return rate 31.4%. Both quality signals above threshold. Quantity slightly behind linear pace.",
         status: 'RESEARCH',
       },
     ],

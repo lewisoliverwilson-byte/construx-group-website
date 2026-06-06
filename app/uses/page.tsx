@@ -131,23 +131,49 @@ export default function UsesPage() {
 
       {/* Content */}
       <div className="px-5 py-16 mx-auto max-w-3xl">
-        {/* Section nav */}
-        <div className="flex flex-wrap gap-2 mb-12">
-          {sections.map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              className="font-mono text-[10px] uppercase tracking-widest px-3 py-1.5 transition-colors"
-              style={{
-                background: 'rgba(5,5,18,0.8)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                borderRadius: '2px',
-                color: 'rgba(240,239,255,0.45)',
-              }}
-            >
-              {s.label}
-            </a>
-          ))}
+        {/* Section nav — terminal panel */}
+        <div
+          className="mb-12 overflow-hidden"
+          style={{
+            background: 'rgba(2,2,12,0.9)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: '4px',
+          }}
+        >
+          {/* title bar */}
+          <div
+            className="flex items-center gap-3 px-4 py-2.5"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,8,0.5)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+            </div>
+            <span className="flex-1 text-center font-mono text-[10px] text-text-dim/40 uppercase tracking-[0.2em]">
+              sys.stack — jump to section
+            </span>
+            <span className="font-mono text-[9px] text-text-dim/25 uppercase tracking-widest">
+              {sections.length} modules
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2 p-4">
+            {sections.map((s) => (
+              <a
+                key={s.id}
+                href={`#${s.id}`}
+                className="font-mono text-[10px] uppercase tracking-widest px-3 py-1.5 transition-colors"
+                style={{
+                  background: 'rgba(5,5,18,0.8)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: '2px',
+                  color: 'rgba(240,239,255,0.45)',
+                }}
+              >
+                {s.label}
+              </a>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-16">
