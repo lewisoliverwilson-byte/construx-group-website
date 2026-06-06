@@ -1,0 +1,178 @@
+---
+title: "Testing AI outputs: what you can and can't assert"
+date: "2027-06-17"
+excerpt: "Testing deterministic code is straightforward. Testing AI outputs is harder — the same prompt can produce slightly different responses. Here's the testing strategy that works: what to assert, what to not assert, and how to build confidence without brittle tests."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The problem with testing AI outputs is non-determinism. Run the same prompt twice and you get different responses. Write a test that asserts an exact output and it will fail on the next run. The solution isn't to give up on testing — it's to test the right things.
+
+## The testing pyramid for AI systems
+
+**Unit tests** — mock the AI call and test the code around it. The prompt construction, the parsing, the error handling. These are deterministic and fast.
+
+**Integration tests** — call the AI with known inputs and assert structural properties, not exact content. These are slower and use API credits.
+
+**Evaluation tests** — judge output quality at a higher level. Use another AI call to assess the output, or build a human-review pipeline. These don't run in CI; they run on a schedule or before releases.
+
+## Unit tests: mock the AI client
+
+```ts
+// __tests__/scan.test.ts
+import { vi, describe, it, expect } from 'vitest';
+import { analyzeProduct } from '@/lib/scan';
+
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: JSON.stringify({
+          name: 'Test Product',
+          estimatedProfit: 24.50,
+          competition: 'low',
+          recommendation: 'buy',
+        }) }],
+        usage: { input_tokens: 100, output_tokens: 50 },
+      }),
+    },
+  })),
+}));
+
+describe('analyzeProduct', () => {
+  it('returns parsed product analysis', async () => {
+    const result = await analyzeProduct({ url: 'https://example.com/product' });
+    expect(result.name).toBe('Test Product');
+    expect(result.estimatedProfit).toBeCloseTo(24.50);
+    expect(['buy', 'skip', 'watch']).toContain(result.recommendation);
+  });
+
+  it('throws on malformed response', async () => {
+    vi.mocked(AnthropicClient).mockImplementationOnce(() => ({
+      messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'not json' }] }) },
+    }));
+
+    await expect(analyzeProduct({ url: 'https://example.com/product' })).rejects.toThrow();
+  });
+});
+```
+
+What you're testing: the promise chain, the JSON parsing, the error handling, the shape validation. Not the AI's reasoning.
+
+## Integration tests: assert structure, not content
+
+When you do call the real API, test structure and constraints, not exact text:
+
+```ts
+// __tests__/integration/scan.test.ts
+import { analyzeProduct } from '@/lib/scan';
+
+describe('analyzeProduct (integration)', () => {
+  it('returns valid analysis shape for real product', async () => {
+    const result = await analyzeProduct({ url: TEST_PRODUCT_URL });
+
+    // Structure assertions
+    expect(result).toHaveProperty('name');
+    expect(typeof result.name).toBe('string');
+    expect(result.name.length).toBeGreaterThan(0);
+
+    // Numeric range assertions
+    expect(result.estimatedProfit).toBeGreaterThanOrEqual(0);
+    expect(result.estimatedProfit).toBeLessThan(10000);
+
+    // Enum assertions
+    expect(['buy', 'skip', 'watch']).toContain(result.recommendation);
+    expect(['low', 'medium', 'high']).toContain(result.competition);
+
+    // Non-empty arrays
+    expect(result.pros).toBeInstanceOf(Array);
+    expect(result.pros.length).toBeGreaterThan(0);
+  }, 30_000); // AI calls need longer timeouts
+}, { skip: !process.env.ANTHROPIC_API_KEY }); // Skip in CI if no API key
+```
+
+The assertions describe what a valid response looks like, not what the response says. A test that asserts `result.recommendation === 'buy'` for a specific product will fail whenever the model's judgment changes.
+
+## Structured outputs make testing easier
+
+Using Claude's tool-use mode with a JSON schema gives you hard guarantees on structure:
+
+```ts
+const schema = {
+  type: 'object',
+  properties: {
+    recommendation: { type: 'string', enum: ['buy', 'skip', 'watch'] },
+    estimatedProfit: { type: 'number', minimum: 0 },
+    competition: { type: 'string', enum: ['low', 'medium', 'high'] },
+  },
+  required: ['recommendation', 'estimatedProfit', 'competition'],
+};
+
+const response = await client.messages.create({
+  model: 'claude-sonnet-4-6',
+  tools: [{ name: 'analyze', input_schema: schema }],
+  tool_choice: { type: 'tool', name: 'analyze' },
+  messages: [...],
+});
+```
+
+When you force tool use with a strict schema, the structure is guaranteed. Your integration tests only need to verify that the values make semantic sense — ranges, enum membership, non-empty strings.
+
+## Regression tests with golden examples
+
+For outputs where quality matters and you want to catch regressions, maintain a set of golden examples:
+
+```ts
+const GOLDEN_INPUTS = [
+  { url: 'https://example.com/product-a', expectedProfitRange: [20, 40] },
+  { url: 'https://example.com/product-b', expectedRecommendation: 'skip' },
+];
+
+describe('regression tests', () => {
+  for (const { url, expectedProfitRange, expectedRecommendation } of GOLDEN_INPUTS) {
+    it(`handles ${url} correctly`, async () => {
+      const result = await analyzeProduct({ url });
+      if (expectedProfitRange) {
+        expect(result.estimatedProfit).toBeGreaterThanOrEqual(expectedProfitRange[0]);
+        expect(result.estimatedProfit).toBeLessThanOrEqual(expectedProfitRange[1]);
+      }
+      if (expectedRecommendation) {
+        expect(result.recommendation).toBe(expectedRecommendation);
+      }
+    });
+  }
+}, { skip: !process.env.RUN_REGRESSION_TESTS });
+```
+
+These are opt-in via environment variable. They run pre-release and after prompt changes, not on every commit.
+
+## Testing prompts in isolation
+
+The prompt is the most important thing to test, and it's also the hardest. One approach: treat prompts as first-class artifacts and test them with a lightweight evaluation script.
+
+```ts
+// scripts/eval-prompt.ts
+import { anthropic } from '@/lib/anthropic';
+
+const TEST_CASES = [
+  { input: PRODUCT_A, expected: { recommendation: 'buy', competitionLevel: 'low' } },
+  { input: PRODUCT_B, expected: { recommendation: 'skip' } },
+];
+
+async function evaluate() {
+  let passed = 0;
+  for (const tc of TEST_CASES) {
+    const result = await runPrompt(tc.input);
+    const ok = tc.expected.recommendation === result.recommendation;
+    console.log(ok ? '✓' : '✗', tc.input.name, '→', result.recommendation);
+    if (ok) passed++;
+  }
+  console.log(`\n${passed}/${TEST_CASES.length} passed`);
+}
+
+evaluate();
+```
+
+Run this after any prompt change. A pass rate below 80% is a signal to adjust the prompt before shipping.
+
+The discipline is the same as any test suite: define what correct looks like, measure against it, and act on regressions.
