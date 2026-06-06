@@ -1,0 +1,131 @@
+---
+title: "Load testing your API: wrk, k6, and what the numbers actually mean"
+date: "2029-06-20"
+excerpt: "Load testing tells you what happens to your service under real traffic before real users find out. wrk is fast and simple for HTTP benchmarking. k6 is more powerful for complex scenarios with multiple endpoints, thresholds, and checks. Here's how to use both and how to interpret the output."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Load testing is the practice of sending your service more requests than it's currently handling, measuring what breaks. A load test before launch is much cheaper than an incident after it.
+
+## wrk: simple HTTP benchmarking
+
+wrk is a command-line tool for HTTP load testing. It's fast (written in C, uses event-driven I/O), minimal configuration, and gives you the numbers you need.
+
+```bash
+# Basic: 4 threads, 100 connections, 30 seconds
+wrk -t4 -c100 -d30s https://api.construxgroup.io/health
+
+# Output:
+Running 30s test @ https://api.construxgroup.io/health
+  4 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     5.24ms    1.84ms   38.91ms   89.23%
+    Req/Sec   389.12     22.84   444.00     68.53%
+  Latency Distribution
+     50%    4.84ms
+     75%    6.12ms
+     90%    8.14ms
+     99%   14.32ms
+  46,694 requests in 30.03s, 18.64MB read
+Requests/sec:  1554.18
+Transfer/sec:    636.48KB
+```
+
+The numbers that matter:
+- **Latency p99**: the tail. 99% of requests complete within this. If it's 10x your average, you have a latency spike problem.
+- **Requests/sec**: throughput. How many requests your service handles per second.
+- **Max latency**: the worst case. Anything above 1-2 seconds is a problem.
+
+### Adding request headers and bodies
+
+```bash
+# POST with JSON body
+wrk -t4 -c100 -d30s -s post.lua https://api.construxgroup.io/search
+```
+
+```lua
+-- post.lua
+wrk.method  = "POST"
+wrk.body    = '{"query":"react hooks","limit":20}'
+wrk.headers["Content-Type"] = "application/json"
+wrk.headers["Authorization"] = "Bearer test-token"
+```
+
+## k6: scripted load tests with thresholds
+
+k6 is a load testing tool with a JavaScript API. It handles scenarios: ramp up, sustain load, ramp down. It can check response correctness and fail the test if thresholds are exceeded.
+
+```bash
+npm install -g k6
+# Or: brew install k6
+```
+
+```js
+// load-test.js
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export const options = {
+  stages: [
+    { duration: '30s', target: 50  }, // ramp to 50 VUs
+    { duration: '2m',  target: 50  }, // sustain 50 VUs
+    { duration: '30s', target: 100 }, // ramp to 100 VUs
+    { duration: '2m',  target: 100 }, // sustain 100 VUs
+    { duration: '30s', target: 0   }, // ramp down
+  ],
+  thresholds: {
+    http_req_duration: ['p(99)<500'], // 99th percentile under 500ms
+    http_req_failed:   ['rate<0.01'], // error rate under 1%
+  },
+};
+
+export default function () {
+  const res = http.get('https://api.construxgroup.io/health');
+
+  check(res, {
+    'status 200':             (r) => r.status === 200,
+    'response time under 1s': (r) => r.timings.duration < 1000,
+  });
+
+  sleep(1);
+}
+```
+
+```bash
+k6 run load-test.js
+```
+
+k6 will fail the test if any threshold is exceeded. This makes it suitable for CI: run the load test on every deploy, fail the deploy if latency or error rate spikes.
+
+## Interpreting results
+
+### What to look for
+
+**Latency percentiles**: Average is misleading. p50 is the median. p95/p99 catch tail latencies that affect real users. A p99 of 2 seconds means 1 in 100 requests takes 2 seconds — that's a bad user experience at scale.
+
+**Error rate**: Should be 0% under normal load. Any errors under light load indicate a bug. Errors that appear only under load indicate resource exhaustion (connection pool, memory, database connections).
+
+**Throughput ceiling**: The point where adding more connections stops increasing requests/sec. That's your bottleneck — usually CPU, database connections, or downstream API rate limits.
+
+### The database connection problem
+
+The most common load test failure pattern: everything looks fine at 50 connections, error rate spikes at 100.
+
+```
+50 connections → 1,482 req/sec, 0 errors
+100 connections → 1,488 req/sec, 8.4% errors
+```
+
+Almost identical throughput (the bottleneck is elsewhere), but errors appear. This is usually connection pool exhaustion — you're trying to acquire a database connection but the pool is full.
+
+Diagnosis: check `pg_stat_activity` during the test. If connections are queued, increase pool size or add PgBouncer.
+
+## Baseline before you need it
+
+Run a load test before launch, record the numbers. Then:
+1. You know what "normal" looks like
+2. You know your limits before users find them
+3. Any regressions after a deploy are immediately visible
+
+We run wrk against all Construx API endpoints as part of the pre-launch checklist. Target: p99 latency under 200ms, 0 errors at 100 concurrent connections. Both are achievable with a well-configured Next.js API on a modern VPS.

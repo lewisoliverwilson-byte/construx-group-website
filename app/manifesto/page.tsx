@@ -6,6 +6,7 @@ import ManifestoNav from '@/components/manifesto/ManifestoNav';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
+import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -221,6 +222,11 @@ export default function ManifestoPage() {
         {/* Git commit history */}
         <div className="mt-4">
           <GitGraphPanel />
+        </div>
+
+        {/* Load benchmark */}
+        <div className="mt-4">
+          <WrkBenchmarkPanel />
         </div>
 
         {/* Sign-off */}
