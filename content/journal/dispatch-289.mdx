@@ -1,0 +1,182 @@
+---
+title: "Multi-tenant architecture: isolating data between customers"
+date: "2027-04-27"
+excerpt: "Multi-tenancy is the default model for SaaS — one application serving many customers, each isolated from the others. There are three architectural patterns for data isolation, each with different cost and safety tradeoffs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Multi-tenancy means your application serves multiple customers from a single deployment. The challenge is isolation: customer A must not see customer B's data, even when they're in the same database on the same server.
+
+There are three patterns, in order of isolation strength:
+
+## Pattern 1: Separate database per tenant
+
+Each customer gets their own Postgres database. Isolation is physical — a bug that leaks data between tenants would require crossing a database connection boundary.
+
+**When it's right:** Regulated industries, enterprise contracts with data residency requirements, situations where a tenant is so large that database-level performance isolation is valuable.
+
+**Cost:** A new database per tenant. At 100 tenants, that's 100 connections minimum, 100 migration runs, 100 backup configurations. Operationally expensive.
+
+**Implementation:**
+
+```ts
+// lib/db.ts — tenant-aware database client
+const dbs = new Map<string, ReturnType<typeof createDrizzle>>();
+
+export function getTenantDb(tenantId: string) {
+  if (!dbs.has(tenantId)) {
+    const client = new Pool({
+      connectionString: getTenantConnectionString(tenantId),
+    });
+    dbs.set(tenantId, drizzle(client, { schema }));
+  }
+  return dbs.get(tenantId)!;
+}
+
+function getTenantConnectionString(tenantId: string): string {
+  // Connection strings stored encrypted in your secrets manager
+  const secret = getSecret(`db-tenant-${tenantId}`);
+  return secret.connectionString;
+}
+```
+
+## Pattern 2: Separate schema per tenant (Postgres schemas)
+
+One Postgres instance, one database, but each tenant gets their own schema. Tables like `tenant_abc.scans` are completely separate from `tenant_xyz.scans`. Isolation is strong but shares infrastructure.
+
+**When it's right:** Mid-tier isolation requirement, many tenants sharing one server, need schema-level access control.
+
+**Cost:** Schema creation on tenant signup, migrations run once per schema, more complex query routing.
+
+```sql
+-- Creating a tenant's schema
+CREATE SCHEMA tenant_abc;
+
+-- Each tenant gets the same tables in their schema
+CREATE TABLE tenant_abc.scans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  asin TEXT NOT NULL,
+  margin NUMERIC(10,2),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Set search_path per connection
+SET search_path TO tenant_abc, public;
+```
+
+```ts
+// Route all queries to the right schema
+export async function withTenant<T>(
+  tenantId: string,
+  fn: (db: typeof db) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL search_path TO ${sql.identifier(tenantId)}, public`);
+    return fn(tx as typeof db);
+  });
+}
+```
+
+## Pattern 3: Row-level isolation (most common)
+
+One database, one schema, all tenants in the same tables. Each table has a `tenant_id` column. Isolation is enforced by query-time filtering — every query includes `WHERE tenant_id = $current_tenant`.
+
+**When it's right:** Most SaaS products at early to mid-scale. Simple to build, simple to migrate, low operational overhead.
+
+**Cost:** The developer must remember to filter by `tenant_id` on every query. A missing filter is a data leak.
+
+```sql
+CREATE TABLE scans (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id  UUID NOT NULL REFERENCES tenants(id),
+  user_id    UUID NOT NULL REFERENCES users(id),
+  asin       TEXT NOT NULL,
+  margin     NUMERIC(10,2),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_scans_tenant ON scans (tenant_id, created_at DESC);
+```
+
+The risk with row-level isolation is forgetting the filter. Postgres Row-Level Security (RLS) eliminates this risk by enforcing the filter at the database level:
+
+```sql
+-- Enable RLS
+ALTER TABLE scans ENABLE ROW LEVEL SECURITY;
+
+-- Policy: users can only see their tenant's rows
+CREATE POLICY tenant_isolation ON scans
+  USING (tenant_id = current_setting('app.tenant_id')::uuid);
+
+-- The application sets the tenant before each query
+SET app.tenant_id = 'abc-def-123';
+-- Now all queries on scans automatically filter by this tenant
+```
+
+```ts
+// lib/db.ts — RLS-aware Drizzle setup
+export async function withRls<T>(
+  tenantId: string,
+  userId: string,
+  fn: (db: typeof db) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`);
+    await tx.execute(sql`SELECT set_config('app.user_id', ${userId}, true)`);
+    return fn(tx as typeof db);
+  });
+}
+```
+
+With RLS enabled, even if an application bug omits the tenant filter, Postgres enforces it. The policy applies to every query on that table, from every connection.
+
+## Setting tenant context in Next.js middleware
+
+The tenant context needs to be established before any database query runs. In Next.js, middleware is the right place:
+
+```ts
+// middleware.ts
+export async function middleware(req: NextRequest) {
+  const session = await getSession(req);
+  if (!session) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  // Attach tenant context to request headers
+  const res = NextResponse.next({
+    request: {
+      headers: new Headers({
+        ...Object.fromEntries(req.headers.entries()),
+        'x-tenant-id': session.tenantId,
+        'x-user-id': session.userId,
+      }),
+    },
+  });
+
+  return res;
+}
+```
+
+In route handlers and server components, read the tenant from headers:
+
+```ts
+import { headers } from 'next/headers';
+
+export async function GET() {
+  const tenantId = (await headers()).get('x-tenant-id');
+  if (!tenantId) return new Response('Missing tenant context', { status: 500 });
+
+  const scans = await withRls(tenantId, userId, (db) =>
+    db.select().from(scansTable).orderBy(desc(scansTable.createdAt))
+  );
+
+  return Response.json(scans);
+}
+```
+
+## Which pattern for Scoutr
+
+Scoutr uses row-level isolation with RLS. Early-stage SaaS, no enterprise data residency requirements, and RLS gives us the safety guarantee of schema-per-tenant with the operational simplicity of shared tables.
+
+The upgrade path, if we ever need it, is schema-per-tenant — it can be migrated with a data migration that moves rows to per-tenant schemas. Separate databases would require more planning, but most SaaS products never reach the scale or compliance requirements that justify it.
