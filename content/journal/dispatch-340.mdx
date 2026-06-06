@@ -1,0 +1,182 @@
+---
+title: "CI/CD with GitHub Actions: test, build, and deploy on every push"
+date: "2027-09-27"
+excerpt: "A GitHub Actions pipeline for Next.js: type checking, tests, and Lighthouse on every PR; deploy on merge to main. The version that actually runs fast and doesn't break on secrets."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A CI/CD pipeline is the answer to the question "how do I know if this PR is safe to merge?" For Next.js on Vercel or Amplify, the deployment part is usually handled automatically — the pipeline fills in what auto-deploy misses: type errors, failing tests, performance regressions.
+
+## Basic workflow structure
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  # cancel stale PR runs when new commits push
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --ci --passWithNoTests
+```
+
+`concurrency` with `cancel-in-progress: true` is the most important setting here. Without it, pushing three commits quickly means three parallel runs, the third finishes first (smaller diff), the first and second waste money and time, and the queue backs up.
+
+## Caching
+
+Node modules are the main time sink. `actions/setup-node` with `cache: 'npm'` handles this automatically — it caches `~/.npm` and restores on matching `package-lock.json` hash.
+
+For monorepos or custom setups:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: |
+      ~/.npm
+      ${{ github.workspace }}/.next/cache
+    key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.{js,jsx,ts,tsx}') }}
+    restore-keys: |
+      ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+      ${{ runner.os }}-nextjs-
+```
+
+The `.next/cache` restore saves build time on incremental compiles — worth adding once your build takes more than 90 seconds.
+
+## Secrets
+
+Never put secrets directly in the YAML. Store them in repo Settings → Secrets and variables → Actions:
+
+```yaml
+- name: Build
+  run: npm run build
+  env:
+    DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+    NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+```
+
+For preview builds (PRs), use separate preview secrets — never use production credentials in CI. Create `DATABASE_URL_PREVIEW`, `NEXTAUTH_URL_PREVIEW`, etc. and map them conditionally:
+
+```yaml
+- name: Build
+  run: npm run build
+  env:
+    DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.DATABASE_URL_PREVIEW }}
+```
+
+## Lighthouse on PRs
+
+Catch performance regressions before they merge:
+
+```yaml
+  lighthouse:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+      - name: Run Lighthouse
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            http://localhost:3000
+            http://localhost:3000/journal
+          budgetPath: ./lighthouserc.json
+          uploadArtifacts: true
+```
+
+```json
+// lighthouserc.json
+{
+  "ci": {
+    "assert": {
+      "assertions": {
+        "categories:performance": ["warn", {"minScore": 0.85}],
+        "categories:accessibility": ["error", {"minScore": 0.90}],
+        "first-contentful-paint": ["warn", {"maxNumericValue": 2000}],
+        "largest-contentful-paint": ["error", {"maxNumericValue": 3500}]
+      }
+    }
+  }
+}
+```
+
+`error` assertions fail the PR. `warn` adds a comment but doesn't block. Start with warns; upgrade to errors when you've resolved the baseline.
+
+## Branch protection
+
+CI only works if the branch is protected. In repo Settings → Branches → Add rule for `main`:
+
+- Require status checks to pass before merging
+- Select: `check` (the job name, not the workflow name)
+- Require branches to be up to date before merging
+
+Without the third option, a PR can pass CI on old code, then merge after main moved, breaking things.
+
+## Deploy step
+
+For Amplify, deployment happens automatically on push to main. For manual deploy steps:
+
+```yaml
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to production
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          aws amplify start-job \
+            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
+            --branch-name main \
+            --job-type RELEASE
+```
+
+This triggers an Amplify build from CI rather than waiting for the webhook. Useful when you need to pass environment context or wait for the deploy to confirm success before moving on.
+
+## Common failures
+
+**"NEXTAUTH_URL is missing"**: Next.js exits non-zero during build if required env vars are absent. Set all of them as secrets, even ones that seem static.
+
+**Lint passes locally, fails in CI**: the CI run uses `--max-warnings 0` by default in some setups. Match your local lint script to CI exactly.
+
+**TypeScript passes but build fails**: `tsc --noEmit` checks types but not build correctness. Always run `next build` in CI too.
+
+**Flaky tests**: add `--forceExit` to Jest if tests hang after completion. Usually means an open database connection or uncleared timer.
