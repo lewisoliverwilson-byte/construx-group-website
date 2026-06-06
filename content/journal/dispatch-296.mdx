@@ -1,0 +1,248 @@
+---
+title: "File uploads with presigned URLs: keeping your server out of the data path"
+date: "2027-05-18"
+excerpt: "Routing file uploads through your application server doubles your infrastructure cost and creates a bottleneck. Presigned URLs let clients upload directly to S3, with your server only issuing the permission."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The naive file upload implementation routes everything through the application server: the client sends the file to your API, the API streams it to S3. Your server handles the CPU, the memory, and the bandwidth. For a serverless function with a 6MB body limit and a 30-second timeout, this breaks fast.
+
+The correct approach: the client asks your server for permission to upload, the server issues a presigned URL, the client uploads directly to S3 using that URL. Your server handles only authentication and authorisation — the file never touches it.
+
+## How presigned URLs work
+
+A presigned URL is a time-limited URL that grants the holder permission to perform a specific S3 operation. Your server generates it using AWS credentials; the client uses it without needing AWS credentials of their own.
+
+The flow:
+
+1. Client sends `POST /api/upload/request` with file name and content type
+2. Server validates the request, generates a presigned URL for `s3:PutObject`
+3. Server returns the presigned URL and the final object key
+4. Client uploads directly to S3 using the presigned URL
+5. Client notifies your server of completion (or your server listens to S3 events)
+
+## Generating presigned URLs
+
+```ts
+// lib/storage.ts
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { randomUUID } from 'crypto';
+
+const s3 = new S3Client({
+  region: process.env.AWS_REGION ?? 'eu-west-2',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+const BUCKET = process.env.S3_BUCKET_NAME!;
+
+interface PresignedUploadResult {
+  uploadUrl: string;    // URL to PUT to
+  objectKey: string;    // Key in S3 (for reference after upload)
+  publicUrl: string;    // URL to read the object after upload
+}
+
+export async function createPresignedUpload(
+  userId: string,
+  contentType: string,
+  folder: string = 'uploads',
+): Promise<PresignedUploadResult> {
+  // Scope objects by user — prevents cross-user key collisions
+  const objectKey = `${folder}/${userId}/${randomUUID()}`;
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: objectKey,
+    ContentType: contentType,
+  });
+
+  const uploadUrl = await getSignedUrl(s3, command, {
+    expiresIn: 300, // 5 minutes — enough for the client to upload
+  });
+
+  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${objectKey}`;
+
+  return { uploadUrl, objectKey, publicUrl };
+}
+```
+
+## The request endpoint
+
+```ts
+// app/api/upload/request/route.ts
+import { createPresignedUpload } from '@/lib/storage';
+import { getSession } from '@/lib/auth';
+
+const ALLOWED_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+]);
+
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session) return new Response('Unauthorized', { status: 401 });
+
+  const { fileName, contentType, sizeBytes } = await req.json();
+
+  // Validate content type
+  if (!ALLOWED_TYPES.has(contentType)) {
+    return Response.json(
+      { error: 'File type not allowed' },
+      { status: 400 },
+    );
+  }
+
+  // Validate size before the client wastes time uploading
+  if (sizeBytes > MAX_SIZE_BYTES) {
+    return Response.json(
+      { error: 'File exceeds 10MB limit' },
+      { status: 400 },
+    );
+  }
+
+  const { uploadUrl, objectKey, publicUrl } = await createPresignedUpload(
+    session.userId,
+    contentType,
+    'product-images',
+  );
+
+  return Response.json({ uploadUrl, objectKey, publicUrl });
+}
+```
+
+## The client upload
+
+```ts
+// lib/upload.ts (client-side)
+interface UploadResult {
+  objectKey: string;
+  publicUrl: string;
+}
+
+export async function uploadFile(file: File): Promise<UploadResult> {
+  // Step 1: Request a presigned URL from your server
+  const requestRes = await fetch('/api/upload/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type,
+      sizeBytes: file.size,
+    }),
+  });
+
+  if (!requestRes.ok) {
+    const { error } = await requestRes.json();
+    throw new Error(error ?? 'Failed to get upload URL');
+  }
+
+  const { uploadUrl, objectKey, publicUrl } = await requestRes.json();
+
+  // Step 2: Upload directly to S3
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: {
+      'Content-Type': file.type,
+    },
+  });
+
+  if (!uploadRes.ok) {
+    throw new Error('Upload to S3 failed');
+  }
+
+  return { objectKey, publicUrl };
+}
+```
+
+## Upload progress with XMLHttpRequest
+
+`fetch` doesn't support upload progress events. For large files where you want a progress bar, use `XMLHttpRequest`:
+
+```ts
+export function uploadFileWithProgress(
+  file: File,
+  uploadUrl: string,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Upload failed: ${xhr.status}`));
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Network error')));
+
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.send(file);
+  });
+}
+```
+
+## S3 bucket policy
+
+The bucket needs to allow public reads (for serving uploaded images) and restrict writes to presigned URLs only:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::your-bucket-name/product-images/*"
+    }
+  ]
+}
+```
+
+Writes are controlled by the presigned URL itself — no additional bucket policy needed for writes.
+
+## Processing uploaded files server-side
+
+For images, you often want to generate thumbnails or validate dimensions after upload. S3 event notifications can trigger this:
+
+```ts
+// app/api/webhooks/s3/route.ts — triggered by S3 notification via SNS
+export async function POST(req: Request) {
+  const body = await req.json();
+
+  // Handle SNS subscription confirmation
+  if (body.Type === 'SubscriptionConfirmation') {
+    await fetch(body.SubscribeURL);
+    return new Response('OK');
+  }
+
+  const message = JSON.parse(body.Message);
+
+  for (const record of message.Records) {
+    const key = record.s3.object.key;
+    const bucket = record.s3.bucket.name;
+
+    await enqueue('process-uploaded-image', { key, bucket });
+  }
+
+  return new Response('OK');
+}
+```
+
+The background job handles resizing, format conversion, and updating the database with the processed URL.
