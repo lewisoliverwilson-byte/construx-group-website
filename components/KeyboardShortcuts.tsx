@@ -106,6 +106,11 @@ export default function KeyboardShortcuts() {
             />
           </div>
 
+          {/* Shell prompt */}
+          <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>keymap --g-mode --listen</span>
+          </div>
           {/* key grid */}
           <div className="flex items-center gap-1 px-3 py-2.5 flex-wrap max-w-xs">
             {Object.entries(LABELS).map(([key, label]) => {
