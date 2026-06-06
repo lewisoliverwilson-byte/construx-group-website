@@ -1,0 +1,144 @@
+---
+title: "Edge functions: what they're actually good at"
+date: "2029-03-16"
+excerpt: "Edge functions run at CDN nodes closest to the user — sub-10ms cold starts, global distribution, but no Node.js APIs. Understanding the constraints tells you exactly where to use them and where to stick with serverless."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The pitch for edge functions is low latency globally. The constraint is that you're running in a stripped-down JavaScript runtime — no Node.js APIs, limited memory, no filesystem, no native modules. Understanding what this rules out is more useful than the marketing pitch.
+
+## What edge functions can do
+
+- Read and modify HTTP requests and responses
+- Add, rewrite, or delete headers
+- Redirect or rewrite URLs
+- Read cookies and query params
+- Run small amounts of logic (auth checks, geolocation, A/B routing)
+- Call external HTTP APIs (fetch works)
+- Use the Web Crypto API (subtle crypto — for signing, verification)
+- Access a connected KV store (Vercel Edge Config, Cloudflare KV)
+
+## What edge functions can't do
+
+- Node.js built-ins (`fs`, `path`, `crypto` from Node, `child_process`, etc.)
+- Native Node modules (anything using `.node` binaries)
+- Heavy computation (memory limits are 128MB on Cloudflare, 512MB on Vercel)
+- Direct database connections (no TCP, no Postgres over pg-wire)
+- Long-running processes (execution timeout: 30s Vercel, 50ms CPU time Cloudflare)
+
+The database constraint is the most important. You can't use `pg` or Drizzle pointing at a Postgres URL — TCP connections aren't allowed. You can use HTTP-based database clients (Turso's edge SDK, Neon's serverless driver over HTTP, Upstash Redis).
+
+## The right use cases
+
+### Authentication middleware
+
+```ts
+// middleware.ts — runs at the edge before every request
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+
+const isPublic = createRouteMatcher(['/', '/sign-in(.*)', '/sign-up(.*)']);
+
+export default clerkMiddleware((auth, req) => {
+  if (!isPublic(req)) auth().protect();
+});
+
+export const config = {
+  matcher: ['/((?!_next|.*\\..*).*)'],
+  runtime: 'edge',
+};
+```
+
+Auth checks at the edge mean unauthenticated requests are rejected in milliseconds, before hitting any origin server. Clerk's middleware runs its JWT verification in the edge runtime using Web Crypto.
+
+### Geolocation-based routing
+
+```ts
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(req: NextRequest) {
+  const country = req.geo?.country ?? 'US';
+
+  if (country === 'GB') {
+    return NextResponse.rewrite(new URL('/gb' + req.nextUrl.pathname, req.url));
+  }
+
+  if (['DE', 'FR', 'NL'].includes(country)) {
+    return NextResponse.rewrite(new URL('/eu' + req.nextUrl.pathname, req.url));
+  }
+
+  return NextResponse.next();
+}
+```
+
+Geo is available on the request object in Vercel's edge runtime. Redirect to locale-specific content without a round trip to the origin.
+
+### A/B testing
+
+```ts
+export function middleware(req: NextRequest) {
+  const bucket = req.cookies.get('ab-bucket')?.value ?? (Math.random() < 0.5 ? 'a' : 'b');
+
+  const res = NextResponse.rewrite(
+    new URL(`/${bucket}${req.nextUrl.pathname}`, req.url),
+  );
+
+  res.cookies.set('ab-bucket', bucket, { maxAge: 60 * 60 * 24 * 30 });
+  return res;
+}
+```
+
+Assign users to buckets at the edge, persist the assignment in a cookie, serve variant content. No JavaScript bundle changes, no origin round trips for the routing decision.
+
+### Rate limiting at the edge
+
+```ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis }     from '@upstash/redis/cloudflare';
+
+const ratelimit = new Ratelimit({
+  redis:     Redis.fromEnv(),
+  limiter:   Ratelimit.slidingWindow(10, '10s'),
+});
+
+export async function middleware(req: NextRequest) {
+  const ip = req.ip ?? '127.0.0.1';
+  const { success } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return new Response('Too many requests', { status: 429 });
+  }
+
+  return NextResponse.next();
+}
+```
+
+Upstash Redis works at the edge because it uses HTTP — no TCP connection. 10 requests per 10 seconds per IP, checked before any origin code runs.
+
+## When to use serverless instead
+
+Use serverless (Lambda, Vercel Functions at the origin) when:
+- You need a database connection over TCP (pg, mysql2, Drizzle + pg)
+- You're doing significant computation (image processing, PDF generation, heavy AI inference)
+- You need Node.js APIs or native modules
+- The function needs more than 512MB memory
+
+The edge-vs-serverless decision mostly comes down to: does this need a direct database connection? If yes, serverless. If it's middleware, routing, auth verification, or simple fetch-based API calls, edge.
+
+## The architecture we use
+
+```
+User → Edge (middleware.ts)
+         ├── Auth check (Clerk JWT verification)
+         ├── Rate limiting (Upstash)
+         └── Geolocation routing
+              ↓
+         Origin (Next.js server)
+              ├── Server Components (database queries)
+              ├── Route Handlers (API endpoints with pg)
+              └── Server Actions (form mutations)
+```
+
+Edge handles what can be done globally and instantly. Origin handles what needs full Node.js.

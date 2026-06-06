@@ -1,0 +1,155 @@
+---
+title: "CSS-in-JS vs Tailwind: the trade-offs after shipping both"
+date: "2029-03-19"
+excerpt: "After building products with styled-components, Emotion, CSS Modules, and Tailwind, the trade-off is clearer than the debates suggest. Tailwind wins on iteration speed. CSS-in-JS wins on design system encapsulation. Most products should use Tailwind."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The CSS-in-JS vs utility-class debate gets religious. The actual differences are practical: how fast can you build, how maintainable is the output, and what happens when the design system needs to change. Here's what using both for real products looks like.
+
+## CSS-in-JS (styled-components / Emotion)
+
+```tsx
+// Styled component approach
+import styled from 'styled-components';
+
+const Button = styled.button<{ variant: 'primary' | 'ghost' }>`
+  display:          inline-flex;
+  align-items:      center;
+  padding:          8px 16px;
+  border-radius:    4px;
+  font-size:        14px;
+  font-weight:      500;
+  transition:       all 0.15s;
+  cursor:           pointer;
+
+  ${({ variant }) => variant === 'primary' ? `
+    background:  #F97316;
+    color:       white;
+    border:      none;
+
+    &:hover {
+      background: #EA6C10;
+    }
+  ` : `
+    background:  transparent;
+    color:       #F97316;
+    border:      1px solid rgba(249,115,22,0.3);
+
+    &:hover {
+      border-color: #F97316;
+      background:  rgba(249,115,22,0.06);
+    }
+  `}
+`;
+
+// Usage
+<Button variant="primary">Get started</Button>
+<Button variant="ghost">Learn more</Button>
+```
+
+**Advantages:**
+- Props-based variants are explicit and typed
+- Co-located styles — component and styles in the same file
+- Dynamic styles (props, theme, CSS variables) are natural
+- No class name pollution
+- Pseudo-selectors (`:hover`, `::before`) and media queries are inline
+
+**Disadvantages:**
+- Runtime overhead (styles injected at runtime in most implementations)
+- Server components in Next.js App Router don't support styled-components without configuration — it was built for the old client-rendered model
+- Bundle size adds up
+- Extraction tools (vanilla-extract, linaria) fix the runtime problem but add build complexity
+
+## Tailwind CSS
+
+```tsx
+// Tailwind approach
+function Button({ variant, children }: { variant: 'primary' | 'ghost'; children: React.ReactNode }) {
+  return (
+    <button
+      className={
+        variant === 'primary'
+          ? 'inline-flex items-center px-4 py-2 rounded bg-construx text-white text-sm font-medium hover:bg-orange-600 transition-colors'
+          : 'inline-flex items-center px-4 py-2 rounded border border-construx/30 text-construx text-sm font-medium hover:border-construx hover:bg-construx/5 transition-colors'
+      }
+    >
+      {children}
+    </button>
+  );
+}
+```
+
+**Advantages:**
+- Zero runtime — all CSS is generated at build time and purged
+- Server Components work perfectly (just className strings)
+- Consistent design system through the config — spacing, colors, fonts are constrained
+- Fast to iterate: no context-switching between files
+- `cn()` with clsx/tailwind-merge handles conditional classes cleanly
+
+**Disadvantages:**
+- Long className strings are hard to read
+- Variants in complex components need a helper library (cva, tailwind-variants) or the strings sprawl
+- Harder to reuse component-level styles — you repeat class strings or abstract into a component
+- Theming requires CSS variables, not JS-level theme objects
+
+## The class variance authority pattern
+
+CVA solves the variant sprawl problem with Tailwind:
+
+```tsx
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
+
+const buttonVariants = cva(
+  'inline-flex items-center font-medium transition-colors rounded text-sm',
+  {
+    variants: {
+      variant: {
+        primary: 'bg-construx text-white hover:bg-orange-600',
+        ghost:   'border border-construx/30 text-construx hover:border-construx hover:bg-construx/5',
+        danger:  'bg-red-500 text-white hover:bg-red-600',
+      },
+      size: {
+        sm: 'px-3 py-1.5',
+        md: 'px-4 py-2',
+        lg: 'px-6 py-3 text-base',
+      },
+    },
+    defaultVariants: {
+      variant: 'primary',
+      size:    'md',
+    },
+  },
+);
+
+interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {}
+
+export function Button({ variant, size, className, ...props }: ButtonProps) {
+  return (
+    <button
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
+  );
+}
+```
+
+CVA gives you typed props-driven variants without CSS-in-JS. The output is still just className strings.
+
+## The Server Components factor
+
+With Next.js App Router, CSS-in-JS libraries that rely on React context (styled-components, Emotion) require either a Client Component wrapper or the `useServerInsertedHTML` hack. This means either:
+1. Your design system components are Client Components (adds `'use client'` boundary)
+2. You add boilerplate configuration that wasn't needed in the pages router
+
+Tailwind has no such issue — class names are strings, strings work anywhere.
+
+## What we use
+
+All Construx products use Tailwind. The App Router's Server Component model tips the balance — the CSS-in-JS configuration overhead isn't worth it when Tailwind + CVA handles the variant complexity cleanly.
+
+For a product with a complex, token-driven design system that needs runtime theming (e.g., white-labelled SaaS where customers set brand colors), CSS-in-JS or vanilla-extract is worth the trade. For everything else, Tailwind.

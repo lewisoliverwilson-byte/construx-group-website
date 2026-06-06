@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import RecentCommitsPanel from '@/components/RecentCommitsPanel';
 import TerminalCalPanel from '@/components/TerminalCalPanel';
+import CrontabPanel from '@/components/CrontabPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -304,6 +305,11 @@ export default function NowPage() {
         {/* Schedule calendar */}
         <div className="mt-6">
           <TerminalCalPanel />
+        </div>
+
+        {/* Scheduled background jobs */}
+        <div className="mt-6">
+          <CrontabPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
