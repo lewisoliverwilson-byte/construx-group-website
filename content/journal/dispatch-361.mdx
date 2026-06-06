@@ -1,0 +1,175 @@
+---
+title: "OpenTelemetry for Next.js: distributed tracing without the boilerplate"
+date: "2027-11-29"
+excerpt: "Structured logging tells you what happened. Distributed tracing tells you why it was slow. OpenTelemetry gives you trace context that flows from the browser through your API routes to your database — here's how to wire it up."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Logs tell you an error occurred. Traces tell you the request took 2.4s because the database query in the `/api/recommendations` route waited 1.8s for a lock held by a background job. That second piece of information is what makes distributed tracing valuable.
+
+OpenTelemetry is the standard instrumentation framework. It works with any backend: Honeycomb, Grafana Tempo, Jaeger, Datadog.
+
+## Setup for Next.js
+
+```bash
+npm install @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node
+npm install @opentelemetry/exporter-trace-otlp-http
+```
+
+Next.js has built-in OpenTelemetry support via instrumentation hooks:
+
+```ts
+// instrumentation.ts (root of project)
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+
+export function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const sdk = new NodeSDK({
+      traceExporter: new OTLPTraceExporter({
+        url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318/v1/traces',
+        headers: {
+          'x-honeycomb-team': process.env.HONEYCOMB_API_KEY ?? '',
+        },
+      }),
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          '@opentelemetry/instrumentation-fs': { enabled: false },  // noisy, skip
+        }),
+      ],
+    });
+
+    sdk.start();
+  }
+}
+```
+
+The `register()` function runs once when Next.js starts. The auto-instrumentation covers HTTP clients, database drivers, and the Next.js request lifecycle automatically.
+
+## Manual spans for custom operations
+
+Auto-instrumentation covers the infrastructure. Add manual spans for your business logic:
+
+```ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('construx-platform', '1.0.0');
+
+export async function getProductRecommendations(userId: string, query: string) {
+  return tracer.startActiveSpan(
+    'get-recommendations',
+    { attributes: { 'user.id': userId, 'query.length': query.length } },
+    async (span) => {
+      try {
+        const userContext = await tracer.startActiveSpan('fetch-user-context', async (s) => {
+          const ctx = await db.query.users.findFirst({ where: eq(users.id, userId) });
+          s.end();
+          return ctx;
+        });
+
+        const aiResponse = await tracer.startActiveSpan('ai-inference', async (s) => {
+          s.setAttribute('model', 'claude-sonnet-4-6');
+          const result = await getAIRecommendations(query, userContext);
+          s.setAttribute('tokens.used', result.usage.total_tokens);
+          s.end();
+          return result;
+        });
+
+        span.setStatus({ code: SpanStatusCode.OK });
+        return aiResponse;
+      } catch (error) {
+        span.recordException(error as Error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message });
+        throw error;
+      } finally {
+        span.end();
+      }
+    }
+  );
+}
+```
+
+Every span you start becomes a child of the currently active span. The trace tree shows exactly where time is spent.
+
+## Semantic conventions
+
+Use OpenTelemetry semantic conventions for attribute names — they make traces searchable across tools:
+
+```ts
+import { SemanticAttributes } from '@opentelemetry/semantic-conventions';
+
+span.setAttributes({
+  [SemanticAttributes.DB_SYSTEM]: 'postgresql',
+  [SemanticAttributes.DB_OPERATION]: 'SELECT',
+  [SemanticAttributes.DB_NAME]: 'construx',
+  [SemanticAttributes.HTTP_METHOD]: 'POST',
+  [SemanticAttributes.HTTP_URL]: '/api/recommendations',
+  [SemanticAttributes.HTTP_STATUS_CODE]: 200,
+});
+```
+
+Standard attribute names mean your Honeycomb queries work the same way as someone else's Grafana queries.
+
+## Propagating trace context to the client
+
+Browser performance data (Core Web Vitals, user interactions) can be connected to server traces if you propagate the trace ID:
+
+```ts
+// In a Server Component
+import { trace } from '@opentelemetry/api';
+
+export default async function Page() {
+  const activeSpan = trace.getActiveSpan();
+  const traceId = activeSpan?.spanContext().traceId;
+
+  return (
+    <div data-trace-id={traceId}>
+      {/* Client components can read this and include it in RUM events */}
+      <ClientComponent />
+    </div>
+  );
+}
+```
+
+```ts
+// In a client component
+const traceId = document.querySelector('[data-trace-id]')?.getAttribute('data-trace-id');
+// Include traceId in analytics events to correlate client and server
+```
+
+## What to trace
+
+**Always trace:**
+- Database queries (auto-instrumented by most ORMs)
+- External HTTP calls (auto-instrumented)
+- AI API calls (manual — model name, token count, latency)
+- Cache hits/misses (manual)
+- Authentication checks
+
+**Trace when debugging:**
+- Business logic with multiple branches
+- Data transformations on large payloads
+- Job queue operations
+
+**Don't trace:**
+- Simple property accessors
+- Pure utility functions
+- Operations that take < 1ms
+
+The rule: if you'd want to know its duration in a performance investigation, add a span.
+
+## Sampling
+
+Tracing 100% of requests is expensive. Sample intelligently:
+
+```ts
+import { ParentBasedSampler, TraceIdRatioBased } from '@opentelemetry/sdk-trace-base';
+
+const sampler = new ParentBasedSampler({
+  root: new TraceIdRatioBased(0.1),  // sample 10% of root spans
+});
+```
+
+Error traces should always be captured regardless of sampling rate — most backends support this with a "head-based sampling with tail-based error capture" pattern.
