@@ -13,6 +13,7 @@ import EnvPanel from '@/components/EnvPanel';
 import LsofPanel from '@/components/LsofPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
+import NixShellPanel from '@/components/NixShellPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -380,8 +381,13 @@ export default function UsesPage() {
         </div>
 
         {/* Grafana Loki log query */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LokiQueryPanel />
+        </div>
+
+        {/* Nix dev shell */}
+        <div className="mt-6 pb-10">
+          <NixShellPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
