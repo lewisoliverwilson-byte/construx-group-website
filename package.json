@@ -21,6 +21,7 @@
     "posthog-js": "^1.240.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "rehype-highlight": "^7.0.2",
     "resend": "^4.5.1",
     "tailwind-merge": "^2.6.0",
     "three": "^0.184.0"

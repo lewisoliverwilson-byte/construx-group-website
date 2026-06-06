@@ -267,6 +267,73 @@
   font-size: 0.9em;
 }
 
+/* ─── Syntax highlighting (rehype-highlight / highlight.js tokens) ──────── */
+.prose-construx pre code.hljs {
+  background: none;
+  border: none;
+  padding: 0;
+  color: rgba(240, 239, 255, 0.85);
+  font-size: 0.9em;
+}
+
+.prose-construx .hljs-comment,
+.prose-construx .hljs-quote {
+  color: rgba(240, 239, 255, 0.3);
+  font-style: italic;
+}
+
+.prose-construx .hljs-keyword,
+.prose-construx .hljs-selector-tag,
+.prose-construx .hljs-section,
+.prose-construx .hljs-operator {
+  color: #F97316;
+  font-weight: 600;
+}
+
+.prose-construx .hljs-string,
+.prose-construx .hljs-attr,
+.prose-construx .hljs-template-variable,
+.prose-construx .hljs-addition {
+  color: #86efac;
+}
+
+.prose-construx .hljs-number,
+.prose-construx .hljs-literal {
+  color: #a78bfa;
+}
+
+.prose-construx .hljs-title,
+.prose-construx .hljs-name {
+  color: #7dd3fc;
+}
+
+.prose-construx .hljs-type,
+.prose-construx .hljs-class {
+  color: #67e8f9;
+}
+
+.prose-construx .hljs-variable,
+.prose-construx .hljs-subst {
+  color: #fb923c;
+}
+
+.prose-construx .hljs-built_in,
+.prose-construx .hljs-builtin-name,
+.prose-construx .hljs-symbol,
+.prose-construx .hljs-bullet {
+  color: #e879f9;
+}
+
+.prose-construx .hljs-meta,
+.prose-construx .hljs-meta-keyword {
+  color: rgba(240, 239, 255, 0.5);
+  font-style: italic;
+}
+
+.prose-construx .hljs-deletion {
+  color: #fca5a5;
+}
+
 /* ─── Animation fill-mode ───────────────────────────────────────────────── */
 .animate-fade-up,
 .animate-fade-in {

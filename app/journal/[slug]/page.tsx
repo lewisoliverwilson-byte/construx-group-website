@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { MDXRemote } from 'next-mdx-remote/rsc';
+import rehypeHighlight from 'rehype-highlight';
 import { getAllPostMeta, getPostBySlug } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import ReadingProgress from '@/components/journal/ReadingProgress';
@@ -159,7 +160,11 @@ export default async function JournalPostPage({ params }: Props) {
         <TableOfContents headings={headings} />
         <article className="min-w-0 flex-1 max-w-3xl mx-auto xl:mx-0">
         <div className="prose-construx">
-          <MDXRemote source={post.content} components={mdxComponents} />
+          <MDXRemote
+            source={post.content}
+            components={mdxComponents}
+            options={{ mdxOptions: { rehypePlugins: [rehypeHighlight] } }}
+          />
         </div>
 
         {/* Footer: author + prev/next */}
