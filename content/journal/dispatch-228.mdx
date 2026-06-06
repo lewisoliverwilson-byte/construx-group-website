@@ -1,0 +1,182 @@
+---
+title: "Open Graph images: how we generate preview cards for every journal post"
+date: "2026-12-29"
+excerpt: "When someone shares a journal post on X, Slack, or iMessage, they see a preview card — a title, description, and image pulled from the page's Open Graph tags. Here's how we generate those images dynamically in Next.js."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+When a URL is shared in a messaging app, the app fetches the page and reads its Open Graph meta tags to generate a preview card. For a journal post, this preview is often the first thing someone sees before they read the article.
+
+For the Construx Group journal, we wanted every dispatch to have a custom preview image — not the same generic site image for every post. The image should show the dispatch number, title, and tag, in the dark terminal aesthetic of the site.
+
+Next.js makes this possible without a third-party service.
+
+## The `opengraph-image` file convention
+
+Next.js has a file convention for generating OG images: a file named `opengraph-image.tsx` (or `.js`) in any route directory generates a dynamic OG image for that route and all its children unless overridden.
+
+We generate images for individual journal posts and venture pages:
+
+```
+app/
+  journal/
+    [slug]/
+      opengraph-image.tsx    <- Dynamic OG image for each post
+  ventures/
+    [venture]/
+      opengraph-image.tsx    <- Dynamic OG image for each venture
+```
+
+## The image generation component
+
+The `opengraph-image.tsx` export returns an `ImageResponse` — an image rendered from JSX using `@vercel/og`'s `ImageResponse` class.
+
+```tsx
+// app/journal/[slug]/opengraph-image.tsx
+import { ImageResponse } from 'next/og';
+import { getAllPostMeta, getPostBySlug } from '@/lib/posts';
+
+export const runtime = 'edge';
+export const contentType = 'image/png';
+export const size = { width: 1200, height: 630 };
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+export async function generateStaticParams() {
+  return getAllPostMeta().map((p) => ({ slug: p.slug }));
+}
+
+export default async function Image({ params }: Props) {
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
+
+  if (!post) {
+    return new ImageResponse(
+      <div style={{ background: '#05050F', width: 1200, height: 630, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: 'rgba(240,239,255,0.5)', fontFamily: 'monospace' }}>Post not found</span>
+      </div>,
+      { width: 1200, height: 630 }
+    );
+  }
+
+  const allPosts = getAllPostMeta();
+  const currentIndex = allPosts.findIndex((p) => p.slug === slug);
+  const dispatchNum = String(allPosts.length - currentIndex).padStart(3, '0');
+
+  const TAG_COLORS: Record<string, string> = {
+    Strategy: '#F97316',
+    'Build Log': '#4ade80',
+    Product: '#7dd3fc',
+    Methodology: '#a78bfa',
+    Process: '#67e8f9',
+  };
+  const tagColor = TAG_COLORS[post.tag] ?? '#F97316';
+
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          background: '#05050F',
+          width: 1200,
+          height: 630,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '60px 80px',
+          fontFamily: 'monospace',
+          position: 'relative',
+        }}
+      >
+        {/* Top accent bar */}
+        <div style={{ position: 'absolute', top: 0, left: 80, right: 80, height: 2, background: tagColor, opacity: 0.5 }} />
+
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
+          <div style={{
+            background: '#F97316',
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+          }}>
+            <span style={{ color: 'black', fontWeight: 700, fontSize: 14 }}>CX</span>
+          </div>
+          <span style={{ color: 'rgba(240,239,255,0.4)', fontSize: 13, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+            CONSTRUX GROUP — JOURNAL
+          </span>
+        </div>
+
+        {/* Dispatch number + tag */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+          <span style={{ color: 'rgba(249,115,22,0.4)', fontSize: 13, fontFamily: 'monospace' }}>#{dispatchNum}</span>
+          <span style={{
+            color: tagColor,
+            fontSize: 11,
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            padding: '4px 10px',
+            background: `${tagColor}1a`,
+            border: `1px solid ${tagColor}33`,
+            borderRadius: 2,
+          }}>
+            {post.tag}
+          </span>
+        </div>
+
+        {/* Title */}
+        <div style={{
+          color: 'rgba(240,239,255,0.92)',
+          fontSize: post.title.length > 60 ? 36 : 44,
+          fontWeight: 700,
+          lineHeight: 1.2,
+          maxWidth: 900,
+          flex: 1,
+        }}>
+          {post.title}
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 40 }}>
+          <span style={{ color: 'rgba(240,239,255,0.3)', fontSize: 12, letterSpacing: '0.1em' }}>
+            {post.author} · {post.readingTime} min read
+          </span>
+          <span style={{ color: 'rgba(240,239,255,0.2)', fontSize: 12, letterSpacing: '0.1em' }}>
+            construxgroup.io/journal
+          </span>
+        </div>
+      </div>
+    ),
+    { width: 1200, height: 630 }
+  );
+}
+```
+
+## How `ImageResponse` works
+
+`ImageResponse` renders JSX to a PNG image server-side using a WebAssembly build of a CSS layout engine. The JSX is a subset of React — no full React component features, just static rendering. It supports inline styles (not Tailwind classes, since there's no CSS runtime), flexbox layout, and most CSS properties.
+
+The `runtime = 'edge'` export tells Next.js to run this at the edge, which is faster than a server-side Node.js function for image generation.
+
+## Static generation vs. on-demand generation
+
+For static sites with `generateStaticParams`, the OG images are generated at build time. Each journal post gets its OG image pre-generated as a static asset. No server-side rendering on image request.
+
+For dynamic pages (user profiles, filtered views), the OG image is generated on-demand at request time. The first request is slower (image generation takes ~100ms); subsequent requests are served from the CDN cache.
+
+We use static generation for journal posts and venture pages — fixed content, known params at build time. The build time increases slightly with each new dispatch (~20ms per image), but it's still fast enough that builds complete in under 2 minutes.
+
+## The alternative: third-party image generation
+
+Services like Vercel OG (which underlies `ImageResponse`) and Cloudinary's image generation API provide similar functionality. The Next.js native approach is simpler for our stack — no additional service, no extra API keys, no dependency on an external provider.
+
+The constraint is JSX-only rendering. If the design requires custom fonts or complex CSS features not supported by the OG image renderer, a canvas-based approach or third-party service might be more flexible. For the Construx site's dark terminal aesthetic, the JSX approach is sufficient.
+
+## Result
+
+Every journal dispatch now has a distinct OG image showing the dispatch number, tag (with colour coding matching the site's tag palette), and full title. When posts are shared on X or Slack, the preview immediately communicates what kind of content it is. Build Log posts are green; Strategy posts are orange; Product posts are blue.
+
+This is the kind of polish that's invisible until it's missing — no one notices the preview card when it's correct, but a generic image makes a shared link feel lower-quality.

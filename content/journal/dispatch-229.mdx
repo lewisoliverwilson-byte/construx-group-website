@@ -1,0 +1,181 @@
+---
+title: "The Hyve's kanban board: real-time updates with SSE and optimistic state"
+date: "2026-12-30"
+excerpt: "The Hyve includes a kanban board for task management. Tasks need to update in real-time across all connected users when cards are moved, created, or updated. Here's the architecture — SSE for real-time delivery, optimistic UI for perceived speed, and conflict resolution when two users edit simultaneously."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Hyve's kanban board is used by teams to track work alongside their communication channels. A task created in #engineering-channel should immediately appear on the Engineering kanban board for any team member currently viewing it.
+
+This requires real-time synchronisation across multiple clients. Here's how we built it.
+
+## The data model
+
+```sql
+CREATE TABLE kanban_boards (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL,
+  name        TEXT NOT NULL,
+  columns     JSONB NOT NULL DEFAULT '["To Do", "In Progress", "Done"]'::jsonb,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE kanban_cards (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  board_id    UUID NOT NULL REFERENCES kanban_boards(id) ON DELETE CASCADE,
+  column_name TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  description TEXT,
+  assignee_id TEXT,
+  position    INTEGER NOT NULL DEFAULT 0, -- Position within the column
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  updated_at  TIMESTAMPTZ DEFAULT now()
+);
+```
+
+Cards have a `position` field for ordering within columns. When a card is moved, we update its `column_name` and `position`. We use integer positions with gaps (0, 10, 20, 30...) to allow insertions without renumbering.
+
+## Real-time delivery via SSE
+
+When a card is moved on the kanban board, all other connected clients need to see the update immediately. We use Server-Sent Events (SSE) — the same mechanism as The Hyve's messaging system — to push updates from the server to clients.
+
+The SSE stream for a board sends events when:
+- A card is created
+- A card is moved (column or position change)
+- A card is updated (title, description, assignee)
+- A card is deleted
+
+```ts
+// Server: POST /api/boards/[boardId]/cards/[cardId]/move
+export async function POST(req: Request, { params }: { params: { boardId: string; cardId: string } }) {
+  const { column, position } = await req.json();
+  
+  // Update in database
+  await db.update(kanbanCards)
+    .set({ columnName: column, position, updatedAt: new Date() })
+    .where(eq(kanbanCards.id, params.cardId));
+  
+  // Broadcast to all board subscribers
+  await boardEventEmitter.emit(params.boardId, {
+    type: 'card.moved',
+    cardId: params.cardId,
+    column,
+    position,
+    movedBy: session.userId,
+  });
+  
+  return Response.json({ ok: true });
+}
+```
+
+The `boardEventEmitter` broadcasts to all open SSE connections for that board. Each connection's SSE response object is stored in a Map keyed by boardId:
+
+```ts
+const boardSubscribers = new Map<string, Set<ReadableStreamController<Uint8Array>>>();
+
+async function emit(boardId: string, event: KanbanEvent) {
+  const subscribers = boardSubscribers.get(boardId) ?? new Set();
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  const encoded = new TextEncoder().encode(payload);
+  
+  for (const controller of subscribers) {
+    try {
+      controller.enqueue(encoded);
+    } catch {
+      // Client disconnected; controller.enqueue will throw
+      subscribers.delete(controller);
+    }
+  }
+}
+```
+
+## Optimistic card movement
+
+When a user drags a card to a new column, we don't wait for the API call to complete before updating the UI. The card moves immediately (optimistic update), and the API call happens in the background.
+
+```tsx
+function KanbanBoard({ boardId }: { boardId: string }) {
+  const [cards, setCards] = useState<KanbanCard[]>([]);
+  
+  const moveCard = async (cardId: string, newColumn: string, newPosition: number) => {
+    // 1. Optimistic update — move card immediately in local state
+    setCards((prev) =>
+      prev.map((c) => c.id === cardId ? { ...c, columnName: newColumn, position: newPosition } : c)
+    );
+    
+    try {
+      // 2. Persist to server
+      await api.moveCard(boardId, cardId, { column: newColumn, position: newPosition });
+      // 3. SSE will broadcast the update to other clients
+    } catch {
+      // 4. On failure: revert to server state
+      const serverCards = await api.getCards(boardId);
+      setCards(serverCards);
+    }
+  };
+  
+  // SSE subscription for real-time updates from other users
+  useEffect(() => {
+    const source = new EventSource(`/api/boards/${boardId}/events`);
+    source.onmessage = (event) => {
+      const update = JSON.parse(event.data) as KanbanEvent;
+      if (update.type === 'card.moved') {
+        setCards((prev) =>
+          prev.map((c) =>
+            c.id === update.cardId ? { ...c, columnName: update.column, position: update.position } : c
+          )
+        );
+      }
+    };
+    return () => source.close();
+  }, [boardId]);
+  
+  return <Board cards={cards} onMoveCard={moveCard} />;
+}
+```
+
+## The simultaneous edit problem
+
+Two users can move the same card simultaneously. User A moves card X to "In Progress" at position 20. User B moves the same card to "Done" at position 10. Both call the API. Both get a success response. Both see their SSE update reflecting their own move, then immediately see an SSE update from the other user's move.
+
+The result: the card ends up wherever the second write committed. Both users briefly see different states until the SSE from the second write arrives.
+
+For a task management board, this conflict is acceptable. The correct resolution is "last write wins" — whoever moved the card most recently is correct. The brief inconsistency (fraction of a second) is not meaningful.
+
+If we needed stronger consistency — like a collaborative document editor — we'd need operational transformation or CRDT data structures. For kanban cards, last-write-wins is correct semantics.
+
+## Position management
+
+When a card is inserted between two existing cards, we need to find a position value that sorts correctly.
+
+```ts
+function getInsertPosition(cards: KanbanCard[], column: string, targetIndex: number): number {
+  const columnCards = cards
+    .filter((c) => c.columnName === column)
+    .sort((a, b) => a.position - b.position);
+  
+  if (targetIndex === 0) {
+    return (columnCards[0]?.position ?? 10) / 2; // Before first
+  }
+  if (targetIndex >= columnCards.length) {
+    return (columnCards[columnCards.length - 1]?.position ?? 0) + 10; // After last
+  }
+  
+  const before = columnCards[targetIndex - 1].position;
+  const after = columnCards[targetIndex].position;
+  return (before + after) / 2; // Between
+}
+```
+
+If the gap between positions becomes too small (floating point precision), we rebalance the column — update all cards with evenly spaced positions (0, 10, 20...). This is triggered lazily when a new position would be within 0.001 of an existing position.
+
+## What the board doesn't do
+
+**Conflict merging:** Two users editing the card description simultaneously get a last-write-wins resolution. No diff/merge.
+
+**Offline support:** Cards moved while offline don't sync when the connection resumes. The page reload gets fresh server state.
+
+**Undo/redo:** No history of card movements. Once a card is moved, it's moved.
+
+These are scope decisions, not technical impossibilities. Each would add significant complexity. For the current use case — a small team's task management — the simpler implementation is correct.

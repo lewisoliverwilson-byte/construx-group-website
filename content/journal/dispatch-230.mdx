@@ -1,0 +1,65 @@
+---
+title: "The year in review: what Construx built in 2026"
+date: "2026-12-31"
+excerpt: "2026 was the year Construx went from idea to three live products, 230 dispatches, and a clearer understanding of what AI-native building actually means in practice. Here's the honest year-end accounting."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+2026 started with a premise: a two-person team with the right tools and methodology could build what previously required ten people. It ends with three live products, 230 dispatches published, and evidence that the premise holds — with significant caveats.
+
+## What we built
+
+**Scoutr** shipped in March. It's a product research tool for resellers: paste a URL, get margin data, confidence score, and sell-through analysis in under 5 seconds. The core value — instant arbitrage intelligence — works. Professional users scan 20-50 products per session. The batch scanning feature, shipped in October, addressed the biggest usage friction.
+
+**The Marqet** launched in May with 167 listings across four service categories. The marketplace model is live: buyers find sellers, escrow handles payment, and we adjudicate disputes. The cold-start problem (getting to 50 active sellers before investing in demand) took 8 weeks and worked as planned. GMV is growing month-over-month.
+
+**The Hyve** launched in August. The AI-native workspace replaces four tools with one: messaging, task management, documents, and an AI agent that participates in every workspace. The AI agent — the differentiator — works for 80% of the cases it's designed for. Cross-channel context and persistent memory are the gaps that limit the other 20%.
+
+## What we wrote
+
+230 dispatches across 10 months. The topics:
+
+- Build logs documenting specific technical decisions: how we built the confidence score algorithm, how the escrow state machine works, how we handle connection pooling
+- Strategy posts covering product thinking: cold-start strategy, metrics that matter, pricing psychology
+- Architecture posts on specific patterns: row-level security, prompt caching, optimistic UI, webhook design
+
+The journal proved its value twice over: as a discovery mechanism (a meaningful fraction of new users found us through posts rather than through search or paid channels) and as a discipline mechanism (the act of writing about decisions changed how we made them).
+
+## What we got wrong
+
+**The AI agent's limitations are more constraining than expected.** The 50-message context window is fine for short sessions; it's not sufficient for teams doing deep multi-week work that references past decisions frequently. The solution (persistent memory via vector embeddings) is known; building it correctly is the next significant investment.
+
+**Email deliverability is still not configured.** The contact form doesn't deliver emails. RESEND_API_KEY needs to be set in AWS Amplify. This has been on the backlog since launch — inexcusable and will be fixed in January.
+
+**The Marqet's dispute process took longer to define than expected.** The edge cases (scope creep, implicit acceptance through use of work, ambiguous briefs) required real policy decisions we hadn't anticipated. We made them, but they cost several weeks of thinking that could have been done earlier.
+
+**Batch scanning at Scoutr was too late.** Professional users wanted it from day one. We shipped it in October — seven months into the product's life. Earlier user research would have surfaced this requirement faster.
+
+## What we learned
+
+**Small teams compound.** Two people who work well together, with clear ownership and fast decision cycles, can consistently outpace larger teams on execution speed. The bottleneck is never headcount; it's decision quality and problem selection.
+
+**AI tooling is genuinely different from previous productivity tools.** Claude Code isn't "autocomplete that's good." It's a collaborator that understands context, maintains project state, and can execute multi-step tasks. The gap between "AI-assisted" and "AI-native" is significant and growing.
+
+**Journal-first beats marketing-first.** Every pound spent on paid acquisition returned less value per user than inbound journal traffic. The journal audience self-selects for engagement; paid audiences don't. For early-stage products with limited budgets, this asymmetry is significant.
+
+**Revenue focus is right.** We insisted on revenue from every product from day one. This forced prioritisation decisions that free-user growth metrics don't. A product with paying users iterates correctly; a product with free users optimises for the wrong things.
+
+## What 2027 looks like
+
+The immediate priorities:
+
+1. Fix email deliverability (January, week 1)
+2. Persistent memory for The Hyve AI agent (Q1)
+3. Scoutr saved portfolios and threshold alerts (Q1)
+4. The Marqet demand-side: the first real investment in buyer acquisition now that supply is established (Q1-Q2)
+5. The Lattice: a professional network for AI practitioners — the demand test is running, and if the signal continues, this builds in Q2
+
+The premise for 2026 was: small team, right tools, right methodology, execute relentlessly. The evidence from the year is that the premise is correct. The question for 2027 is: what's the ceiling?
+
+We'll find out.
+
+---
+
+*Dispatch #230 — filed from London, 31 December 2026. 230 dispatches, 3 products, 365 days. The journal continues.*
