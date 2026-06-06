@@ -8,6 +8,7 @@ import WhoisPanel from '@/components/WhoisPanel';
 import SslCertPanel from '@/components/SslCertPanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
+import SpfDkimPanel from '@/components/SpfDkimPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -347,8 +348,13 @@ export default function ContactPage() {
       </section>
 
       {/* HTTP benchmark */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <HttpBenchPanel />
+      </section>
+
+      {/* Email auth records */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <SpfDkimPanel />
       </section>
     </div>
   );

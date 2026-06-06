@@ -1,0 +1,80 @@
+---
+title: "Edge computing: when to run code close to users"
+date: "2029-12-26"
+excerpt: "Edge computing moves code execution from centralised data centres to hundreds of locations globally — close to users. The result: lower latency for geographically distributed users, personalisation without a round-trip to a distant origin, and the ability to intercept and modify requests before they reach your servers. Here's when edge is the right architectural choice and when it isn't."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Edge computing isn't a single thing. It spans: CDN edge functions (Cloudflare Workers, Vercel Edge Functions), edge databases (Cloudflare D1, Turso), and edge-native runtimes (Deno Deploy, Fastly Compute). The common thread: code runs at a location geographically close to the user, not in `us-east-1`.
+
+## Why latency matters
+
+The speed of light is a hard limit. A request from London to a server in Virginia takes ~85ms round-trip at the speed of light — more in practice due to routing, TCP handshakes, and processing. A request from London to Cloudflare's London PoP takes ~5ms.
+
+For page loads, this matters less — modern browsers pipeline and preload aggressively. For APIs with multiple round-trips (auth check → data fetch → render), the difference compounds: 3 serial round-trips to Virginia from London = 3 × 85ms = 255ms of network time alone. At the edge, that's 3 × 5ms = 15ms.
+
+## What runs well at the edge
+
+**Request routing and rewriting**: A/B tests, geolocation-based redirects, feature flag evaluation, bot detection. These intercept requests and decide where to route them — pure compute with no data dependencies.
+
+```ts
+// Cloudflare Worker: route by country
+export default {
+  async fetch(req: Request) {
+    const country = req.cf?.country;
+    if (country === 'GB') {
+      return Response.redirect('https://construxgroup.io/gb');
+    }
+    return fetch(req);
+  },
+};
+```
+
+**Authentication middleware**: JWT verification before requests reach your origin. The JWT is validated at the edge — invalid tokens return 401 immediately, without a network round-trip to your server.
+
+**Static personalisation**: Rendering a personalised version of a page using edge-cached data. User is in Germany → serve the German variant of the homepage, resolved at the edge, not at your origin.
+
+**Cache invalidation and warming**: Cloudflare's Purge API and cache tagging let you invalidate cached responses across all edge locations in seconds. Edge is the natural place for cache logic.
+
+## What doesn't run well at the edge
+
+**Database queries** (mostly): The standard Postgres database is still in a data centre. A query from a Cloudflare Worker in Tokyo to a Postgres in `us-east-1` is slower than a query from a regular server in `us-east-1`. Edge-native databases (Turso, Cloudflare D1) replicate data to edge locations — but they're eventually consistent and optimised for reads.
+
+**Long-running operations**: Edge runtimes have CPU time limits (10-30ms on free plans). Background jobs, batch processing, and anything CPU-intensive belongs on a regional server.
+
+**Complex Node.js code**: Edge runtimes don't support native modules, many Node.js APIs (`fs`, `net`, `child_process`), or large npm packages. Prisma, for instance, doesn't run at the edge — use an HTTP API wrapper or edge-compatible ORMs.
+
+## Edge-compatible database options
+
+| Database          | Consistency      | Global latency  | Query interface          |
+|-------------------|------------------|-----------------|--------------------------|
+| Cloudflare D1     | Eventual (reads) | Excellent       | SQLite                   |
+| Turso             | Eventual (reads) | Excellent       | SQLite / LibSQL          |
+| PlanetScale       | Strong           | Good (branches) | MySQL                    |
+| Neon              | Strong           | Good (branches) | Postgres                 |
+| Upstash Redis     | Eventual         | Excellent       | Redis                    |
+
+For read-heavy workloads where stale-by-seconds is acceptable: D1 or Turso. For write-heavy or strongly consistent workloads: Neon or PlanetScale with edge functions calling a regional API.
+
+## The hybrid pattern
+
+The most common architecture: edge handles routing, auth, and caching; regional servers handle business logic and database queries.
+
+```
+User in Tokyo
+  → Cloudflare Worker (Tokyo PoP)
+    → If JWT valid: forward to API
+    → If cached: return cached response
+    → Otherwise: forward to origin (eu-west-1)
+      → API server
+        → Postgres in eu-west-1
+```
+
+The edge layer eliminates the round-trip for cache hits (~95% of traffic) and invalid tokens. The remaining 5% hits the origin — still fast because it's one round-trip, not many.
+
+## Vercel Edge vs Cloudflare Workers
+
+Vercel Edge Functions run on Cloudflare's infrastructure — effectively the same runtime, with tighter Next.js integration. Cloudflare Workers give you more control (Durable Objects, D1, R2) at the cost of tighter coupling to Cloudflare.
+
+For Next.js projects on Vercel: use Vercel Edge Functions for middleware and lightweight API routes. For projects that need full edge infrastructure (edge database, edge queues): Cloudflare's platform.
