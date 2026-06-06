@@ -144,7 +144,7 @@ export default function FoundersPage() {
               <div className="p-8">
                 {/* ID panel */}
                 <div
-                  className="mb-7 p-4 overflow-hidden"
+                  className="mb-7 overflow-hidden"
                   style={{
                     background: 'rgba(0,0,6,0.7)',
                     border: `1px solid ${f.accent}18`,
@@ -152,7 +152,7 @@ export default function FoundersPage() {
                     fontFamily: 'var(--font-jetbrains-mono)',
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2 px-4 pt-3 pb-2.5 select-none" style={{ borderBottom: `1px solid ${f.accent}10` }}>
                     <div className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
@@ -165,7 +165,12 @@ export default function FoundersPage() {
                       id.profile
                     </p>
                   </div>
-                  <div className="space-y-1.5">
+                  {/* Shell prompt */}
+                  <div className="px-4 py-1 select-none" style={{ borderBottom: `1px solid rgba(255,255,255,0.03)`, background: 'rgba(255,255,255,0.01)' }}>
+                    <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                    <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`cat /var/construx/founders/${f.handle.toLowerCase()}.json | jq '.profile'`}</span>
+                  </div>
+                  <div className="p-4 space-y-1.5">
                     {[
                       ['USER', f.handle],
                       ['STATUS', '● ONLINE'],

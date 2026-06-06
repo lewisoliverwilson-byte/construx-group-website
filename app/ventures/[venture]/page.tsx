@@ -608,6 +608,11 @@ export default async function VenturePage({ params }: Props) {
                     </span>
                     <span className="font-mono text-[7px] uppercase tracking-widest flex-shrink-0" style={{ color: 'rgba(74,222,128,0.4)' }}>● live</span>
                   </div>
+                  {/* Shell prompt */}
+                  <div className="px-3 py-1 select-none" style={{ borderBottom: `1px solid rgba(255,255,255,0.03)`, background: 'rgba(255,255,255,0.01)' }}>
+                    <span className="font-mono text-[7px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                    <span className="font-mono text-[7px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`construx ventures --open ${v.slug}`}</span>
+                  </div>
                   <div className="flex items-center gap-4 px-5 py-4">
                     <div
                       className="h-10 w-10 rounded-full flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
