@@ -1,0 +1,177 @@
+---
+title: "Optimistic updates: making The Hyve feel instant despite network latency"
+date: "2026-11-13"
+excerpt: "Real-time collaboration tools feel instant — or they feel broken. Here's how we implement optimistic updates in The Hyve so that messages appear immediately, even before the server confirms receipt."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The psychological experience of a messaging tool is determined by perceived latency more than actual latency. A message that appears to send instantly feels fast; a message that shows a spinner for 200ms before appearing feels slow. Optimistic updates close this gap.
+
+## What optimistic updates are
+
+An optimistic update is a UI change made before the server has confirmed the action. The UI assumes the action will succeed (the "optimistic" assumption) and updates immediately. If the server confirms success, nothing changes in the UI. If the server returns an error, the UI rolls back.
+
+```
+User types message → presses Enter
+  → Message appears in channel immediately (optimistic)
+  → POST /api/messages dispatched in background
+    → Success: nothing changes (already correct)
+    → Failure: message removed + error shown
+```
+
+The user experience in the success case (which is ~99% of cases) is an instant response with no visible network round-trip.
+
+## The React implementation
+
+We use React Query's `useMutation` with `onMutate` for optimistic updates:
+
+```ts
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+function useSendMessage(channelId: string) {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (content: string) => {
+      const res = await fetch(`/api/channels/${channelId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error('Failed to send message');
+      return res.json();
+    },
+    
+    onMutate: async (content) => {
+      // Cancel any in-flight fetches for this query
+      await queryClient.cancelQueries({ queryKey: ['messages', channelId] });
+      
+      // Snapshot the current messages for rollback
+      const previousMessages = queryClient.getQueryData(['messages', channelId]);
+      
+      // Optimistically add the message
+      const optimisticMessage = {
+        id: `optimistic-${Date.now()}`,
+        content,
+        channelId,
+        userId: getCurrentUserId(),
+        createdAt: new Date().toISOString(),
+        pending: true, // Visual indicator
+      };
+      
+      queryClient.setQueryData(['messages', channelId], (old: Message[]) => [
+        ...old,
+        optimisticMessage,
+      ]);
+      
+      return { previousMessages };
+    },
+    
+    onError: (err, content, context) => {
+      // Rollback to the snapshot
+      queryClient.setQueryData(['messages', channelId], context?.previousMessages);
+      // Show error notification
+      toast.error('Message failed to send — please try again');
+    },
+    
+    onSettled: () => {
+      // Refetch to sync with server state
+      queryClient.invalidateQueries({ queryKey: ['messages', channelId] });
+    },
+  });
+}
+```
+
+The `pending: true` flag on the optimistic message renders the message with a reduced opacity — a subtle visual signal that the message is awaiting confirmation.
+
+## The real-time layer
+
+Optimistic updates handle the sending experience. Real-time updates handle receiving messages from other users.
+
+We use Supabase's real-time subscriptions for message delivery:
+
+```ts
+useEffect(() => {
+  const channel = supabase
+    .channel(`messages:${channelId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `channel_id=eq.${channelId}`,
+      },
+      (payload) => {
+        // Remove optimistic message if it matches (by content + user + timing)
+        // Add confirmed message from server
+        queryClient.setQueryData(['messages', channelId], (old: Message[]) => {
+          const filtered = old.filter((m) => !isOptimisticDuplicate(m, payload.new));
+          return [...filtered, payload.new];
+        });
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [channelId]);
+```
+
+The `isOptimisticDuplicate` function checks if a newly-arrived real-time message is the server-confirmed version of an optimistic message we sent:
+
+```ts
+function isOptimisticDuplicate(optimistic: Message, confirmed: Message): boolean {
+  return (
+    optimistic.pending === true &&
+    optimistic.content === confirmed.content &&
+    optimistic.userId === confirmed.userId &&
+    Math.abs(new Date(optimistic.createdAt).getTime() - new Date(confirmed.createdAt).getTime()) < 5000
+  );
+}
+```
+
+This deduplication prevents a message from appearing twice: once as the optimistic version and once as the server-confirmed version.
+
+## Typing indicators
+
+Typing indicators are a related real-time pattern. When a user starts typing:
+
+```ts
+const [isTyping, setIsTyping] = useState(false);
+const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+const handleTyping = useCallback(() => {
+  if (!isTyping) {
+    setIsTyping(true);
+    broadcastTyping(channelId, true);
+  }
+  
+  // Clear previous timeout
+  if (typingTimeoutRef.current) {
+    clearTimeout(typingTimeoutRef.current);
+  }
+  
+  // Stop typing after 3 seconds of inactivity
+  typingTimeoutRef.current = setTimeout(() => {
+    setIsTyping(false);
+    broadcastTyping(channelId, false);
+  }, 3000);
+}, [isTyping, channelId]);
+```
+
+Typing events are broadcast via Supabase's presence API (not database changes) — they're ephemeral signals that don't need persistence.
+
+## The failure case
+
+In the rare case where a message fails to send (network error, server error), the rollback removes the optimistic message and shows an error with a retry option. The retry re-sends the same message, re-entering the optimistic update flow.
+
+We don't persist failed messages locally — The Hyve isn't designed for offline use, and the complexity of a local message queue would outweigh the benefit for our current user base.
+
+## The perceived result
+
+The Hyve feels as fast as a native messaging app for message sending. The optimistic update means there's no visible latency on the happy path, which is 99%+ of interactions. The 1% failure case shows a clear error and recovery path.
+
+This is the UX principle behind optimistic updates: design for the common case, handle the edge case gracefully, and don't let the edge case degrade the common case experience.
