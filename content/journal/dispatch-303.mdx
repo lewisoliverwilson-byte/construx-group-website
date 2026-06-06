@@ -1,0 +1,124 @@
+---
+title: "Database connection management: pools, limits, and what goes wrong"
+date: "2027-06-08"
+excerpt: "Every database query needs a connection. Connections are expensive. Connection pools manage that expense — but pools have limits, and hitting them is one of the most common production failures. Here's the full picture."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A database connection is a persistent TCP connection between your application and Postgres. Establishing a connection takes 50-100ms and involves authentication, TLS negotiation, and session setup. At any meaningful request volume, establishing a new connection per request is prohibitively expensive.
+
+Connection pools solve this by maintaining a set of connections that can be reused across requests. The pool hands a connection to a query, the query runs, the connection goes back to the pool.
+
+## The basic pool setup
+
+```ts
+// lib/db.ts
+import { Pool } from 'pg';
+
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,               // Maximum pool size
+  idleTimeoutMillis: 30000,    // Close idle connections after 30s
+  connectionTimeoutMillis: 5000, // Fail if no connection available in 5s
+});
+```
+
+`max` is the most important parameter. It controls the maximum number of simultaneous connections the pool will open. The right value depends on your database's connection limit and the number of application instances running.
+
+## Postgres connection limits
+
+Postgres has a `max_connections` setting (default 100 on most managed services). Each connection consumes memory — roughly 5-10MB per connection for the Postgres backend process. At 100 connections, that's 500MB-1GB of memory on the database server.
+
+The critical constraint: if you have 10 application instances, each with a pool of 20 connections, you need 200 database connections. If `max_connections` is 100, you'll hit the limit under load.
+
+```sql
+-- Check current connections
+SELECT count(*) FROM pg_stat_activity;
+SELECT max_conn, used, res_for_super, max_conn - used - res_for_super AS available
+FROM (
+  SELECT count(*) used FROM pg_stat_activity
+) t, (SELECT setting::int res_for_super FROM pg_settings WHERE name = 'superuser_reserved_connections') t2,
+(SELECT setting::int max_conn FROM pg_settings WHERE name = 'max_connections') t3;
+```
+
+## Serverless and the connection problem
+
+Serverless functions (Amplify, Vercel, Lambda) are stateless — each invocation is potentially a fresh process with no warm pool. Under load, you can have hundreds of concurrent function invocations, each opening its own connections, instantly exhausting the Postgres connection limit.
+
+The solution is a connection pooler that sits between your functions and Postgres:
+
+**PgBouncer** is the standard: a lightweight proxy that multiplexes many application connections onto a smaller number of actual Postgres connections. In transaction mode, it assigns a Postgres connection for the duration of a transaction and returns it to the pool immediately after. Each Postgres connection services many application connections.
+
+```
+# Connection string through PgBouncer
+DATABASE_URL=postgresql://user:pass@pgbouncer-host:5432/mydb?pgbouncer=true
+```
+
+Railway and Supabase both offer PgBouncer as a managed service. The Supabase `?pgbouncer=true` parameter enables compatibility mode.
+
+**Neon**, the serverless Postgres provider, has their own HTTP-based driver that avoids TCP connection state entirely — no pool needed:
+
+```ts
+import { neon } from '@neondatabase/serverless';
+const sql = neon(process.env.DATABASE_URL!);
+const users = await sql`SELECT * FROM users LIMIT 10`;
+```
+
+Each call makes an HTTP request to Neon's proxy, which handles connection management. The tradeoff: no persistent connections means no transaction support across queries without the transaction helper.
+
+## Pool exhaustion
+
+Pool exhaustion happens when all pool connections are checked out and new queries are waiting. Symptoms:
+- Requests timing out with `connection timeout exceeded` errors
+- Database monitoring shows connection count pinned at `max_connections`
+- p99 latency spikes while p50 remains normal
+
+Diagnosis:
+
+```ts
+pool.on('connect', () => console.log('[pool] new connection opened'));
+pool.on('acquire', () => console.log('[pool] connection acquired'));
+pool.on('remove', () => console.log('[pool] connection removed'));
+
+// Metrics
+setInterval(() => {
+  console.log({
+    total: pool.totalCount,
+    idle: pool.idleCount,
+    waiting: pool.waitingCount,
+  });
+}, 5000);
+```
+
+`waitingCount` going non-zero is the early warning signal. When it spikes, you're approaching exhaustion.
+
+## Long-running queries
+
+A long-running query holds a connection for its entire duration. One query doing a full-table scan for 30 seconds holds one connection for 30 seconds. At peak load with a small pool, this drains the pool fast.
+
+Statement timeouts prevent runaway queries from holding connections indefinitely:
+
+```ts
+await pool.query('SET statement_timeout = 5000'); // 5s timeout for this session
+await pool.query('SELECT * FROM large_table WHERE ...');
+```
+
+Or per-connection on pool creation:
+
+```ts
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
+  // Run this after every new connection is opened
+  connectionString: `${process.env.DATABASE_URL}?options=-c statement_timeout=10000`,
+});
+```
+
+## The right pool size
+
+A rule of thumb: `pool_size = (cpu_count * 2) + effective_disk_spindles`. For a managed cloud database with SSDs and 2 vCPUs, that's around 5-6 connections per application instance. Most applications use `max: 10` as a conservative default and adjust based on monitoring.
+
+The wrong instinct is to set `max` high to avoid exhaustion. Overprovisioning connections wastes database memory and can actually slow queries by increasing contention on Postgres's internal lock structures.
+
+Start low, monitor `waitingCount`, and increase `max` only when waiting is consistently above zero under normal load.

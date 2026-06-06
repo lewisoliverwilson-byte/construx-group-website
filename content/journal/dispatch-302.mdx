@@ -1,0 +1,135 @@
+---
+title: "API versioning: the patterns that hold in production"
+date: "2027-06-05"
+excerpt: "Versioning an API is a promise to clients about compatibility. Breaking that promise has consequences. Here are the patterns that work — URL versioning, header versioning, and how to manage deprecation without breaking anything."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+An API is a contract. Versioning is how you manage changes to that contract without breaking clients who depend on the current version.
+
+The three standard approaches: URL versioning (`/v1/users`), header versioning (`API-Version: 2024-01-01`), and query parameter versioning (`?version=2`). URL versioning is the default choice for public APIs because it's visible, cacheable, and debuggable. Header versioning is common for internal APIs and SDKs where the URL structure matters. Query parameter versioning is usually a mistake — it breaks caching.
+
+## URL versioning
+
+```ts
+// app/api/v1/users/route.ts
+export async function GET(req: Request) {
+  // V1 response shape
+  return Response.json({ users: await getUsers() });
+}
+
+// app/api/v2/users/route.ts
+export async function GET(req: Request) {
+  // V2 response shape — pagination added
+  const url = new URL(req.url);
+  const page = Number(url.searchParams.get('page') ?? 1);
+  const limit = Number(url.searchParams.get('limit') ?? 20);
+
+  const { users, total } = await getUsersPaginated(page, limit);
+  return Response.json({
+    data: users,
+    meta: { page, limit, total, pages: Math.ceil(total / limit) },
+  });
+}
+```
+
+The v2 handler doesn't call the v1 handler — they're separate implementations. This avoids the temptation to make v1 a thin wrapper around v2, which creates coupling that makes both harder to change.
+
+## Middleware-based routing
+
+With many versioned routes, a middleware pattern reduces duplication:
+
+```ts
+// lib/api-version.ts
+export function withVersion(version: string) {
+  return function <T>(handler: (req: Request, ctx: T) => Promise<Response>) {
+    return async function (req: Request, ctx: T): Promise<Response> {
+      const response = await handler(req, ctx);
+      const headers = new Headers(response.headers);
+      headers.set('API-Version', version);
+      headers.set('Deprecation-Notice', version === 'v1' ? 'true' : 'false');
+      return new Response(response.body, { status: response.status, headers });
+    };
+  };
+}
+
+// app/api/v1/users/route.ts
+export const GET = withVersion('v1')(async (req) => {
+  return Response.json({ users: await getUsers() });
+});
+```
+
+The middleware adds version headers to every response. V1 responses include a deprecation header so clients can detect when they're on a version heading for sunset.
+
+## Deprecation headers
+
+The HTTP spec has a `Deprecation` header (RFC 9745) for signalling deprecation:
+
+```ts
+headers.set('Deprecation', 'true');
+headers.set('Sunset', 'Sat, 31 Dec 2027 23:59:59 GMT');
+headers.set('Link', '</api/v2/users>; rel="successor-version"');
+```
+
+`Sunset` tells clients when the version will stop responding. `Link` points to the replacement. Clients that parse these headers can surface warnings in dashboards before breaking changes land.
+
+## Breaking vs. non-breaking changes
+
+A non-breaking change can go into the current version:
+- Adding new fields to a response
+- Adding optional request parameters
+- Adding new endpoints
+- Relaxing validation rules
+
+A breaking change requires a new version:
+- Removing or renaming fields
+- Changing a field's type
+- Changing required parameters
+- Changing response status codes for existing conditions
+- Removing endpoints
+
+The common mistake: treating field additions as safe without considering clients that use strict deserialization. A TypeScript client with `z.object({ name: z.string() })` fails when you add an unexpected field if using `z.object()` instead of `z.object().passthrough()`. Document your serialization contract.
+
+## Internal versioning: date-based
+
+For internal APIs (your own frontend calling your own backend), date-based versioning is less ceremony:
+
+```ts
+// middleware.ts
+export function middleware(req: NextRequest) {
+  const version = req.headers.get('API-Version') ?? '2027-01-01';
+  const response = NextResponse.next();
+  response.headers.set('x-api-version-requested', version);
+  return response;
+}
+
+// app/api/users/route.ts
+export async function GET(req: Request) {
+  const version = req.headers.get('API-Version') ?? '2027-01-01';
+
+  const users = await getUsers();
+
+  if (version >= '2027-06-01') {
+    // New response shape
+    return Response.json({ data: users, count: users.length });
+  }
+
+  // Old response shape
+  return Response.json(users);
+}
+```
+
+Date-based versioning lets you make breaking changes by bumping the version date, without URL changes. The tradeoff: it requires clients to opt in to new behaviour, which can create permanent version fragmentation if not managed.
+
+## Deprecation strategy
+
+A workable deprecation lifecycle:
+1. Release v2. Both v1 and v2 are supported.
+2. Announce v1 sunset date (minimum 6 months for external APIs, 4 weeks for internal).
+3. Add `Deprecation` and `Sunset` headers to v1 responses.
+4. Monitor v1 traffic. Alert when it drops below a threshold.
+5. On sunset date, return `410 Gone` from v1 with a migration link.
+6. Delete v1 code 90 days after sunset.
+
+The delete step matters. Dead code accumulates and eventually someone tries to use it. Deleting it makes the deprecation real.
