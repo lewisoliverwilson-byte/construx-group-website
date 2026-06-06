@@ -1,0 +1,276 @@
+---
+title: "Realtime presence: who's online, where, and what they're doing"
+date: "2028-04-26"
+excerpt: "Presence — knowing who's online and what they're viewing — changes how collaborative apps feel. Here's how to build it with Ably and Redis: user lists, cursor sharing, and typing indicators, without melting your database."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Presence is the awareness layer in collaborative software. It answers: who's here right now, what are they looking at, and what are they typing? The implementation challenge is doing this at scale without polling the database every second.
+
+## Architecture
+
+Presence lives at the edge of your infrastructure. The core pattern:
+
+```
+User connects → WebSocket → Ably presence channel
+Ably broadcasts joins/leaves to all subscribers
+App server is not in the loop — edge-to-edge
+```
+
+Your database only gets involved for persistence (last seen, session history) — not for the real-time state itself.
+
+## Ably presence channels
+
+```bash
+npm install ably
+```
+
+```ts
+// lib/ably.ts
+import Ably from 'ably';
+
+// Server-side client
+export const ablyServer = new Ably.Rest({
+  key: process.env.ABLY_API_KEY!,
+});
+
+// Token endpoint — issue short-lived tokens to clients
+export async function createAblyToken(userId: string, displayName: string) {
+  const tokenRequest = await ablyServer.auth.createTokenRequest({
+    clientId: userId,
+    capability: { '*': ['subscribe', 'publish', 'presence'] },
+    ttl: 60 * 60 * 1000,  // 1 hour
+  });
+  return tokenRequest;
+}
+```
+
+```ts
+// app/api/ably/token/route.ts
+import { auth } from '@/auth';
+import { createAblyToken } from '@/lib/ably';
+
+export async function POST() {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const token = await createAblyToken(session.user.id, session.user.name ?? 'Anonymous');
+  return Response.json(token);
+}
+```
+
+## Client-side presence hook
+
+```ts
+// hooks/use-presence.ts
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import Ably from 'ably';
+
+type PresenceMember = {
+  clientId: string;
+  data: {
+    name: string;
+    avatar?: string;
+    cursor?: { x: number; y: number };
+    viewing?: string;  // page or document ID
+  };
+};
+
+export function usePresence(channelName: string, myData: PresenceMember['data']) {
+  const [members, setMembers] = useState<PresenceMember[]>([]);
+  const clientRef = useRef<Ably.Realtime | null>(null);
+  const channelRef = useRef<Ably.RealtimeChannel | null>(null);
+
+  useEffect(() => {
+    const client = new Ably.Realtime({
+      authUrl: '/api/ably/token',
+      authMethod: 'POST',
+    });
+    clientRef.current = client;
+
+    const channel = client.channels.get(channelName);
+    channelRef.current = channel;
+
+    // Enter presence
+    channel.presence.enter(myData);
+
+    // Subscribe to presence events
+    channel.presence.subscribe((message) => {
+      channel.presence.get((err, presenceSet) => {
+        if (!err && presenceSet) {
+          setMembers(presenceSet as PresenceMember[]);
+        }
+      });
+    });
+
+    // Initial presence set
+    channel.presence.get((err, presenceSet) => {
+      if (!err && presenceSet) {
+        setMembers(presenceSet as PresenceMember[]);
+      }
+    });
+
+    return () => {
+      channel.presence.leave();
+      client.close();
+    };
+  }, [channelName]);
+
+  // Update your own presence data
+  const updatePresence = (data: Partial<PresenceMember['data']>) => {
+    channelRef.current?.presence.update({ ...myData, ...data });
+  };
+
+  return { members, updatePresence };
+}
+```
+
+## Cursor sharing
+
+```tsx
+// components/CollaborativeCursors.tsx
+'use client';
+
+import { useEffect } from 'react';
+import { usePresence } from '@/hooks/use-presence';
+
+type CursorProps = {
+  documentId: string;
+  user: { id: string; name: string; color: string };
+};
+
+export function CollaborativeCursors({ documentId, user }: CursorProps) {
+  const { members, updatePresence } = usePresence(`doc:${documentId}`, {
+    name: user.name,
+    viewing: documentId,
+  });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = document.getElementById('editor')?.getBoundingClientRect();
+      if (!rect) return;
+
+      updatePresence({
+        cursor: {
+          x: ((e.clientX - rect.left) / rect.width) * 100,  // percentage
+          y: ((e.clientY - rect.top) / rect.height) * 100,
+        },
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [updatePresence]);
+
+  const others = members.filter((m) => m.clientId !== user.id);
+
+  return (
+    <>
+      {others.map((member) =>
+        member.data.cursor ? (
+          <div
+            key={member.clientId}
+            className="pointer-events-none absolute z-50 transition-all duration-75"
+            style={{
+              left: `${member.data.cursor.x}%`,
+              top: `${member.data.cursor.y}%`,
+              transform: 'translate(-2px, -2px)',
+            }}
+          >
+            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+              <path d="M0 0L0 16L4 12L7 18L9 17L6 11L11 11L0 0Z" fill={user.color} />
+            </svg>
+            <span
+              className="absolute left-4 top-0 text-xs font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
+              style={{ background: user.color, color: 'white' }}
+            >
+              {member.data.name}
+            </span>
+          </div>
+        ) : null,
+      )}
+    </>
+  );
+}
+```
+
+## Typing indicators
+
+```ts
+// hooks/use-typing.ts
+'use client';
+
+import { useCallback, useRef } from 'react';
+
+type TypingHandler = {
+  onTypingStart: () => void;
+  onTypingStop: () => void;
+};
+
+export function useTypingIndicator(
+  channelName: string,
+  userId: string,
+  { onTypingStart, onTypingStop }: TypingHandler,
+) {
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleInput = useCallback(() => {
+    onTypingStart();
+
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+
+    typingTimerRef.current = setTimeout(() => {
+      onTypingStop();
+    }, 1500);  // stop after 1.5s of no input
+  }, [onTypingStart, onTypingStop]);
+
+  return { handleInput };
+}
+```
+
+## Throttling cursor updates
+
+Raw `mousemove` fires hundreds of times per second. Throttle before publishing:
+
+```ts
+import { throttle } from 'lodash-es';
+
+const publishCursor = throttle((x: number, y: number) => {
+  updatePresence({ cursor: { x, y } });
+}, 50);  // max 20 updates/second
+
+window.addEventListener('mousemove', (e) => publishCursor(e.clientX, e.clientY));
+```
+
+## Presence at scale
+
+Ably charges by peak concurrent connections. For high-traffic apps, namespace your channels by document or room — don't put everyone in one global channel.
+
+```ts
+// Bad — everyone subscribes to global presence
+const channel = client.channels.get('presence:global');
+
+// Good — scoped to the document or room
+const channel = client.channels.get(`presence:doc:${documentId}`);
+const channel = client.channels.get(`presence:room:${roomId}`);
+```
+
+For offline/online status that needs to persist (user profile pages, activity feeds), write to Redis on connection and disconnection:
+
+```ts
+// Ably webhook on presence leave → Route Handler → Redis
+export async function POST(req: Request) {
+  const event = await req.json();
+  if (event.name === 'presence.leave') {
+    await redis.hset(`user:${event.clientId}`, {
+      lastSeen: Date.now(),
+      status: 'offline',
+    });
+  }
+}
+```
+
+The pattern: Ably handles the realtime transport and fanout, Redis holds persistent state, your database is for historical data only. Presence is fast because it never touches a relational DB on the hot path.

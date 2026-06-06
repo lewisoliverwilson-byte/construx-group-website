@@ -1,0 +1,238 @@
+---
+title: "Design tokens and CSS custom properties: one source of truth for your UI"
+date: "2028-04-29"
+excerpt: "Design tokens are the named values that define your visual language — colors, spacing, typography, shadows. When they live as CSS custom properties, every component derives from them automatically. Here's how to set up and use a token system that scales."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A design token is a named design decision. `--color-brand-500` is a token. `#FF6B35` is a value. The token is stable; the value can change without breaking anything that references the token.
+
+The problem they solve: you have `#0F172A` in 47 places. The designer changes the background to `#0A0F1E`. You search-replace and hope you got them all. With tokens, you change the token value once.
+
+## CSS custom properties as tokens
+
+```css
+/* globals.css or tokens.css */
+:root {
+  /* Color primitives */
+  --color-construx-400: #f97316;
+  --color-construx-500: #ea6c0a;
+  --color-construx-600: #c85e08;
+
+  --color-green-400: #4ade80;
+  --color-red-400: #f87171;
+
+  --color-gray-900: #0f172a;
+  --color-gray-800: #1e293b;
+  --color-gray-700: #334155;
+  --color-gray-400: #94a3b8;
+  --color-gray-200: #e2e8f0;
+
+  /* Semantic tokens — reference primitives */
+  --color-bg-base: var(--color-gray-900);
+  --color-bg-subtle: rgba(255, 255, 255, 0.03);
+  --color-bg-surface: rgba(255, 255, 255, 0.06);
+
+  --color-text-base: rgba(240, 239, 255, 0.92);
+  --color-text-muted: rgba(240, 239, 255, 0.55);
+  --color-text-dim: rgba(240, 239, 255, 0.3);
+
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-bright: rgba(255, 255, 255, 0.14);
+
+  --color-accent: var(--color-construx-500);
+  --color-accent-hover: var(--color-construx-400);
+  --color-success: var(--color-green-400);
+  --color-error: var(--color-red-400);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: 'Inter', -apple-system, sans-serif;
+
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+
+  /* Radii */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  /* Animation */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 350ms;
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+```
+
+## Dark mode with tokens
+
+Tokens make dark mode a one-line swap:
+
+```css
+/* Light mode overrides semantic tokens only */
+[data-theme='light'] {
+  --color-bg-base: #ffffff;
+  --color-bg-subtle: rgba(0, 0, 0, 0.03);
+  --color-bg-surface: rgba(0, 0, 0, 0.06);
+
+  --color-text-base: rgba(15, 23, 42, 0.92);
+  --color-text-muted: rgba(15, 23, 42, 0.55);
+  --color-text-dim: rgba(15, 23, 42, 0.3);
+
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-bright: rgba(0, 0, 0, 0.14);
+}
+```
+
+Every component automatically renders correctly in light mode without changes. The primitive tokens (`--color-construx-500`) stay the same. Only the semantic tokens change.
+
+## Tailwind integration
+
+Map your tokens into Tailwind config so you get utility classes and IntelliSense:
+
+```ts
+// tailwind.config.ts
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        construx: 'var(--color-accent)',
+        'construx-hover': 'var(--color-accent-hover)',
+        'text-base': 'var(--color-text-base)',
+        'text-muted': 'var(--color-text-muted)',
+        'text-dim': 'var(--color-text-dim)',
+        subtle: 'var(--color-bg-subtle)',
+        surface: 'var(--color-bg-surface)',
+        border: 'var(--color-border)',
+        'border-bright': 'var(--color-border-bright)',
+      },
+      fontFamily: {
+        mono: ['var(--font-mono)'],
+        sans: ['var(--font-sans)'],
+      },
+      spacing: {
+        '4.5': '18px',
+        '18': '72px',
+      },
+      transitionDuration: {
+        DEFAULT: 'var(--duration-base)',
+        fast: 'var(--duration-fast)',
+        slow: 'var(--duration-slow)',
+      },
+      boxShadow: {
+        panel: 'var(--shadow-md)',
+        modal: 'var(--shadow-lg)',
+      },
+    },
+  },
+};
+
+export default config;
+```
+
+Now `className="text-construx"` resolves to `var(--color-accent)` which resolves to the actual color. Change the token, every instance updates.
+
+## Component-level tokens
+
+For complex components, layer component-level tokens on top:
+
+```css
+/* Component tokens — scoped to the component */
+.card {
+  --card-bg: var(--color-bg-surface);
+  --card-border: var(--color-border);
+  --card-radius: var(--radius-md);
+  --card-padding: var(--space-6);
+}
+
+/* Variant override */
+.card[data-variant='elevated'] {
+  --card-bg: rgba(255, 255, 255, 0.08);
+  --card-border: var(--color-border-bright);
+}
+```
+
+```tsx
+// In React
+function Card({ variant = 'default', children }: CardProps) {
+  return (
+    <div
+      className="card"
+      data-variant={variant}
+      style={{
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
+        borderRadius: 'var(--card-radius)',
+        padding: 'var(--card-padding)',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+```
+
+## Generating tokens from Figma
+
+If your design team uses Figma, tokens can be exported automatically:
+
+```bash
+npm install -D @tokens-studio/sd-transforms style-dictionary
+```
+
+```ts
+// scripts/build-tokens.ts — runs in CI when tokens file changes
+import StyleDictionary from 'style-dictionary';
+
+const sd = new StyleDictionary({
+  source: ['tokens/tokens.json'],  // exported from Figma via Token Studio
+  platforms: {
+    css: {
+      transformGroup: 'tokens-studio',
+      prefix: 'color',
+      buildPath: 'src/styles/',
+      files: [{ destination: 'tokens.css', format: 'css/variables' }],
+    },
+  },
+});
+
+await sd.buildAllPlatforms();
+```
+
+The workflow: designer changes a token in Figma, Token Studio exports `tokens.json`, CI runs the script, updated `tokens.css` gets committed. No manual sync.
+
+## When to use inline styles vs tokens
+
+**Use tokens** for anything that should be consistent across the system: colors, spacing, typography, shadow, radius.
+
+**Use inline styles** for values that are dynamic (computed at runtime: `color: accent`, opacity: derived from data) or truly one-off (a specific gradient angle on a hero section).
+
+The distinction matters for theme switching. Tokens switch automatically. Inline hardcoded values (`background: '#0F172A'`) don't.
+
+The pattern: define primitives once, build semantics on top of them, wire into Tailwind for utility classes, and let components reference the semantic layer. Change a semantic token in one place, the whole UI responds.
