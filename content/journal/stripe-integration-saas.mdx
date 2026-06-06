@@ -1,0 +1,83 @@
+---
+title: "Stripe integration for SaaS: the parts that took the longest"
+date: "2026-07-17"
+excerpt: "Payments are one of those things that seem like they should be straightforward. They're not. Here's an honest account of every part of our Stripe integration that took longer than expected and why."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Stripe is excellent. The documentation is clear, the APIs are well-designed, and the developer experience is better than any payments provider we've used before. And yet, payments integration reliably takes longer than expected. Here's why.
+
+## The part that's easy: accepting a payment
+
+Creating a checkout session, redirecting the user, receiving a confirmation — this works in a few hours. The Stripe documentation is good, the SDK is well-designed, and the happy path is well-worn.
+
+Every integration starts here. Every integration takes longer than the happy path suggests because the happy path is a small fraction of what payments integration actually involves.
+
+## Webhooks: the first place things get complicated
+
+Stripe sends events to your webhook endpoint for everything that happens: subscription created, subscription updated, payment succeeded, payment failed, customer deleted. You need to handle these events correctly for the product to reflect reality.
+
+The complication: webhooks arrive asynchronously, sometimes out of order, sometimes more than once. Your endpoint needs to be idempotent — handling the same event twice should produce the same result as handling it once. Your endpoint needs to handle events that arrive before the user has returned from the checkout flow (this happens when the network is slow).
+
+We spent a full day getting webhook event handling right. The edge cases: what happens when a payment succeeds but the user closes the browser before the confirmation page loads? (The webhook fires; the user's account is updated; they don't see the confirmation page. We show them a "welcome" screen on next login.) What happens when a subscription update webhook arrives before the payment confirmation? (We handle both events; the last one to apply wins, based on event timestamp.)
+
+Webhook idempotency is enforced by checking Stripe's `idempotencyKey` before processing. Any event we've already processed gets a `200 OK` response without re-processing.
+
+## The subscription lifecycle
+
+A subscription has more states than "active" or "cancelled." The full lifecycle includes:
+
+- `trialing` — in the free trial period
+- `active` — paying and current
+- `past_due` — payment failed, Stripe retrying
+- `unpaid` — payment failed, retries exhausted
+- `canceled` — ended
+- `incomplete` — initial payment failed
+- `incomplete_expired` — initial payment failed and the 23-hour window expired
+
+Each state affects what the user can access. A `past_due` subscription means the user is behind on payment but was paying before — treat them differently from an `unpaid` user who's never successfully paid. Our product access logic has a case for each state.
+
+We also needed to handle the grace period: when a payment fails, the subscription goes `past_due` rather than immediately cancelling. We give users 7 days of continued access while Stripe retries. After 7 days without a successful payment, access is restricted.
+
+Modelling this correctly required understanding Stripe's retry schedule (it retries at 1 day, 3 days, and 7 days after failure by default) and matching our grace period to it.
+
+## Failed payment recovery
+
+Stripe's Smart Retries handle retrying failed payments automatically, but we added email recovery on top. When a payment fails, we send a personal-feeling email explaining that the payment didn't go through and giving a direct link to update the payment method.
+
+The implementation is a webhook handler for the `invoice.payment_failed` event that triggers an email. Simple to describe, fiddly to implement: we needed to rate-limit the emails (don't send the same email three times in 24 hours), track whether the user has already updated their card (don't send a recovery email to someone who's already fixed it), and handle the case where the subscription has already been cancelled before the email sends.
+
+Failed payment recovery with well-timed emails recovers about 60% of failed payments that would otherwise churn. It's one of the highest-return features in the billing integration.
+
+## Customer portal
+
+Rather than building a custom billing management UI (cancel subscription, update card, see invoice history), we use Stripe's Customer Portal. It handles these operations with a Stripe-hosted UI that's consistent and well-tested.
+
+The implementation: one API call to create a portal session, redirect the user, and they're in the portal. Easy.
+
+The complication: the portal handles subscription cancellation. When a user cancels, do they lose access immediately or at the end of the billing period? We set `cancel_at_period_end: true` in our subscription creation, which means cancellations via the portal take effect at period end. But we needed to handle the webhook event (`customer.subscription.updated` with `cancel_at_period_end: true`) to show the user appropriate messaging in our UI ("your subscription ends on [date]").
+
+## Handling test mode vs. production
+
+Stripe has separate test and production modes with separate API keys, separate webhook endpoints, and separate customer/subscription data. Test mode is for development; production mode is for real money.
+
+The risk: if you accidentally mix them up, you either charge real money in test mode (doesn't happen — test payments don't charge real cards) or test your integration against production customers (bad, and actually possible).
+
+We maintain strict environment separation: test keys only in development and staging environments, production keys only in the production environment. We verify this at startup: if `NODE_ENV` is `production` and the Stripe key starts with `sk_test_`, throw an error.
+
+The other test-mode complication: Stripe's test mode doesn't perfectly mirror production. Some webhook event sequences that happen in production don't happen in test mode (because the test mode clock doesn't advance automatically). We use Stripe's `stripe trigger` CLI command to manually trigger events in development, which covers most cases.
+
+## What actually took the longest
+
+In order of time spent, the things that took longest:
+
+1. **Webhook handling correctness** — a full day
+2. **Subscription state modelling** — half a day
+3. **Failed payment recovery flow** — half a day
+4. **Environment separation and verification** — 2 hours
+5. **Customer portal integration and cancel_at_period_end handling** — 2 hours
+
+The initial checkout flow: 2 hours. The rest: 2+ full days.
+
+This is reliably how payments integration goes. Plan accordingly.

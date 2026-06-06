@@ -1,0 +1,101 @@
+---
+title: "The actual costs of running three AI products"
+date: "2026-07-21"
+excerpt: "We've never seen a founder publish their actual monthly infrastructure costs, broken down honestly. Here is ours — every line item, what it's for, and what we'd cut first if revenue compressed."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Nobody publishes their actual costs. They talk about their runway, their burn rate, their CAC, but the actual line items stay private.
+
+I think this is a mistake. Costs are one of the most useful signals for early-stage founders trying to calibrate their own situation. So: here are ours, as of this writing, as honestly as I can document them.
+
+## The total
+
+Monthly infrastructure cost to run three live AI SaaS products, serve real users, and maintain this website: approximately £780/month.
+
+This is lower than most people expect. Here's why it's possible and where every pound goes.
+
+## AWS Amplify hosting
+
+Three products + this website, all hosted on AWS Amplify. Total: ~£45/month.
+
+Amplify's pricing at our scale is essentially free for compute (generous free tier) with nominal costs for bandwidth and build minutes. We stay well within the free tier compute limits because our products are mostly serverless Next.js — we're not running persistent servers.
+
+This is one of the most cost-effective hosting choices at our scale. If we grew to 10x the traffic, the cost would still be a small fraction of the total bill.
+
+## Anthropic (Claude) API
+
+This is the largest single line item. ~£380/month.
+
+The cost breaks down roughly as:
+- Scoutr scans: ~£180/month (variable, depends on scan volume)
+- The Hyve AI agent interactions: ~£140/month
+- The Marqet content pipeline: ~£60/month
+
+At our current user volumes, this is manageable. The concern for growth: AI costs scale with usage in a way that infrastructure costs don't. If we 10x our users, we don't 10x our Amplify cost — but we do roughly 10x our Anthropic cost.
+
+We've done early work on prompt optimisation to reduce token usage without reducing output quality. Scoutr's scan prompt is significantly shorter than the first version (and produces better output). Each iteration of prompt optimisation reduces the per-scan cost.
+
+## Databases
+
+We use Postgres on Amazon RDS for all three products. ~£85/month for all three databases (they're on small instances that share a tier).
+
+We could reduce this by using serverless Postgres (Aurora Serverless or Neon), but the latency characteristics of serverless Postgres don't suit real-time scans as well as a persistent connection. The fixed monthly cost is worth the reliability.
+
+## Email (Resend)
+
+Transactional email for all three products: account verification, password reset, payment failure notifications, and weekly digest emails. ~£25/month.
+
+We use Resend's API rather than a full marketing email platform. No drag-and-drop editor, no subscriber management — just programmatic email sending with a clean API. For our current needs, this is everything we need.
+
+## Analytics (PostHog)
+
+PostHog for product analytics, session replay, and feature flags across all three products. ~£45/month.
+
+PostHog's self-hosted option would be free but requires more infrastructure management. The hosted version at our volume is reasonable for the time it saves.
+
+## Domain registration and SSL
+
+Three product domains + one group domain. ~£60/year (~£5/month).
+
+SSL is handled by AWS Amplify (free via ACM), so no separate cost there.
+
+## Third-party integrations
+
+Stripe fees aren't a cost exactly — they're a percentage of revenue taken from each transaction. At our scale, Stripe's 1.5% + 20p per transaction (UK rates) is a meaningful percentage but not a fixed cost we can reduce.
+
+Other integrations (Airtable for the occasional data coordination, Notion for internal documentation): free tier.
+
+## What we don't pay for
+
+Things we've consciously avoided paying for:
+- Customer support tooling (we do support by email — no Intercom subscription)
+- A/B testing platforms (PostHog handles this adequately)
+- Marketing automation (too early)
+- A separate monitoring service (AWS CloudWatch + PostHog custom events handles monitoring)
+- Dedicated CI/CD beyond Amplify's built-in pipeline
+
+## What we'd cut first
+
+If revenue dropped and we needed to reduce costs quickly, in order:
+
+1. **Reduce Anthropic usage** — turn off non-critical AI features that have low user engagement. This saves immediately and doesn't require shutting anything down.
+2. **Consolidate databases** — move to a single shared schema or serverless Postgres to reduce the RDS cost. This requires some engineering time but the savings are significant.
+3. **Reduce session replay scope** — PostHog's session replay is the most expensive analytics feature. Reducing the percentage of sessions recorded saves immediately.
+4. **Downgrade hosting** — we run on Amplify's paid tier for build speed. The free tier would work adequately at current scale.
+
+What we wouldn't cut: the Anthropic API itself (it's the core product capability), Stripe (we can't accept payments without it), or the domains (we can't operate without them).
+
+## The efficient AI company model
+
+£780/month for three live AI products with real users is achievable because:
+- Serverless and pay-per-use infrastructure scales from zero to meaningful scale without large fixed costs
+- AI API costs are variable with usage, not fixed (you don't pay for capacity you don't use)
+- The products are built efficiently — we don't run things that don't need to run, and we've optimised prompts to reduce token usage
+
+The model that doesn't work: spinning up significant infrastructure before you have the user base to justify it. We started with the minimum that runs the product correctly, and we add infrastructure when usage requires it.
+
+The cost structure of AI companies is genuinely different from pre-AI SaaS. The variable AI cost (which scales with value delivered) replaces the fixed human cost (which scales with headcount, not output). This creates a cost structure that's more sustainable at small scale and more challenging at large scale than traditional SaaS.
+
+We're aware of this. The economics of the model change significantly at higher user volumes. Planning for that is a conversation for a future dispatch.

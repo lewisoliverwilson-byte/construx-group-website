@@ -1,0 +1,79 @@
+---
+title: "The case for boring technology choices"
+date: "2026-07-18"
+excerpt: "The most interesting thing about our technology stack is how uninteresting most of it is. We use established tools, well-understood patterns, and boring infrastructure. Here's why this is the right call for an early-stage AI company."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+The temptation in early-stage software is to be interesting at the infrastructure level. New database paradigms, edge-native compute, bleeding-edge frameworks, custom tooling. The technology becomes the story.
+
+We've deliberately done the opposite. Our stack is: Next.js, TypeScript, Tailwind, Postgres, AWS. These are the most boring choices available in each category. This is intentional.
+
+## What "boring" means in this context
+
+Boring technology is technology with:
+- Extensive documentation
+- Large communities
+- Predictable behaviour
+- Known failure modes
+- Available expertise
+
+The alternative isn't cutting-edge technology — it's unfamiliar technology. Novel frameworks, new database paradigms, experimental tools. These can be technically superior for specific use cases. They're also slower to learn, harder to debug, and more likely to have undiscovered failure modes.
+
+The cost of unfamiliar technology is paid in developer time: time understanding the tool, time debugging novel failure modes, time that isn't being spent on the actual product.
+
+## The AI layer is novel enough
+
+Here's the key constraint for our specific situation: the AI integration is already the interesting, experimental, novel part of the product. We don't need the infrastructure to also be experimental.
+
+When something goes wrong in an AI product, the failure could be:
+- The AI inference behaving unexpectedly
+- The prompt producing bad output
+- The parsing of AI output failing
+- The application code having a bug
+- The infrastructure having a problem
+
+Debugging requires isolating which layer failed. Every layer with well-understood behaviour is a layer you can quickly rule out. If we're using experimental infrastructure alongside experimental AI, debugging any failure requires investigating both simultaneously.
+
+Using boring infrastructure isolates the AI layer as the variable. When something behaves unexpectedly, we know it's probably the AI layer — because the infrastructure behaves exactly as documented.
+
+## The expertise multiplier
+
+Boring technology has a community. When we hit a problem with Next.js, there are GitHub issues, Stack Overflow answers, and third-party tutorials covering almost every situation. When we hit a problem with a framework that launched six months ago, we might be among the first people to encounter it.
+
+Community knowledge compounds. The developer hours that thousands of teams have spent solving problems with established tools are accessible to us. Every question we ask about Next.js has probably been asked before, and the answer exists.
+
+This isn't a reason to avoid innovation. It's a reason to be deliberate about where you introduce novelty. Introduce novelty where it produces disproportionate advantage. Use boring tools everywhere else.
+
+## The hiring argument
+
+We don't have employees yet, but boring technology choices make future hiring easier.
+
+A developer with three years of React experience can contribute to our codebase on day one. A developer who needs to learn a novel framework before they can contribute costs weeks of onboarding time, and may never be as effective as they'd be with familiar tools.
+
+Technical choices compound over time. An interesting technology choice made today becomes a constraint on who can work on the codebase in a year. Boring choices remain open.
+
+## Where we've made interesting choices
+
+Not everything is boring. The Claude API integration uses some non-standard patterns — streaming responses, structured output with retry logic, prompt versioning. These are the areas where the problem genuinely requires non-standard solutions and where the investment in understanding novel patterns pays off.
+
+These choices are justified by the unique requirements of AI product development. There's no established "well-understood pattern" for structuring prompts to produce reliable JSON output from an LLM — we had to develop our own. That investment makes sense because it's directly related to the core product capability.
+
+The principle: be interesting exactly where the product requires it. Be boring everywhere else.
+
+## The cost of this choice
+
+Boring technology sometimes means accepting known limitations. Postgres has a concurrency ceiling. Next.js server components have a specific cost model. AWS Amplify has deployment constraints.
+
+We've hit these limitations. When Scoutr's scan history queries started getting slow at volume, we had to add indexes — a boring solution to a boring problem. If we'd used a more horizontally scalable database, we might have avoided this — but we'd have paid the complexity cost at every step before reaching scale.
+
+The trade is: pay the complexity cost at scale, when you have the resources and context to deal with it, rather than paying it from the start. For early-stage products, this trade is almost always correct.
+
+## The boring infrastructure, remarkable product
+
+The goal is for the product to be remarkable — the insight, the AI integration, the UX, the specific problems it solves. The infrastructure is the foundation, not the point. A remarkable product on a boring foundation is better than a mundane product on an interesting foundation.
+
+The technology should disappear. Users shouldn't think about it. When the technology is stable, reliable, and well-understood, it can. When it's experimental and novel, it demands attention.
+
+Ship boring infrastructure. Save your innovation budget for the product.

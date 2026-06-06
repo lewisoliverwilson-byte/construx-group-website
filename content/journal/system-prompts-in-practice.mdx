@@ -1,0 +1,119 @@
+---
+title: "How we write system prompts in practice"
+date: "2026-07-20"
+excerpt: "System prompts are the specification that determines what an AI does. Writing good ones is a discipline that looks deceptively simple and is actually quite hard. Here's our current approach across three products."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+A system prompt is the specification that tells an AI what to do, how to behave, and what constraints to apply. It's a crucial piece of engineering that most product teams treat as an afterthought — they write something that seems reasonable, see if it works, and iterate minimally from there.
+
+We've spent significant time developing system prompts across three products, and the quality of the system prompt is one of the clearest predictors of AI output quality. Here's our current approach.
+
+## The structure we've settled on
+
+Good system prompts have a specific structure that we've converged on after iteration:
+
+1. **Role and context**: who the AI is, what the product is, what the user relationship is
+2. **Core task**: the primary thing the AI is doing in this call
+3. **Input description**: what inputs the AI should expect and how to interpret them
+4. **Output specification**: exactly what format and content the response should contain
+5. **Constraints**: what the AI must not do
+6. **Handling edge cases**: explicit instructions for situations that deviate from the happy path
+
+When any of these sections is missing or unclear, the output degrades in a predictable way. A prompt with a good role but a vague output specification produces well-intentioned but inconsistently formatted responses. A prompt with a clear task but no constraint section produces output that sometimes violates business rules the engineer assumed were obvious.
+
+## Role and context: more specific than you think
+
+"You are an AI assistant for Scoutr, a product research tool for Amazon resellers" is not specific enough.
+
+The better version: "You are a margin calculation specialist for Scoutr, an Amazon FBA product research tool. You help professional Amazon resellers evaluate whether a specific product is worth selling by calculating the true profitability after all fees. Your analysis should be accurate, specific, and actionable — resellers are making financial decisions based on your output."
+
+The difference: the second version tells the AI not just what it is, but what the user's stakes are. The AI infers from this that accuracy is critical (financial decisions), that the user is professional (not a beginner who needs explanation of basic concepts), and that actionable outputs are the goal (not just analysis, but something the user can act on).
+
+The role and context section is where you calibrate the AI's tone, its assumptions about the user, and the implicit weight of its outputs.
+
+## Output specification: never assume format
+
+The most common system prompt failure: vague output specification. "Respond with a helpful analysis" or "provide a JSON response" are insufficient.
+
+Vague format instruction produces varied output. The AI might sometimes return JSON with one set of field names, and other times return JSON with different field names, or return markdown that parses differently. The variance comes from the model having discretion it shouldn't have.
+
+The correct approach is to specify the exact output format, including:
+- Whether it's JSON, markdown, plain text, or a specific structure
+- Every field name and its type (for JSON outputs)
+- What to include when data is missing (null, empty string, omit the field)
+- Length constraints where relevant
+- A concrete example of valid output
+
+For Scoutr's scan prompt:
+
+```
+Respond with a JSON object matching this exact structure. No additional text, no markdown fence, no explanation:
+
+{
+  "productTitle": string,
+  "category": string,
+  "fees": {
+    "referralFee": number,
+    "fulfillmentFee": number,
+    "storageFee": number,
+    "otherFees": number
+  },
+  "totalFees": number,
+  "estimatedMargin": number,
+  "confidence": "high" | "medium" | "low",
+  "notes": string | null
+}
+
+Example of valid output:
+{"productTitle":"Blue Wireless Headphones","category":"Electronics","fees":{"referralFee":8.99,"fulfillmentFee":3.22,"storageFee":0.14,"otherFees":0},"totalFees":12.35,"estimatedMargin":22.4,"confidence":"high","notes":null}
+```
+
+This leaves nothing to interpretation. The output is fully specified. If the AI deviates, it's a clear failure, not an ambiguous one.
+
+## Constraints: explicit is better than assumed
+
+Engineers often assume constraints that seem obvious. The AI doesn't share these assumptions.
+
+If you don't explicitly tell the AI not to make up fee data it doesn't have, it will estimate. If you don't tell it not to include footnotes or caveats in a JSON response, it sometimes will. If you don't tell it how to handle a product page it can't parse, it will make a plausible-sounding guess.
+
+We've developed a habit of explicitly enumerating constraints that seem obvious to us. For Scoutr:
+
+```
+CONSTRAINTS:
+- Do not invent fee data. If a fee cannot be determined from the product page, set it to 0 and explain in the notes field.
+- Return only the JSON object. No introductory text, no explanation, no markdown.
+- Do not include fees that don't apply to this product category.
+- If you cannot parse the product page or determine the category, return {"error": "cannot_parse", "reason": "<explanation>"}
+```
+
+Explicit constraints eliminate the failure modes they address. The cost is a slightly longer prompt. The benefit is predictable behaviour.
+
+## Edge case handling: specify rather than hope
+
+"What should the AI do when it encounters a product page in a foreign language?" We didn't specify this initially. The AI would sometimes try to translate and analyse, sometimes return an error, sometimes just analyse whatever English text was present.
+
+The inconsistency wasn't the AI being bad — it was the prompt being underspecified. Once we added explicit handling: "If the product page is not in English, return {"error": "non_english_page", "reason": "Product page is not in English"}", the behaviour became consistent.
+
+Map out the cases that deviate from the happy path. For each one, decide what the correct behaviour is and specify it. The AI is remarkably good at following explicit instructions — the gap is usually that the instructions don't cover the case.
+
+## Versioning and testing
+
+System prompts are code. We version them like code.
+
+Each system prompt has a version string: `SCAN_PROMPT_v1.4`. When we change the prompt, we increment the version. The version is logged alongside each API call, so we can trace output quality changes to specific prompt versions.
+
+We test prompt changes against a fixed set of test cases before deploying. The test cases include: normal product pages, edge cases (product pages that are unusual formats), and adversarial cases (product descriptions that are structured in ways that might confuse the model).
+
+A prompt change that improves one test case but breaks another is a regression. We treat prompt regressions with the same seriousness as code regressions.
+
+## The iteration discipline
+
+The most important discipline in prompt engineering: change one thing at a time.
+
+Changing the role description and the output specification simultaneously makes it impossible to know which change caused any observed improvement or regression. Change one thing, test against the baseline, measure the change, decide whether to keep it.
+
+This is slow relative to making many changes at once. It's much faster relative to figuring out which of seven simultaneous changes caused a subtle regression three days later.
+
+Prompt engineering is engineering. Apply the same discipline you'd apply to code changes.

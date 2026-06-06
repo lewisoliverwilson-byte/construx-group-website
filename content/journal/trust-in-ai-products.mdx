@@ -1,0 +1,77 @@
+---
+title: "How users build trust in AI products"
+date: "2026-07-23"
+excerpt: "Trust in AI products is different from trust in conventional software. It builds differently, breaks differently, and requires different design decisions to maintain. Here's what we've learned from six months of building products where trust is the central design challenge."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Trust in conventional software is binary: does it work or not? When you press save, the file saves. When you submit a form, the data is stored. Either the system does what it promises or it doesn't.
+
+Trust in AI products is probabilistic. The system usually does what it promises, sometimes does something close but not quite right, and occasionally does something wrong. Users know this — or learn it quickly. How they respond to this probabilism is the central design challenge of AI products.
+
+## How trust is established
+
+Users extend provisional trust to new products before they've verified anything. They sign up, they try something, and they're in a trust-evaluation state: is this going to be worth my time?
+
+For AI products, the trust evaluation is faster and harsher. A user who runs three scans on Scoutr and gets one result that seems off has already started to discount all of the output. A user who gets three accurate results in a row has started building a positive expectation.
+
+The trust curve is steep early. The first few interactions determine whether a user forms a positive prior about the product, and that prior heavily influences how they interpret subsequent interactions — including failures.
+
+## Calibrating expectations, not just accuracy
+
+The instinct is to improve accuracy — get the AI output right more often. This is correct, but it's not sufficient.
+
+Users develop trust not just from accuracy, but from calibrated expectations. If a product always shows high confidence and is sometimes wrong, users trust it less than if a product clearly communicates uncertainty when uncertain, even if the latter is wrong with the same frequency.
+
+We've designed all three products to communicate uncertainty explicitly. Scoutr's confidence indicator (High / Medium / Low) is one of the most commented-on features in user feedback — not because users want to see "Low" confidence, but because seeing it reassures them that the system is being honest when it says "High."
+
+Calibrated uncertainty is trust-building. False certainty is trust-destroying.
+
+## The first wrong result
+
+Users forgive early failures if two things are true: the system knew it got it wrong (or failed gracefully), and the fix was available.
+
+The worst failure mode: the AI gives a wrong answer with high confidence, the user acts on it, and only discovers the error later. At this point, they have to retroactively question every past answer. Trust destruction is severe.
+
+The better failure mode: the AI gives a wrong answer but the product provides a correction path. For Scoutr: a "report an issue with this scan" button that the user can click, which feeds into our review queue and produces a corrected result. Users who report an issue and receive a corrected result become more trusting, not less — because the product demonstrated it cares about being right, and made it easy to fix.
+
+Designing the failure path is as important as designing the success path.
+
+## The trust compounding effect
+
+Trust compounds. A user who has made 50 accurate decisions using Scoutr has built a strong prior that Scoutr is reliable. When they encounter an unusual result, they're more likely to verify it ("this seems off, let me check") than to immediately distrust the product ("this is wrong, this thing doesn't work").
+
+The implication: early-stage trust building is more fragile than mature-stage trust. Early users have few interactions to build from; a single bad result can break a shallow trust reservoir. Mature users have a deep reservoir of positive interactions; a single bad result is an anomaly, not a pattern.
+
+This argues for extreme care in early user experience design. The first ten interactions are disproportionately important to long-term retention.
+
+## Transparency of the AI layer
+
+Some AI products hide the AI. The user sees output; they don't see that it came from an LLM.
+
+We've chosen to be transparent about the AI layer: Scoutr's scan result includes "Calculated using Claude (Anthropic)". The Hyve's agent clearly identifies itself as an AI.
+
+This transparency has two effects. First, it sets appropriate expectations — users understand that the output is AI-generated and should be evaluated accordingly. Second, it actually increases trust for users who understand what Claude is — they bring positive priors about AI capability to their first interaction.
+
+The concern about transparency is that it gives users a reason to distrust ("it's just AI"). In practice, the opacity approach carries the same risk: when users eventually discover the AI layer (and they usually do), the non-disclosure feels like a deception.
+
+## Trust when the AI is right vs. when the AI is helpful
+
+There's a difference between trust that the AI is accurate and trust that the AI is useful.
+
+A user can trust that Scoutr's fee calculations are accurate but not trust that the product helps them find better products to resell. Accuracy is a necessary condition for usefulness, not a sufficient one.
+
+Building trust in usefulness requires demonstrating the product producing outcomes that the user values. Not just correct answers — answers that led somewhere. For Scoutr, this is: did users who used Scoutr find products they went on to sell successfully?
+
+We don't have perfect data on this (we'd need to track sales outcomes, which we don't), but we get proxies: users who ask us "what's the most profitable product I've scanned?" are using the product as a decision-support tool. When we can show them that answer and it corresponds to their intuition about what's actually worked, we're building usefulness trust, not just accuracy trust.
+
+## The anti-pattern: over-claiming
+
+"Our AI is 97% accurate" is a trust-destroying statement.
+
+Users don't know what the 97% is measuring. Accurate at what? Under what conditions? By whose evaluation? And when it's wrong, is it wrong in a recoverable or catastrophic way?
+
+Specific, modest, verifiable claims build more trust than vague, maximalist ones. "Our fee calculation matches Seller Central's fee calculator within 5% for standard-sized items" is more trustworthy than "97% accuracy" — because the user can verify it and understand what the claim covers.
+
+Trust is built on verifiable specificity. Build products that can make specific, verifiable claims and design those claims into the product. The user who can verify a claim is more trusting than the user who's asked to take it on faith.
