@@ -1,0 +1,269 @@
+---
+title: "Testing Next.js: unit tests, component tests, and E2E with Playwright"
+date: "2027-10-27"
+excerpt: "The test stack that covers the risk surface without becoming a maintenance burden: Vitest for logic, React Testing Library for components, and Playwright for critical user journeys. The philosophy that makes this actually useful."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Testing is the discipline that most people know they should do more of and most codebases don't do enough of. The usual failure mode: tests that test implementation details, break on every refactor, and provide no confidence in the actual behavior. The right stack and philosophy avoids this.
+
+## The testing pyramid in practice
+
+For a Next.js app:
+- **Unit tests (Vitest)**: pure logic — utility functions, validators, data transformers
+- **Component tests (Vitest + React Testing Library)**: component behavior, not implementation
+- **Integration tests (Vitest)**: database operations, API handlers with a real database
+- **E2E tests (Playwright)**: critical user journeys through the full stack
+
+Write more unit tests than component tests, more component tests than E2E. E2E tests are slow, brittle, and expensive — use them only for the paths that would be catastrophic to break (checkout, auth, core feature).
+
+## Setup
+
+```bash
+npm install -D vitest @vitejs/plugin-react @testing-library/react @testing-library/user-event jsdom
+npm install -D playwright @playwright/test
+```
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.ts'],
+    alias: {
+      '@': path.resolve(__dirname, './'),
+    },
+  },
+});
+```
+
+```ts
+// tests/setup.ts
+import '@testing-library/jest-dom';
+```
+
+## Unit tests for logic
+
+```ts
+// lib/utils.test.ts
+import { describe, it, expect } from 'vitest';
+import { slugify, formatDate, readingTime } from '@/lib/utils';
+
+describe('slugify', () => {
+  it('converts to lowercase with hyphens', () => {
+    expect(slugify('Hello World')).toBe('hello-world');
+  });
+
+  it('removes special characters', () => {
+    expect(slugify('C++: the language!')).toBe('c-the-language');
+  });
+
+  it('collapses multiple hyphens', () => {
+    expect(slugify('foo---bar')).toBe('foo-bar');
+  });
+});
+
+describe('readingTime', () => {
+  it('estimates based on word count', () => {
+    const text = 'word '.repeat(200);  // 200 words
+    expect(readingTime(text)).toBe(1);  // 200 words / 200 wpm = 1 min
+  });
+
+  it('returns minimum of 1', () => {
+    expect(readingTime('short')).toBe(1);
+  });
+});
+```
+
+## Component tests
+
+Test behavior, not implementation. The test should describe what the user sees and does:
+
+```tsx
+// components/journal/SearchBox.test.tsx
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import SearchBox from '@/components/journal/SearchBox';
+
+const mockSearch = vi.fn();
+vi.mock('@/lib/search', () => ({ search: mockSearch }));
+
+describe('SearchBox', () => {
+  beforeEach(() => {
+    mockSearch.mockResolvedValue([]);
+  });
+
+  it('shows results after typing', async () => {
+    mockSearch.mockResolvedValue([
+      { slug: 'test-post', title: 'Test Post', excerpt: 'An excerpt' },
+    ]);
+
+    render(<SearchBox />);
+    const input = screen.getByPlaceholderText(/search/i);
+
+    await userEvent.type(input, 'test');
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Post')).toBeInTheDocument();
+    });
+  });
+
+  it('shows nothing for empty query', async () => {
+    render(<SearchBox />);
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  it('clears results when input is cleared', async () => {
+    mockSearch.mockResolvedValue([{ slug: 'post', title: 'Post', excerpt: '' }]);
+
+    render(<SearchBox />);
+    const input = screen.getByPlaceholderText(/search/i);
+
+    await userEvent.type(input, 'post');
+    await waitFor(() => expect(screen.getByText('Post')).toBeInTheDocument());
+
+    await userEvent.clear(input);
+    expect(screen.queryByText('Post')).not.toBeInTheDocument();
+  });
+});
+```
+
+Notice: no testing of internal state, no testing of CSS classes, no testing of implementation details. Only behavior visible to the user.
+
+## Server Action tests
+
+```ts
+// app/actions/posts.test.ts
+import { describe, it, expect, vi } from 'vitest';
+import { createPost } from '@/app/actions/posts';
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    insert: vi.fn().mockReturnValue({
+      values: vi.fn().mockResolvedValue(undefined),
+    }),
+  },
+}));
+
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+}));
+
+describe('createPost', () => {
+  it('rejects empty title', async () => {
+    const formData = new FormData();
+    formData.set('title', '');
+    formData.set('body', 'Some body content that is long enough');
+
+    const result = await createPost({}, formData);
+    expect(result.error).toMatch(/title/i);
+  });
+
+  it('returns success on valid input', async () => {
+    const formData = new FormData();
+    formData.set('title', 'Valid Title');
+    formData.set('body', 'Body content that meets the minimum length requirement.');
+
+    const result = await createPost({}, formData);
+    expect(result.success).toBe(true);
+  });
+});
+```
+
+## Playwright E2E
+
+```ts
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  ],
+  webServer: {
+    command: 'npm run build && npm run start',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+```ts
+// e2e/contact.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Contact form', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/contact');
+  });
+
+  test('shows validation errors for empty form', async ({ page }) => {
+    await page.getByRole('button', { name: /send message/i }).click();
+
+    await expect(page.getByText(/name is required/i)).toBeVisible();
+    await expect(page.getByText(/email is required/i)).toBeVisible();
+  });
+
+  test('submits successfully with valid data', async ({ page }) => {
+    await page.getByLabel(/your name/i).fill('Lewis Wilson');
+    await page.getByLabel(/email address/i).fill('lewis@example.com');
+    await page.getByLabel(/message/i).fill('This is a test message with sufficient length to pass validation.');
+
+    await page.getByRole('button', { name: /send message/i }).click();
+
+    await expect(page.getByText(/message sent/i)).toBeVisible({ timeout: 10000 });
+  });
+});
+```
+
+## What to test and what not to
+
+**Test**:
+- Complex conditional logic (validators, transformers, business rules)
+- Components with multiple interactive states
+- Critical user journeys (auth, payment, core feature)
+- Code that interfaces with external systems (mock the system, test your code)
+
+**Don't test**:
+- Library code (React's rendering, Stripe's SDK)
+- Simple passthrough functions
+- Styling (unless it affects visible output)
+- Implementation details (internal state, private methods)
+
+The question to ask: "If I rename this variable but keep the behavior identical, does the test break?" If yes, the test is testing implementation, not behavior. Fix the test.
+
+## Running tests in CI
+
+```yaml
+# .github/workflows/test.yml
+- name: Run tests
+  run: npm test -- --run  # --run disables watch mode in CI
+
+- name: Install Playwright browsers
+  run: npx playwright install --with-deps chromium
+
+- name: Run E2E tests
+  run: npx playwright test
+  env:
+    DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
+```
+
+Keep E2E tests against a test database — never run destructive E2E tests against production.
