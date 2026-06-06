@@ -20,13 +20,15 @@ export default function JournalStats({ rows }: Props) {
     >
       {/* Title bar */}
       <div
-        className="flex items-center gap-2 px-3 py-2"
+        className="flex items-center gap-2.5 px-3 py-2 select-none"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
       >
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'rgba(255,95,87,0.7)' }} />
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'rgba(255,189,46,0.7)' }} />
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'rgba(40,200,64,0.7)' }} />
-        <span className="ml-2 uppercase tracking-[0.2em] text-[8px]" style={{ color: 'rgba(240,239,255,0.25)' }}>
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+          <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+          <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+        </div>
+        <span className="uppercase tracking-[0.2em] text-[8px] flex-1 text-center" style={{ color: 'rgba(240,239,255,0.2)' }}>
           journal.stats — construx/sys
         </span>
       </div>

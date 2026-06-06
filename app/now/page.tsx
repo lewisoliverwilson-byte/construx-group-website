@@ -50,8 +50,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '236 dispatches and continuing',
-        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover pgvector semantic search, Neon vs Supabase vs Railway, rate limiting API routes with Upstash Redis, the Lattice demand test methodology, and the 2026 year in review. The journal compounds.',
+        title: '260 dispatches and continuing',
+        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover Zod schema design, React Server Components, optimistic UI patterns, Scoutr caching strategy, Hyve real-time channels, Drizzle migrations, and The Marqet seller onboarding. The journal compounds.',
         status: 'ONGOING',
       },
     ],
