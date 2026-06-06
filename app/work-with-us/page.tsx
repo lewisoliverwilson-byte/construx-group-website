@@ -114,21 +114,40 @@ export default function WorkWithUsPage() {
           {capabilities.map(({ icon: Icon, title, body, accent }) => (
             <div
               key={title}
-              className="p-6 flex flex-col gap-4"
+              className="flex flex-col overflow-hidden"
               style={{
                 background: 'rgba(5,5,18,0.88)',
                 border: `1px solid ${accent}18`,
                 borderRadius: '3px',
               }}
             >
+              {/* Terminal title bar */}
               <div
-                className="h-10 w-10 flex items-center justify-center"
-                style={{ background: `${accent}14`, color: accent, borderRadius: '3px' }}
+                className="flex items-center gap-2 px-3 py-2 flex-shrink-0 select-none"
+                style={{ background: `${accent}08`, borderBottom: `1px solid ${accent}12` }}
               >
-                <Icon size={18} />
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span
+                  className="font-mono text-[8px] uppercase tracking-[0.18em] flex-1 text-center truncate"
+                  style={{ color: `${accent}60` }}
+                >
+                  construx.capabilities
+                </span>
               </div>
-              <h3 className="text-sm font-bold text-text-base">{title}</h3>
-              <p className="text-xs text-text-muted leading-relaxed">{body}</p>
+              <div className="p-5 flex flex-col gap-4 flex-1">
+                <div
+                  className="h-9 w-9 flex items-center justify-center"
+                  style={{ background: `${accent}14`, color: accent, borderRadius: '3px' }}
+                >
+                  <Icon size={17} />
+                </div>
+                <h3 className="text-sm font-bold text-text-base">{title}</h3>
+                <p className="text-xs text-text-muted leading-relaxed">{body}</p>
+              </div>
             </div>
           ))}
         </div>
