@@ -6,6 +6,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import CountUp from '@/components/ui/CountUp';
 import VentureProcessTable from '@/components/VentureProcessTable';
 import VentureCrontabPanel from '@/components/VentureCrontabPanel';
+import VentureHtopPanel from '@/components/VentureHtopPanel';
 
 export const metadata: Metadata = {
   title: 'Ventures',
@@ -111,6 +112,11 @@ export default function VenturesPage() {
       {/* Crontab scheduler */}
       <section className="relative px-5 pb-6 mx-auto max-w-6xl">
         <VentureCrontabPanel />
+      </section>
+
+      {/* htop resource monitor */}
+      <section className="relative px-5 pb-6 mx-auto max-w-6xl">
+        <VentureHtopPanel />
       </section>
 
       {/* Live ventures */}
