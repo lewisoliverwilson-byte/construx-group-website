@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
+import NeofetchPanel from '@/components/NeofetchPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -310,6 +311,11 @@ export default function UsesPage() {
               </section>
             );
           })}
+        </div>
+
+        {/* Dev machine system info */}
+        <div className="mt-8">
+          <NeofetchPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

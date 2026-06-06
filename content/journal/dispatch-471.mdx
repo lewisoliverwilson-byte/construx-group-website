@@ -1,0 +1,188 @@
+---
+title: "OpenTelemetry in Node.js: tracing what actually happens"
+date: "2028-10-26"
+excerpt: "Logs tell you something happened. Traces tell you where time went. OpenTelemetry is the open standard for distributed tracing — instrument once, export to any backend. Here's the setup for a Node.js application with automatic and manual instrumentation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Logs are for discrete events. Traces are for understanding latency — where does a slow request spend its time? Is it the database? An external API call? A poorly-written loop in the middle of your request handler? OpenTelemetry answers these questions without vendor lock-in.
+
+## What OpenTelemetry gives you
+
+A **trace** is a tree of **spans**. Each span has a name, start time, duration, and attributes. A slow HTTP request might look like:
+
+```
+POST /api/scan/run [342ms]
+├── authenticate [12ms]
+├── db.query users [8ms]
+├── fetch external API [290ms]  ← here's your problem
+└── db.insert scan_results [18ms]
+```
+
+That trace shows immediately that the external API is the bottleneck — not the database.
+
+## Installation
+
+```bash
+npm install @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-otlp-http
+```
+
+## Instrumentation setup
+
+```ts
+// instrumentation.ts (Next.js — loaded automatically before app startup)
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-otlp-http';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { Resource } from '@opentelemetry/resources';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const sdk = new NodeSDK({
+      resource: new Resource({
+        [SemanticResourceAttributes.SERVICE_NAME]: 'scoutr-api',
+        [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version,
+        'deployment.environment': process.env.NODE_ENV,
+      }),
+
+      traceExporter: new OTLPTraceExporter({
+        url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+        headers: {
+          Authorization: `Bearer ${process.env.OTEL_API_KEY}`,
+        },
+      }),
+
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          // Instrument HTTP, fetch, pg, redis, express automatically
+          '@opentelemetry/instrumentation-http': { enabled: true },
+          '@opentelemetry/instrumentation-pg': { enabled: true },
+          '@opentelemetry/instrumentation-ioredis': { enabled: true },
+          // Skip fs instrumentation — too noisy
+          '@opentelemetry/instrumentation-fs': { enabled: false },
+        }),
+      ],
+    });
+
+    sdk.start();
+  }
+}
+```
+
+With auto-instrumentation, all outgoing HTTP requests, database queries, and Redis calls are automatically traced. You don't touch the rest of the codebase.
+
+## Manual spans for custom logic
+
+Auto-instrumentation misses your own application logic. Add spans manually where it matters:
+
+```ts
+// lib/scanner.ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('scoutr-scanner');
+
+export async function runScan(productId: string): Promise<ScanResult> {
+  return tracer.startActiveSpan('scan.run', async (span) => {
+    span.setAttribute('product.id', productId);
+
+    try {
+      // Nested spans for sub-operations
+      const product = await tracer.startActiveSpan('scan.fetch_product', async (s) => {
+        const result = await db.query.products.findFirst({
+          where: (p, { eq }) => eq(p.id, productId),
+        });
+        s.setAttribute('db.rows_returned', result ? 1 : 0);
+        s.end();
+        return result;
+      });
+
+      if (!product) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: 'Product not found' });
+        span.end();
+        throw new Error('Product not found');
+      }
+
+      const competitors = await tracer.startActiveSpan('scan.fetch_competitors', async (s) => {
+        s.setAttribute('retailer.count', product.retailers.length);
+        const results = await fetchCompetitorPrices(product);
+        s.setAttribute('competitor.results', results.length);
+        s.end();
+        return results;
+      });
+
+      const analysis = await tracer.startActiveSpan('scan.analyse', async (s) => {
+        s.setAttribute('model', 'claude-sonnet-4-6');
+        const result = await analyseWithClaude(product, competitors);
+        s.setAttribute('tokens.total', result.usage.totalTokens);
+        s.end();
+        return result;
+      });
+
+      span.setAttribute('scan.alert_level', analysis.alertLevel);
+      span.setStatus({ code: SpanStatusCode.OK });
+      span.end();
+
+      return { product, competitors, analysis };
+    } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      span.end();
+      throw error;
+    }
+  });
+}
+```
+
+## Adding attributes to auto-instrumented spans
+
+You can enrich spans that auto-instrumentation creates — for example, adding the user ID to every HTTP request span:
+
+```ts
+// middleware or request handler
+import { trace } from '@opentelemetry/api';
+
+export function addUserToSpan(userId: string) {
+  const span = trace.getActiveSpan();
+  if (span) {
+    span.setAttribute('user.id', userId);
+    span.setAttribute('user.role', 'admin');
+  }
+}
+```
+
+## Sampling in production
+
+Recording every trace at full volume is expensive. Use head-based sampling for most traffic, and ensure errors are always sampled:
+
+```ts
+import { ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
+
+const sdk = new NodeSDK({
+  sampler: new ParentBasedSampler({
+    // Record 10% of traces — adjust based on volume and cost
+    root: new TraceIdRatioBasedSampler(0.1),
+  }),
+  // ...
+});
+```
+
+For error traces specifically, set the span status to ERROR — most trace backends (Honeycomb, Grafana Tempo, Datadog) let you filter to always show errored traces regardless of sampling rate.
+
+## Where to send traces
+
+OpenTelemetry is backend-agnostic. Popular options:
+
+- **Honeycomb** — best developer UX, fast queries, reasonable pricing at low volume
+- **Grafana Tempo** — free tier, pairs with Prometheus/Loki for unified observability
+- **Datadog APM** — works if you're already paying for Datadog
+- **Jaeger** — self-hosted, good for development
+
+The OTLP exporter works with all of them — just change the endpoint and headers.
+
+## The payoff
+
+Tracing pays off the first time you ship a performance regression. Without traces, you run `EXPLAIN ANALYZE` on every query, add `console.time()` around suspicious blocks, and guess. With traces, you open the dashboard, sort by p95 latency, and the span tree shows you exactly where the time went.
+
+Instrument once. Every slow request after that is a 30-second investigation instead of a two-hour one.

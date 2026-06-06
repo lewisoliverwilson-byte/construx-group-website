@@ -1,0 +1,239 @@
+---
+title: "Next.js middleware: edge logic before the page renders"
+date: "2028-10-23"
+excerpt: "Middleware runs at the edge before every request hits your application — perfect for auth checks, redirects, A/B routing, and geolocation-based logic. Here's what it can and can't do, and the patterns that hold up in production."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js middleware runs at the CDN edge before the request reaches your application server. It's the right place for logic that applies to every request: authentication redirects, A/B experiment routing, locale detection, and rate limiting headers. The constraint is the Edge Runtime — no Node.js APIs, only Web APIs.
+
+## Basic middleware
+
+```ts
+// middleware.ts (at the project root)
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(request: NextRequest) {
+  // Redirect /old-path to /new-path permanently
+  if (request.nextUrl.pathname === '/old-path') {
+    return NextResponse.redirect(new URL('/new-path', request.url), { status: 301 });
+  }
+
+  // Rewrite /api/v1/* to internal routes without changing the URL
+  if (request.nextUrl.pathname.startsWith('/api/v1/')) {
+    const rewrittenUrl = new URL(
+      request.nextUrl.pathname.replace('/api/v1/', '/api/'),
+      request.url,
+    );
+    return NextResponse.rewrite(rewrittenUrl);
+  }
+
+  return NextResponse.next();
+}
+
+// Only run middleware on specific paths
+export const config = {
+  matcher: [
+    // Protect dashboard routes
+    '/dashboard/:path*',
+    // API v1 compatibility
+    '/api/v1/:path*',
+    // Exclude static files and Next.js internals
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
+};
+```
+
+## Authentication guards
+
+```ts
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { verifyEdgeToken } from '@/lib/auth-edge';
+
+const PUBLIC_ROUTES = ['/', '/sign-in', '/sign-up', '/about', '/journal'];
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Allow public routes through
+  if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith('/journal/'))) {
+    return NextResponse.next();
+  }
+
+  const token = request.cookies.get('session')?.value;
+
+  if (!token) {
+    const signInUrl = new URL('/sign-in', request.url);
+    signInUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  // Verify token at the edge (must use Web Crypto — no Node jwt libraries)
+  const payload = await verifyEdgeToken(token);
+
+  if (!payload) {
+    const signInUrl = new URL('/sign-in', request.url);
+    signInUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  // Pass user info as a header to downstream components
+  const response = NextResponse.next();
+  response.headers.set('x-user-id', payload.userId);
+  response.headers.set('x-user-role', payload.role);
+  return response;
+}
+```
+
+```ts
+// lib/auth-edge.ts — Edge-compatible JWT verification
+export async function verifyEdgeToken(token: string) {
+  try {
+    // Use Web Crypto API — available in Edge Runtime
+    const encoder = new TextEncoder();
+    const secret = encoder.encode(process.env.JWT_SECRET!);
+
+    const [headerB64, payloadB64, signatureB64] = token.split('.');
+    const data = encoder.encode(`${headerB64}.${payloadB64}`);
+
+    const key = await crypto.subtle.importKey(
+      'raw', secret,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false, ['verify'],
+    );
+
+    const signature = Uint8Array.from(
+      atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')),
+      (c) => c.charCodeAt(0),
+    );
+
+    const valid = await crypto.subtle.verify('HMAC', key, signature, data);
+    if (!valid) return null;
+
+    return JSON.parse(atob(payloadB64));
+  } catch {
+    return null;
+  }
+}
+```
+
+## A/B testing at the edge
+
+```ts
+// middleware.ts
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (pathname === '/pricing') {
+    // Stable bucket assignment — same user gets the same variant
+    const bucket = request.cookies.get('ab-bucket')?.value
+      ?? (Math.random() < 0.5 ? 'control' : 'treatment');
+
+    const url = request.nextUrl.clone();
+    url.pathname = bucket === 'treatment' ? '/pricing-v2' : '/pricing';
+
+    const response = NextResponse.rewrite(url);
+
+    // Set cookie if not already set (30-day expiry)
+    if (!request.cookies.get('ab-bucket')) {
+      response.cookies.set('ab-bucket', bucket, {
+        maxAge: 60 * 60 * 24 * 30,
+        httpOnly: true,
+        sameSite: 'lax',
+      });
+    }
+
+    return response;
+  }
+
+  return NextResponse.next();
+}
+```
+
+The URL shown to the user stays `/pricing` — the rewrite is invisible. PostHog or whatever analytics tool you use reads the `ab-bucket` cookie to attribute events to the right variant.
+
+## Geolocation routing
+
+```ts
+// middleware.ts
+export function middleware(request: NextRequest) {
+  // Vercel populates geo headers automatically
+  const country = request.geo?.country ?? 'GB';
+  const response = NextResponse.next();
+
+  // Pass country to server components via header
+  response.headers.set('x-country', country);
+
+  // Redirect non-EU traffic to separate domain for data residency
+  if (
+    request.nextUrl.pathname.startsWith('/app') &&
+    !['GB', 'DE', 'FR', 'NL', 'SE', 'DK', 'FI', 'NO', 'IE'].includes(country)
+  ) {
+    return NextResponse.redirect('https://us.construxgroup.io' + request.nextUrl.pathname);
+  }
+
+  return response;
+}
+```
+
+## Rate limiting with Upstash Redis
+
+```ts
+// middleware.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(60, '1 m'),
+  prefix: 'middleware',
+});
+
+export async function middleware(request: NextRequest) {
+  // Only rate-limit API routes
+  if (!request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
+  const { success, remaining, reset } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return new NextResponse('Too many requests', {
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)),
+        'X-RateLimit-Remaining': '0',
+      },
+    });
+  }
+
+  const response = NextResponse.next();
+  response.headers.set('X-RateLimit-Remaining', String(remaining));
+  return response;
+}
+```
+
+## What the Edge Runtime can't do
+
+The Edge Runtime is a subset of Node.js. These don't work:
+
+```ts
+// ✗ No Node.js built-ins
+import fs from 'fs';
+import path from 'path';
+
+// ✗ No native Node.js packages (pg, bcrypt, sharp)
+import { Client } from 'pg';
+
+// ✗ No dynamic require
+const module = require('some-module');
+```
+
+For database access in middleware, use an HTTP-based client (Upstash Redis, Neon's HTTP driver, PlanetScale's serverless driver). For heavy crypto, use Web Crypto APIs. For anything that truly needs Node.js, put the logic in a Route Handler instead — accept the latency trade-off.
+
+The right frame: middleware is for routing decisions. If you're doing database work that isn't a cache lookup or session check, it belongs in the route, not the middleware.
