@@ -1,0 +1,93 @@
+---
+title: "Managed Postgres: why we chose Neon over Supabase and Railway"
+date: "2027-01-06"
+excerpt: "The Hyve needs a managed PostgreSQL database that supports connection pooling, pgvector, and row-level security. We evaluated Neon, Supabase, and Railway before choosing. Here's the decision matrix."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every product we build uses PostgreSQL. For The Hyve specifically — the product with the most complex data model, real-time requirements, and multi-tenant isolation via RLS — choosing the right managed Postgres provider is a meaningful architectural decision.
+
+We evaluated three options: Neon, Supabase, and Railway Postgres. Here's what we looked at and what we chose.
+
+## The requirements
+
+Before comparing, we established what we actually need:
+
+1. **pgvector support** — for the semantic search / RAG architecture we're building in Q1
+2. **Connection pooling** — The Hyve runs on serverless (AWS Amplify + Next.js API routes). Serverless functions open a new connection per invocation. Without connection pooling, we'd exhaust the Postgres connection limit under any meaningful traffic
+3. **Row-level security** — multi-tenant isolation at the database level, not just application level
+4. **Branching or easy schema management** — database migrations need to be testable before production
+5. **Reasonable pricing at our scale** — we're not at massive scale yet; pricing should reflect that
+
+## Supabase
+
+Supabase is the most well-known managed Postgres option for Next.js developers. It ships Postgres with built-in PgBouncer connection pooling, PostgREST auto-generated REST API, Auth, Storage, and Realtime.
+
+The advantages:
+- PgBouncer connection pooling is excellent and well-configured out of the box
+- The Realtime system (Postgres logical replication → WebSocket) is genuinely impressive
+- pgvector is supported
+- Great DX: the Supabase dashboard is polished and the CLI tooling is good
+
+The disadvantages:
+- **We're already building our own auth (Clerk) and our own real-time (SSE).** Supabase's bundle includes things we don't need and would be paying for
+- **Supabase's RLS and the PostgREST pattern are somewhat opinionated.** For The Hyve's RLS setup — where workspace isolation uses `set_config('app.workspace_id', ...)` at the transaction level — this works fine, but the Supabase ecosystem assumes you're using PostgREST and Supabase Auth together
+- **Pricing is opaque at scale.** The free tier is generous, but the jump to Pro and the per-project cost structure made it hard to predict costs at 1,000+ active workspaces
+
+## Railway Postgres
+
+Railway is where we run The Hyve's non-serverless infrastructure: the WebSocket server, background job workers. Railway also offers a managed Postgres service.
+
+The advantages:
+- Simplicity: everything in one place. The Hyve's Railway project would have the database alongside the services that use it
+- Reasonable pricing with a clear per-month cost
+- Good CLI and project management
+
+The disadvantages:
+- **No native connection pooling.** You configure PgBouncer yourself or use a separate pooling solution. For serverless, this is a meaningful gap — you'd need to configure and manage PgBouncer separately
+- **No database branching.** Testing migrations against a production-like environment requires spinning up separate Railway databases manually
+- **pgvector support is available** but requires manual extension enabling; less first-class than Neon or Supabase
+
+## Neon
+
+Neon is a serverless Postgres provider built around branching as a first-class concept.
+
+The advantages:
+- **Serverless architecture matches our deployment model.** Neon's architecture separates compute from storage. Compute scales to zero when not in use; you're not paying for idle hours
+- **Database branching is the killer feature.** Each Neon branch is a full copy of the database state at a point in time, but shares storage with the parent. We create a branch for each migration, test against production data, then apply to main. This is a meaningful improvement over the alternatives
+- **pgvector is first-class.** Neon maintains a fork of Postgres that tracks pgvector releases; you don't need to request it or enable it manually
+- **Connection pooling via pgBouncer is built in** — you get two connection strings: one for long-running connections (direct), one for serverless (pooled). The serverless connection string is what you use in Next.js API routes
+- **Pricing at our current scale is clear.** The free tier handles development; the Scale tier pricing is per-compute-hour, which at low traffic costs less than a fixed-instance approach
+
+The disadvantages:
+- **Neon's Realtime** doesn't exist — this isn't really a disadvantage since we build real-time with SSE ourselves, but it's worth noting
+- **The serverless compute model means cold starts.** If a Neon compute has been idle, the first query is slightly slower. This is a seconds-level delay in the worst case, not milliseconds, and is the trade-off for scale-to-zero pricing
+
+## What we chose
+
+Neon, for The Hyve and for new products going forward.
+
+The branching feature is decisive. Being able to create a branch of the production database, run a migration against it, validate the result, and then apply to main is a workflow improvement that's hard to give up once you have it.
+
+The connection pooling is correctly configured for serverless by default — the pooled connection string just works in Next.js without additional PgBouncer configuration.
+
+The pgvector support is first-class, which matters for the Q1 semantic search work.
+
+Supabase would be the right choice if we were using Supabase Auth and PostgREST, or if we wanted Realtime from the database layer. For the specific combination of our stack — Clerk for auth, SSE for real-time, custom RLS policies — Neon is a better fit.
+
+Railway Postgres would be reasonable for simple workloads, but the missing connection pooling for serverless and the lack of branching make it less suitable for The Hyve.
+
+## The migration
+
+We migrated The Hyve's database from Railway Postgres to Neon in November. The migration:
+
+1. Export from Railway: `pg_dump` to a SQL file
+2. Restore to Neon: `psql` against the new connection string
+3. Enable pgvector extension: `CREATE EXTENSION vector;`
+4. Update environment variables in Railway (API server) and Amplify (Next.js)
+5. Verify via the Neon dashboard and test queries
+
+Total downtime: 4 minutes (the time the Railway database was in read-only mode while we took the dump and restored to Neon).
+
+The branching workflow was usable immediately after migration. The Q1 pgvector work will deploy into a Neon branch first.

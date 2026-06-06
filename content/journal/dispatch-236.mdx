@@ -1,0 +1,154 @@
+---
+title: "Rate limiting Next.js API routes with Upstash Redis"
+date: "2027-01-07"
+excerpt: "API routes without rate limiting are vulnerable to abuse: scraping, credential stuffing, resource exhaustion. Here's the rate limiting implementation we use across Scoutr, The Marqet, and The Hyve — using Upstash Redis with a sliding window algorithm."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every API route that accepts user input is a potential target for abuse. Without rate limiting, a bad actor can scrape Scoutr's margin data, attempt credential stuffing on The Marqet's auth endpoints, or exhaust The Hyve's AI agent budget in minutes.
+
+Here's the rate limiting implementation we use across all three products.
+
+## Why Upstash Redis
+
+Rate limiting requires shared state across serverless invocations. Two API route invocations running in parallel need to know the combined count — they can't each keep their own counter.
+
+We use Upstash Redis because:
+- **HTTP-based API** — Upstash Redis connects over HTTP, not TCP. This is critical for Next.js serverless API routes: TCP connections don't survive across invocations and can't be pooled in the same way
+- **`@upstash/ratelimit` library** — a purpose-built rate limiting library with sliding window, fixed window, and token bucket algorithms, backed by Upstash Redis
+- **Serverless pricing** — Upstash charges per request, not per instance-hour. Zero cost when idle
+
+## The implementation
+
+```ts
+// lib/ratelimit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+export const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(), // reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
+  limiter: Ratelimit.slidingWindow(20, '1 m'), // 20 requests per minute
+  analytics: true,
+  prefix: 'construx_rl',
+});
+```
+
+The `slidingWindow` algorithm is more accurate than a fixed window. A fixed window resets at a fixed time boundary (e.g., every minute at :00). This means a user could make 20 requests at :59 and 20 more at :01 — 40 requests in 2 seconds. The sliding window considers the last 60 seconds from the current moment, preventing this burst pattern.
+
+## Using rate limiting in an API route
+
+```ts
+// app/api/scan/route.ts
+import { ratelimit } from '@/lib/ratelimit';
+import { headers } from 'next/headers';
+
+export async function POST(req: Request) {
+  // Identify the caller — use auth session ID for authenticated routes,
+  // or IP address for unauthenticated routes
+  const headersList = await headers();
+  const ip = headersList.get('x-forwarded-for')?.split(',')[0] ?? 'anonymous';
+  
+  const { success, limit, remaining, reset } = await ratelimit.limit(ip);
+  
+  if (!success) {
+    return Response.json(
+      { error: 'Rate limit exceeded. Try again shortly.' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+          'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)),
+        },
+      }
+    );
+  }
+  
+  // ... handler logic
+}
+```
+
+The rate limit response includes standard headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`. These let API clients implement backoff correctly instead of retrying immediately.
+
+## Different limits for different routes
+
+Not all routes have the same risk profile. The limits we use:
+
+| Route | Limit | Identifier |
+|-------|-------|------------|
+| `POST /api/scan` (Scoutr product scan) | 30 req/min | user session ID |
+| `POST /api/scan/batch` (Scoutr batch) | 5 req/min | user session ID |
+| `POST /api/auth/register` | 5 req/15min | IP address |
+| `POST /api/messages` (Hyve messaging) | 60 req/min | user session ID |
+| `POST /api/agent` (Hyve AI agent) | 10 req/min | workspace ID |
+| `POST /api/listings/[id]/apply` (Marqet) | 20 req/hour | user ID |
+
+The AI agent route is the most conservative because each invocation makes a Claude API call. 10 requests per minute per workspace is enough for legitimate use and prevents budget exhaustion from a compromised account or runaway integration.
+
+## Middleware-level rate limiting
+
+For unauthenticated routes and general traffic, we add rate limiting at the middleware layer:
+
+```ts
+// middleware.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+import { NextRequest, NextResponse } from 'next/server';
+
+const globalLimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(100, '1 m'),
+  prefix: 'construx_global',
+});
+
+export async function middleware(req: NextRequest) {
+  // Only rate limit API routes
+  if (!req.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+  
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'anonymous';
+  const { success } = await globalLimit.limit(ip);
+  
+  if (!success) {
+    return new NextResponse('Rate limit exceeded', { status: 429 });
+  }
+  
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: '/api/:path*',
+};
+```
+
+The global middleware limit (100 req/min per IP) handles obvious abuse patterns before the request reaches the route handler. Route-level limits handle legitimate users who are hitting specific endpoints too aggressively.
+
+## Identifying users correctly
+
+For authenticated routes, use the user ID or session ID — not the IP address. IP-based limiting for authenticated routes breaks:
+
+- Multiple users behind a shared IP (corporate NAT, university networks)
+- Users on mobile data who share carrier NAT
+
+For unauthenticated routes where you genuinely need IP-based limiting, `x-forwarded-for` is not reliable — it can be spoofed. For critical protection, combine `x-forwarded-for` with the `cf-connecting-ip` header (if using Cloudflare) or the `x-real-ip` header from your reverse proxy.
+
+## Analytics and observability
+
+Upstash's `analytics: true` option writes rate limit hit data to Upstash Redis. You can query it via the Upstash dashboard or via the REST API:
+
+```ts
+// How many rate limit rejections in the last hour?
+const rejections = await ratelimit.getUsageAnalytics({
+  from: Date.now() - 3600_000,
+  to: Date.now(),
+});
+```
+
+We check this weekly. A spike in `POST /api/agent` rejections would indicate either a legitimate product usage surge (increase the limit) or abuse (investigate + potentially block the identifier).
+
+## The cost
+
+Upstash Redis pricing is per 100,000 requests. Each rate limit check is one Redis command. At our current traffic levels, the monthly cost is under £5. This is an acceptable cost for the protection it provides against abuse.
