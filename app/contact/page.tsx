@@ -5,6 +5,7 @@ import { Send, CheckCircle, AlertCircle } from 'lucide-react';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import TraceroutePanel from '@/components/TraceroutePanel';
 import WhoisPanel from '@/components/WhoisPanel';
+import SslCertPanel from '@/components/SslCertPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -329,8 +330,13 @@ export default function ContactPage() {
       </section>
 
       {/* WHOIS domain info */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <WhoisPanel />
+      </section>
+
+      {/* SSL certificate info */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <SslCertPanel />
       </section>
     </div>
   );

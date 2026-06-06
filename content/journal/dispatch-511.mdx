@@ -1,0 +1,155 @@
+---
+title: "React Server Components internals: how RSC actually works"
+date: "2029-02-23"
+excerpt: "RSC is not SSR with a new name. Server Components render to a wire format — a JSON-like payload — that streams to the client. Understanding the protocol helps you write better components and debug subtle hydration issues."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React Server Components (RSC) and Server-Side Rendering (SSR) solve different problems. SSR renders HTML for the initial page load, then hydrates a full React tree on the client. RSC renders components on the server and sends a serialised component tree — not HTML — to the client, which can merge it into an existing React tree without a full re-render.
+
+## The RSC wire format
+
+When a Server Component renders, React serialises it into a stream of chunks. Each chunk is a line like:
+
+```
+0:["$","div",null,{"className":"container","children":["$","h1",null,{"children":"Hello"}]}]
+1:I["(app-pages-browser)/./components/Counter.tsx",["static/chunks/counter.js"],"Counter"]
+2:["$","$L1",null,{"initialCount":0}]
+```
+
+Line `0` is the root Server Component tree as JSON. Line `1` declares a Client Component reference (`I` = import). Line `2` uses that client component. The browser React runtime reads this stream and builds the component tree — Server Components are already rendered, Client Components are imported and hydrated.
+
+## Server vs Client Components
+
+```tsx
+// app/page.tsx — Server Component (default in App Router)
+import { db } from '@/lib/db';
+import Counter from './Counter';  // Client Component
+
+export default async function Page() {
+  const data = await db.select().from(posts).limit(10);  // Runs on server only
+
+  return (
+    <main>
+      <h1>Posts</h1>
+      {data.map((post) => (
+        <article key={post.id}>{post.title}</article>
+      ))}
+      <Counter />  {/* Client boundary */}
+    </main>
+  );
+}
+```
+
+```tsx
+// Counter.tsx — Client Component
+'use client';
+
+import { useState } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
+}
+```
+
+The Server Component `Page` is never sent to the browser as JavaScript. Only the serialised output travels to the client. `Counter` is a Client Component — it gets hydrated with event handlers.
+
+## Composition patterns
+
+You can't import Server Components into Client Components, but you can pass them as children (props cross the RSC boundary as serialised output):
+
+```tsx
+// ✅ Server Component passed as children prop
+'use client';
+
+export function ClientShell({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button onClick={() => setOpen(!open)}>Toggle</button>
+      {open && children}
+    </div>
+  );
+}
+```
+
+```tsx
+// Server Component using ClientShell
+import { ClientShell } from './ClientShell';
+import { ServerContent } from './ServerContent';  // Server Component
+
+export default function Page() {
+  return (
+    <ClientShell>
+      <ServerContent />  {/* Rendered on server, passed as serialised prop */}
+    </ClientShell>
+  );
+}
+```
+
+## What can't be serialised
+
+Because Server Component output is serialised to JSON, some things can't cross the boundary:
+
+```tsx
+// ❌ Functions can't be serialised
+<ClientComponent onClick={() => console.log('hello')} />
+
+// ✅ Use 'use server' for server-side mutations
+<ClientComponent onSubmit={submitAction} />
+
+async function submitAction(formData: FormData) {
+  'use server';
+  await db.insert(posts).values({ ... });
+}
+```
+
+Dates, Maps, Sets, and class instances also can't cross the boundary directly — they must be serialised to primitives first.
+
+## Streaming and Suspense
+
+RSC streams chunks as they're ready. Suspense boundaries let you stream parts of the page independently:
+
+```tsx
+import { Suspense } from 'react';
+import { SlowComponent } from './SlowComponent';
+
+export default function Page() {
+  return (
+    <div>
+      <h1>Ready immediately</h1>
+      <Suspense fallback={<div>Loading...</div>}>
+        <SlowComponent />  {/* Streamed when ready */}
+      </Suspense>
+    </div>
+  );
+}
+```
+
+The HTML for the fallback ships first. When `SlowComponent` resolves, a `<script>` tag with the RSC payload is injected, and React swaps the fallback for the real content — no navigation, no full re-render.
+
+## Caching
+
+Server Components can opt into React's cache for deduplication:
+
+```tsx
+import { cache } from 'react';
+
+const getUser = cache(async (id: string) => {
+  return db.select().from(users).where(eq(users.id, id)).get();
+});
+
+// Called multiple times in the same render — only one DB query
+export async function UserCard({ userId }: { userId: string }) {
+  const user = await getUser(userId);
+  return <div>{user.name}</div>;
+}
+```
+
+`cache` deduplicates requests within a single render pass. For cross-request caching, use `unstable_cache` from Next.js to store results with a TTL.
+
+## The mental model
+
+Server Components are not a performance trick — they're a different programming model. The component tree is split at the `'use client'` boundary. Everything above runs on the server (access to databases, file system, secrets). Everything below runs in the browser (event handlers, browser APIs, React state). The RSC wire format is the handoff.
