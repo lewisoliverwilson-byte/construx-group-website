@@ -1,0 +1,148 @@
+---
+title: "Next.js caching: what actually caches and how to bust it"
+date: "2027-08-25"
+excerpt: "Next.js 15 changed caching defaults significantly — fetch calls are no longer cached by default, and the four caching layers (request memoisation, data cache, full route cache, router cache) interact in ways that aren't obvious. Here's the mental model that makes it click."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js has four distinct caching layers. Understanding which layer applies to your code is the key to both performance and correctness — cached data returning stale results is one of the most confusing bugs in Next.js apps.
+
+## The four layers
+
+**1. Request memoisation** — Same-request deduplication. When multiple Server Components call `fetch` with the same URL in a single request, only one HTTP call goes out. This is React's `cache()` applied to `fetch`. It's per-request only — no persistence.
+
+**2. Data cache** — Persistent server-side cache for `fetch` responses. In Next.js 14, all fetch calls were cached by default. In Next.js 15, fetch calls are **not cached by default** — you opt in.
+
+**3. Full route cache** — Pre-rendered HTML + RSC payload stored on the server/CDN. Applies to static routes that don't use dynamic functions.
+
+**4. Router cache** — Client-side in-memory cache of previously visited routes. Prevents re-fetching on navigation. Lives in the browser for the session.
+
+## Data cache: the important one
+
+```ts
+// Not cached (Next.js 15 default)
+const data = await fetch('/api/data');
+
+// Cached indefinitely — survives restarts (on the file system)
+const data = await fetch('/api/data', { cache: 'force-cache' });
+
+// Cached with a TTL — revalidate after N seconds (ISR-style)
+const data = await fetch('/api/data', { next: { revalidate: 3600 } });
+
+// Tagged cache — bust with revalidateTag()
+const data = await fetch('/api/data', { next: { tags: ['products'] } });
+```
+
+For database queries (Drizzle, Prisma, raw SQL), use `unstable_cache`:
+
+```ts
+import { unstable_cache } from 'next/cache';
+
+const getCachedProducts = unstable_cache(
+  async () => {
+    return db.products.findMany({ where: { published: true } });
+  },
+  ['products'], // cache key
+  {
+    tags: ['products'],
+    revalidate: 3600, // also time-based as a fallback
+  },
+);
+
+// Usage in a Server Component
+const products = await getCachedProducts();
+```
+
+## On-demand revalidation
+
+```ts
+// app/api/revalidate/route.ts
+import { revalidateTag, revalidatePath } from 'next/cache';
+
+export async function POST(req: Request) {
+  const { secret, tag, path } = await req.json();
+
+  // Protect this endpoint
+  if (secret !== process.env.REVALIDATION_SECRET) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (tag) revalidateTag(tag);
+  if (path) revalidatePath(path);
+
+  return Response.json({ revalidated: true });
+}
+```
+
+Call this from a CMS webhook, after a database mutation, or from a Server Action:
+
+```ts
+// app/actions/products.ts
+'use server';
+import { revalidateTag } from 'next/cache';
+
+export async function updateProduct(id: string, data: Partial<Product>) {
+  await db.products.update({ where: { id }, data });
+  revalidateTag('products');        // Bust all 'products' tagged caches
+  revalidatePath(`/products/${id}`); // Bust the specific product page
+}
+```
+
+## Static vs dynamic routes
+
+A route is **static** (fully cached) unless it:
+- Calls `cookies()`, `headers()`, or `searchParams`
+- Uses `noStore()` or `cache: 'no-store'`
+- Uses dynamic route params that aren't in `generateStaticParams`
+
+Opt out of full-route caching explicitly:
+
+```ts
+// app/dashboard/page.tsx
+import { unstable_noStore as noStore } from 'next/cache';
+
+export default async function DashboardPage() {
+  noStore(); // This route is never pre-rendered
+  const data = await getUserData();
+  return <Dashboard data={data} />;
+}
+```
+
+Or use the segment config:
+
+```ts
+// app/dashboard/page.tsx
+export const dynamic = 'force-dynamic'; // equivalent to noStore()
+export const revalidate = 0;            // same thing
+```
+
+## Checking what's cached
+
+The dev server shows `[cache: HIT]` or `[cache: MISS]` in logs for data fetches. For the full-route cache, `/next/static` paths are CDN-cacheable; check response headers for `x-nextjs-cache: HIT`.
+
+The most reliable debugging approach: `console.log` timestamps inside Server Components to see if the code is running on each request or serving cached output.
+
+## Common patterns
+
+```ts
+// Blog index — cache for 1 hour, bust on new post
+const posts = await unstable_cache(
+  () => db.posts.findMany({ orderBy: { date: 'desc' } }),
+  ['posts-list'],
+  { tags: ['posts'], revalidate: 3600 },
+)();
+
+// Individual post — cache indefinitely, bust on edit
+const post = await unstable_cache(
+  () => db.posts.findUnique({ where: { slug } }),
+  [`post-${slug}`],
+  { tags: [`post-${slug}`, 'posts'] },
+)();
+
+// User data — never cache (personal, frequently changes)
+noStore();
+const user = await db.users.findUnique({ where: { id: userId } });
+```
+
+The pattern: cache aggressively at the data layer with `unstable_cache` + tags, bust precisely with `revalidateTag`. Never rely on time-based TTLs alone for content that changes on user action.
