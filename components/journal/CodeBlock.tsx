@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, Children } from 'react';
+import { useState, useRef, Children, useEffect } from 'react';
 import { Check, Copy } from 'lucide-react';
 
 function detectLang(className?: string): string {
@@ -30,7 +30,14 @@ function getChildClassName(children: React.ReactNode): string | undefined {
 
 export default function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) {
   const [copied, setCopied] = useState(false);
+  const [lineCount, setLineCount] = useState<number | null>(null);
   const preRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    const text = preRef.current?.querySelector('code')?.textContent ?? '';
+    const lines = text.split('\n').filter((l) => l.trim() !== '').length;
+    if (lines > 0) setLineCount(lines);
+  }, []);
 
   const handleCopy = async () => {
     const text = preRef.current?.querySelector('code')?.textContent ?? '';
@@ -43,7 +50,6 @@ export default function CodeBlock({ children, ...props }: React.HTMLAttributes<H
 
   const langClass = getChildClassName(children);
   const lang = detectLang(langClass);
-  const lineCount = (preRef.current?.querySelector('code')?.textContent ?? '').split('\n').filter(Boolean).length;
 
   return (
     <div
@@ -126,9 +132,16 @@ export default function CodeBlock({ children, ...props }: React.HTMLAttributes<H
         <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.14)' }}>
           construx/construx-group-website
         </span>
-        <span className="font-mono text-[8px] tabular-nums ml-auto" style={{ color: 'rgba(255,255,255,0.14)' }}>
-          {lang || 'code'}
-        </span>
+        <div className="flex items-center gap-3 ml-auto">
+          {lineCount !== null && (
+            <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.14)' }}>
+              {lineCount} lines
+            </span>
+          )}
+          <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.14)' }}>
+            {lang || 'code'}
+          </span>
+        </div>
       </div>
     </div>
   );

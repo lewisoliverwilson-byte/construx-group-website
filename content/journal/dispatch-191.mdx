@@ -1,0 +1,159 @@
+---
+title: "WebSockets vs. SSE: The Hyve's real-time architecture decision"
+date: "2026-11-22"
+excerpt: "The Hyve needs real-time message delivery. WebSockets and Server-Sent Events are the two serious options. Here's the full trade-off analysis and why we chose SSE for the first version — and when we'll revisit."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Hyve is a team communication tool. Messages must appear in real-time — a multi-second delay in seeing a colleague's message is a product failure. Two protocols dominate real-time web communication: WebSockets and Server-Sent Events (SSE). We chose SSE. Here's the complete reasoning.
+
+## The requirements
+
+Before the protocol analysis, the functional requirements:
+
+1. Messages sent by user A appear in user B's channel view within 500ms
+2. Online presence indicators update within 5 seconds of a user going offline
+3. AI responses stream token-by-token as they're generated
+4. Connection recovery after network drop, with message replay for missed events
+5. The system must work behind standard HTTP/2 infrastructure (load balancers, CDNs, proxies)
+
+Requirement 5 is the most constraining. Standard infrastructure often doesn't handle WebSocket upgrades cleanly. Requirement 3 (token streaming) is the one that most strongly favours SSE.
+
+## WebSockets
+
+WebSockets establish a persistent full-duplex TCP connection. Once the connection upgrades from HTTP, both client and server can send messages at any time over a single socket.
+
+**Strengths:**
+- Full duplex: client and server can both initiate messages
+- Low latency: no HTTP overhead after the initial handshake
+- Widely supported (all modern browsers, well-understood by backend frameworks)
+
+**Weaknesses:**
+- Requires infrastructure support for WebSocket upgrades — load balancers, reverse proxies, and CDNs that don't support HTTP/2 server push may struggle
+- Stateful connection: the server must track which socket belongs to which user, which complicates horizontal scaling
+- Browser connection limits apply (6 per domain in HTTP/1.1, though this is less constraining with HTTP/2)
+- Reconnection is a application-layer concern — the WebSocket protocol doesn't handle it; the application must implement retry and message replay
+
+## Server-Sent Events (SSE)
+
+SSE is a one-directional protocol: the server streams events to the client over a persistent HTTP connection. The client sends data to the server via regular HTTP requests.
+
+**Strengths:**
+- Native browser support via `EventSource` API — no library required
+- Works over HTTP/2, HTTP/3, standard proxies, and CDNs without special configuration
+- Automatic reconnection is built into the `EventSource` spec — the browser handles it, with optional `Last-Event-ID` header for replay
+- Stateless from the infrastructure perspective: each SSE connection is a regular HTTP request; servers can handle them without special socket tracking
+- Perfect for streaming: the streaming use case (AI token-by-token delivery) is exactly the SSE model
+
+**Weaknesses:**
+- One-directional: client-to-server communication goes through separate HTTP requests
+- Each browser tab opens its own SSE connection (HTTP/2 multiplexing helps but the connections are still independent)
+- Maximum of 6 concurrent connections per domain in HTTP/1.1 (not a real constraint in 2026 with HTTP/2 everywhere)
+
+## The key insight
+
+The Hyve's communication is architecturally asymmetric:
+
+- **High volume, low frequency direction:** server → client (message delivery, presence updates, AI streaming)
+- **Low volume, high frequency direction:** client → server (message sends, typing indicators, presence heartbeats)
+
+Client-to-server events are ordinary HTTP requests — POST to send a message, PUT to update presence. These are already HTTP. The only thing that benefits from the "upgrade to WebSocket" is server-to-client delivery.
+
+SSE handles server-to-client delivery natively. The "weakness" of SSE (client-to-server via HTTP) is actually the right model for our asymmetric workload.
+
+## The implementation
+
+SSE endpoint in Next.js API routes:
+
+```ts
+// app/api/channels/[channelId]/stream/route.ts
+export async function GET(
+  req: Request,
+  { params }: { params: { channelId: string } }
+) {
+  const session = await getSession(req);
+  if (!session) return new Response('Unauthorized', { status: 401 });
+  
+  const encoder = new TextEncoder();
+  const channelId = params.channelId;
+  
+  const stream = new ReadableStream({
+    start(controller) {
+      const send = (event: string, data: unknown) => {
+        const id = Date.now().toString();
+        const payload = `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        controller.enqueue(encoder.encode(payload));
+      };
+      
+      // Subscribe to channel events
+      const unsubscribe = channelBus.subscribe(channelId, (event) => {
+        send(event.type, event.payload);
+      });
+      
+      // Send a heartbeat every 25s to keep connection alive through proxies
+      const heartbeat = setInterval(() => {
+        send('heartbeat', { ts: Date.now() });
+      }, 25_000);
+      
+      // Cleanup on close
+      req.signal.addEventListener('abort', () => {
+        unsubscribe();
+        clearInterval(heartbeat);
+        controller.close();
+      });
+    },
+  });
+  
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',  // Prevents nginx from buffering SSE
+    },
+  });
+}
+```
+
+The `channelBus` is an in-process pub/sub using Node.js `EventEmitter`. When a message is sent to a channel, the POST handler emits to the bus, and the bus notifies all connected SSE streams for that channel.
+
+This is a single-server design — it works because all SSE connections for a channel are on the same process. Scaling past a single server requires replacing the in-process bus with a distributed bus (Redis pub/sub is the standard choice).
+
+## The reconnection and replay
+
+The SSE spec handles reconnection automatically. When the connection drops, the browser reopens it after a configurable delay and sends the last event ID:
+
+```ts
+// Client-side
+const eventSource = new EventSource(`/api/channels/${channelId}/stream`);
+
+eventSource.addEventListener('message', (e) => {
+  const event = JSON.parse(e.data);
+  dispatch(event);
+});
+
+// EventSource auto-reconnects and sends Last-Event-ID header
+// Our server uses this to replay missed events:
+```
+
+```ts
+// In the GET handler, before subscribing to the bus
+const lastEventId = req.headers.get('Last-Event-ID');
+if (lastEventId) {
+  const missedEvents = await getEventsSince(channelId, lastEventId);
+  for (const event of missedEvents) {
+    send(event.type, event.payload);
+  }
+}
+```
+
+This replay mechanism ensures users don't miss messages during a reconnect. The `getEventsSince` query runs against a persistent event log in the database — messages are always persisted before being published to the bus.
+
+## When to revisit
+
+SSE doesn't handle presence well at scale. Online/offline state requires frequent heartbeat polling from the client (we poll every 30 seconds). At thousands of concurrent users, these heartbeat requests become load — WebSockets handle presence more efficiently because the connection itself is the heartbeat.
+
+If The Hyve reaches a scale where presence latency or heartbeat load is a problem, WebSockets become the right answer. At current scale, SSE is simpler to reason about, simpler to deploy, and simpler to debug. The trade-off is clear: we accept slightly less efficient presence in exchange for operational simplicity.
+
+The right protocol is the one that's appropriate for your current scale and infrastructure. Optimising the real-time protocol before reaching the scale where it matters is premature.
