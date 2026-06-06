@@ -144,6 +144,38 @@ export default function VenturesPage() {
                   ))}
                 </div>
 
+                {/* Latency sparkline */}
+                <div className="flex items-end gap-0.5 mb-3">
+                  {v.latencyBars.split('').map((bar, i) => (
+                    <span
+                      key={i}
+                      className="font-mono text-[10px] leading-none"
+                      style={{ color: `${v.accent}${i % 3 === 0 ? 'bb' : '44'}` }}
+                    >
+                      {bar}
+                    </span>
+                  ))}
+                  <span className="font-mono text-[8px] ml-1.5 self-center" style={{ color: `${v.accent}55` }}>p50</span>
+                </div>
+
+                {/* Tech stack chips */}
+                <div className="flex flex-wrap gap-1 mb-4">
+                  {v.techStack.slice(0, 4).map((tech) => (
+                    <span
+                      key={tech}
+                      className="font-mono text-[8px] px-1.5 py-0.5 uppercase tracking-wider"
+                      style={{
+                        background: `${v.accent}0d`,
+                        border: `1px solid ${v.accent}1a`,
+                        color: `${v.accent}88`,
+                        borderRadius: '2px',
+                      }}
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+
                 {/* CTAs */}
                 <div className="flex items-center gap-3">
                   {v.url && (
