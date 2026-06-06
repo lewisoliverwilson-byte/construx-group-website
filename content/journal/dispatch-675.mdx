@@ -1,0 +1,168 @@
+---
+title: "Vitest: fast unit testing for Vite-based projects"
+date: "2030-06-30"
+excerpt: "Vitest is a Vite-native test runner with a Jest-compatible API. It reuses your Vite config — same transforms, same aliases, same TypeScript setup — so tests run in the same environment as your source code with no separate configuration. Watch mode is near-instant via Vite's hot module replacement. Coverage with V8 or Istanbul. Snapshot testing, mocking, and browser mode for component tests."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Jest requires its own transform pipeline — Babel or ts-jest — that runs separately from your application's build. In a Vite project this means maintaining two transform setups. Vitest shares the Vite config, so TypeScript paths, CSS modules, and env vars work in tests exactly as they do in the browser.
+
+## Setup
+
+```bash
+npm install -D vitest @vitest/coverage-v8
+```
+
+```ts
+// vite.config.ts — add test config
+import { defineConfig } from 'vite';
+import react            from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment:  'jsdom',        // browser-like environment
+    globals:      true,           // no need to import describe/test/expect
+    setupFiles:   ['./src/test/setup.ts'],
+    coverage: {
+      provider:   'v8',
+      reporter:   ['text', 'html', 'lcov'],
+      thresholds: { lines: 80, functions: 80, branches: 70 },
+    },
+  },
+});
+```
+
+## Writing tests
+
+```ts
+// src/lib/format.test.ts
+import { describe, test, expect } from 'vitest';
+import { formatCurrency, formatDate, slugify } from './format';
+
+describe('formatCurrency', () => {
+  test('formats GBP', () => {
+    expect(formatCurrency(4900, 'gbp')).toBe('£49.00');
+  });
+
+  test('formats USD', () => {
+    expect(formatCurrency(1099, 'usd')).toBe('$10.99');
+  });
+
+  test('handles zero', () => {
+    expect(formatCurrency(0, 'gbp')).toBe('£0.00');
+  });
+});
+
+describe('slugify', () => {
+  test.each([
+    ['Hello World', 'hello-world'],
+    ['React + TypeScript', 'react-typescript'],
+    ['  trim me  ',  'trim-me'],
+  ])('%s → %s', (input, expected) => {
+    expect(slugify(input)).toBe(expected);
+  });
+});
+```
+
+## Mocking
+
+```ts
+import { vi, test, expect, beforeEach } from 'vitest';
+import { sendEmail }                    from './email';
+import { UserService }                  from './user-service';
+
+// Mock a module
+vi.mock('./email', () => ({
+  sendEmail: vi.fn().mockResolvedValue({ id: 'msg_123' }),
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+test('sends welcome email on user creation', async () => {
+  const service = new UserService();
+  await service.createUser({ email: 'lewis@construxgroup.io', name: 'Lewis' });
+
+  expect(sendEmail).toHaveBeenCalledOnce();
+  expect(sendEmail).toHaveBeenCalledWith(
+    expect.objectContaining({ to: 'lewis@construxgroup.io' }),
+  );
+});
+
+// Spy on a method
+const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+// ... test that triggers the error ...
+expect(spy).toHaveBeenCalled();
+spy.mockRestore();
+```
+
+## Testing React components
+
+```bash
+npm install -D @testing-library/react @testing-library/user-event @testing-library/jest-dom
+```
+
+```ts
+// src/test/setup.ts
+import '@testing-library/jest-dom';
+```
+
+```tsx
+// src/components/Button.test.tsx
+import { render, screen } from '@testing-library/react';
+import userEvent           from '@testing-library/user-event';
+import { Button }         from './Button';
+
+test('calls onClick when clicked', async () => {
+  const onClick = vi.fn();
+  render(<Button onClick={onClick}>Click me</Button>);
+
+  await userEvent.click(screen.getByRole('button', { name: 'Click me' }));
+  expect(onClick).toHaveBeenCalledOnce();
+});
+
+test('shows loading state', () => {
+  render(<Button isLoading>Loading</Button>);
+  expect(screen.getByRole('button')).toBeDisabled();
+  expect(screen.getByText('Loading…')).toBeInTheDocument();
+});
+```
+
+## CLI usage
+
+```bash
+# Run all tests once
+npx vitest run
+
+# Watch mode (default in dev)
+npx vitest
+
+# Run tests matching a pattern
+npx vitest run src/lib/format
+
+# Coverage report
+npx vitest run --coverage
+
+# UI mode (browser-based test explorer)
+npx vitest --ui
+```
+
+## package.json scripts
+
+```json
+{
+  "scripts": {
+    "test":       "vitest run",
+    "test:watch": "vitest",
+    "test:ui":    "vitest --ui",
+    "coverage":   "vitest run --coverage"
+  }
+}
+```
+
+## Vitest vs Jest
+
+Vitest: fast, Vite-native, Jest-compatible API. Zero-config for Vite projects. Watch mode via HMR is near-instant. Jest: more mature, works without Vite, larger plugin ecosystem, required for non-Vite projects. If you're using Vite, use Vitest. If you're using Create React App, Next.js without Vite, or Node.js, Jest is the standard. The APIs are almost identical — switching is a matter of updating the config, not rewriting tests.
