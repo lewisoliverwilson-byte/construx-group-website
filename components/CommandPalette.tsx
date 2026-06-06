@@ -30,6 +30,8 @@ const NAV_ITEMS: NavItem[] = [
   { type: 'nav', label: 'Manifesto', path: '/manifesto', shortcut: 'g+m' },
   { type: 'nav', label: 'Founders', path: '/founders', shortcut: 'g+f' },
   { type: 'nav', label: 'Work With Us', path: '/work-with-us', shortcut: 'g+w' },
+  { type: 'nav', label: 'Uses', path: '/uses', shortcut: 'g+u' },
+  { type: 'nav', label: 'Stats', path: '/stats', shortcut: 'g+s' },
 ];
 
 const TAG_COLORS: Record<string, string> = {

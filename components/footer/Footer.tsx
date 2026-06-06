@@ -9,6 +9,7 @@ const navLinks = [
   { href: '/founders', label: 'Founders' },
   { href: '/work-with-us', label: 'Work With Us' },
   { href: '/journal', label: 'Journal' },
+  { href: '/uses', label: 'Uses' },
   { href: '/contact', label: 'Contact' },
 ];
 

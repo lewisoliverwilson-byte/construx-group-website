@@ -15,6 +15,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/work-with-us`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
     { url: `${BASE_URL}/journal`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
     { url: `${BASE_URL}/contact`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.6 },
+    { url: `${BASE_URL}/uses`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.65 },
+    { url: `${BASE_URL}/stats`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.5 },
   ];
 
   const ventureRoutes: MetadataRoute.Sitemap = ventures.map((v) => ({

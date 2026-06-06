@@ -1,0 +1,217 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Uses',
+  description: 'The tools, services, and stack behind Construx Group and its ventures.',
+  alternates: { canonical: 'https://construxgroup.io/uses' },
+};
+
+interface UseItem {
+  name: string;
+  description: string;
+  url?: string;
+  tag?: string;
+}
+
+interface UseSection {
+  id: string;
+  label: string;
+  items: UseItem[];
+}
+
+const sections: UseSection[] = [
+  {
+    id: 'ai',
+    label: 'AI',
+    items: [
+      { name: 'Claude (Anthropic)', description: 'Primary model for all product AI features — Sonnet 4.6 for latency-sensitive calls, Opus for complex reasoning tasks.', url: 'https://anthropic.com', tag: 'Core' },
+      { name: 'Claude Code', description: 'CLI-based AI coding assistant. The entire Construx Group stack was built with Claude Code.', tag: 'Core' },
+      { name: 'Claude Projects', description: 'Used for persistent-context work sessions and for The Marqet product (which sells Claude configurations for Projects).', tag: 'Core' },
+    ],
+  },
+  {
+    id: 'stack',
+    label: 'Stack',
+    items: [
+      { name: 'Next.js 15', description: 'App Router with React Server Components. Used for all three products and this site.', url: 'https://nextjs.org', tag: 'Framework' },
+      { name: 'React 19', description: 'Server and client components, concurrent features.', tag: 'Framework' },
+      { name: 'TypeScript', description: 'Strict mode. Non-negotiable for production code.', tag: 'Language' },
+      { name: 'Tailwind CSS 3', description: 'Utility-first styling. No component library — we write our own components.', url: 'https://tailwindcss.com', tag: 'Styling' },
+      { name: 'PostgreSQL + pgvector', description: 'Database for The Hyve. pgvector extension for vector embeddings alongside relational data.', tag: 'Database' },
+      { name: 'Three.js + React Three Fiber', description: 'The solar system hero on this site. R3F wraps Three.js in a declarative React API.', tag: '3D' },
+      { name: 'MDX + next-mdx-remote', description: 'Content format for the journal. Posts are MDX files in the repo, rendered server-side.', tag: 'Content' },
+    ],
+  },
+  {
+    id: 'infrastructure',
+    label: 'Infrastructure',
+    items: [
+      { name: 'AWS Amplify', description: 'Hosting for all three products and this site. Auto-deploys from GitHub master on every push.', url: 'https://aws.amazon.com/amplify', tag: 'Hosting' },
+      { name: 'GitHub', description: 'Source control. One repo per product. Master branch is always deployable.', url: 'https://github.com', tag: 'Source Control' },
+      { name: 'Railway', description: 'The Hyve\'s real-time backend (WebSocket server, background jobs). Persistent services alongside Amplify\'s serverless functions.', url: 'https://railway.app', tag: 'Backend' },
+      { name: 'Resend', description: 'Transactional email. Used for contact form emails and product notifications.', url: 'https://resend.com', tag: 'Email' },
+    ],
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    items: [
+      { name: 'PostHog', description: 'Product analytics across all products. Events, funnels, session recordings. Self-hosted option makes GDPR straightforward.', url: 'https://posthog.com', tag: 'Analytics' },
+    ],
+  },
+  {
+    id: 'tools',
+    label: 'Tools',
+    items: [
+      { name: 'VS Code', description: 'Primary editor. With Claude Code extension for AI-assisted development.', url: 'https://code.visualstudio.com', tag: 'Editor' },
+      { name: 'Figma', description: 'Design when we use it — mostly for venture brand assets. The site was designed in code.', url: 'https://figma.com', tag: 'Design' },
+      { name: 'Linear', description: 'Issue tracking for The Hyve development. For smaller projects we use The Hyve\'s own kanban boards.', url: 'https://linear.app', tag: 'Project Management' },
+      { name: 'Notion', description: 'Documentation, meeting notes, decision records that predate The Hyve.', url: 'https://notion.so', tag: 'Docs' },
+    ],
+  },
+  {
+    id: 'hardware',
+    label: 'Hardware',
+    items: [
+      { name: 'MacBook Pro M3 Pro', description: 'Primary development machine. The M3 Pro handles Three.js development without fans. 18GB unified memory.', tag: 'Primary' },
+      { name: 'Dell U2722D', description: '27" 4K monitor. The extra resolution matters for reading dense code.', tag: 'Display' },
+      { name: 'Keychron Q1 Pro', description: 'Wireless mechanical keyboard. QMK firmware, Gateron G Pro switches.', tag: 'Input' },
+    ],
+  },
+];
+
+const TAG_COLORS: Record<string, string> = {
+  Core: 'rgba(249,115,22,0.15)',
+  Framework: 'rgba(59,130,246,0.12)',
+  Language: 'rgba(168,85,247,0.12)',
+  Styling: 'rgba(20,184,166,0.12)',
+  Database: 'rgba(234,179,8,0.12)',
+  '3D': 'rgba(249,115,22,0.12)',
+  Content: 'rgba(34,197,94,0.12)',
+  Hosting: 'rgba(249,115,22,0.12)',
+  'Source Control': 'rgba(240,239,255,0.06)',
+  Backend: 'rgba(59,130,246,0.12)',
+  Email: 'rgba(240,239,255,0.06)',
+  Analytics: 'rgba(168,85,247,0.12)',
+  Editor: 'rgba(59,130,246,0.12)',
+  Design: 'rgba(20,184,166,0.12)',
+  'Project Management': 'rgba(234,179,8,0.12)',
+  Docs: 'rgba(240,239,255,0.06)',
+  Primary: 'rgba(240,239,255,0.06)',
+  Display: 'rgba(240,239,255,0.06)',
+  Input: 'rgba(240,239,255,0.06)',
+};
+
+export default function UsesPage() {
+  return (
+    <div className="min-h-screen">
+      {/* Hero */}
+      <section className="relative pt-36 pb-12 px-5 grid-bg overflow-hidden">
+        <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
+        <div className="relative mx-auto max-w-3xl">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 font-mono text-[9px] text-text-dim hover:text-text-muted transition-colors mb-8 group uppercase tracking-widest"
+          >
+            <ArrowLeft size={11} className="group-hover:-translate-x-0.5 transition-transform" />
+            // HOME
+          </Link>
+          <p className="font-mono text-[9px] text-construx uppercase tracking-[0.25em] mb-3">// STACK + TOOLS</p>
+          <h1 className="text-display-sm text-text-base mb-4 leading-tight">What we use</h1>
+          <p className="text-text-muted leading-relaxed text-base max-w-2xl">
+            The tools, services, and hardware behind Construx Group and its ventures.
+            Last updated June 2026.
+          </p>
+        </div>
+      </section>
+
+      {/* Content */}
+      <div className="px-5 py-16 mx-auto max-w-3xl">
+        {/* Section nav */}
+        <div className="flex flex-wrap gap-2 mb-12">
+          {sections.map((s) => (
+            <a
+              key={s.id}
+              href={`#${s.id}`}
+              className="font-mono text-[10px] uppercase tracking-widest px-3 py-1.5 transition-colors"
+              style={{
+                background: 'rgba(5,5,18,0.8)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '2px',
+                color: 'rgba(240,239,255,0.45)',
+              }}
+            >
+              {s.label}
+            </a>
+          ))}
+        </div>
+
+        <div className="space-y-16">
+          {sections.map((section) => (
+            <section key={section.id} id={section.id} className="scroll-mt-24">
+              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.25em] text-construx/70 mb-5 flex items-center gap-3">
+                <span>// {section.label.toUpperCase()}</span>
+                <span className="flex-1 h-px" style={{ background: 'rgba(249,115,22,0.15)' }} />
+              </h2>
+              <div className="space-y-3">
+                {section.items.map((item) => (
+                  <div
+                    key={item.name}
+                    className="flex items-start gap-4 px-5 py-4 group"
+                    style={{
+                      background: 'rgba(5,5,18,0.5)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '3px',
+                    }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+                        {item.url ? (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-sm font-semibold text-text-base hover:text-construx transition-colors"
+                          >
+                            {item.name}
+                            <ExternalLink size={11} className="opacity-30 group-hover:opacity-60 transition-opacity" />
+                          </a>
+                        ) : (
+                          <span className="text-sm font-semibold text-text-base">{item.name}</span>
+                        )}
+                        {item.tag && (
+                          <span
+                            className="font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5"
+                            style={{
+                              background: TAG_COLORS[item.tag] ?? 'rgba(255,255,255,0.06)',
+                              color: 'rgba(240,239,255,0.4)',
+                              borderRadius: '2px',
+                            }}
+                          >
+                            {item.tag}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-text-muted leading-relaxed">{item.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <div className="mt-16 pt-8 border-t border-border">
+          <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">
+            Build something with a similar stack?{' '}
+            <Link href="/work-with-us" className="text-construx hover:text-orange-400 transition-colors">
+              Talk to us →
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

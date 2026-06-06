@@ -9,6 +9,8 @@ const ROUTES: Record<string, string> = {
   m: '/manifesto',
   w: '/work-with-us',
   f: '/founders',
+  u: '/uses',
+  s: '/stats',
   h: '/',
 };
 
@@ -18,6 +20,8 @@ const LABELS: Record<string, string> = {
   m: 'Manifesto',
   w: 'Work with us',
   f: 'Founders',
+  u: 'Uses',
+  s: 'Stats',
   h: 'Home',
 };
 
