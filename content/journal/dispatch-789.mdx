@@ -1,0 +1,167 @@
+---
+title: "Vitest: unit testing that feels like writing code"
+date: "2031-06-07"
+excerpt: "Vitest is a Vite-powered test runner that uses the same transform pipeline as your application — no separate Babel config, no CommonJS/ESM bridging, no mocking gymnastics for ESM imports. Tests run in parallel with hot reload. The API is Jest-compatible so migration is usually find-and-replace. For TypeScript projects using Vite or any modern bundler, Vitest is the fastest path from zero to a reliable test suite."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Same config as your app. No separate transform pipeline. Tests that actually run fast.
+
+## Install
+
+```bash
+bun add -D vitest @vitest/coverage-v8 happy-dom
+```
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment:  'happy-dom',  // DOM APIs in tests — no jsdom config
+    coverage: {
+      provider:   'v8',
+      reporter:   ['text', 'json', 'html'],
+      thresholds: { statements: 80, branches: 75, functions: 80 },
+    },
+    setupFiles:   ['./tests/setup.ts'],
+    globals:      true,
+  },
+});
+```
+
+## Writing tests
+
+```ts
+// lib/pricing.test.ts
+import { describe, it, expect, vi } from 'vitest';
+import { calculateDiscount, applyPromoCode } from './pricing';
+
+describe('calculateDiscount', () => {
+  it('applies percentage discount correctly', () => {
+    expect(calculateDiscount(100, 0.2)).toBe(80);
+    expect(calculateDiscount(49.99, 0.1)).toBeCloseTo(44.99, 2);
+  });
+
+  it('throws when discount exceeds 1', () => {
+    expect(() => calculateDiscount(100, 1.5)).toThrow('Discount cannot exceed 100%');
+  });
+});
+
+describe('applyPromoCode', () => {
+  it('returns null for unknown codes', () => {
+    expect(applyPromoCode('INVALID_CODE')).toBeNull();
+  });
+
+  it('returns correct discount for valid code', () => {
+    const result = applyPromoCode('LAUNCH20');
+    expect(result).toMatchObject({ discount: 0.2, type: 'percentage' });
+  });
+});
+```
+
+## Mocking
+
+```ts
+import { vi, it, expect, beforeEach } from 'vitest';
+import { sendWelcomeEmail } from './emails';
+import { resend } from './lib/resend';
+
+vi.mock('./lib/resend', () => ({
+  resend: { emails: { send: vi.fn() } },
+}));
+
+beforeEach(() => vi.clearAllMocks());
+
+it('sends welcome email with correct template', async () => {
+  await sendWelcomeEmail({ email: 'test@construxgroup.io', name: 'Lewis' });
+
+  expect(resend.emails.send).toHaveBeenCalledWith(
+    expect.objectContaining({
+      to:      'test@construxgroup.io',
+      subject: expect.stringContaining('Welcome'),
+    }),
+  );
+});
+
+// Mock a module with partial implementation
+vi.mock('./lib/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lib/db')>();
+  return {
+    ...actual,
+    db: {
+      users: {
+        findUnique: vi.fn().mockResolvedValue({ id: '1', email: 'test@example.com' }),
+      },
+    },
+  };
+});
+```
+
+## Snapshot testing
+
+```ts
+it('formats invoice correctly', () => {
+  const invoice = formatInvoice({
+    id:       'INV-001',
+    amount:   4999,
+    currency: 'GBP',
+    items:    [{ name: 'Pro plan', quantity: 1, unitPrice: 4999 }],
+  });
+
+  expect(invoice).toMatchInlineSnapshot(`
+    {
+      "id": "INV-001",
+      "total": "£49.99",
+      "items": [
+        {
+          "name": "Pro plan",
+          "subtotal": "£49.99",
+        },
+      ],
+    }
+  `);
+  // Update with: vitest --update-snapshots
+});
+```
+
+## Testing async code
+
+```ts
+import { it, expect, vi } from 'vitest';
+import { getUserWithRetry } from './users';
+
+it('retries on network failure', async () => {
+  const mockFetch = vi.fn()
+    .mockRejectedValueOnce(new Error('Network timeout'))
+    .mockRejectedValueOnce(new Error('Network timeout'))
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ id: '1' }) });
+
+  vi.stubGlobal('fetch', mockFetch);
+
+  const user = await getUserWithRetry('1');
+  expect(user).toEqual({ id: '1' });
+  expect(mockFetch).toHaveBeenCalledTimes(3);
+
+  vi.unstubAllGlobals();
+});
+```
+
+## Watch mode and CI
+
+```json
+{
+  "scripts": {
+    "test":       "vitest run",
+    "test:watch": "vitest",
+    "test:ui":    "vitest --ui",
+    "coverage":   "vitest run --coverage"
+  }
+}
+```
+
+`vitest --ui` opens a browser-based test dashboard — click through failing tests, see coverage overlaid on source files.
+
+Vitest vs Jest: Vitest is 3-5x faster for ESM TypeScript projects, requires no Babel config, and supports `import.meta.env` natively. Jest has broader ecosystem support (more community mocks, more CI integrations). Migration is almost always just find-and-replace `jest` → `vitest` in imports. The Construx default: Vitest for all new projects; Jest only on legacy projects we haven't migrated.

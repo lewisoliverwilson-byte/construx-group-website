@@ -1,0 +1,114 @@
+---
+title: "TLS certificates and openssl: what the handshake actually does"
+date: "2031-06-04"
+excerpt: "Every HTTPS connection starts with a TLS handshake that negotiates the cipher suite, verifies the server's certificate chain, and derives session keys. Most developers treat this as a black box. Understanding what openssl s_client and x509 output actually means — the subject, issuer, SANs, validity, and cipher suite — makes debugging certificate errors and expiry monitoring straightforward instead of mysterious."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The TLS handshake is not a black box. Here is what it does.
+
+## Inspect a live certificate
+
+```bash
+# Connect and dump the certificate text
+openssl s_client -connect construxgroup.io:443 -servername construxgroup.io 2>/dev/null \
+  | openssl x509 -noout -text
+
+# Just the key fields
+openssl s_client -connect construxgroup.io:443 -servername construxgroup.io 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -dates -fingerprint -sha256
+
+# Output:
+# subject=CN=construxgroup.io, O=Construx Group Ltd, C=GB
+# issuer=CN=Let's Encrypt R11, O=Let's Encrypt, C=US
+# notBefore=Mar 12 00:00:00 2031 GMT
+# notAfter=Jun 10 23:59:59 2031 GMT
+# SHA256 Fingerprint=xK:9m:2N:qr:...
+```
+
+## Subject Alternative Names
+
+```bash
+openssl s_client -connect construxgroup.io:443 2>/dev/null \
+  | openssl x509 -noout -ext subjectAltName
+
+# X509v3 Subject Alternative Name:
+#   DNS:construxgroup.io, DNS:www.construxgroup.io,
+#   DNS:api.construxgroup.io, DNS:assets.construxgroup.io
+```
+
+The CN alone used to be enough. Modern browsers require the hostname to match a SAN entry. The CN is ignored for hostname validation in all current browsers.
+
+## Check days remaining
+
+```bash
+#!/bin/bash
+# cert-check.sh — run in cron, alert if < 30 days
+DOMAIN="construxgroup.io"
+EXPIRY=$(openssl s_client -connect $DOMAIN:443 -servername $DOMAIN 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | cut -d= -f2)
+
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || date -j -f "%b %d %H:%M:%S %Y %Z" "$EXPIRY" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+echo "$DOMAIN: $DAYS days remaining"
+if [ "$DAYS" -lt 30 ]; then
+  echo "WARNING: cert expires in $DAYS days" >&2
+  # Send Slack alert here
+fi
+```
+
+## Verify the full chain
+
+```bash
+openssl s_client -connect construxgroup.io:443 -servername construxgroup.io -showcerts 2>/dev/null
+
+# Shows:
+# Certificate chain
+#  0 s:CN=construxgroup.io
+#    i:CN=Let's Encrypt R11
+#  1 s:CN=Let's Encrypt R11
+#    i:CN=ISRG Root X1
+#  2 s:CN=ISRG Root X1
+#    i:CN=ISRG Root X1  ← self-signed root
+```
+
+A valid chain goes: leaf cert → intermediate CA → root CA (in system trust store).
+
+## What the handshake negotiates
+
+```bash
+openssl s_client -connect construxgroup.io:443 -servername construxgroup.io 2>/dev/null \
+  | grep -E 'Protocol|Cipher|Session-ID'
+
+# Protocol  : TLSv1.3
+# Cipher    : TLS_AES_256_GCM_SHA384
+# Session-ID: 3f2a...
+
+# TLS 1.3 cipher suites are fixed — the "cipher suite" for 1.3 is just the AEAD.
+# Key exchange (X25519) is negotiated separately via the supported_groups extension.
+```
+
+## Certificate transparency
+
+```bash
+# Check CT logs — Let's Encrypt logs all certs
+curl -s "https://crt.sh/?q=construxgroup.io&output=json" | jq '[.[] | {id,not_before,not_after,name_value}] | .[0:5]'
+```
+
+CT logs are public. Every cert issued for your domain is logged permanently. Useful for detecting unauthorized certificates (certificate mis-issuance) and for auditing your own chain.
+
+## Let's Encrypt automation with Caddy
+
+```caddyfile
+construxgroup.io {
+  # Caddy fetches and renews Let's Encrypt certs automatically
+  # No certbot, no cron job, no manual renewal
+  reverse_proxy localhost:3000
+}
+```
+
+Caddy renews 30 days before expiry using the ACME protocol. The cert rotation is zero-downtime — no server restart needed. The Construx default: Caddy for cert automation wherever we control the server; Cloudflare-managed certs for assets behind the CDN.
