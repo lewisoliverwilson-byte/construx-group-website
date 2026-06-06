@@ -9,6 +9,7 @@ import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
 import SshConfigPanel from '@/components/SshConfigPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import EnvPanel from '@/components/EnvPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -356,8 +357,13 @@ export default function UsesPage() {
         </div>
 
         {/* Git global config */}
-        <div className="mt-6">
+        <div className="mt-6 pb-6">
           <GitConfigPanel />
+        </div>
+
+        {/* Environment variables */}
+        <div className="mt-6 pb-10">
+          <EnvPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -1,0 +1,85 @@
+---
+title: "Cursor: AI-native code editor built on VS Code"
+date: "2030-06-21"
+excerpt: "Cursor is a VS Code fork with AI built into the core editing experience. Tab completion predicts multi-line edits across files. Cmd+K edits selected code with a natural language instruction. Chat understands your entire codebase — symbols, file contents, git history. Composer makes multi-file changes from a single prompt. It's the same editor, with AI as a first-class input method."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+VS Code with GitHub Copilot is autocomplete added on top. Cursor integrates AI into the editing model itself — the editor understands that you're making a change, not just completing a word. The difference is most visible in Tab completion, which predicts your next edit rather than your next token.
+
+## Tab completion
+
+Cursor's Tab completion is predictive, not generative. It watches your last few edits and predicts the next one — renaming a variable across several usages, completing a destructuring pattern, filling in the next argument in a series. Accept with Tab; reject with Escape. It's fast enough to keep up with typing.
+
+## Cmd+K: inline edit
+
+```
+Select a function → Cmd+K → "add error handling with zod validation"
+```
+
+Cursor generates a diff, shows it inline, accepts or rejects. Works on:
+- Selected code: rewrites the selection
+- New code: generates from a prompt at the cursor position
+- Terminal: `Cmd+K` in the terminal generates a shell command from a description
+
+## Chat: codebase-aware Q&A
+
+Chat has access to your codebase via `@` mentions:
+
+- `@file` — include a specific file
+- `@symbol` — reference a function or class by name
+- `@web` — search the web and include results
+- `@docs` — search indexed documentation
+- `@git` — reference recent commits or diffs
+
+```
+@auth.ts @middleware.ts How does the session token reach the API route?
+```
+
+Chat traces through the code and explains the flow — no need to navigate manually.
+
+## Composer: multi-file changes
+
+Composer generates changes across multiple files from a single prompt. Use it for:
+
+- Adding a new API route with its handler, types, and tests
+- Refactoring a pattern consistently across the codebase
+- Scaffolding a new feature from scratch
+
+```
+Create a /api/invitations route that sends an email via Resend,
+stores the invite in the invitations table with a 7-day expiry,
+and adds the InviteButton component to the team settings page.
+```
+
+Composer shows the changes across all affected files before applying. Review and accept individually or all at once.
+
+## .cursorrules: project-specific context
+
+```
+// .cursorrules (project root)
+You are working on Construx Group's main website.
+
+Stack: Next.js 15 App Router, React 19, TypeScript strict, Tailwind CSS 3.
+Database: Neon Postgres with Drizzle ORM.
+Auth: Lucia Auth, session-based.
+
+Conventions:
+- All API routes in app/api/[route]/route.ts
+- Zod validation on all request bodies
+- Drizzle for all DB queries — no raw SQL
+- Server Components by default; 'use client' only when state/events required
+- No default exports from utility files
+
+When generating code:
+- Add error handling on all async operations
+- Validate at API boundaries with Zod
+- Use TypeScript strict — no 'any' types
+```
+
+`.cursorrules` is included as system context in every AI call. It constrains the model to your patterns and avoids having to correct the same things repeatedly.
+
+## Cursor vs GitHub Copilot vs Windsurf
+
+Copilot: mature, integrates into any VS Code, JetBrains, Neovim. Best for autocomplete. Cursor: VS Code fork with deeper AI integration — Tab, Composer, and Chat are more capable than Copilot's equivalents. Windsurf: JetBrains-based AI editor, better IDE integrations for Java/Kotlin/Spring work. For TypeScript and React development, Cursor is the current productivity ceiling. The `.cursorrules` system makes it practical to maintain conventions at scale.
