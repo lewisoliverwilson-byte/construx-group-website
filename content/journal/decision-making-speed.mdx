@@ -1,0 +1,69 @@
+---
+title: "Decision-making speed as a competitive advantage"
+date: "2026-08-23"
+excerpt: "Small teams can move faster than large ones on individual decisions. Here's how we structure decision-making to take advantage of that — and where we're still too slow."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+The primary advantage a two-person team has over a fifty-person team is decision velocity. A large organisation's decisions travel through layers of approval, coordination, and review. Ours don't.
+
+This advantage is theoretical unless you actively structure for it. Here's how.
+
+## The anatomy of a slow decision
+
+Most decisions are slow not because of the actual deliberation time but because of:
+
+1. **The meeting dependency**: the decision can't be made until both people are in the same call. The next available time is Tuesday. It's Saturday.
+
+2. **The approval chain**: the decision needs sign-off from someone who's focused on something else. They'll get to it eventually.
+
+3. **The information gathering pause**: the decision requires data that's not immediately available. Someone needs to pull the analytics, wait for a query, compile a report.
+
+4. **The risk aversion loop**: neither person wants to make the call alone and be wrong. So both defer.
+
+All four of these are structural problems, not intellectual ones. The decision itself might be easy once the structure allows it to happen.
+
+## The decisions we make unilaterally
+
+For operational decisions — features to prioritise, copy to update, bugs to fix, infrastructure to configure — either of us can and should make the call unilaterally.
+
+The rule: if a decision is reversible (and almost all operational decisions are reversible), make it. Don't wait for consensus. Document it briefly in Linear or a shared note, inform the other person asynchronously, move forward.
+
+If the decision turns out to be wrong, we adjust. The cost of a wrong reversible decision is a few hours of rework. The cost of a slow decision is delay — and delay compounds across many decisions.
+
+## The decisions we make together
+
+Some decisions warrant joint deliberation:
+- Major product direction changes (adding or removing product lines)
+- Significant financial commitments (infrastructure changes above some threshold)
+- Hiring or partnership decisions
+- Anything that materially affects both products and can't be easily reversed
+
+For these, we set a specific time to discuss, we come prepared with a clear framing of the decision and options, and we aim to decide in a single conversation. Not "let's keep thinking about this" — actual resolution.
+
+## The two-way vs. one-way door framework
+
+Jeff Bezos's two-way door / one-way door distinction is useful for calibrating decision speed.
+
+Two-way doors: reversible decisions. Make them fast and at the lowest appropriate level.
+
+One-way doors: irreversible or hard-to-reverse decisions. Take more time, involve more deliberation.
+
+The practical problem: people treat two-way door decisions as one-way doors, adding friction to decisions that don't need it. Pricing changes, feature rollouts, content decisions — these are almost all two-way doors. Change them, see what happens, adjust.
+
+One-way doors are rarer than people think: signing a long-term contract, a public commitment that's hard to walk back, a product pivot that requires rebuilding significant infrastructure. These warrant the heavier process.
+
+## Where we're still too slow
+
+We're more systematic at product decisions than at operational decisions. When something goes wrong in infrastructure or operations, we sometimes default to "let's discuss" when one person should just fix it.
+
+We also sometimes over-deliberate on decisions that have clearly correct answers if we just look at the data. "Should we fix the eBay fee calculation?" — this is not a deliberation, it's a bug. The fact that we discuss it at all is a sign that we haven't internalized "just fix the bug" as the default.
+
+The goal is to reserve deliberation energy for decisions that genuinely benefit from it, and to make the rest of the decisions fast enough that they don't create drag on everything else.
+
+## Decision documentation
+
+One practice that's helped: when we make a significant decision, we write a single sentence about it in a shared running log. Not a formal document — just "decided to delay Scoutr API release to Q4, reason: need to ship professional tier first" in a running notes file.
+
+This serves two purposes: the act of writing clarifies the reasoning, and the log creates a reference for "why did we decide this?" that doesn't rely on either person's memory. When a decision is revisited later, the log shows the reasoning at the time.

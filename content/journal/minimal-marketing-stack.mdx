@@ -1,0 +1,62 @@
+---
+title: "The minimal marketing stack for a two-person product company"
+date: "2026-08-24"
+excerpt: "Marketing for B2B SaaS without a marketing team. Here's the tooling we use, how we use it, and what we've stopped doing because it wasn't worth the effort."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Marketing stacks accumulate. A CRM here, an email marketing tool there, an advertising platform, a retargeting pixel, a social media scheduler. Most of this is overhead for a small product company without a dedicated marketing function.
+
+Here's what we actually use and why.
+
+## What we use
+
+**The journal** is the primary content channel. 98 dispatches, regularly published, covering product decisions, technical implementation, and business strategy. The journal drives organic search traffic, builds credibility with the audience we want to reach, and creates shareable content that finds its way into communities relevant to our products.
+
+The journal isn't marketing in the traditional sense — we're not optimising titles for clickthrough, we're not writing to a content calendar, we're not measuring "content ROI." We're writing honestly about what we're building. The distribution is organic. The marketing side effect is real but secondary to the actual purpose.
+
+**PostHog** for product analytics. Covered in a separate dispatch; the short version is that it tracks what matters (activation, retention, key events) without the overhead of a complex analytics stack.
+
+**Google Search Console** for search performance. Which queries bring users to which pages, how the pages rank, where there are gaps between user intent and our content. Free, accurate (Google's own data), and the most useful SEO tool for a small team.
+
+**Resend** for transactional email (and eventually, email newsletters). Covered in the email deliverability dispatch. We haven't started a newsletter yet; the infrastructure is in place when we do.
+
+**The products themselves** as distribution. The Marqet's listing pages create search traffic for AI use-case-specific queries. Scoutr's marketing pages explain the specific problem and the product's approach. Every page on every product is an organic distribution surface.
+
+## What we don't use
+
+**Paid advertising.** We don't run Google Ads, Facebook Ads, or any other paid acquisition. The decision: at our current stage, we don't know enough about the unit economics to run paid acquisition profitably. We'd rather invest in organic content and product quality and measure what converts before spending on acceleration.
+
+**An email newsletter.** We intend to build one eventually, but it's not running yet. The journal is already the primary content vehicle; adding a newsletter format would be redundant right now.
+
+**Social media scheduling tools.** We use social media (primarily LinkedIn for professional reach) but we don't schedule posts or maintain a formal content calendar. Posts happen when there's something worth sharing. This is low-volume and low-commitment.
+
+**A CRM.** We track leads manually in Linear. At our user count (hundreds across three products), a full CRM would be overhead without benefit. We know who our users are; we talk to the ones who contact us; we don't need a relationship database to manage these interactions.
+
+**Retargeting pixels.** We don't run retargeting campaigns. See paid advertising above.
+
+## The content strategy we practice
+
+The journal doubles as content strategy. Specific dispatches rank for specific search terms. The posts that drive the most organic search are the ones with specific, technical content — not the strategic essays.
+
+Examples:
+- "Amazon FBA fee calculation" → Scoutr-related posts rank for people searching this
+- "pgvector semantic search" → The Marqet search post finds developers building similar features
+- "AI workspace for teams" → The Hyve positioning content
+
+The strategy isn't to optimise posts for these keywords (we don't do keyword research before writing). The strategy is to write specifically about what we build, and specificity naturally creates alignment with what people search for.
+
+## The referral channel
+
+About 15-20% of Scoutr signups report hearing about the product from another reseller. This is word-of-mouth and it's the most efficient acquisition channel — zero cost, high intent, high trust.
+
+We haven't built a formal referral program. The organic referral rate is encouraging enough that we haven't felt the need to manufacture it. If and when organic referral growth slows, a formal program is the obvious next step.
+
+## Metrics we actually track for marketing
+
+We track acquisition source (how did you hear about us?) in the signup flow, post-signup. The data is imprecise (self-reported attribution is unreliable) but provides directional signal.
+
+We track organic search traffic and impressions in Google Search Console weekly. We track PostHog-attributed activation rates by cohort, which tells us whether the users arriving from a given channel are the right users (high activation = right user) or not (low activation = wrong user or poor onboarding match).
+
+We don't track cost per acquisition (we have no acquisition cost), customer lifetime value (too early), or marketing-attributed revenue. At our stage, these metrics would be noise.
