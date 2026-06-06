@@ -138,6 +138,11 @@ export default function WorkWithUsPage() {
                   construx.capabilities
                 </span>
               </div>
+              {/* Shell prompt */}
+              <div className="px-3 py-1.5 select-none" style={{ borderBottom: `1px solid ${accent}08`, background: 'rgba(255,255,255,0.01)' }}>
+                <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`construx capabilities --module=${title.toLowerCase().replace(/\s+/g, '-')}`}</span>
+              </div>
               <div className="p-5 flex flex-col gap-4 flex-1">
                 <div
                   className="h-9 w-9 flex items-center justify-center"
@@ -466,6 +471,11 @@ export default function WorkWithUsPage() {
                 <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: `${item.accent}60` }}>
                   construx.proof — {item.name.toLowerCase()}
                 </span>
+              </div>
+              {/* Shell prompt */}
+              <div className="px-3 py-1.5 select-none" style={{ borderBottom: `1px solid ${item.accent}08`, background: 'rgba(255,255,255,0.01)' }}>
+                <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`construx proof --venture=${item.name.toLowerCase().replace(/\s+/g, '-')}`}</span>
               </div>
               <div className="flex flex-col p-6 flex-1">
               <div className="flex items-center gap-3 mb-4">
