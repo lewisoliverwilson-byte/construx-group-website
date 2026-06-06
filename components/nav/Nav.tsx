@@ -20,10 +20,34 @@ interface Props {
   postCount?: number;
 }
 
+function useLiveClock() {
+  const [time, setTime] = useState('');
+
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    };
+    tick();
+    const id = setInterval(tick, 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return time;
+}
+
+function pathToShell(pathname: string): string {
+  if (pathname === '/') return '~';
+  // e.g. /journal/dispatch-123 → ~/journal/dispatch-123
+  return `~${pathname}`;
+}
+
 export default function Nav({ postCount }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  const time = useLiveClock();
+  const shellPath = pathToShell(pathname);
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 24);
@@ -54,7 +78,7 @@ export default function Nav({ postCount }: Props) {
           {/* Logo */}
           <Link
             href="/"
-            className="flex items-center gap-2.5 group"
+            className="flex items-center gap-2.5 group flex-shrink-0"
             aria-label="Construx Group home"
           >
             <div className="relative">
@@ -103,6 +127,44 @@ export default function Nav({ postCount }: Props) {
               );
             })}
           </nav>
+
+          {/* Desktop right: path + clock + status */}
+          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+            {/* Current path */}
+            <span
+              className="font-mono text-[9px] tabular-nums max-w-[160px] truncate"
+              style={{ color: 'rgba(249,115,22,0.4)' }}
+              title={shellPath}
+            >
+              {shellPath}
+            </span>
+
+            {/* Divider */}
+            <span style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+
+            {/* Live clock */}
+            {time && (
+              <span
+                className="font-mono text-[10px] tabular-nums"
+                style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em' }}
+              >
+                {time}
+              </span>
+            )}
+
+            {/* Status dot */}
+            <span className="flex items-center gap-1">
+              <span
+                className="inline-block rounded-full flex-shrink-0"
+                style={{
+                  width: '5px', height: '5px',
+                  background: '#28C840',
+                  boxShadow: '0 0 4px rgba(40,200,64,0.7)',
+                  animation: 'pulse 2.5s ease-in-out infinite',
+                }}
+              />
+            </span>
+          </div>
 
           {/* Mobile burger */}
           <button
@@ -164,12 +226,30 @@ export default function Nav({ postCount }: Props) {
               </div>
 
               <div className="mt-auto pt-6 border-t border-border">
+                {/* Path + time row */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-[9px] truncate max-w-[140px]" style={{ color: 'rgba(249,115,22,0.45)' }}>
+                    {shellPath}
+                  </span>
+                  {time && (
+                    <span className="font-mono text-[9px] tabular-nums" style={{ color: 'rgba(255,255,255,0.22)' }}>
+                      {time}
+                    </span>
+                  )}
+                </div>
                 <p className="font-mono text-[9px] text-text-dim tracking-[0.2em] uppercase">
                   // CONSTRUX.GROUP
                 </p>
                 <p className="font-mono text-[9px] text-text-dim mt-1.5 uppercase tracking-widest flex items-center gap-1.5">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-construx opacity-80" />
-                  AI.FRONTIER
+                  <span
+                    className="inline-block rounded-full"
+                    style={{
+                      width: '5px', height: '5px',
+                      background: '#28C840',
+                      boxShadow: '0 0 4px rgba(40,200,64,0.5)',
+                    }}
+                  />
+                  SYS:ONLINE
                 </p>
               </div>
             </motion.nav>
