@@ -15,6 +15,7 @@ import TcpdumpPanel from '@/components/TcpdumpPanel';
 import SarPanel from '@/components/SarPanel';
 import RedisCLIPanel from '@/components/RedisCLIPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
+import CargoPanel from '@/components/CargoPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -410,8 +411,13 @@ export default function StatsPage() {
       </div>
 
       {/* ClickHouse analytics query */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ClickhouseQueryPanel />
+      </div>
+
+      {/* Cargo release build */}
+      <div className="mt-6 pb-10">
+        <CargoPanel />
       </div>
     </div>
   );

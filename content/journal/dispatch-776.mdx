@@ -1,0 +1,153 @@
+---
+title: "Headless UI: accessible components without the style lock-in"
+date: "2031-04-29"
+excerpt: "Headless UI provides fully accessible, unstyled React and Vue components — dialogs, dropdowns, comboboxes, tabs, toggles — where every interaction behavior and ARIA attribute is handled for you, but the visual design is entirely your own. You apply Tailwind (or any CSS) to style them. For teams that have a design system but don't want to fight a component library's existing styles, Headless UI is the right base layer."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Accessible behavior without an opinion on how it looks. Bring your own styles.
+
+## Install
+
+```bash
+npm install @headlessui/react
+```
+
+## Dialog / Modal
+
+```tsx
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
+
+interface ConfirmDialogProps {
+  open:      boolean;
+  onClose:   () => void;
+  onConfirm: () => void;
+  title:     string;
+  body:      string;
+}
+
+export function ConfirmDialog({ open, onClose, onConfirm, title, body }: ConfirmDialogProps) {
+  return (
+    <Dialog open={open} onClose={onClose} className="relative z-50">
+      {/* Overlay */}
+      <DialogBackdrop className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+
+      {/* Panel */}
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <DialogPanel className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+          <DialogTitle className="text-lg font-bold text-gray-900">{title}</DialogTitle>
+          <p className="mt-2 text-sm text-gray-600">{body}</p>
+          <div className="mt-4 flex gap-3 justify-end">
+            <button onClick={onClose}  className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded">Cancel</button>
+            <button onClick={onConfirm} className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded">Delete</button>
+          </div>
+        </DialogPanel>
+      </div>
+    </Dialog>
+  );
+}
+```
+
+`Dialog` manages focus trap, `Escape` to close, ARIA attributes, and scroll lock automatically.
+
+## Combobox (autocomplete)
+
+```tsx
+import { Combobox, ComboboxInput, ComboboxOptions, ComboboxOption } from '@headlessui/react';
+import { useState } from 'react';
+
+const workspaces = ['construx', 'scoutr', 'marqet', 'studio'];
+
+export function WorkspaceCombobox() {
+  const [query,    setQuery]    = useState('');
+  const [selected, setSelected] = useState('');
+
+  const filtered = workspaces.filter((w) =>
+    w.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  return (
+    <Combobox value={selected} onChange={setSelected}>
+      <ComboboxInput
+        onChange={(e) => setQuery(e.target.value)}
+        className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+        placeholder="Search workspaces..."
+      />
+      <ComboboxOptions className="absolute mt-1 w-full rounded border border-gray-200 bg-white shadow-lg">
+        {filtered.map((w) => (
+          <ComboboxOption
+            key={w}
+            value={w}
+            className="px-3 py-2 text-sm cursor-pointer data-[focus]:bg-blue-50"
+          >
+            {w}
+          </ComboboxOption>
+        ))}
+      </ComboboxOptions>
+    </Combobox>
+  );
+}
+```
+
+## Menu (dropdown)
+
+```tsx
+import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/react';
+
+export function ActionMenu() {
+  return (
+    <Menu as="div" className="relative">
+      <MenuButton className="px-3 py-2 text-sm border rounded hover:bg-gray-50">
+        Actions ▾
+      </MenuButton>
+      <MenuItems className="absolute right-0 mt-1 w-44 rounded border border-gray-200 bg-white shadow-lg focus:outline-none">
+        <MenuItem>
+          {({ focus }) => (
+            <button className={`w-full px-4 py-2 text-sm text-left ${focus ? 'bg-blue-50' : ''}`}>
+              Edit
+            </button>
+          )}
+        </MenuItem>
+        <MenuItem>
+          {({ focus }) => (
+            <button className={`w-full px-4 py-2 text-sm text-left text-red-600 ${focus ? 'bg-red-50' : ''}`}>
+              Delete
+            </button>
+          )}
+        </MenuItem>
+      </MenuItems>
+    </Menu>
+  );
+}
+```
+
+## Tabs
+
+```tsx
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
+
+export function WorkspaceTabs() {
+  return (
+    <TabGroup>
+      <TabList className="flex gap-1 border-b border-gray-200">
+        {['Overview', 'Members', 'Settings'].map((tab) => (
+          <Tab
+            key={tab}
+            className="px-4 py-2 text-sm font-medium text-gray-600 data-[selected]:text-blue-600 data-[selected]:border-b-2 data-[selected]:border-blue-600 focus:outline-none"
+          >
+            {tab}
+          </Tab>
+        ))}
+      </TabList>
+      <TabPanels className="pt-4">
+        <TabPanel>Overview content</TabPanel>
+        <TabPanel>Members content</TabPanel>
+        <TabPanel>Settings content</TabPanel>
+      </TabPanels>
+    </TabGroup>
+  );
+}
+```
+
+Headless UI vs Radix UI vs Ariakit: Headless UI is by the Tailwind CSS team — the API is designed for Tailwind. Radix UI has a wider component set and supports both React and CSS-based styling. Ariakit is the most composable. The Construx default: Headless UI for Tailwind projects; Radix UI when shadcn/ui components are already in use (shadcn/ui is built on Radix).

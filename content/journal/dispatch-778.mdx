@@ -1,0 +1,163 @@
+---
+title: "Rust for TypeScript developers: the mental model shift"
+date: "2031-05-05"
+excerpt: "Rust and TypeScript share more than most expect: both have strong static typing, algebraic data types (enums with data), and a focus on making invalid states unrepresentable. The differences are ownership and lifetimes — Rust tracks who owns each value at compile time, which eliminates garbage collection and data races. This post maps TypeScript concepts to their Rust equivalents to make the learning curve less vertical."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript → Rust isn't as far as it looks. The hard parts are ownership and lifetimes, not the type system.
+
+## Types
+
+```ts
+// TypeScript
+type User = {
+  id:    string;
+  email: string;
+  name:  string | null;
+};
+```
+
+```rust
+// Rust
+struct User {
+    id:    String,
+    email: String,
+    name:  Option<String>,  // null → Option<T>
+}
+```
+
+## Enums with data
+
+```ts
+// TypeScript discriminated union
+type Shape =
+  | { kind: 'circle';    radius: number }
+  | { kind: 'rectangle'; width: number; height: number };
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case 'circle':    return Math.PI * shape.radius ** 2;
+    case 'rectangle': return shape.width * shape.height;
+  }
+}
+```
+
+```rust
+// Rust enum — same concept, different syntax
+enum Shape {
+    Circle    { radius: f64 },
+    Rectangle { width: f64, height: f64 },
+}
+
+fn area(shape: &Shape) -> f64 {
+    match shape {
+        Shape::Circle    { radius }        => std::f64::consts::PI * radius * radius,
+        Shape::Rectangle { width, height } => width * height,
+    }
+}
+```
+
+## Error handling
+
+```ts
+// TypeScript — Result pattern (neverthrow)
+import { ok, err, Result } from 'neverthrow';
+
+async function getUser(id: string): Promise<Result<User, Error>> {
+  const user = await db.users.findUnique({ where: { id } });
+  if (!user) return err(new Error('Not found'));
+  return ok(user);
+}
+```
+
+```rust
+// Rust — Result<T, E> is built in
+use anyhow::Result;
+
+async fn get_user(id: &str) -> Result<User> {
+    let user = db.users()
+        .find_unique(user::id::equals(id.to_string()))
+        .exec()
+        .await?  // ? propagates errors — like TypeScript's .mapErr(throw)
+        .ok_or_else(|| anyhow::anyhow!("User not found: {id}"))?;
+    Ok(user)
+}
+```
+
+The `?` operator in Rust is equivalent to early-returning an `Err` — like automatically unwrapping `Result` in TypeScript and propagating failures.
+
+## Ownership — the key mental model shift
+
+TypeScript has a garbage collector. Rust does not — you track who owns each value:
+
+```rust
+fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1;  // s1 is MOVED — you can no longer use it
+
+    println!("{}", s1);  // Compile error: value used after move
+    println!("{}", s2);  // This is fine
+}
+```
+
+**Borrow** instead of move:
+
+```rust
+fn print_length(s: &str) {  // &str = borrowed reference
+    println!("{} has {} chars", s, s.len());
+}
+
+fn main() {
+    let s = String::from("hello");
+    print_length(&s);  // Borrow s — s is still valid here
+    println!("{}", s); // Still works
+}
+```
+
+**Mutable borrow:**
+
+```rust
+fn append(s: &mut String) {
+    s.push_str(", world");
+}
+
+fn main() {
+    let mut s = String::from("hello");
+    append(&mut s);
+    println!("{}", s);  // "hello, world"
+}
+```
+
+Rule: you can have many immutable borrows OR one mutable borrow — not both simultaneously. This is what eliminates data races.
+
+## Async — same concept, different runtime
+
+```ts
+// TypeScript
+async function fetchUser(id: string): Promise<User> {
+  const res  = await fetch(`/api/users/${id}`);
+  const data = await res.json();
+  return data;
+}
+```
+
+```rust
+// Rust with tokio + reqwest
+use anyhow::Result;
+
+async fn fetch_user(id: &str) -> Result<User> {
+    let user: User = reqwest::get(format!("http://api/users/{id}"))
+        .await?
+        .json()
+        .await?;
+    Ok(user)
+}
+```
+
+Async Rust requires an executor (tokio is standard). The API is similar to TypeScript's async/await but all types are explicit.
+
+## When to reach for Rust
+
+Rust is the right choice when: performance is measured and TypeScript is the bottleneck, memory usage needs to be minimal (edge functions, embedded), or correctness is critical and you want the compiler to enforce it. TypeScript is the right choice for: web APIs, frontends, CLI tools, anything where developer velocity matters more than raw performance. The Construx default: TypeScript for everything; Rust for specific performance-critical utilities compiled to WebAssembly or native binaries.
