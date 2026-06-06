@@ -55,6 +55,11 @@ export default function DispatchHUD({ dispatchNum, readingTime, tag }: Props) {
         <span className="uppercase tracking-widest text-construx/60 flex-1 text-center">DISPATCH</span>
         <span className="tabular-nums text-construx/50">#{dispatchNum}</span>
       </div>
+      {/* Shell prompt */}
+      <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+        <span className="font-mono text-[7px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+        <span className="font-mono text-[7px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`dispatch --track --num=${dispatchNum}`}</span>
+      </div>
 
       {/* Body */}
       <div className="px-3 py-2.5 flex flex-col gap-2">

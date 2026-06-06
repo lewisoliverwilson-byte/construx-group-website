@@ -78,6 +78,11 @@ export default function SharePost({ title, dispatchNum }: Props) {
               share.dispatch
             </span>
           </div>
+          {/* Shell prompt */}
+          <div className="px-3 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+            <span className="font-mono text-[7px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[7px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>share --dispatch --target=clipboard</span>
+          </div>
 
           {/* URL preview */}
           <div className="px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
