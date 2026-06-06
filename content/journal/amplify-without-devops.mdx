@@ -1,0 +1,107 @@
+---
+title: "Deploying three products on Amplify without a DevOps team"
+date: "2026-06-16"
+excerpt: "Every time we commit to master, three live products deploy automatically. How we run production infrastructure for a portfolio of SaaS products with two founders and no dedicated ops."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+We have three live SaaS products and no DevOps function. When we push to master, everything deploys automatically. When something breaks, we see it and fix it. When we need a new environment, it's a few clicks.
+
+This is possible because of how AWS Amplify works and the choices we've made to keep infrastructure simple. Here's the setup.
+
+## Why Amplify
+
+We evaluated the obvious alternatives: Vercel, Railway, Render, self-managed EC2. The decision came down to a few factors:
+
+**Vercel** was the closest competitor. Excellent DX, strong Next.js integration, fast global CDN. We ruled it out because pricing at scale gets complicated (team plans, bandwidth overages, function invocation costs). Amplify's pricing is more predictable for our usage pattern.
+
+**Railway/Render** are excellent for backend services and databases. We use Amplify for the frontend and Railway for the Hyve's real-time backend. The distinction: Amplify is optimised for static + serverless; Railway is optimised for persistent services.
+
+**Self-managed EC2** would give us the most control and the worst everything else: more configuration, more operational burden, more places for things to go wrong. The cost at our scale doesn't justify the overhead.
+
+Amplify won because it handles the things we don't want to think about — CDN, SSL, preview environments — without imposing pricing complexity at our scale.
+
+## The setup: one repo, one branch, auto-deploy
+
+Each product is its own Amplify app connected to its own GitHub repository. The deployment trigger is every push to master.
+
+The workflow:
+1. Work on a feature locally
+2. Push to master (or merge a PR into master)
+3. Amplify detects the push, builds, and deploys within about 3-4 minutes for a Next.js app
+4. Build logs are available immediately if something fails
+
+The branch-based preview environments are one of the most useful features: every pull request gets its own preview URL automatically. We use these for visual review before merging — no separate staging environment needed.
+
+## Build configuration
+
+The `amplify.yml` at the root of each repo defines the build:
+
+```yaml
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*
+      - node_modules/**/*
+```
+
+The cache paths are important. Without caching `node_modules` and the Next.js build cache, each deploy installs all packages from scratch, which adds 2-3 minutes to every deploy. With caching, subsequent builds are significantly faster.
+
+The `npm ci` instead of `npm install` ensures reproducible builds — it installs exactly what's in `package-lock.json` rather than resolving the latest compatible versions. This matters for production builds where you want consistency.
+
+## Environment variables
+
+Every product has environment variables: Claude API keys, PostHog keys, database URLs (for The Hyve's backend calls), site URLs for canonical links and OG images.
+
+We manage these through the Amplify console rather than committing them. Each app has a separate set of variables, and we add them manually when setting up a new product. The workflow is:
+1. Create the Amplify app
+2. Connect to GitHub repo
+3. Add environment variables in the console
+4. Trigger the first deploy
+
+The operational risk: if we need to update a key that's used across multiple products, we update it in each app's console separately. This is manual but manageable at three products. If we had ten products, we'd automate it.
+
+Environment variables are injected at build time for static props and at runtime for API routes. The `NEXT_PUBLIC_` prefix makes a variable available to the browser; without it, it's server-only. We're deliberate about this distinction — anything sensitive stays off the client.
+
+## What breaks and how we find out
+
+The things that break in production that don't break locally:
+
+**Build failures**: usually a dependency mismatch or a TypeScript error we missed. We catch TypeScript errors with `npx tsc --noEmit` before pushing, but occasionally something slips through. The Amplify build logs show the error; fix it, push again.
+
+**Environment variable issues**: the classic "works locally, broken in production" where we've hardcoded something or forgotten to add a variable to the Amplify console. We audit environment variables before every new deploy. The checklist lives in a private doc: every variable the app reads, what it's used for, and where to get the value.
+
+**Next.js rendering issues**: server components that work locally but fail on Amplify due to execution context differences. The most common cause: assuming a browser API is available in server context, or assuming `process.cwd()` points to what you expect. We've standardised on explicit imports and avoided relying on ambient globals.
+
+**Cache invalidation**: Amplify's CDN caches static assets aggressively. After a deploy, users might see stale assets for a few minutes. Next.js handles this automatically with content-hashed filenames for static assets, but it's worth understanding if you're debugging "why is my deploy live but users are still seeing the old version?"
+
+## The rollback story
+
+When something goes wrong in production, the fastest fix is often to roll back to the previous version. Amplify keeps build history and makes it easy to redeploy a previous build from the console.
+
+In practice, our most reliable rollback mechanism is git. `git revert` creates a new commit that undoes the problematic change, push it, and Amplify deploys the reverted state. This is better than using Amplify's redeployment feature because the git history accurately reflects what's running in production.
+
+We've had to roll back twice. Both times the cause was a bad deployment of a new environment variable that broke the API integration. Both times, git revert and a 3-minute deploy cycle had us back to working state.
+
+## What we don't do
+
+**Blue-green deployments**: traffic-splitting between old and new versions during deployment. Amplify supports this for production deployments; we don't use it. The overhead of validating that both versions are working simultaneously exceeds the risk at our current scale.
+
+**Automated post-deploy health checks**: a smoke test that runs after each deploy to verify key endpoints are responding. Amplify can trigger webhooks on deploy success; we haven't set these up. We do manual spot-checks instead.
+
+**Separate staging environments**: each product has one environment (production). PR previews serve as staging for visual validation. We've accepted the risk that something broken might reach production — and our response time when it does is fast enough that this is acceptable.
+
+The honest reason we don't do these things: they take time to set up and maintain, and the marginal safety they provide hasn't been worth it yet. We're not sloppy — we type-check, we build locally, we review PRs — but we've deliberately kept the infrastructure simple.

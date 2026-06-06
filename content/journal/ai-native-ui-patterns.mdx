@@ -1,0 +1,97 @@
+---
+title: "UI patterns specific to AI products"
+date: "2026-06-15"
+excerpt: "Building UI for AI products requires patterns that don't exist in conventional software design. Streaming output, confidence display, regeneration controls, and loading states that don't feel like waiting — here's what we've learned."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+AI products have different UI requirements from conventional software. When output is deterministic and fast, you design for clarity and speed. When output is probabilistic and streaming, you design for process visibility and trust.
+
+Here are the patterns we've developed across our products.
+
+## Streaming output instead of loading states
+
+The worst AI product experience: show a spinner, wait 8 seconds, reveal a wall of text. The user has no sense of what's happening, whether it's working, or whether the output will be useful.
+
+The alternative: stream the output as it generates. The user sees text appearing word by word — the AI equivalent of watching someone type. This has two benefits:
+
+1. **The process is visible.** Users can see early whether the output is going in the right direction and stop it if not.
+2. **The wait feels shorter.** Perceived wait time is significantly lower when something is happening versus when there's a static spinner.
+
+Technically: set `stream: true` on the Claude API call, use Server-Sent Events to push tokens to the client, and append each token to the output element. In React, this means maintaining a state string that gets longer with each token rather than replacing it when the response is complete.
+
+The implementation detail that matters: start rendering the output container immediately, even when it's empty. Don't wait until the first token arrives to show the output area. The empty container tells the user output is coming.
+
+## Regenerate with variation
+
+AI output is non-deterministic. The first response isn't necessarily the best response — it's the first one. Users who understand this will want to try again.
+
+Every AI output we ship has a regenerate control. It's prominent enough to find but not so prominent that it implies the first output was probably wrong.
+
+The key decision: does regenerating produce the same output or a different one? In most contexts, you want variation — that's the point of regenerating. Set `temperature` above zero and use a different random seed (or just don't seed at all) to get genuine variation. If regeneration keeps producing the same output, users will stop using the feature.
+
+We also offer "regenerate with feedback" in The Hyve — a text input where the user can describe what they didn't like about the first output, which gets appended to the prompt for the second attempt. This is significantly more useful than blind regeneration.
+
+## Confidence display
+
+AI systems have varying confidence in their outputs, but the default UX is to present everything at the same confidence level. Scoutr's margin estimate and a casual observation get the same visual treatment — equally presented as "the answer."
+
+The pattern that works: different visual treatments for different confidence levels.
+
+For Scoutr, this means:
+- High-confidence data (confirmed product category, known fee schedule): shown without caveats
+- Estimated data (dimension estimates used for fee calculation, inferred category): shown with an "estimated" indicator
+- Low-confidence data (category classification where Claude flagged uncertainty): shown with an explicit "verify this" note
+
+The design principle: confidence indicators should be contextual, not generic. A footer disclaimer ("AI can make mistakes") is useless. A yellow indicator next to a specific number that the system is uncertain about is actionable.
+
+## Optimistic UI with graceful rollback
+
+For AI-assisted actions — creating a task in The Hyve, saving an AI-generated document — we use optimistic updates: show the action as completed immediately, confirm with the server asynchronously.
+
+The UX benefit: the action feels instant. The user can continue working while the server processes.
+
+The edge case to handle: what if the server rejects the action? The rollback needs to be as clear as the original action. We use a toast notification that explains what happened and offers to retry. "Your task was saved" → "That save failed — try again?" with a retry button. Never just silently undo the optimistic update without explaining why.
+
+## Empty states that explain the system
+
+The first time a user encounters an AI feature, they need context on what to do. Empty states for AI features do more work than empty states for conventional features.
+
+Instead of "No results" or "Start here," we write empty states that explain:
+- What the feature does
+- What a good input looks like
+- What output to expect
+
+For The Hyve's AI channel, the empty state includes an example of a useful question to ask and a note about the context the AI has access to. This sets expectations and reduces the "what should I type?" paralysis.
+
+## Input guidance without over-constraining
+
+The flip side of explaining what good input looks like: don't over-constrain input. AI's value is handling variability — natural language, imprecise questions, different ways of expressing the same need.
+
+Patterns that damage this:
+- Structured forms where natural language input would work better
+- Character limits that cut off complex questions
+- Required field prompts that make the AI feel like a form
+
+Let the input be freeform. Assist at the edges: if an input is clearly too short to give the AI enough to work with, surface a gentle prompt ("More detail will help"). If the input is so long it might cause issues, surface a note about what to prioritise. Don't enforce it — advise.
+
+## Loading states for different wait durations
+
+Sub-second: no loading state. Show the output when it's ready.
+
+1-3 seconds: a subtle animated indicator (a blinking cursor, a faint pulse). Not a spinner — those communicate "waiting," which feels passive. An animated cursor communicates "typing," which feels active.
+
+3+ seconds: acknowledge the wait. Brief text ("Analysing the listing...") that tells the user what's happening. For AI, this is often a genuine description of the task ("Finding all products on this page" rather than "Loading...").
+
+The principle: users tolerate longer waits when they understand what's happening. Named, purposeful loading states reduce perceived wait time.
+
+## Handling failure
+
+AI requests fail. The API is unavailable, the response is malformed, the content filter triggers, the context window is exceeded. The UI needs to handle all of these gracefully.
+
+The pattern: be specific about what went wrong and what to do. "Something went wrong" is the worst failure message. "This product description is in a language we don't support yet — try a UK or US product page" is useful.
+
+For failures that aren't user-fixable (API unavailability, internal errors), acknowledge the failure, explain it wasn't the user's fault, and offer retry. Don't explain the internal error — just say the system had a problem and you can try again.
+
+One trap: retrying automatically on failure. If the first attempt failed because the input was problematic (not enough information, ambiguous request), auto-retrying will fail again. Reserve auto-retry for transient infrastructure failures, not input-related failures.
