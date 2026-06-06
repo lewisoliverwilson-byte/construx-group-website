@@ -1,0 +1,205 @@
+---
+title: "Playwright: reliable browser automation and E2E testing"
+date: "2029-10-27"
+excerpt: "Playwright automates Chromium, Firefox, and WebKit from a single API. It's fast, reliable, and handles the things that make browser testing painful: auto-waiting for elements, network interception, browser contexts for test isolation, and parallel execution. Here's the setup and the patterns that make E2E tests actually trustworthy."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+End-to-end testing verifies the full user journey through your app. Playwright runs a real browser, clicks real elements, and verifies real outcomes. The challenge: browser tests are historically flaky — timing issues, element visibility, network dependencies. Playwright's design minimises flakiness with auto-waiting and explicit assertions.
+
+## Setup
+
+```bash
+npm install -D @playwright/test
+npx playwright install  # install browser binaries
+```
+
+```ts
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  timeout:  30_000,
+  retries:  process.env.CI ? 2 : 0,
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace:   'on-first-retry',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
+  ],
+  webServer: {
+    command: 'npm run dev',
+    port:    3000,
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+The `webServer` config starts your Next.js dev server before tests run and shuts it down after.
+
+## Writing tests
+
+```ts
+// e2e/auth.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('user can sign in and see their dashboard', async ({ page }) => {
+  await page.goto('/login');
+
+  await page.getByLabel('Email').fill('lewis@construxgroup.io');
+  await page.getByLabel('Password').fill('testpassword');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  // Auto-waits for the element to be visible
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page).toHaveURL('/dashboard');
+});
+```
+
+Playwright's selectors:
+- `getByRole('button', { name: 'Sign in' })` — accessible role + label (preferred)
+- `getByLabel('Email')` — form label association
+- `getByText('Submit')` — visible text
+- `getByTestId('submit-btn')` — `data-testid` attribute
+- `locator('.selector')` — CSS (last resort)
+
+Role-based selectors are the most resilient — they work even if the element's position, class, or markup changes, as long as the accessible role and name are correct.
+
+## Auto-waiting
+
+Playwright auto-waits for elements to be actionable before interacting. `click()` waits for the element to be visible, enabled, and stable (not animating). `fill()` waits for the input to be editable.
+
+This eliminates most `await sleep(1000)` antipatterns. You almost never need explicit waits.
+
+When you do need to wait explicitly:
+
+```ts
+// Wait for an element to appear
+await expect(page.getByText('Success')).toBeVisible();
+
+// Wait for a network request
+const res = await page.waitForResponse('/api/posts');
+expect(res.status()).toBe(200);
+
+// Wait for navigation
+await page.waitForURL('/dashboard');
+```
+
+## Intercepting network requests
+
+```ts
+test('handles slow API gracefully', async ({ page }) => {
+  // Intercept the posts API and simulate slow response
+  await page.route('/api/posts', async (route) => {
+    await new Promise((r) => setTimeout(r, 2000)); // 2s delay
+    await route.continue();
+  });
+
+  await page.goto('/posts');
+  await expect(page.getByTestId('loading-skeleton')).toBeVisible();
+  await expect(page.getByRole('article')).toBeVisible({ timeout: 5000 });
+});
+
+test('handles API error gracefully', async ({ page }) => {
+  await page.route('/api/posts', (route) =>
+    route.fulfill({ status: 500, body: 'Internal Server Error' })
+  );
+
+  await page.goto('/posts');
+  await expect(page.getByText('Something went wrong')).toBeVisible();
+});
+```
+
+Network interception lets you test error states and loading states without a test version of your API.
+
+## Browser contexts for isolation
+
+Each test gets its own browser context — isolated cookies, localStorage, and session state. Tests don't interfere with each other.
+
+For authenticated tests, create a reusable auth state:
+
+```ts
+// e2e/setup/auth.ts
+import { chromium } from '@playwright/test';
+
+async function globalSetup() {
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  await page.goto('http://localhost:3000/login');
+  await page.getByLabel('Email').fill('lewis@construxgroup.io');
+  await page.getByLabel('Password').fill('testpassword');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForURL('http://localhost:3000/dashboard');
+
+  // Save auth state
+  await context.storageState({ path: 'e2e/storage/auth.json' });
+  await browser.close();
+}
+
+export default globalSetup;
+```
+
+```ts
+// playwright.config.ts
+use: {
+  storageState: 'e2e/storage/auth.json',  // all tests start authenticated
+},
+```
+
+## Page objects
+
+For complex UIs, extract interactions into page objects:
+
+```ts
+// e2e/pages/PostPage.ts
+import { Page, Locator } from '@playwright/test';
+
+export class PostPage {
+  readonly page: Page;
+  readonly title: Locator;
+  readonly publishButton: Locator;
+
+  constructor(page: Page) {
+    this.page          = page;
+    this.title         = page.getByRole('heading', { level: 1 });
+    this.publishButton = page.getByRole('button', { name: 'Publish' });
+  }
+
+  async goto(slug: string) {
+    await this.page.goto(`/posts/${slug}/edit`);
+  }
+
+  async publish() {
+    await this.publishButton.click();
+    await this.page.waitForResponse('/api/posts');
+  }
+}
+```
+
+```ts
+test('publishes a draft post', async ({ page }) => {
+  const postPage = new PostPage(page);
+  await postPage.goto('my-draft-post');
+  await postPage.publish();
+  await expect(postPage.title).toBeVisible();
+});
+```
+
+## Running tests
+
+```bash
+npx playwright test                    # run all tests
+npx playwright test auth.spec.ts       # run one file
+npx playwright test --ui               # visual test runner
+npx playwright test --headed           # show browser window
+npx playwright test --debug            # pause at each step
+npx playwright show-report             # open HTML test report
+```
+
+The `--ui` mode is the most useful during development — you can step through tests, see what the browser is doing, and inspect the page.

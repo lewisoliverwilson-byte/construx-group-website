@@ -7,6 +7,7 @@ import TraceroutePanel from '@/components/TraceroutePanel';
 import WhoisPanel from '@/components/WhoisPanel';
 import SslCertPanel from '@/components/SslCertPanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
+import HttpBenchPanel from '@/components/HttpBenchPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -341,8 +342,13 @@ export default function ContactPage() {
       </section>
 
       {/* DNS lookup */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <DnsLookupPanel />
+      </section>
+
+      {/* HTTP benchmark */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HttpBenchPanel />
       </section>
     </div>
   );
