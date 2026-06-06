@@ -1,0 +1,221 @@
+---
+title: "Drizzle ORM: the mental model and patterns that matter"
+date: "2028-02-10"
+excerpt: "Drizzle is the TypeScript ORM that generates SQL you can predict. No magic query builder surprises, full type inference from your schema, and raw SQL when you need it. Here's how to use it well."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Drizzle ORM sits at the right level of abstraction. It's not Prisma (which hides SQL and has its own migration system) and it's not raw `pg` (which has no types). Drizzle gives you TypeScript types derived from your schema, a readable query API, and escape hatches to raw SQL when the abstraction breaks down.
+
+## Schema definition
+
+The schema is the source of truth. Types flow from here:
+
+```ts
+// db/schema.ts
+import { pgTable, text, timestamp, boolean, integer, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+export const users = pgTable('users', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  stripeCustomerId: text('stripe_customer_id'),
+  plan: text('plan', { enum: ['free', 'pro', 'enterprise'] }).notNull().default('free'),
+}, (table) => ({
+  emailIdx: index('idx_users_email').on(table.email),
+  stripeIdx: index('idx_users_stripe').on(table.stripeCustomerId),
+}));
+
+export const posts = pgTable('posts', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  authorId: text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  published: boolean('published').notNull().default(false),
+  publishedAt: timestamp('published_at'),
+  viewCount: integer('view_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+```
+
+## Database connection
+
+```ts
+// db/index.ts
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import * as schema from './schema';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: process.env.NODE_ENV === 'production' ? 10 : 2,
+});
+
+export const db = drizzle(pool, { schema });
+export type DB = typeof db;
+```
+
+For serverless environments (Vercel, Cloudflare Workers), use the HTTP driver:
+
+```ts
+// Neon serverless
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
+
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql, { schema });
+```
+
+## Query patterns
+
+```ts
+import { db } from '@/db';
+import { users, posts } from '@/db/schema';
+import { eq, and, desc, gt, like, count, sql } from 'drizzle-orm';
+
+// findFirst — returns one or undefined
+const user = await db.query.users.findFirst({
+  where: eq(users.email, 'alice@example.com'),
+});
+
+// findMany with filter and sort
+const recentPosts = await db.query.posts.findMany({
+  where: and(
+    eq(posts.published, true),
+    gt(posts.publishedAt, new Date('2028-01-01')),
+  ),
+  orderBy: [desc(posts.publishedAt)],
+  limit: 20,
+  columns: { content: false },  // exclude heavy column
+});
+
+// With relations
+const userWithPosts = await db.query.users.findFirst({
+  where: eq(users.id, userId),
+  with: {
+    posts: {
+      where: eq(posts.published, true),
+      orderBy: [desc(posts.publishedAt)],
+      limit: 5,
+    },
+  },
+});
+```
+
+## Relations definition
+
+Drizzle's relational API needs explicit relation definitions:
+
+```ts
+// db/relations.ts
+import { relations } from 'drizzle-orm';
+import { users, posts } from './schema';
+
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts),
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+```
+
+```ts
+// db/index.ts — include relations in schema
+import * as schema from './schema';
+import * as relations from './relations';
+
+export const db = drizzle(pool, { schema: { ...schema, ...relations } });
+```
+
+## Mutations
+
+```ts
+// Insert
+const [newUser] = await db.insert(users)
+  .values({
+    email: 'alice@example.com',
+    name: 'Alice Smith',
+  })
+  .returning();  // returns the inserted row with generated fields
+
+// Upsert (insert or update)
+await db.insert(users)
+  .values({ id: userId, email, name })
+  .onConflictDoUpdate({
+    target: users.id,
+    set: { name, updatedAt: new Date() },
+  });
+
+// Update
+const [updated] = await db.update(posts)
+  .set({ published: true, publishedAt: new Date() })
+  .where(and(eq(posts.id, postId), eq(posts.authorId, userId)))
+  .returning();
+
+if (!updated) throw new Error('Post not found or unauthorized');
+
+// Delete
+await db.delete(posts)
+  .where(eq(posts.id, postId));
+```
+
+## Transactions
+
+```ts
+const result = await db.transaction(async (tx) => {
+  const [post] = await tx.insert(posts)
+    .values({ title, content, authorId })
+    .returning();
+
+  await tx.update(users)
+    .set({ postCount: sql`${users.postCount} + 1` })
+    .where(eq(users.id, authorId));
+
+  return post;
+});
+```
+
+## Raw SQL when needed
+
+```ts
+import { sql } from 'drizzle-orm';
+
+// Increments with SQL expression
+await db.update(posts)
+  .set({ viewCount: sql`${posts.viewCount} + 1` })
+  .where(eq(posts.id, postId));
+
+// Raw query with type assertion
+const result = await db.execute<{ count: number }>(sql`
+  SELECT COUNT(*) as count
+  FROM posts
+  WHERE published = true
+    AND published_at > NOW() - INTERVAL '30 days'
+`);
+```
+
+## Type inference from schema
+
+```ts
+import { type InferSelectModel, type InferInsertModel } from 'drizzle-orm';
+
+type User = InferSelectModel<typeof users>;
+// { id: string; email: string; name: string | null; ... }
+
+type NewUser = InferInsertModel<typeof users>;
+// { id?: string; email: string; name?: string | null; ... }
+// Optional fields have defaults; required fields don't
+
+// Partial select type
+type UserPreview = Pick<User, 'id' | 'name' | 'email'>;
+```
+
+No duplicate type definitions. The schema is the single source of truth for both the database structure and the TypeScript types.

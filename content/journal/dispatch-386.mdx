@@ -1,0 +1,194 @@
+---
+title: "Security headers and CORS: what to set and why"
+date: "2028-02-13"
+excerpt: "Security headers protect against XSS, clickjacking, MIME sniffing, and data leakage. Most Next.js apps ship without them. Here's the full set, what each does, and how to configure CORS without breaking anything."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Security headers are HTTP response headers that tell browsers how to handle your content. They're cheap to add and prevent real attacks. Most Next.js apps don't set them by default.
+
+## The complete header set
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const cspDirectives = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https://cdn.construxgroup.io https://avatars.githubusercontent.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "connect-src 'self' https://api.stripe.com https://o4508.ingest.sentry.io wss://construxgroup.io",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+].join('; ');
+
+const securityHeaders = [
+  // Prevent browsers guessing MIME type — stops attacks based on MIME confusion
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+
+  // Prevent iframe embedding — stops clickjacking
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+
+  // Disable XSS filter in legacy IE — modern browsers don't need it and the filter caused bugs
+  { key: 'X-XSS-Protection', value: '0' },
+
+  // Referrer data sent with cross-origin requests — limit to origin only
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+
+  // Disable browser features not in use — reduces attack surface
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  },
+
+  // Force HTTPS for 1 year, include subdomains
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+
+  // Content Security Policy — specify allowed sources for each resource type
+  { key: 'Content-Security-Policy', value: cspDirectives },
+];
+
+const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',  // all routes
+        headers: securityHeaders,
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+## Content Security Policy in detail
+
+CSP is the most powerful header but also the most complex. It specifies where resources can be loaded from:
+
+```
+default-src 'self'
+```
+No fallback to external sources — anything not covered by a specific directive falls back to this.
+
+```
+script-src 'self' 'unsafe-eval' 'unsafe-inline'
+```
+`'unsafe-eval'` is required by Next.js in development (HMR uses eval). In production, try to remove it and use nonces instead.
+
+```
+connect-src 'self' https://api.stripe.com
+```
+Controls XHR, fetch, and WebSocket connections. If your app calls an external API and CSP isn't set correctly, the request will fail silently in some browsers.
+
+### Nonces for stricter CSP
+
+Using `'unsafe-inline'` weakens script-src. Use nonces instead:
+
+```ts
+// middleware.ts
+import { NextResponse } from 'next/server';
+import crypto from 'crypto';
+
+export function middleware() {
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const csp = `
+    default-src 'self';
+    script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
+    style-src 'self' 'nonce-${nonce}';
+  `.replace(/\s{2,}/g, ' ').trim();
+
+  const response = NextResponse.next();
+  response.headers.set('x-nonce', nonce);
+  response.headers.set('Content-Security-Policy', csp);
+  return response;
+}
+```
+
+```tsx
+// app/layout.tsx — read the nonce from headers
+import { headers } from 'next/headers';
+
+export default async function RootLayout({ children }) {
+  const nonce = (await headers()).get('x-nonce') ?? '';
+
+  return (
+    <html>
+      <head>
+        <script nonce={nonce} src="https://analytics.example.com/js/v2.js" />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+## CORS for Route Handlers
+
+CORS (Cross-Origin Resource Sharing) controls which origins can call your API. Misconfigured CORS either blocks legitimate clients or allows any origin to call your API.
+
+```ts
+// lib/cors.ts
+const ALLOWED_ORIGINS = [
+  'https://construxgroup.io',
+  'https://app.construxgroup.io',
+  ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : []),
+];
+
+export function corsHeaders(origin: string | null): Record<string, string> {
+  const isAllowed = origin && ALLOWED_ORIGINS.includes(origin);
+
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',  // preflight cache: 24 hours
+  };
+}
+```
+
+```ts
+// app/api/posts/route.ts
+export async function OPTIONS(req: Request) {
+  // Handle preflight request
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders(req.headers.get('origin')),
+  });
+}
+
+export async function GET(req: Request) {
+  const posts = await getPosts();
+
+  return Response.json(posts, {
+    headers: corsHeaders(req.headers.get('origin')),
+  });
+}
+```
+
+## Common mistakes
+
+**Setting `Access-Control-Allow-Origin: *` on authenticated endpoints** — this allows any website to make credentialed requests to your API. Use a specific origin allowlist.
+
+**CSP that's too permissive** — `'unsafe-inline'` and `'unsafe-eval'` in production undermine the security benefit. Start strict, add exceptions as needed.
+
+**Missing `Strict-Transport-Security`** — without HSTS, a man-in-the-middle can intercept the first HTTP request before the redirect to HTTPS.
+
+**Not setting `frame-ancestors`** — clickjacking embeds your page in an invisible iframe and tricks users into clicking things. Set `frame-ancestors 'none'` unless you intentionally support iframe embedding.
+
+## Testing your headers
+
+```bash
+# Check what headers your production site returns
+curl -I https://construxgroup.io
+
+# Run a full header security check
+npx check-my-headers https://construxgroup.io
+```
+
+Observatory by Mozilla (observatory.mozilla.org) gives you a letter grade and tells you exactly what to fix.
