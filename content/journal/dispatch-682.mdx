@@ -1,0 +1,192 @@
+---
+title: "Framer Motion: production-grade animation for React"
+date: "2030-07-21"
+excerpt: "Framer Motion is an animation library for React with a declarative API. Animate between states with simple prop changes. Orchestrate sequences, stagger children, animate on scroll, create shared layout transitions, and handle gesture-based animations — all with TypeScript support and performance via CSS transitions and Web Animations API where possible."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+CSS animations are fine for simple transitions. For complex orchestration — staggered lists, layout animations, scroll-triggered reveals, drag interactions — the CSS model becomes unwieldy. Framer Motion provides a React-native API for all of this.
+
+## Setup
+
+```bash
+npm install framer-motion
+```
+
+## Basic animations
+
+```tsx
+import { motion } from 'framer-motion';
+
+// Animate on mount and unmount
+function FadeIn({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// Animate on hover and tap
+function HoverButton({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.05, backgroundColor: '#F97316' }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+    >
+      {children}
+    </motion.button>
+  );
+}
+```
+
+## AnimatePresence (exit animations)
+
+```tsx
+import { AnimatePresence, motion } from 'framer-motion';
+import { useState }                from 'react';
+
+function Toast({ message }: { message: string | null }) {
+  return (
+    <AnimatePresence>
+      {message && (
+        <motion.div
+          key="toast"
+          initial={{ opacity: 0, x: 100 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 100 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded"
+        >
+          {message}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+```
+
+Without `AnimatePresence`, exit animations don't play — React unmounts immediately.
+
+## Staggered lists
+
+```tsx
+import { motion } from 'framer-motion';
+
+const containerVariants = {
+  hidden:  {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,  // each child starts 80ms after the previous
+    },
+  },
+};
+
+const itemVariants = {
+  hidden:  { opacity: 0, x: -20 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.3 } },
+};
+
+function StaggeredList({ items }: { items: string[] }) {
+  return (
+    <motion.ul
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      {items.map((item) => (
+        <motion.li key={item} variants={itemVariants}>
+          {item}
+        </motion.li>
+      ))}
+    </motion.ul>
+  );
+}
+```
+
+## Scroll animations
+
+```tsx
+import { motion, useInView } from 'framer-motion';
+import { useRef }             from 'react';
+
+function ScrollReveal({ children }: { children: React.ReactNode }) {
+  const ref     = useRef<HTMLDivElement>(null);
+  const inView  = useInView(ref, { once: true, margin: '-100px' });
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 40 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+```
+
+## Layout animations
+
+```tsx
+import { motion, AnimatePresence } from 'framer-motion';
+
+function ExpandableCard({ title, body }: { title: string; body: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <motion.div
+      layout  // automatically animates changes in size and position
+      onClick={() => setExpanded((e) => !e)}
+      style={{ borderRadius: 8, cursor: 'pointer', padding: 16, background: '#111' }}
+    >
+      <motion.h2 layout="position">{title}</motion.h2>
+      <AnimatePresence>
+        {expanded && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {body}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+```
+
+`layout` prop automatically detects when a component's position or size changes and animates the transition — no explicit animation values required.
+
+## useMotionValue and useTransform (scroll progress)
+
+```tsx
+import { motion, useScroll, useTransform } from 'framer-motion';
+
+function ParallaxHero() {
+  const { scrollYProgress } = useScroll();
+  const y = useTransform(scrollYProgress, [0, 1], ['0%', '30%']);
+
+  return (
+    <div style={{ height: '100vh', overflow: 'hidden' }}>
+      <motion.img
+        src="/hero.jpg"
+        style={{ y, width: '100%', height: '120%', objectFit: 'cover' }}
+      />
+    </div>
+  );
+}
+```
+
+## Framer Motion vs React Spring vs CSS
+
+CSS transitions: fastest, no library, handles 80% of cases. React Spring: physics-based, spring animations with mass/friction/tension. Framer Motion: most features (layout animations, gestures, scroll-based), declarative, good TypeScript types. For React apps where animation quality matters — page transitions, list animations, interactive elements — Framer Motion is the right default.
