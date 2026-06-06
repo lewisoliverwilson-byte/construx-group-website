@@ -82,6 +82,11 @@ export default function NotFound() {
             </span>
           </div>
 
+          {/* Shell prompt */}
+          <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(249,115,22,0.06)', background: 'rgba(249,115,22,0.02)' }}>
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.35)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.18)' }}>ping construx.group --continuous --interval=1s</span>
+          </div>
           {/* Terminal body */}
           <div className="p-5 font-mono text-[11px] leading-relaxed flex flex-col gap-0.5">
             {pingLines.map((line, i) => (
