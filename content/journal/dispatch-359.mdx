@@ -1,0 +1,210 @@
+---
+title: "Email infrastructure for SaaS: transactional email done right"
+date: "2027-11-23"
+excerpt: "Transactional email is underrated as infrastructure. Get it wrong and your welcome emails hit spam, your password resets never arrive, and your churn goes up. Here's the stack, the patterns, and the deliverability rules."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Email is the most reliable notification channel a SaaS has. It's asynchronous, universal, and carries regulatory weight (password resets, billing receipts). Getting it wrong is expensive. Getting it right is a one-time setup that runs for years.
+
+## Resend for transactional email
+
+Resend is the modern choice: great developer experience, React Email for templates, first-class Next.js integration, and solid deliverability out of the box.
+
+```bash
+npm install resend react-email @react-email/components
+```
+
+```ts
+// lib/email.ts
+import { Resend } from 'resend';
+
+export const resend = new Resend(process.env.RESEND_API_KEY!);
+
+interface SendOptions {
+  to: string | string[];
+  subject: string;
+  react: React.ReactElement;
+  from?: string;
+  replyTo?: string;
+}
+
+export async function sendEmail({ to, subject, react, from, replyTo }: SendOptions) {
+  const { data, error } = await resend.emails.send({
+    from: from ?? 'Construx Group <noreply@construxgroup.io>',
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    react,
+    replyTo,
+  });
+
+  if (error) throw new Error(`Email failed: ${error.message}`);
+  return data;
+}
+```
+
+## React Email templates
+
+React Email lets you write email templates in React with components that render to email-compatible HTML:
+
+```tsx
+// emails/WelcomeEmail.tsx
+import {
+  Body, Container, Head, Heading, Hr, Html, Link, Preview,
+  Section, Text, Tailwind,
+} from '@react-email/components';
+
+interface Props {
+  name: string;
+  dashboardUrl: string;
+}
+
+export function WelcomeEmail({ name, dashboardUrl }: Props) {
+  return (
+    <Html>
+      <Head />
+      <Preview>Welcome to Construx — here's how to get started</Preview>
+      <Tailwind>
+        <Body className="bg-white font-sans">
+          <Container className="mx-auto py-8 px-4 max-w-xl">
+            <Heading className="text-2xl font-bold text-gray-900 mb-4">
+              Welcome, {name}
+            </Heading>
+            <Text className="text-gray-600 mb-6">
+              Your account is ready. Here's everything you need to get started.
+            </Text>
+            <Section className="mb-6">
+              <Link
+                href={dashboardUrl}
+                className="bg-orange-500 text-white px-6 py-3 rounded font-medium"
+              >
+                Open your dashboard
+              </Link>
+            </Section>
+            <Hr className="border-gray-200 mb-6" />
+            <Text className="text-gray-400 text-sm">
+              You're receiving this because you signed up at construxgroup.io.
+            </Text>
+          </Container>
+        </Body>
+      </Tailwind>
+    </Html>
+  );
+}
+```
+
+Preview your templates locally:
+
+```bash
+npx react-email dev
+```
+
+Opens a browser preview with hot reload.
+
+## Triggering email from Server Actions
+
+```ts
+// app/actions/auth.ts
+'use server';
+
+import { sendEmail } from '@/lib/email';
+import { WelcomeEmail } from '@/emails/WelcomeEmail';
+
+export async function signUp(formData: FormData) {
+  const email = formData.get('email') as string;
+  const name = formData.get('name') as string;
+
+  const user = await db.insert(users)
+    .values({ email, name })
+    .returning()
+    .then(([u]) => u);
+
+  // Fire and forget — don't block sign-up on email delivery
+  sendEmail({
+    to: user.email,
+    subject: 'Welcome to Construx',
+    react: WelcomeEmail({ name: user.name, dashboardUrl: `${process.env.APP_URL}/dashboard` }),
+  }).catch(console.error);
+
+  return { success: true };
+}
+```
+
+The email send is intentionally not awaited — sign-up shouldn't fail if email delivery fails. Log the error, alert if necessary, but don't block the user.
+
+## Email types and when to send them
+
+**Transactional** (triggered by user action):
+- Welcome / account confirmation
+- Password reset
+- Magic link / OTP
+- Billing receipts and invoice copies
+- Subscription change confirmations
+
+**Operational** (triggered by system events):
+- Failed payment notifications
+- Usage limit warnings
+- Account suspension notices
+- Webhook failure alerts
+
+**Lifecycle** (triggered by user state):
+- Onboarding sequences (days 1, 3, 7 after signup)
+- Trial expiry warnings (7d, 3d, 1d before)
+- Re-engagement (inactive 30 days)
+
+Don't mix transactional and marketing in the same infrastructure — use a dedicated marketing email provider (Loops, Customer.io) for campaigns. Transactional deliverability depends on a clean sending reputation.
+
+## Deliverability setup
+
+Without DNS configuration, your emails hit spam. Three records to add to your domain:
+
+**SPF**: authorizes Resend's servers to send for your domain:
+```
+TXT @ "v=spf1 include:amazonses.com ~all"
+```
+
+**DKIM**: cryptographically signs your emails:
+Add the CNAME records Resend provides in their domain settings.
+
+**DMARC**: tells receivers what to do with failures:
+```
+TXT _dmarc "v=DMARC1; p=quarantine; rua=mailto:dmarc@construxgroup.io"
+```
+
+Start with `p=none` (monitor only), check the reports for a week, then move to `p=quarantine`, then `p=reject`.
+
+## Error handling and retries
+
+Email APIs fail. Wrap sends in a retry loop for transactional emails that must arrive:
+
+```ts
+async function sendWithRetry(options: SendOptions, retries = 3): Promise<void> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await sendEmail(options);
+      return;
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** i));  // exponential backoff
+    }
+  }
+}
+```
+
+For high-stakes emails (password reset, billing), use a background job queue for reliability — the email send happens outside the request lifecycle with automatic retries.
+
+## Unsubscribe handling
+
+Include a working unsubscribe link in every email. For operational and lifecycle emails, respect it:
+
+```ts
+// Check unsubscribe status before sending
+const unsubscribed = await db.query.emailUnsubscribes.findFirst({
+  where: eq(emailUnsubscribes.email, recipientEmail),
+});
+
+if (unsubscribed) return;  // never send to explicitly unsubscribed
+```
+
+Transactional emails (password resets, billing receipts) are exempt from unsubscribe rules — they're required for the account to function.
