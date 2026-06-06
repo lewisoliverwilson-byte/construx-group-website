@@ -1,0 +1,126 @@
+---
+title: "Optimistic UI updates: making interfaces feel instant"
+date: "2026-12-23"
+excerpt: "Network requests take time. User actions shouldn't feel like they do. Optimistic UI updates assume a request will succeed, update the UI immediately, and reconcile with the real server state when the request completes. Here's how we implement this pattern in The Hyve."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+When a user sends a message in The Hyve, what happens in the UI?
+
+The naive approach: the user clicks Send, the frontend makes an API call, waits for the response, then renders the new message. On a good connection, this takes 100-300ms. You see a brief pause. The message appears. It's fine but not great.
+
+The optimistic approach: the user clicks Send, the message appears immediately in the UI with a "sending" indicator, and the actual API call happens in the background. When the API call completes, the "sending" indicator is removed. If it fails, the message is removed and an error is shown. From the user's perspective, the message appeared instantly.
+
+The experience difference is significant. 0ms perceived latency versus 200ms of waiting. The optimistic version feels like a native app.
+
+## The pattern in code
+
+The optimistic update pattern in React:
+
+```tsx
+function useMessages(channelId: string) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+
+  const sendMessage = async (content: string) => {
+    // 1. Create a temporary message with a client-generated ID
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: PendingMessage = {
+      id: tempId,
+      content,
+      authorId: currentUser.id,
+      channelId,
+      createdAt: new Date().toISOString(),
+      status: 'sending', // visual indicator
+    };
+
+    // 2. Show the message immediately
+    setPendingMessages((prev) => [...prev, optimisticMessage]);
+
+    try {
+      // 3. Make the actual API call in the background
+      const confirmed = await api.sendMessage({ channelId, content });
+
+      // 4. Remove the optimistic message, server message appears via SSE
+      setPendingMessages((prev) => prev.filter((m) => m.id !== tempId));
+    } catch {
+      // 5. On failure: mark as failed (or remove)
+      setPendingMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
+      );
+    }
+  };
+
+  // Display: real messages + pending messages merged
+  const allMessages = [
+    ...messages,
+    ...pendingMessages.filter((p) => !messages.find((m) => /* duplicate check */)),
+  ];
+
+  return { messages: allMessages, sendMessage };
+}
+```
+
+The key insight: we show two lists simultaneously. Real messages (confirmed by the server, received via SSE) and pending messages (created optimistically, not yet confirmed). When a real message arrives that matches a pending message, the pending one is removed.
+
+## The SSE-based deduplication
+
+The Hyve uses SSE for real-time message delivery. When you send a message, the server confirms it and broadcasts it to all subscribers including the sender. Without optimistic updates, the sender would see the message twice: once when they sent it and once when the SSE broadcast arrived.
+
+With optimistic updates, the deduplication logic is: when an SSE message arrives from the server, check if there's a pending message with matching content and author. If so, the pending message was already showing — remove it, as the real server message takes its place.
+
+```ts
+useEffect(() => {
+  const source = new EventSource(`/api/channels/${channelId}/events`);
+  
+  source.onmessage = (event) => {
+    const message = JSON.parse(event.data) as Message;
+    
+    setMessages((prev) => {
+      // Deduplication: don't add if already exists
+      if (prev.find((m) => m.id === message.id)) return prev;
+      return [...prev, message];
+    });
+    
+    // Remove matching pending message
+    setPendingMessages((prev) =>
+      prev.filter(
+        (p) => !(p.authorId === message.authorId && p.content === message.content && p.status === 'sending')
+      )
+    );
+  };
+  
+  return () => source.close();
+}, [channelId]);
+```
+
+## When optimistic updates go wrong
+
+Optimistic updates assume the request will succeed. Most of the time, it will. But:
+
+**The request fails:** The message appeared but the API call failed. The user thinks they sent the message when they didn't. This is worse than a loading state followed by an error.
+
+Our mitigation: show failed messages with a retry button. Don't silently remove them. "This message failed to send — tap to retry" is honest and actionable.
+
+**The request succeeds with different data:** The server might modify the message content (sanitisation, formatting). The optimistic message shows the original content, then jumps to the server-modified version when the real message arrives. Jarring.
+
+Our mitigation: we don't modify message content server-side. The message that arrives from the server is exactly what the user typed.
+
+**Concurrent edits:** Two users editing the same record simultaneously. Optimistic updates make this harder to reason about.
+
+Our mitigation: the messages channel is append-only. There are no concurrent edits to the same message — only new messages. This eliminates the concurrent edit problem for our use case.
+
+## Where we use optimistic updates
+
+**The Hyve:** Message sending, reaction toggling (thumbs up/down), channel creation.
+
+**The Marqet:** Listing saves, watchlist additions.
+
+**Scoutr:** Scan request initiation (the scan card appears immediately while the actual scan runs in the background).
+
+## Where we don't use optimistic updates
+
+Operations with significant risk of failure (payments, file uploads, anything involving external APIs) don't use optimistic updates. The UX cost of showing "payment succeeded" and then having to walk it back is too high. Loading indicators are fine for operations where accuracy matters.
+
+The decision is: what's the cost of a false positive? For sending a chat message, the cost of "message appeared but failed to send" is low — a retry shows up, user retaps. For a payment, the cost is much higher. Apply optimistic updates accordingly.
