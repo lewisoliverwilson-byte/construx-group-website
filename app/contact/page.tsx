@@ -103,21 +103,37 @@ export default function ContactPage() {
       <section className="px-5 py-20 mx-auto max-w-2xl">
         {status === 'success' ? (
           <div
-            className="px-8 py-12 text-center"
-            style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '3px' }}
+            className="overflow-hidden text-center"
+            style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', boxShadow: '0 0 32px rgba(16,185,129,0.06)' }}
           >
-            <CheckCircle className="mx-auto mb-5 text-emerald-400" size={32} />
-            <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-emerald-400 mb-3">TRANSMISSION.OK</p>
-            <h2 className="text-lg font-bold text-text-base mb-3">Message sent.</h2>
-            <p className="text-sm text-text-muted leading-relaxed">
-              We've received your message. We respond to every message — usually same day, always within 24 hours.
-            </p>
-            <button
-              onClick={() => setStatus('idle')}
-              className="mt-6 font-mono text-[10px] uppercase tracking-widest text-construx hover:text-orange-400 transition-colors"
+            {/* Title bar */}
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 border-b select-none"
+              style={{ borderColor: 'rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.03)' }}
             >
-              Send another ›
-            </button>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
+                construx.contact — transmission.ok
+              </span>
+            </div>
+            <div className="px-8 py-12">
+              <CheckCircle className="mx-auto mb-5 text-emerald-400" size={32} />
+              <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-emerald-400 mb-3">TRANSMISSION.OK</p>
+              <h2 className="text-lg font-bold text-text-base mb-3">Message sent.</h2>
+              <p className="text-sm text-text-muted leading-relaxed">
+                We've received your message. We respond to every message — usually same day, always within 24 hours.
+              </p>
+              <button
+                onClick={() => setStatus('idle')}
+                className="mt-6 font-mono text-[10px] uppercase tracking-widest text-construx hover:text-orange-400 transition-colors"
+              >
+                Send another ›
+              </button>
+            </div>
           </div>
         ) : (
           <form
@@ -126,6 +142,26 @@ export default function ContactPage() {
             className="overflow-hidden"
             style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '3px' }}
           >
+            {/* Title bar */}
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 border-b border-border select-none"
+              style={{ background: 'rgba(255,255,255,0.02)' }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
+                construx.contact — compose
+              </span>
+              <span
+                className="font-mono text-[8px] uppercase tracking-widest"
+                style={{ color: form.name && form.email && form.message.length >= 20 ? 'rgba(40,200,64,0.6)' : 'rgba(255,255,255,0.15)' }}
+              >
+                {form.name && form.email && form.message.length >= 20 ? 'READY' : 'DRAFT'}
+              </span>
+            </div>
             <div className="p-8 flex flex-col gap-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {field('name', 'Your name', 'text', 'Your name')}
