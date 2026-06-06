@@ -1,0 +1,174 @@
+---
+title: "AWS CDK: infrastructure as TypeScript"
+date: "2030-06-12"
+excerpt: "The AWS Cloud Development Kit lets you define AWS infrastructure in TypeScript. Instead of writing YAML CloudFormation templates, you write code: classes, loops, conditionals, abstractions. CDK compiles down to CloudFormation under the hood. You get autocomplete, type safety, reusable constructs, and the full power of a programming language to express infrastructure."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+CloudFormation is declarative YAML. Hundreds of lines to describe a Lambda + API Gateway + DynamoDB setup. CDK is the same thing in TypeScript — far less boilerplate, with the ability to build abstractions and share patterns across projects.
+
+## Setup
+
+```bash
+npm install -g aws-cdk
+npm install aws-cdk-lib constructs
+cdk init app --language typescript
+```
+
+## Basic stack
+
+```ts
+// lib/construx-stack.ts
+import * as cdk    from 'aws-cdk-lib';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as dynamodb   from 'aws-cdk-lib/aws-dynamodb';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Construct }      from 'constructs';
+
+export class ConstruxStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+    // DynamoDB table
+    const table = new dynamodb.Table(this, 'UsersTable', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey:      { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode:  dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // Lambda function (bundles TypeScript automatically)
+    const api = new NodejsFunction(this, 'ApiFunction', {
+      entry:   'src/api/index.ts',
+      handler: 'handler',
+      runtime: lambda.Runtime.NODEJS_22_X,
+      environment: {
+        TABLE_NAME: table.tableName,
+      },
+      bundling: {
+        minify:    true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    // Grant Lambda read/write access to DynamoDB
+    table.grantReadWriteData(api);
+
+    // API Gateway REST API
+    const rest = new apigateway.RestApi(this, 'ConstruxApi', {
+      restApiName:        'Construx API',
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: apigateway.Cors.ALL_METHODS,
+      },
+    });
+
+    rest.root.addProxy({ defaultIntegration: new apigateway.LambdaIntegration(api) });
+
+    new cdk.CfnOutput(this, 'ApiUrl', { value: rest.url });
+  }
+}
+```
+
+## Deploy
+
+```bash
+# Synthesise CloudFormation template
+cdk synth
+
+# Deploy to AWS
+cdk deploy
+
+# Show what will change (diff)
+cdk diff
+
+# Destroy the stack
+cdk destroy
+```
+
+## Custom construct (reusable pattern)
+
+```ts
+// lib/constructs/secure-function.ts
+import * as cdk    from 'aws-cdk-lib';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs   from 'aws-cdk-lib/aws-logs';
+import * as iam    from 'aws-cdk-lib/aws-iam';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Construct }      from 'constructs';
+
+export interface SecureFunctionProps {
+  entry:       string;
+  environment: Record<string, string>;
+  secrets?:    string[];
+}
+
+export class SecureFunction extends Construct {
+  readonly fn: NodejsFunction;
+
+  constructor(scope: Construct, id: string, props: SecureFunctionProps) {
+    super(scope, id);
+
+    const logGroup = new logs.LogGroup(this, 'Logs', {
+      retention:     logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    this.fn = new NodejsFunction(this, 'Function', {
+      entry:       props.entry,
+      runtime:     lambda.Runtime.NODEJS_22_X,
+      environment: {
+        ...props.environment,
+        NODE_OPTIONS: '--enable-source-maps',
+      },
+      logGroup,
+      bundling: { minify: true, sourceMap: true },
+    });
+
+    // Grant access to any Secrets Manager secrets
+    for (const arn of props.secrets ?? []) {
+      this.fn.addToRolePolicy(new iam.PolicyStatement({
+        actions:   ['secretsmanager:GetSecretValue'],
+        resources: [arn],
+      }));
+    }
+  }
+}
+```
+
+Now reuse this pattern across stacks instead of repeating the same Lambda + LogGroup + IAM setup.
+
+## Multi-environment deployment
+
+```ts
+// bin/construx.ts
+import * as cdk    from 'aws-cdk-lib';
+import { ConstruxStack } from '../lib/construx-stack';
+
+const app = new cdk.App();
+const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'eu-west-2' };
+
+new ConstruxStack(app, 'ConstruxStaging', {
+  env,
+  stackName: 'construx-staging',
+  tags: { Environment: 'staging' },
+});
+
+new ConstruxStack(app, 'ConstruxProd', {
+  env,
+  stackName: 'construx-prod',
+  tags: { Environment: 'production' },
+});
+```
+
+```bash
+cdk deploy ConstruxStaging  # deploy staging only
+cdk deploy --all            # deploy all stacks
+```
+
+## CDK vs Terraform vs Pulumi
+
+CDK: AWS-only, TypeScript first-class, compiles to CloudFormation, excellent IDE support. Terraform: multi-cloud, HCL DSL, mature ecosystem, vast provider library. Pulumi: multi-cloud, real programming languages (TypeScript, Python, Go), but smaller community than Terraform. Use CDK when you're AWS-only and want TypeScript end-to-end. Use Terraform for multi-cloud or when your team already knows HCL.

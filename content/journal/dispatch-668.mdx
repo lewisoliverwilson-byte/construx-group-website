@@ -1,0 +1,137 @@
+---
+title: "Bun: the JavaScript runtime that runs everything"
+date: "2030-06-09"
+excerpt: "Bun is a JavaScript runtime, package manager, bundler, and test runner in a single binary. It's written in Zig, uses JavaScriptCore (Safari's engine) instead of V8, and is designed to be a drop-in replacement for Node.js that starts faster and runs scripts 3-4x faster. The package manager resolves and installs dependencies 10-25x faster than npm."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Node.js runs JavaScript outside the browser. Bun does the same — and adds a package manager, bundler, and test runner, all dramatically faster. It's not a different language; it's a faster environment for the same code.
+
+## Drop-in Node.js replacement
+
+```bash
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+
+# Run any Node.js script
+bun run src/index.ts       # TypeScript natively, no compilation step
+bun run server.js
+
+# Run npm scripts
+bun run build
+bun run test
+
+# Execute a package binary
+bun x esbuild --version
+```
+
+Bun implements the Node.js API — `fs`, `path`, `http`, `crypto`, `stream`, and most other built-in modules work without changes.
+
+## Package manager
+
+```bash
+# Install packages (reads package.json, writes bun.lockb)
+bun install
+
+# Add a package
+bun add react react-dom
+bun add -d typescript @types/react  # devDependency
+
+# Remove a package
+bun remove lodash
+
+# Run a package binary
+bunx prisma migrate dev
+
+# Upgrade all dependencies
+bun update
+```
+
+The lockfile (`bun.lockb`) is binary — smaller and faster to read than JSON. Commit it alongside package.json.
+
+## Bun as a runtime
+
+```ts
+// Bun-native APIs — no npm package needed
+
+// Built-in SQLite
+import { Database } from 'bun:sqlite';
+const db = new Database('local.db');
+db.run('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)');
+db.run('INSERT OR REPLACE INTO kv VALUES (?, ?)', ['greeting', 'hello']);
+const row = db.query('SELECT value FROM kv WHERE key = ?').get('greeting');
+
+// Built-in file I/O
+const file  = Bun.file('./data.json');
+const json  = await file.json();
+await Bun.write('./output.json', JSON.stringify(result, null, 2));
+
+// Built-in password hashing (bcrypt-compatible)
+const hash     = await Bun.password.hash('password123');
+const isValid  = await Bun.password.verify('password123', hash);
+
+// Built-in HTTP server
+Bun.serve({
+  port:  3000,
+  fetch(req) {
+    const url = new URL(req.url);
+    if (url.pathname === '/api/health') return Response.json({ ok: true });
+    return new Response('Not Found', { status: 404 });
+  },
+});
+```
+
+## Bun test runner
+
+```ts
+// Bun has Jest-compatible APIs — no configuration
+import { expect, test, describe, beforeEach } from 'bun:test';
+
+describe('UserService', () => {
+  let service: UserService;
+
+  beforeEach(() => {
+    service = new UserService(testDb);
+  });
+
+  test('creates a user', async () => {
+    const user = await service.create({ email: 'test@example.com', name: 'Test' });
+    expect(user.id).toBeDefined();
+    expect(user.email).toBe('test@example.com');
+  });
+
+  test('throws on duplicate email', async () => {
+    await service.create({ email: 'dup@example.com', name: 'A' });
+    expect(service.create({ email: 'dup@example.com', name: 'B' })).rejects.toThrow();
+  });
+});
+```
+
+```bash
+bun test                    # run all tests
+bun test --watch            # watch mode
+bun test src/user.test.ts   # run a specific file
+bun test --coverage         # coverage report
+```
+
+## Bun bundler
+
+```ts
+// bun.config.ts
+await Bun.build({
+  entrypoints: ['./src/index.tsx'],
+  outdir:      './dist',
+  minify:      true,
+  sourcemap:   'external',
+  target:      'browser',
+  splitting:   true,   // code splitting
+  plugins:     [],
+});
+```
+
+The Bun bundler is esbuild-compatible and nearly as fast.
+
+## Bun vs Node.js vs Deno
+
+Bun: fastest startup and install, batteries included (SQLite, file I/O, password hashing, test runner), TypeScript natively. Node.js: most mature, largest ecosystem, most deployment targets support it. Deno: TypeScript-first, permissions model, URL imports, closer to web standards. For greenfield server-side work where deployment is a VPS or container, Bun is worth reaching for first. For anything on serverless platforms (Vercel, Netlify, AWS Lambda), check runtime support before committing.

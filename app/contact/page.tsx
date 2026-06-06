@@ -10,6 +10,7 @@ import DnsLookupPanel from '@/components/DnsLookupPanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import SpfDkimPanel from '@/components/SpfDkimPanel';
 import TlsHandshakePanel from '@/components/TlsHandshakePanel';
+import MtrPanel from '@/components/MtrPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -359,8 +360,13 @@ export default function ContactPage() {
       </section>
 
       {/* TLS handshake */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <TlsHandshakePanel />
+      </section>
+
+      {/* MTR route analysis */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <MtrPanel />
       </section>
     </div>
   );
