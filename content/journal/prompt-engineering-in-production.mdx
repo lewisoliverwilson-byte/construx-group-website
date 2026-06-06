@@ -22,7 +22,7 @@ The four things every production system prompt should specify:
 
 **Context**: What does Claude know that it normally wouldn't? Fee schedules, product category rules, specific definitions of terms that might be ambiguous. The more specific the domain, the more context Claude needs.
 
-**Output format**: Exactly what structure should responses take? If you're parsing the output programmatically, specify the format precisely and include an example. "Respond in this exact JSON format: {...}" is not overkill — it prevents the subtle variations that break parsers.
+**Output format**: Exactly what structure should responses take? If you're parsing the output programmatically, specify the format precisely and include an example. "Respond in this exact JSON format: `{...}`" is not overkill — it prevents the subtle variations that break parsers.
 
 **Boundaries**: What should Claude decline to do? Being explicit about out-of-scope requests prevents the model from trying to help with things outside your application's purpose.
 

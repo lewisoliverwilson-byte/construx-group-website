@@ -127,7 +127,7 @@ Irreversible migrations require an explicit sign-off in the PR. We make sure the
 
 **Running migrations in the same deployment as the code.** Early on, we deployed code and migrations simultaneously. This creates a window where the new code is running against the old schema (during the deployment) — which fails if the code expects new columns that don't exist yet.
 
-**Not testing migrations against production data volume.** A migration that runs in <1ms against a development database with 100 rows can take 5 minutes against a production table with 50M rows. We now test non-trivial migrations against a staging environment that mirrors production data volume.
+**Not testing migrations against production data volume.** A migration that runs in &lt;1ms against a development database with 100 rows can take 5 minutes against a production table with 50M rows. We now test non-trivial migrations against a staging environment that mirrors production data volume.
 
 **Forgetting `CONCURRENTLY`.** We've shipped index creation without `CONCURRENTLY` and created short table locks that caused visible latency spikes. The `CONCURRENTLY` flag is now checked in every migration review.
 

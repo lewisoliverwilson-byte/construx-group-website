@@ -94,7 +94,7 @@ Explicit constraints eliminate the failure modes they address. The cost is a sli
 
 "What should the AI do when it encounters a product page in a foreign language?" We didn't specify this initially. The AI would sometimes try to translate and analyse, sometimes return an error, sometimes just analyse whatever English text was present.
 
-The inconsistency wasn't the AI being bad — it was the prompt being underspecified. Once we added explicit handling: "If the product page is not in English, return {"error": "non_english_page", "reason": "Product page is not in English"}", the behaviour became consistent.
+The inconsistency wasn't the AI being bad — it was the prompt being underspecified. Once we added explicit handling: "If the product page is not in English, return `{"error": "non_english_page", "reason": "Product page is not in English"}`", the behaviour became consistent.
 
 Map out the cases that deviate from the happy path. For each one, decide what the correct behaviour is and specify it. The AI is remarkably good at following explicit instructions — the gap is usually that the instructions don't cover the case.
 

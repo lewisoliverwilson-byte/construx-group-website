@@ -16,7 +16,7 @@ Caching isn't one decision — it's a stack of decisions at different layers.
 
 **Browser cache:** HTTP responses with `Cache-Control` headers. Static assets (JS, CSS, images) are cached aggressively (1 year, content-hashed filenames). Pages are either not cached (`no-store` for authenticated content) or cached briefly (`max-age=60` for public pages).
 
-**CDN cache (Amplify/CloudFront):** Static assets are served from the CDN edge closest to the user. No database involved. Latency is typically <10ms.
+**CDN cache (Amplify/CloudFront):** Static assets are served from the CDN edge closest to the user. No database involved. Latency is typically &lt;10ms.
 
 **In-process cache (application memory):** Values computed once and held in memory for the lifetime of a process. Useful for configuration, feature flags, and reference data that changes rarely. Dangerous for serverless functions where processes are short-lived — the cache is empty on every cold start.
 
