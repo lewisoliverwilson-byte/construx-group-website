@@ -1,0 +1,218 @@
+---
+title: "Accessibility in Next.js: keyboard nav, ARIA, and focus management"
+date: "2028-03-21"
+excerpt: "Accessibility is a product requirement, not a nice-to-have. Screen reader compatibility, keyboard navigation, focus management, and ARIA roles — here's the practical checklist for a Next.js app."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Most accessibility issues come from three sources: missing semantic HTML, broken keyboard navigation, and invisible focus states. Fixing these covers the majority of real user pain.
+
+## Semantic HTML first
+
+Screen readers understand HTML elements. If you use a `<button>` for a button, you get keyboard handling, ARIA roles, and focus for free. A `<div onClick>` gives you none of those.
+
+```tsx
+// Bad — breaks keyboard nav, screen readers announce as "text"
+<div onClick={handleSubmit} className="btn">Submit</div>
+
+// Good — keyboard, focus, ARIA, all included
+<button onClick={handleSubmit} className="btn">Submit</button>
+```
+
+The complete list of elements that carry semantic meaning: `<button>`, `<a>`, `<input>`, `<select>`, `<textarea>`, `<nav>`, `<main>`, `<header>`, `<footer>`, `<article>`, `<section>`, `<aside>`, `<h1>`-`<h6>`, `<ul>`, `<ol>`, `<li>`, `<table>`, `<th>`, `<td>`.
+
+Use them. Reach for a `<div>` only when none of these fit.
+
+## Focus management for SPAs
+
+Next.js handles route changes, but doesn't manage focus. After navigation, focus stays where it was, which disorients keyboard and screen reader users:
+
+```tsx
+// app/layout.tsx — move focus to main content on route change
+'use client';
+
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
+
+export function RouteAnnouncer() {
+  const pathname = usePathname();
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    // Small delay to let the new page render
+    const id = setTimeout(() => {
+      mainRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(id);
+  }, [pathname]);
+
+  return <main id="main-content" ref={mainRef} tabIndex={-1} className="outline-none">{/* children */}</main>;
+}
+```
+
+For modals and dialogs, move focus into the modal when it opens and back to the trigger when it closes:
+
+```tsx
+// components/Modal.tsx
+import { useEffect, useRef } from 'react';
+
+export function Modal({ isOpen, onClose, triggerRef, children }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Focus the first focusable element in the modal
+      const focusable = panelRef.current?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      focusable?.focus();
+    } else {
+      // Return focus to the element that opened the modal
+      triggerRef.current?.focus();
+    }
+  }, [isOpen, triggerRef]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      {children}
+    </div>
+  );
+}
+```
+
+## Focus trap for modals
+
+```tsx
+// Trap focus inside a modal
+function useFocusTrap(containerRef: React.RefObject<HTMLElement>, isActive: boolean) {
+  useEffect(() => {
+    if (!isActive) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const focusable = Array.from(container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
+    ));
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleTab);
+    return () => container.removeEventListener('keydown', handleTab);
+  }, [containerRef, isActive]);
+}
+```
+
+## ARIA labels for icon buttons
+
+Icon-only buttons need an accessible name. Screen readers announce the element type but not the icon:
+
+```tsx
+// Bad — screen reader says "button" with no context
+<button onClick={onClose}>
+  <X size={16} />
+</button>
+
+// Good — screen reader says "Close panel"
+<button onClick={onClose} aria-label="Close panel">
+  <X size={16} aria-hidden="true" />
+</button>
+```
+
+`aria-hidden="true"` on the icon prevents the screen reader from announcing the SVG internals.
+
+## Live regions for dynamic content
+
+When content updates without a page navigation, screen readers don't notice unless you tell them:
+
+```tsx
+// Announce toast messages
+function LiveAnnouncer() {
+  const [message, setMessage] = useState('');
+
+  // Subscribe to toast events
+  useEffect(() => {
+    const handler = (e: CustomEvent) => setMessage(e.detail.message);
+    window.addEventListener('toast', handler as EventListener);
+    return () => window.removeEventListener('toast', handler as EventListener);
+  }, []);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="sr-only"
+    >
+      {message}
+    </div>
+  );
+}
+```
+
+`aria-live="polite"` announces after the user finishes their current interaction. `aria-live="assertive"` interrupts immediately — use only for errors.
+
+## Visible focus styles
+
+Browsers have default focus outlines. Tailwind removes them with `outline-none`. Put them back:
+
+```css
+/* globals.css */
+:focus-visible {
+  outline: 2px solid #F97316;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Remove focus ring for mouse users only */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+```
+
+`:focus-visible` shows the ring only when the user is navigating by keyboard — not when clicking. This satisfies both the "remove focus ring" design request and the "keyboard users can see focus" accessibility requirement.
+
+## Automated testing
+
+```bash
+npm install -D axe-core @axe-core/playwright
+```
+
+```ts
+// e2e/accessibility.spec.ts
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('homepage has no accessibility violations', async ({ page }) => {
+  await page.goto('/');
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+```
+
+Automated tools catch 30-40% of issues. The rest requires keyboard testing (Tab through every interactive element) and screen reader testing (VoiceOver on macOS, NVDA on Windows). The automated tests catch the obvious failures. Manual testing catches the subtle ones.
