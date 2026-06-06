@@ -188,7 +188,7 @@ export default async function JournalPostPage({ params }: Props) {
               <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest mt-0.5">Construx Group</p>
             </div>
             <div className="flex items-center gap-3">
-              <SharePost title={post.title} />
+              <SharePost title={post.title} dispatchNum={dispatchNumber} />
               <CopyLink />
               <Link
                 href="/journal"
