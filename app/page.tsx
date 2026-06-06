@@ -9,6 +9,7 @@ import SolarSystemLoader from '@/components/solar-system/SolarSystemLoader';
 import CountUp from '@/components/ui/CountUp';
 import SystemLog from '@/components/SystemLog';
 import SysBootSequence from '@/components/SysBootSequence';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -138,6 +139,11 @@ export default function HomePage() {
       {/* Boot sequence */}
       <div className="py-10">
         <SysBootSequence />
+      </div>
+
+      {/* Network ping panel */}
+      <div className="pb-10">
+        <NetworkPingPanel />
       </div>
 
       {/* Below-fold: What is Construx */}

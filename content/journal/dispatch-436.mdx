@@ -1,0 +1,210 @@
+---
+title: "Redis data structures: the right tool for each problem"
+date: "2028-07-13"
+excerpt: "Redis isn't just a cache. It has six core data structures, each optimized for a different class of problem: strings for caching and counters, lists for queues, sets for unique membership, sorted sets for leaderboards, hashes for objects, and streams for event logs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redis is often used as a cache and nothing else. That ignores five other data structures that solve problems cleanly that would otherwise require complex application-level code.
+
+## Strings — caching and counters
+
+The default data type. Used for caching HTML fragments, API responses, and simple key-value storage:
+
+```ts
+import { redis } from '@/lib/redis';
+
+// Cache a rendered HTML fragment
+async function getCachedResponse(key: string): Promise<string | null> {
+  return redis.get(key);
+}
+
+async function setCachedResponse(key: string, html: string, ttl = 3600) {
+  await redis.setex(key, ttl, html);  // expires in 1 hour
+}
+
+// Atomic counter — safe under concurrent writes
+async function incrementPageViews(slug: string): Promise<number> {
+  return redis.incr(`views:${slug}`);
+}
+
+// Rate limiting — increment and check in one round trip
+async function checkRateLimit(userId: string, limit = 100): Promise<boolean> {
+  const key = `ratelimit:${userId}:${Math.floor(Date.now() / 60000)}`;
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, 60);  // expire after 1 minute window
+  return count <= limit;
+}
+```
+
+## Lists — queues and activity feeds
+
+Ordered collections with O(1) push/pop from either end:
+
+```ts
+// Task queue — producer pushes, worker pops
+async function enqueueEmail(job: EmailJob) {
+  await redis.rpush('queue:emails', JSON.stringify(job));
+}
+
+async function dequeueEmail(): Promise<EmailJob | null> {
+  const raw = await redis.lpop('queue:emails');
+  return raw ? JSON.parse(raw) : null;
+}
+
+// Blocking pop — worker waits for work
+async function workerLoop() {
+  while (true) {
+    // Blocks for up to 5 seconds waiting for a job
+    const result = await redis.blpop('queue:emails', 5);
+    if (result) {
+      const [, raw] = result;
+      const job = JSON.parse(raw) as EmailJob;
+      await processEmail(job);
+    }
+  }
+}
+
+// Activity feed — trim to last 100 items
+async function addActivity(userId: string, activity: Activity) {
+  const key = `feed:${userId}`;
+  await redis.lpush(key, JSON.stringify(activity));
+  await redis.ltrim(key, 0, 99);  // keep last 100
+}
+```
+
+## Sets — unique membership
+
+Unordered collections with O(1) add/remove/check:
+
+```ts
+// Track unique visitors (no duplicates)
+async function trackVisitor(pageSlug: string, visitorId: string) {
+  await redis.sadd(`visitors:${pageSlug}`, visitorId);
+  await redis.expire(`visitors:${pageSlug}`, 86400);  // expire after 24h
+}
+
+async function getUniqueVisitorCount(pageSlug: string): Promise<number> {
+  return redis.scard(`visitors:${pageSlug}`);
+}
+
+// Tags — fast lookup of posts with multiple tags
+async function getPostsWithBothTags(tagA: string, tagB: string): Promise<string[]> {
+  const key = `temp:intersect:${tagA}:${tagB}`;
+  await redis.sinterstore(key, `tag:${tagA}`, `tag:${tagB}`);
+  await redis.expire(key, 60);
+  return redis.smembers(key);
+}
+
+// Online users
+async function setUserOnline(userId: string) {
+  await redis.sadd('users:online', userId);
+  await redis.expire('users:online', 30);  // heartbeat keeps this alive
+}
+```
+
+## Sorted sets — leaderboards and time-series
+
+Members with an associated score. O(log n) for most operations:
+
+```ts
+// Leaderboard
+async function updateScore(userId: string, score: number) {
+  await redis.zadd('leaderboard:global', { score, member: userId });
+}
+
+async function getTopPlayers(count = 10): Promise<{ userId: string; score: number }[]> {
+  const results = await redis.zrevrange('leaderboard:global', 0, count - 1, 'WITHSCORES');
+  // results: ['user1', '9450', 'user2', '8200', ...]
+  const players = [];
+  for (let i = 0; i < results.length; i += 2) {
+    players.push({ userId: results[i], score: Number(results[i + 1]) });
+  }
+  return players;
+}
+
+async function getUserRank(userId: string): Promise<number | null> {
+  const rank = await redis.zrevrank('leaderboard:global', userId);
+  return rank !== null ? rank + 1 : null;  // 1-indexed
+}
+
+// Scheduled jobs — use timestamp as score
+async function scheduleJob(jobId: string, runAt: Date) {
+  await redis.zadd('jobs:scheduled', { score: runAt.getTime(), member: jobId });
+}
+
+async function getDueJobs(): Promise<string[]> {
+  const now = Date.now();
+  return redis.zrangebyscore('jobs:scheduled', '-inf', now);
+}
+```
+
+## Hashes — objects
+
+Field-value pairs stored under a single key. More memory-efficient than separate string keys for structured objects:
+
+```ts
+// User session — read/write individual fields without fetching the whole object
+async function setSessionField(sessionId: string, field: string, value: string) {
+  await redis.hset(`session:${sessionId}`, field, value);
+}
+
+async function getSession(sessionId: string): Promise<Record<string, string>> {
+  return redis.hgetall(`session:${sessionId}`) ?? {};
+}
+
+// Feature flags per user
+async function setFeatureFlag(userId: string, feature: string, enabled: boolean) {
+  await redis.hset(`flags:${userId}`, feature, enabled ? '1' : '0');
+}
+
+async function getUserFlags(userId: string): Promise<Record<string, boolean>> {
+  const raw = await redis.hgetall(`flags:${userId}`) ?? {};
+  return Object.fromEntries(
+    Object.entries(raw).map(([k, v]) => [k, v === '1'])
+  );
+}
+```
+
+## Streams — event logs
+
+Append-only log with consumer groups. The right structure for event sourcing and message queues with at-least-once delivery:
+
+```ts
+// Produce events
+async function emitEvent(event: { type: string; payload: object }) {
+  await redis.xadd('events:stream', '*', {
+    type: event.type,
+    payload: JSON.stringify(event.payload),
+  });
+}
+
+// Consumer group — multiple workers, each message delivered once
+async function consumeEvents(workerId: string) {
+  // Create consumer group if it doesn't exist
+  try {
+    await redis.xgroup('CREATE', 'events:stream', 'processors', '0', 'MKSTREAM');
+  } catch { /* already exists */ }
+
+  while (true) {
+    const results = await redis.xreadgroup(
+      'GROUP', 'processors', workerId,
+      'COUNT', 10, 'BLOCK', 5000,
+      'STREAMS', 'events:stream', '>',
+    );
+
+    if (!results) continue;
+
+    for (const [, messages] of results) {
+      for (const [id, fields] of messages) {
+        const event = { type: fields.type, payload: JSON.parse(fields.payload) };
+        await processEvent(event);
+        await redis.xack('events:stream', 'processors', id);  // mark as processed
+      }
+    }
+  }
+}
+```
+
+Pick the structure that matches the problem. Using a sorted set for a leaderboard is one line; implementing it in Postgres requires a table, an index, and a query. Redis earns its place when the access pattern is a perfect fit.

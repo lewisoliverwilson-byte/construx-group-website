@@ -1,0 +1,215 @@
+---
+title: "Next.js parallel routes and intercepting routes: advanced layout patterns"
+date: "2028-07-19"
+excerpt: "Parallel routes render multiple pages simultaneously in the same layout. Intercepting routes let you show a modal while preserving the original URL. Together they enable patterns like modals with shareable URLs, split views, and conditional slots — impossible with the traditional page model."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Parallel routes and intercepting routes are two App Router features that unlock patterns that previously required complex client-side state management. They work differently but combine naturally.
+
+## Parallel routes
+
+Parallel routes render multiple route segments simultaneously in the same layout. Use the `@folder` naming convention:
+
+```
+app/
+  layout.tsx          ← receives @analytics and @team as props
+  @analytics/
+    page.tsx          ← analytics panel
+  @team/
+    page.tsx          ← team panel
+  page.tsx            ← main page
+```
+
+```tsx
+// app/layout.tsx
+export default function Layout({
+  children,
+  analytics,
+  team,
+}: {
+  children: React.ReactNode;
+  analytics: React.ReactNode;
+  team: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_300px] grid-rows-[auto_1fr] h-screen">
+      <header className="col-span-2">{/* nav */}</header>
+      <main>{children}</main>
+      <aside className="border-l border-white/10">
+        {analytics}
+        {team}
+      </aside>
+    </div>
+  );
+}
+```
+
+Each slot is a separate route that loads independently. If `@analytics` is slow, `@team` renders while it loads.
+
+## Default fallbacks
+
+When a parallel route doesn't match the current URL, you need a `default.tsx`:
+
+```tsx
+// app/@analytics/default.tsx
+export default function AnalyticsDefault() {
+  return null;  // render nothing when not active
+}
+```
+
+## Intercepting routes
+
+Intercepting routes let you "intercept" navigation to show different content while preserving the original destination. The convention uses `(...)` prefixes:
+
+```
+(.)  → intercept from the same segment
+(..) → intercept from one level up
+(..)(..) → intercept from two levels up
+(...) → intercept from the root
+```
+
+The classic use case: a photo gallery where clicking a photo shows a modal, but the URL updates to `/photos/123`. Direct navigation to `/photos/123` shows the full photo page.
+
+```
+app/
+  photos/
+    page.tsx             ← gallery
+    [id]/
+      page.tsx           ← full photo page (navigated to directly)
+  @modal/
+    (.)photos/
+      [id]/
+        page.tsx         ← modal version (shown when intercepted)
+    default.tsx          ← null (when not intercepting)
+```
+
+```tsx
+// app/photos/page.tsx
+import Link from 'next/link';
+import { getAllPhotos } from '@/lib/photos';
+
+export default function Gallery() {
+  const photos = getAllPhotos();
+
+  return (
+    <div className="grid grid-cols-4 gap-2">
+      {photos.map((photo) => (
+        <Link key={photo.id} href={`/photos/${photo.id}`}>
+          <img src={photo.thumbnail} alt={photo.alt} />
+        </Link>
+      ))}
+    </div>
+  );
+}
+```
+
+```tsx
+// app/@modal/(.)photos/[id]/page.tsx — the intercepted version
+import { getPhoto } from '@/lib/photos';
+import PhotoModal from '@/components/PhotoModal';
+
+export default async function InterceptedPhoto({ params }: { params: { id: string } }) {
+  const photo = await getPhoto((await params).id);
+  return <PhotoModal photo={photo} />;
+}
+```
+
+```tsx
+// app/layout.tsx — receives @modal slot
+export default function Layout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  modal: React.ReactNode;
+}) {
+  return (
+    <html>
+      <body>
+        {children}
+        {modal}   {/* renders the modal overlay when intercepting */}
+      </body>
+    </html>
+  );
+}
+```
+
+When the user clicks a photo link:
+1. The URL changes to `/photos/123`
+2. The `@modal` slot renders the intercepted version (modal)
+3. The gallery stays visible behind it
+
+When the user navigates directly to `/photos/123`:
+1. No interception
+2. `app/photos/[id]/page.tsx` renders normally
+
+## Modal with close button
+
+```tsx
+// components/PhotoModal.tsx
+'use client';
+
+import { useRouter } from 'next/navigation';
+import type { Photo } from '@/lib/photos';
+
+export default function PhotoModal({ photo }: { photo: Photo }) {
+  const router = useRouter();
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+      onClick={() => router.back()}
+    >
+      <div
+        className="relative max-w-3xl w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => router.back()}
+          className="absolute -top-10 right-0 text-white/60 hover:text-white"
+        >
+          ✕ Close
+        </button>
+        <img src={photo.url} alt={photo.alt} className="w-full rounded-lg" />
+        <p className="text-white/70 text-sm mt-3">{photo.caption}</p>
+      </div>
+    </div>
+  );
+}
+```
+
+`router.back()` navigates back, which removes the interception and closes the modal.
+
+## Conditional slots
+
+Parallel routes also enable tabs that only show one slot at a time:
+
+```tsx
+// app/dashboard/layout.tsx
+export default function DashboardLayout({
+  overview,
+  analytics,
+  settings,
+  children,
+}: {
+  overview: React.ReactNode;
+  analytics: React.ReactNode;
+  settings: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <TabNav />
+      {overview}
+      {analytics}
+      {settings}
+    </div>
+  );
+}
+```
+
+Each tab navigates to a different URL (`/dashboard/overview`, `/dashboard/analytics`), with the other slots returning `null` from their `default.tsx`. The active slot renders, others don't.
+
+The combination: parallel routes give you independent slots that load concurrently. Intercepting routes let you show alternative content for navigation events. Modals with shareable URLs, split views, and tab layouts — all without client-side state.

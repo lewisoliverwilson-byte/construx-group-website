@@ -1,0 +1,241 @@
+---
+title: "GitHub Actions CI/CD for Next.js: build, test, deploy"
+date: "2028-07-16"
+excerpt: "A CI/CD pipeline for Next.js needs to do four things well: install dependencies fast, run type checks and tests in parallel, build the app, and deploy. Here's a complete GitHub Actions workflow with caching, parallel jobs, and environment management."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+CI/CD is the mechanism that turns a push to main into a deployed application. For Next.js on Vercel or Amplify, the platform handles deployment. But you still need CI: type checking, linting, and tests before anything ships.
+
+## Basic workflow
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'  # cache node_modules based on package-lock.json
+
+      - run: npm ci  # clean install (respects lockfile)
+
+      - run: npm run type-check  # tsc --noEmit
+      - run: npm run lint        # eslint
+      - run: npm run test        # vitest
+      - run: npm run build       # next build
+```
+
+## Parallel jobs
+
+Type checking, linting, and tests are independent. Run them in parallel:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
+  type-check:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+      - run: npm run type-check
+
+  lint:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+      - run: npm run lint
+
+  test:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+      - run: npm run test -- --coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+  build:
+    needs: [type-check, lint, test]  # only build if all checks pass
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+      - run: npm run build
+      - uses: actions/cache/save@v4
+        with:
+          path: .next
+          key: next-build-${{ github.sha }}
+```
+
+## Environment variables
+
+```yaml
+# Repository secrets (Settings > Secrets): for sensitive values
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+
+# Repository variables (Settings > Variables): for non-sensitive config
+env:
+  NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+  NODE_ENV: production
+```
+
+## Deploy to Amplify
+
+AWS Amplify auto-deploys from GitHub when connected, but you can trigger it via CLI:
+
+```yaml
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'  # only deploy from main
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Trigger Amplify deployment
+        run: |
+          aws amplify start-job \
+            --app-id ${{ vars.AMPLIFY_APP_ID }} \
+            --branch-name main \
+            --job-type RELEASE
+```
+
+## Next.js build cache
+
+Cache the Next.js `.next/cache` folder to speed up subsequent builds:
+
+```yaml
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+```
+
+## Release workflow
+
+For production releases with changelog generation:
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for changelog
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v3
+        with:
+          config: cliff.toml
+          args: --latest
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.changelog.outputs.content }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') }}
+```
+
+## Reusable composite actions
+
+For steps shared across workflows:
+
+```yaml
+# .github/actions/setup/action.yml
+name: Setup Node.js
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    - run: npm ci
+      shell: bash
+```
+
+```yaml
+# Use in a workflow:
+steps:
+  - uses: actions/checkout@v4
+  - uses: ./.github/actions/setup  # local composite action
+  - run: npm run build
+```
+
+The pattern: run everything in parallel, fail fast, only deploy when all checks pass. Cache aggressively — `npm ci` and Next.js build cache are the two biggest time savers.
