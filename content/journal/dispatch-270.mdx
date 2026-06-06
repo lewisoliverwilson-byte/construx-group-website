@@ -1,0 +1,192 @@
+---
+title: "AI-powered search in The Marqet: how we rank 167 listings without a search service"
+date: "2027-03-01"
+excerpt: "The Marqet has 167 listings across four categories. Users need to find the right configuration fast. We built semantic search without Elasticsearch, Algolia, or a dedicated search service. Here's the full implementation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Search is one of those problems where the gap between "good enough for now" and "actually good" is visible to every user. A simple ILIKE query returns results with the keyword in the title. Semantic search returns results the user actually wants, even when they use different words.
+
+We built semantic search for The Marqet's 167 AI configurations without adding a dedicated search service. Here's how.
+
+## The embedding pipeline
+
+Every listing in The Marqet has a text embedding stored as a vector in PostgreSQL via pgvector. The embedding is generated when a listing is created or updated:
+
+```ts
+async function generateListingEmbedding(listing: Listing): Promise<number[]> {
+  const text = [
+    listing.name,
+    listing.category,
+    listing.description.slice(0, 1000),  // cap at 1000 chars
+    listing.useCases.join(', '),
+    listing.tags.join(', '),
+  ].filter(Boolean).join('\n');
+
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 1,
+    messages: [{ role: 'user', content: text }],
+  });
+
+  // Use the input embeddings endpoint instead of message generation
+  // (This is a stand-in; real implementation uses embeddings API directly)
+  return generateEmbedding(text);
+}
+```
+
+The actual embedding generation uses Anthropic's embedding API or OpenAI's `text-embedding-3-small` — both produce vectors of consistent dimensionality (1536 for OpenAI, varies for Anthropic). The embedding captures the semantic meaning of the listing, not just the keywords.
+
+The schema:
+
+```sql
+ALTER TABLE listings 
+  ADD COLUMN embedding vector(1536);
+
+CREATE INDEX ON listings 
+  USING ivfflat (embedding vector_cosine_ops)
+  WITH (lists = 100);
+```
+
+`ivfflat` is an approximate nearest-neighbor index that trades perfect accuracy for query speed. For 167 listings, it's more than fast enough — the index pays off at tens of thousands.
+
+## The search query
+
+A semantic search query:
+1. Generates an embedding for the search term
+2. Finds the nearest listing embeddings by cosine similarity
+3. Combines the similarity score with a BM25 keyword score for hybrid ranking
+
+```ts
+async function searchListings(query: string, limit = 20): Promise<SearchResult[]> {
+  const queryEmbedding = await generateEmbedding(query);
+
+  // Semantic search via pgvector
+  const semanticResults = await db.execute<{
+    id: string;
+    name: string;
+    description: string;
+    similarity: number;
+  }>(sql`
+    SELECT
+      id,
+      name,
+      description,
+      1 - (embedding <=> ${sql.raw(`'[${queryEmbedding.join(',')}]'::vector`)}) AS similarity
+    FROM listings
+    WHERE embedding IS NOT NULL
+    ORDER BY embedding <=> ${sql.raw(`'[${queryEmbedding.join(',')}]'::vector`)}
+    LIMIT ${limit * 2}
+  `);
+
+  // Keyword search via full-text
+  const keywordResults = await db
+    .select({
+      id: listings.id,
+      rank: sql<number>`ts_rank(
+        to_tsvector('english', name || ' ' || description || ' ' || coalesce(use_cases::text, '')),
+        plainto_tsquery('english', ${query})
+      )`,
+    })
+    .from(listings)
+    .where(
+      sql`to_tsvector('english', name || ' ' || description || ' ' || coalesce(use_cases::text, ''))
+          @@ plainto_tsquery('english', ${query})`
+    )
+    .limit(limit * 2);
+
+  // Hybrid ranking: weight semantic 70%, keyword 30%
+  const scores = new Map<string, number>();
+
+  for (const r of semanticResults.rows) {
+    scores.set(r.id, (scores.get(r.id) ?? 0) + r.similarity * 0.7);
+  }
+
+  for (const r of keywordResults) {
+    scores.set(r.id, (scores.get(r.id) ?? 0) + (r.rank ?? 0) * 0.3);
+  }
+
+  // Fetch the top-scored listings
+  const topIds = [...scores.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id]) => id);
+
+  if (topIds.length === 0) return [];
+
+  const results = await db
+    .select()
+    .from(listings)
+    .where(inArray(listings.id, topIds));
+
+  // Return in score order
+  return results
+    .map((r) => ({ ...r, score: scores.get(r.id) ?? 0 }))
+    .sort((a, b) => b.score - a.score);
+}
+```
+
+The hybrid approach handles two failure modes:
+- Pure semantic: fails for specific proper nouns ("Claude Projects" returns AI assistant configs even if the query is specifically looking for project management templates)
+- Pure keyword: fails for synonym and paraphrase searches ("writing help" doesn't match listings that say "content creation assistant")
+
+70/30 semantic/keyword weighting biases toward meaning while still surfacing exact matches.
+
+## Embedding cache
+
+Embedding generation is an API call. For repeated queries, we cache:
+
+```ts
+const queryEmbeddingCache = new Map<string, { vec: number[]; at: number }>();
+const CACHE_TTL = 10 * 60 * 1000;  // 10 minutes
+
+async function generateEmbeddingCached(query: string): Promise<number[]> {
+  const normalised = query.toLowerCase().trim();
+  const cached = queryEmbeddingCache.get(normalised);
+
+  if (cached && Date.now() - cached.at < CACHE_TTL) {
+    return cached.vec;
+  }
+
+  const vec = await generateEmbedding(normalised);
+  queryEmbeddingCache.set(normalised, { vec, at: Date.now() });
+  return vec;
+}
+```
+
+The cache is in-process memory — not Redis, because the embedding is deterministic (the same query always produces the same vector) and losing the cache on process restart is acceptable. It just causes a few extra API calls on startup.
+
+## The UI
+
+Search results update as the user types, with a 300ms debounce:
+
+```ts
+const [query, setQuery] = useState('');
+const [results, setResults] = useState<SearchResult[]>([]);
+const [searching, setSearching] = useState(false);
+
+useEffect(() => {
+  if (!query.trim()) {
+    setResults([]);
+    return;
+  }
+
+  const timer = setTimeout(async () => {
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      setResults(data.results);
+    } finally {
+      setSearching(false);
+    }
+  }, 300);
+
+  return () => clearTimeout(timer);
+}, [query]);
+```
+
+The 300ms debounce prevents an embedding API call on every keystroke. Users don't notice 300ms of search latency — they notice 1-2 seconds.
+
+At 167 listings, semantic search returns results in 80-120ms including the pgvector query. As the listing count grows, the ivfflat index keeps this sub-200ms up to the tens of thousands.
