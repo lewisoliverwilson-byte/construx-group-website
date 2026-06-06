@@ -4,6 +4,7 @@ import { getAllPostMeta } from '@/lib/posts';
 import { ventures } from '@/lib/ventures';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -346,6 +347,11 @@ export default function StatsPage() {
       {/* HTTP response headers panel */}
       <div className="mt-6">
         <CurlHeadersPanel />
+      </div>
+
+      {/* Nginx access log panel */}
+      <div className="mt-6">
+        <NginxAccessLogPanel />
       </div>
     </div>
   );

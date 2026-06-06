@@ -1,0 +1,176 @@
+---
+title: "Database migrations in production: zero-downtime schema changes"
+date: "2029-01-18"
+excerpt: "Migrations that drop columns or rename things during a deployment window cause downtime. The expand-contract pattern separates schema changes from code changes across multiple deployments. Here's how to apply it with Drizzle, what's safe to do in one step, and what isn't."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Most migration problems happen because the schema change and the code change land simultaneously. For a moment — during the rolling restart, between serverless function invocations — old code runs against the new schema. The safe approach is to make schema changes backward compatible and split them across multiple deployments.
+
+## What's safe in one deployment
+
+These operations are backwards compatible — old code can run against the new schema without errors:
+
+- **Add a nullable column** — old code ignores it, new code can write it
+- **Add a column with a default** — old code ignores it, new code reads the default
+- **Add an index** — no impact on queries, might lock briefly but completes independently
+- **Add a new table** — old code never references it
+- **Drop an index** — queries still work, just slower
+
+## What's NOT safe in one deployment
+
+These break old code running against the new schema:
+
+- **Rename a column** — old code reads the old name; it's now missing
+- **Drop a column** — old code selects it; error
+- **Change a column's type** — old code may write incompatible values
+- **Add a NOT NULL column without a default** — old code inserts rows without it; constraint violation
+
+## The expand-contract pattern
+
+Split unsafe changes into three separate deployments:
+
+**Deployment 1: Expand**
+Add the new column/table alongside the old one. Both old and new code can run.
+
+```sql
+-- Adding a column: add as nullable first
+ALTER TABLE users ADD COLUMN display_name TEXT;
+```
+
+**Deployment 2: Migrate + Dual-write**
+Deploy code that writes to both old and new. Backfill existing rows.
+
+```ts
+// Backfill — run as a migration script or background job
+await db.execute(sql`
+  UPDATE users
+  SET display_name = name
+  WHERE display_name IS NULL
+`);
+```
+
+```ts
+// New code writes to both
+await db.update(users).set({
+  name:         input.name,         // Old column
+  display_name: input.displayName,  // New column
+}).where(eq(users.id, userId));
+```
+
+**Deployment 3: Contract**
+Drop the old column once all code is reading from the new one and all rows are backfilled.
+
+```sql
+ALTER TABLE users DROP COLUMN name;
+```
+
+## Column rename with Drizzle
+
+```ts
+// Migration 1: add new column
+export async function up(db: Database) {
+  await db.execute(sql`
+    ALTER TABLE posts ADD COLUMN slug TEXT
+  `);
+}
+
+// Migration 2 (separate deployment): backfill
+export async function up(db: Database) {
+  await db.execute(sql`
+    UPDATE posts
+    SET slug = lower(regexp_replace(title, '[^a-zA-Z0-9]+', '-', 'g'))
+    WHERE slug IS NULL
+  `);
+}
+
+// Migration 3 (after old code is gone): add NOT NULL constraint, drop old column
+export async function up(db: Database) {
+  await db.execute(sql`
+    ALTER TABLE posts ALTER COLUMN slug SET NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS posts_slug_idx ON posts(slug);
+  `);
+}
+```
+
+## Large table migrations
+
+For tables with millions of rows, `ALTER TABLE` holds a lock. Instead:
+
+```sql
+-- Create new table
+CREATE TABLE posts_new (LIKE posts INCLUDING ALL);
+ALTER TABLE posts_new ADD COLUMN new_col TEXT;
+
+-- Copy in batches (pg_partman or a script)
+INSERT INTO posts_new
+SELECT *, computed_value AS new_col
+FROM posts
+WHERE id > $last_id
+LIMIT 10000;
+
+-- Atomic swap (very brief lock)
+BEGIN;
+  ALTER TABLE posts RENAME TO posts_old;
+  ALTER TABLE posts_new RENAME TO posts;
+COMMIT;
+
+-- Drop old table after confirming
+DROP TABLE posts_old;
+```
+
+For PostgreSQL, the `pg_repack` extension can rewrite tables online without the lock.
+
+## NOT NULL columns the safe way
+
+Adding a NOT NULL column to an existing table requires all existing rows to have a value. The safe sequence:
+
+```sql
+-- Step 1: Add nullable
+ALTER TABLE users ADD COLUMN plan TEXT;
+
+-- Step 2: Backfill (while app runs)
+UPDATE users SET plan = 'free' WHERE plan IS NULL;
+
+-- Step 3: Add constraint (fast once all rows are filled)
+ALTER TABLE users ALTER COLUMN plan SET NOT NULL;
+ALTER TABLE users ALTER COLUMN plan SET DEFAULT 'free';
+```
+
+PostgreSQL 12+ can verify the NOT NULL constraint is already satisfied before adding it, avoiding a full table rewrite.
+
+## Drizzle migration workflow
+
+```bash
+# Generate migration SQL from schema changes
+npx drizzle-kit generate
+
+# Review the generated SQL before running
+cat drizzle/0042_add_slug.sql
+
+# Run migrations (in CI, before deploying the app)
+npx drizzle-kit migrate
+```
+
+Never let migrations run on app startup — they cause cold start delays and race conditions if multiple instances start simultaneously. Run migrations as a separate CI step before deploying.
+
+## Amplify-specific setup
+
+For AWS Amplify deployments, run migrations in the build command phase:
+
+```yaml
+# amplify.yml
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+        - npx drizzle-kit migrate  # ← runs before the app starts
+    build:
+      commands:
+        - npm run build
+```
+
+This ensures migrations complete before the new app version is deployed to any instance.

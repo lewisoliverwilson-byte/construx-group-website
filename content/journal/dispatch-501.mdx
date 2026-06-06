@@ -1,0 +1,275 @@
+---
+title: "Background jobs with BullMQ: queues, workers, and retry logic"
+date: "2029-01-24"
+excerpt: "BullMQ is a Redis-backed job queue for Node.js. It handles the patterns that make background processing reliable: retries with backoff, concurrency limits, job deduplication, scheduled jobs, and observability. Here's the setup for a production job queue alongside a Next.js app."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Background processing matters when work is too slow for a request-response cycle or when it needs to survive server restarts. Sending emails, triggering AI scans, processing uploads, syncing data with external APIs — these belong in a job queue. BullMQ handles the Redis plumbing and adds the reliability patterns you'd otherwise build yourself.
+
+## Setup
+
+```bash
+npm install bullmq
+npm install ioredis
+```
+
+BullMQ requires Redis. Use Upstash Redis in serverless environments or a standard Redis instance for persistent workers:
+
+```ts
+// lib/queue.ts
+import { Queue, Worker, QueueEvents } from 'bullmq';
+import { Redis } from 'ioredis';
+
+const connection = new Redis(process.env.REDIS_URL!, {
+  maxRetriesPerRequest: null,  // Required for BullMQ
+});
+
+export function createQueue(name: string) {
+  return new Queue(name, { connection });
+}
+
+export { Worker, QueueEvents, connection };
+```
+
+## Defining jobs
+
+Use TypeScript to keep job payloads type-safe:
+
+```ts
+// jobs/types.ts
+export type JobMap = {
+  'send-email': {
+    to:      string;
+    subject: string;
+    template: 'welcome' | 'notification' | 'digest';
+    data:    Record<string, unknown>;
+  };
+  'scan-products': {
+    userId:   string;
+    urls:     string[];
+    scanId:   string;
+    priority: 'standard' | 'express';
+  };
+  'embed-listing': {
+    listingId: string;
+    content:   string;
+  };
+  'send-digest': {
+    userId:    string;
+    frequency: 'daily' | 'weekly';
+  };
+};
+```
+
+## Queues
+
+```ts
+// lib/queues.ts
+import { createQueue } from './queue';
+import type { JobMap } from '@/jobs/types';
+
+export const emailQueue    = createQueue('email');
+export const scanQueue     = createQueue('scan');
+export const embedQueue    = createQueue('embed');
+
+// Type-safe job addition
+export async function addJob<K extends keyof JobMap>(
+  queue: ReturnType<typeof createQueue>,
+  name: K,
+  data: JobMap[K],
+  opts?: { delay?: number; priority?: number; jobId?: string },
+) {
+  return queue.add(name, data, {
+    attempts:    3,
+    backoff:     { type: 'exponential', delay: 2000 },
+    removeOnComplete: { age: 3600, count: 100 },
+    removeOnFail:     { count: 50 },
+    ...opts,
+  });
+}
+```
+
+## Workers
+
+Workers are separate processes that consume jobs. In development, run them with `tsx`. In production, deploy them on Railway, Fly.io, or as a separate Amplify compute resource:
+
+```ts
+// workers/email.ts
+import { Worker } from 'bullmq';
+import { connection } from '@/lib/queue';
+import { resend } from '@/lib/resend';
+import type { JobMap } from '@/jobs/types';
+
+const worker = new Worker<JobMap['send-email']>(
+  'email',
+  async (job) => {
+    const { to, subject, template, data } = job.data;
+
+    const html = await renderEmailTemplate(template, data);
+
+    await resend.emails.send({
+      from:    'Construx <noreply@construxgroup.io>',
+      to:      [to],
+      subject,
+      html,
+    });
+
+    console.log(`Email sent to ${to}: ${subject}`);
+  },
+  {
+    connection,
+    concurrency: 5,  // Process up to 5 emails simultaneously
+  },
+);
+
+worker.on('completed', (job) => {
+  console.log(`Job ${job.id} completed`);
+});
+
+worker.on('failed', (job, err) => {
+  console.error(`Job ${job?.id} failed:`, err);
+});
+```
+
+## Retry and backoff
+
+```ts
+// Job-level retry configuration
+await emailQueue.add('send-email', jobData, {
+  attempts: 5,
+  backoff: {
+    type:  'exponential',
+    delay: 1000,  // 1s, 2s, 4s, 8s, 16s
+  },
+});
+
+// Worker-level default retry
+const worker = new Worker('scan', processor, {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'fixed', delay: 5000 },
+  },
+});
+```
+
+For network-dependent jobs (external APIs, email delivery), exponential backoff with jitter prevents thundering herd when a downstream service recovers:
+
+```ts
+backoff: {
+  type: 'custom',
+},
+// In the processor:
+async (job) => {
+  try {
+    await doWork(job.data);
+  } catch (err) {
+    // Add jitter to the next retry delay
+    const baseDelay = 1000 * Math.pow(2, job.attemptsMade);
+    const jitter    = Math.random() * 1000;
+    throw Object.assign(err as Error, { delay: baseDelay + jitter });
+  }
+}
+```
+
+## Scheduled jobs
+
+```ts
+// Recurring jobs — like cron but Redis-backed
+await scanQueue.add(
+  'daily-scan',
+  { type: 'scheduled' },
+  { repeat: { cron: '0 9 * * *' } },  // Every day at 9am
+);
+
+// Delayed one-off job
+await emailQueue.add(
+  'send-email',
+  { to: user.email, subject: 'Welcome aboard', template: 'welcome', data: { name: user.name } },
+  { delay: 60 * 60 * 1000 },  // Send 1 hour after signup
+);
+```
+
+## Job deduplication
+
+```ts
+// Prevent duplicate scan jobs for the same user
+await scanQueue.add(
+  'scan-products',
+  { userId: user.id, urls, scanId },
+  {
+    jobId: `scan:${user.id}:${scanId}`,  // Dedup key — ignored if job already exists
+  },
+);
+```
+
+If a job with the same `jobId` is already in the queue or active, the new one is silently dropped.
+
+## Observability
+
+```ts
+import { QueueEvents } from 'bullmq';
+
+const scanQueueEvents = new QueueEvents('scan', { connection });
+
+scanQueueEvents.on('completed', ({ jobId, returnvalue }) => {
+  console.log(`Scan ${jobId} done:`, returnvalue);
+});
+
+scanQueueEvents.on('failed', ({ jobId, failedReason }) => {
+  console.error(`Scan ${jobId} failed:`, failedReason);
+  // Alert via Slack, Sentry, etc.
+});
+
+scanQueueEvents.on('stalled', ({ jobId }) => {
+  console.warn(`Scan ${jobId} stalled — worker may have died`);
+});
+```
+
+BullMQ also has a dashboard called Bull Board:
+
+```ts
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter }   from '@bull-board/api/bullMQAdapter';
+import { ExpressAdapter }  from '@bull-board/express';
+
+const serverAdapter = new ExpressAdapter();
+serverAdapter.setBasePath('/admin/queues');
+
+createBullBoard({
+  queues:        [new BullMQAdapter(scanQueue), new BullMQAdapter(emailQueue)],
+  serverAdapter,
+});
+
+// Mount on an internal Express app — not exposed publicly
+app.use('/admin/queues', serverAdapter.getRouter());
+```
+
+## Adding jobs from Next.js
+
+From a Server Action or API route, add jobs directly:
+
+```ts
+// app/api/scan/route.ts
+import { addJob, scanQueue } from '@/lib/queues';
+
+export async function POST(req: Request) {
+  const { urls } = await req.json();
+  const user     = await getCurrentUser();
+
+  const scanId = crypto.randomUUID();
+
+  await addJob(scanQueue, 'scan-products', {
+    userId:   user.id,
+    urls,
+    scanId,
+    priority: user.plan === 'pro' ? 'express' : 'standard',
+  });
+
+  return Response.json({ scanId });
+}
+```
+
+The Next.js process doesn't run the worker — it just adds the job to Redis. The worker process picks it up independently.
