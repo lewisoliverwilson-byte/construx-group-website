@@ -1,0 +1,75 @@
+---
+title: "Async-first collaboration at a two-person company"
+date: "2026-08-06"
+excerpt: "We don't have meetings. We have a shared set of documents, conventions for asynchronous decision-making, and a bias toward writing things down. Here's what async-first collaboration actually looks like in practice."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+We don't schedule meetings. We never have. This isn't a productivity philosophy or a stance on remote work — it's a practical adaptation to working as two people with overlapping but not identical schedules across three products.
+
+Here's what async-first collaboration actually looks like, including what it doesn't do well.
+
+## The core toolset
+
+Three tools do most of the work:
+
+**Linear** for tasks and project tracking. Every piece of work that matters is in Linear. New features, bug fixes, infrastructure changes, research tasks — all tracked with status, priority, and the relevant context. We use Linear as the single source of truth for "what are we doing?"
+
+**GitHub** for code. Pull requests have descriptions that explain what changed and why. The PR description is a form of async communication — it explains the change to the other person without requiring a conversation. We review each other's PRs asynchronously with comments.
+
+**Shared notes** for decisions and context. We keep a shared document for each product with: current status, active decisions, open questions, and anything that would take more than a few sentences to explain in a message. This is the place for "here's why we're doing X" documentation.
+
+## How decisions get made
+
+Async decisions work when the decision is well-specified and the options are clear. The decision-making process:
+
+1. One of us writes up the decision: what we're deciding, what the options are, what the relevant constraints are, and what we think we should do
+2. The other person reads it and either agrees, disagrees with a specific counter-argument, or asks clarifying questions
+3. If there's agreement, we proceed. If there's disagreement, we iterate asynchronously until we reach agreement or need to escalate.
+
+"Escalate" doesn't mean a meeting. It means one of us calls the other. We have maybe two unscheduled calls per week — short, specific, when async communication has clearly reached its limit.
+
+The rule we use: if a back-and-forth is going to take more than three iterations of writing, it's faster to call.
+
+## Pull requests as communication
+
+We require PR descriptions for all non-trivial changes. Not because of a formal process, but because writing the description is how the author explains the change to the reviewer — and often to themselves.
+
+A PR description that explains a change well is:
+- What problem does this solve or what feature does this add?
+- What approach did you take and why?
+- What alternatives did you consider and why did you reject them?
+- Are there any edge cases or known limitations?
+
+This is async communication. The reviewer reads the description, understands the intent, and can review the code in context. Without the description, code review is just reading code — you can see what changed but not why, which makes it much harder to evaluate whether the approach is right.
+
+We've found that writing good PR descriptions also improves the quality of the code. The act of explaining the change often reveals places where the approach is unclear or the code could be simplified.
+
+## What async doesn't handle well
+
+Some things are genuinely better synchronous:
+
+**Brainstorming and open-ended exploration.** When neither of us knows what we should build, or we're evaluating a new product idea, or we're stuck on a hard design problem, talking is much faster than writing. Writing forces sequential thinking; conversation can explore in parallel.
+
+**Urgent incidents.** When something is broken in production, synchronous communication is necessary. We call immediately.
+
+**Hard news.** Delivering difficult feedback, discussing something that's not working in the collaboration, anything emotionally significant — these are conversations, not documents.
+
+**New user research.** When we talk to a user together (on a call with them), we each hear things the other might miss, and we debrief immediately. The shared experience is valuable in a way that one person watching a recording isn't.
+
+## The document overhead
+
+Async-first requires more writing than sync-first. Every decision, every significant piece of context, every open question needs to be written down. This takes time.
+
+We've adjusted to this overhead by being selective about what gets documented. Not everything needs to be written down — only the things that someone would need to understand to make a decision or review work later. The question we ask: "would the other person need this context if they were picking this up six weeks from now?" If yes, write it down.
+
+## The practical advantages
+
+Two things async-first does very well that synchronous collaboration doesn't:
+
+**Thinking time.** Writing a response to a complex question forces clearer thinking than responding verbally on the spot. We both tend to produce better-considered positions in writing than in conversation.
+
+**Context for later.** Every async decision has a written record. When we revisit a decision three months later, we can find the original reasoning. With verbal decisions in meetings, the reasoning evaporates; only the outcome survives.
+
+The combination means we make better decisions and can reconstruct why we made them. That's a substantial advantage over the alternative.

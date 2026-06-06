@@ -1,0 +1,71 @@
+---
+title: "PostHog for small product teams: what we actually use"
+date: "2026-08-05"
+excerpt: "We use PostHog across all three products for analytics, session replay, and feature flags. Here's the specific features we rely on and the ones that turned out to be unnecessary for our scale."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+PostHog is our analytics platform across all three Construx products. We chose it over alternatives (Mixpanel, Amplitude, Google Analytics) for the combination of open-source option, self-serve setup, and the breadth of features in a single platform.
+
+Here's a candid account of what we actually use and what we don't.
+
+## What we use heavily
+
+**Custom events for product-specific flows.** The most valuable PostHog feature for a product team is custom event tracking. We instrument the critical paths in each product:
+
+For Scoutr: `product_scanned`, `scan_completed`, `scan_error`, `result_exported`, `trial_started`, `subscription_converted`. These events tell us where users succeed and where they fall off the funnel.
+
+For The Marqet: `listing_viewed`, `listing_purchased`, `search_performed`, `search_no_results`, `role_selected`, `bundle_viewed`, `bundle_purchased`.
+
+For The Hyve: `workspace_created`, `channel_created`, `message_sent`, `ai_agent_invoked`, `ai_response_received`, `collaborator_invited`.
+
+The events are simple — action + relevant properties. We don't try to instrument everything, just the flows that matter.
+
+**Funnels.** Funnel analysis lets us see where users drop off in a sequence of events. Scoutr's sign-up-to-activation funnel: `user_signed_up` → `scan_interface_loaded` → `product_scanned` → `scan_completed`. Where does the drop-off happen? Knowing the answer tells us where to focus onboarding improvements.
+
+Before adding the pre-populated example URL to Scoutr's onboarding, the biggest drop-off was between `scan_interface_loaded` and `product_scanned` — users loaded the scan interface but didn't perform a scan. The example URL closed that gap substantially.
+
+**Session replay for understanding specific user behaviour.** When a user does something unexpected — abandons a flow midway, encounters what might be an error, uses a feature in a way we didn't anticipate — session replay lets us see exactly what happened.
+
+We watch session replays when: the funnel shows unusual drop-off at a specific step, a user reports an issue we can't reproduce, or we're evaluating whether a new feature is being used as intended. Not continuously — targeted, when there's a specific question.
+
+**Error rate alerts.** PostHog can fire alerts when an event rate changes significantly. We use this for `scan_error`, `payment_failed`, and a few other failure events. An alert fires when the error rate exceeds 2% of scans. This is one of our primary incident detection mechanisms.
+
+## What we use occasionally
+
+**Feature flags.** PostHog's feature flag system lets us roll out features to a subset of users. We use this for new Scoutr features that need validation before full rollout — enable for 10% of users, watch the funnel data, expand or roll back.
+
+The flag system is simple and it works. We don't use complex targeting rules — just percentage rollouts.
+
+**Cohort analysis.** We track retention by signup cohort. This is not complex analysis — it's just "what percentage of March signups are still active in May?" — but it's useful for understanding retention trends over time.
+
+## What we don't use
+
+**Surveys.** PostHog has in-product survey functionality. We've run two surveys total across all products. The completion rates were low and the responses weren't more useful than the qualitative feedback we get from email conversations.
+
+We talk to users directly. It's slower but the signal quality is higher.
+
+**A/B testing.** PostHog supports A/B tests. We've done informal testing (deploying a change to 50% of users via feature flag and comparing metrics) but haven't used the formal experimentation framework. At our traffic volumes, reaching statistical significance takes long enough that we prefer shipping the change we think is right and monitoring.
+
+**Group analytics.** PostHog can track analytics at an organisation or group level, not just the individual user level. This is relevant for The Hyve (a team tool) but we haven't instrumented it. The data model requires work to set up correctly and we've deferred it.
+
+## The PostHog setup that matters
+
+The most important setup decisions, in order:
+
+**Identify users.** Call `posthog.identify(userId, userProperties)` when a user logs in. Without this, all events are associated with anonymous distinct IDs and you can't correlate a user's pre-login and post-login behaviour, or build user-level funnels.
+
+**Track the activation event.** Whatever your activation moment is, make sure it's tracked with a distinct event. This is the single most important event in the product for understanding retention.
+
+**Set up custom properties on events, not just event names.** `scan_completed` with `{ marketplace: 'amazon', product_count: 3, duration_ms: 1200 }` is dramatically more useful than just `scan_completed`. The properties let you filter and segment.
+
+**Don't track personally identifiable information in event properties.** Email addresses, payment card information, real names — keep these out of event properties. PostHog is an analytics platform, not a CRM.
+
+## The honest evaluation
+
+PostHog is a good tool for product analytics at our scale. The free tier is generous. The feature set covers what a small product team needs. The session replay feature has been useful multiple times.
+
+The weaknesses: the interface becomes cluttered as you add more events and dashboards. The funnel builder has quirks with complex multi-step funnels. The documentation is occasionally outdated.
+
+Net verdict: good enough to not spend time evaluating alternatives. The marginal improvement from Mixpanel or Amplitude doesn't justify the switching cost.
