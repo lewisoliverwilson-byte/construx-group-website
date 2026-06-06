@@ -328,6 +328,11 @@ export default async function JournalPostPage({ params }: Props) {
                 {mentionedVentures.length}
               </span>
             </div>
+            {/* Shell prompt */}
+            <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`grep -r "${post.slug}" /var/construx/ventures/ --ventures=${mentionedVentures.length}`}</span>
+            </div>
             <div className="flex flex-wrap gap-2 p-4">
               {mentionedVentures.map((v) => (
                 <Link
@@ -381,6 +386,11 @@ export default async function JournalPostPage({ params }: Props) {
                 journal.related — {post.tag.toLowerCase()} · {relatedByTag.length} dispatches
               </span>
             </div>
+            {/* Shell prompt */}
+            <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`journal --related --tag="${post.tag}" --exclude=${post.slug} --limit=${relatedByTag.length}`}</span>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: '1px', background: 'rgba(255,255,255,0.04)' }}>
               {relatedByTag.map((related) => (
                 <Link
@@ -406,6 +416,19 @@ export default async function JournalPostPage({ params }: Props) {
                   </p>
                 </Link>
               ))}
+            </div>
+            {/* Status footer */}
+            <div
+              className="flex items-center justify-between px-5 py-1.5 select-none"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.3)' }}
+            >
+              <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                {relatedByTag.length} dispatch{relatedByTag.length !== 1 ? 'es' : ''} / tag: {post.tag.toLowerCase()}
+              </span>
+              <span className="font-mono text-[8px] flex items-center gap-1.5" style={{ color: 'rgba(249,115,22,0.4)' }}>
+                <span className="inline-block w-1 h-1 rounded-full" style={{ background: 'rgba(249,115,22,0.7)' }} />
+                indexed
+              </span>
             </div>
           </div>
         </section>
