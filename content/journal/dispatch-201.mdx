@@ -1,0 +1,65 @@
+---
+title: "Currency and international pricing: why we only support GBP for now"
+date: "2026-12-02"
+excerpt: "Multi-currency support sounds like a feature. In practice it's a system architecture decision that touches payments, reporting, tax, legal, and UX. Here's why Scoutr and The Marqet are GBP-only and what it would take to change that."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Every marketplace product eventually faces the multi-currency question. The naive version: "just show prices in the user's local currency." The real version: decide whether currency is a display concern, a payment concern, or both — and handle the downstream implications of each.
+
+We support GBP only across all Construx products. Here's the reasoning.
+
+## The display vs. payment distinction
+
+Multi-currency has two separate problems:
+
+**Display:** Show prices in the user's preferred currency. Requires exchange rate data, a display layer, and a decision about where you get the exchange rates (live? daily? and which provider?).
+
+**Payment:** Accept payments and settle in multiple currencies. Requires a payment processor that supports multi-currency, a settlement account in each currency, understanding which currency exchange happens (and when), and handling refunds and disputes across currencies.
+
+Many products do display-only localisation: prices are technically in one currency but shown in the user's currency at the current rate. This is marketing localisation, not true multi-currency. The actual charge happens in the base currency; the user may be surprised by the converted amount on their bank statement.
+
+True multi-currency means accepting GBP from UK buyers and USD from US buyers as distinct transactions, settling to your account in each currency, and pricing your product in each market independently.
+
+## Why GBP-only for now
+
+**Legal and regulatory complexity.** Accepting payments from non-UK customers in GBP creates a marginal legal ambiguity (is this a UK business or an international one?) that we don't want to navigate during early traction. Once we have a business that justifies international expansion, we'll want proper legal advice.
+
+**Tax.** VAT rules for digital services differ by jurisdiction. UK sellers charge UK VAT. If we accept buyers from the EU, we may need to register for VAT in EU member states (the EU's "one stop shop" scheme helps but adds compliance overhead). US sales tax rules are complex. These aren't blockers in principle — they're overhead we don't want to add before we need to.
+
+**Exchange rate risk.** If we convert USD to GBP for a seller, we take on exchange rate risk during the settlement window. Managing FX exposure is not something we've designed for.
+
+**eBay arbitrage is UK-centric.** Scoutr's use case is UK→eBay.co.uk arbitrage. The source markets (Amazon UK) and sale markets (eBay UK) are both GBP. There's no multi-currency need for this use case.
+
+**Stripe does the heavy lifting — if we go international.** Stripe supports 135+ currencies and has the infrastructure for multi-currency settlement. The payment layer isn't the hard part. The hard part is the tax, legal, and operational complexity that follows currency expansion.
+
+## What international support would actually require
+
+For The Marqet, genuine international support means:
+
+1. **Legal structure:** Register as an EU entity or use an EU payment facilitator if we accept European sellers and buyers.
+2. **Tax compliance:** VAT registration in EU (via OSS scheme), understanding US state sales tax obligations.
+3. **Stripe Connect multi-currency:** Sellers would need to specify their settlement currency; buyers would pay in their currency; Stripe handles the conversion.
+4. **Pricing by market:** A UK brand designer's £800 package isn't automatically correctly priced for a US buyer. Market rates differ. We'd need market-specific pricing or leave pricing entirely to sellers (which we currently do, but in GBP only).
+5. **UX:** Language localisation (at minimum, currency symbols), documentation about international payments, refund policies that cover cross-border disputes.
+
+The work is real. We'll do it when the demand is real — when we have enough international interest to justify the build time.
+
+## The Scoutr arbitrage question
+
+A user asked: "Can Scoutr support US→eBay.com arbitrage?" It's a reasonable question — the US dropshipping market is larger than the UK market.
+
+The answer requires:
+- Source market access (Amazon.com pricing and availability) — different API access
+- eBay category taxonomy for eBay.com (different from eBay.co.uk in some categories)
+- USD fee structures (different from GBP)
+- US state sales tax implications for eBay sellers (eBay collects in some states, seller collects in others)
+
+This is a significant feature expansion, not an extension. We'll consider it as a separate market expansion once the UK product is mature.
+
+## The single-currency advantage
+
+GBP-only simplifies every part of the product: reporting is in one currency, fee calculations are exact (no conversion rounding), disputes have no ambiguity about which currency value was agreed, and the accounting is simple.
+
+Scope control is a feature too. The products are better for being focused.
