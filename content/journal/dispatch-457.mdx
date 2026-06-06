@@ -1,0 +1,301 @@
+---
+title: "S3 presigned URLs: secure file uploads without a server"
+date: "2028-09-14"
+excerpt: "Presigned URLs let browsers upload directly to S3 without routing the file through your server. The server generates a time-limited signed URL, the client uploads directly to S3, and your server never touches the file bytes. Here's the full pattern with Next.js and AWS SDK v3."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The naive approach to file uploads: client sends file to your server, server uploads to S3. This doubles bandwidth, adds latency, and puts memory pressure on your server process. Presigned URLs fix this: your server signs a URL, the client uploads directly to S3 using that URL. Your server only handles 200 bytes of JSON, not 10MB of file bytes.
+
+## Setup
+
+```bash
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+```ts
+// lib/s3.ts
+import { S3Client } from '@aws-sdk/client-s3';
+
+export const s3 = new S3Client({
+  region: process.env.AWS_REGION ?? 'eu-west-2',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+export const BUCKET = process.env.AWS_S3_BUCKET!;
+```
+
+## Generating a presigned upload URL
+
+```ts
+// app/api/upload/presign/route.ts
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { s3, BUCKET } from '@/lib/s3';
+import { nanoid } from 'nanoid';
+import { z } from 'zod';
+
+const PresignRequestSchema = z.object({
+  filename: z.string().min(1).max(255),
+  contentType: z.string().regex(/^[\w-]+\/[\w.+-]+$/, 'Invalid content type'),
+  size: z.number().int().positive().max(10 * 1024 * 1024, 'File too large (max 10MB)'),
+});
+
+export async function POST(req: Request) {
+  // Authenticate the request — don't issue presigned URLs to anonymous users
+  const session = await getSession(req);
+  if (!session) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => null);
+  const parsed = PresignRequestSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return Response.json(
+      { error: 'Invalid request', fields: parsed.error.flatten().fieldErrors },
+      { status: 422 }
+    );
+  }
+
+  const { filename, contentType, size } = parsed.data;
+
+  // Generate a unique key — never use the user's filename directly
+  const ext = filename.split('.').pop() ?? 'bin';
+  const key = `uploads/${session.userId}/${nanoid()}.${ext}`;
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ContentType: contentType,
+    ContentLength: size,
+    // Metadata attached to the object in S3
+    Metadata: {
+      'uploaded-by': session.userId,
+      'original-filename': encodeURIComponent(filename),
+    },
+  });
+
+  const url = await getSignedUrl(s3, command, {
+    expiresIn: 300,  // URL expires in 5 minutes
+  });
+
+  return Response.json({
+    url,
+    key,
+    expiresAt: new Date(Date.now() + 300 * 1000).toISOString(),
+  });
+}
+```
+
+## Client-side upload hook
+
+```ts
+// hooks/useFileUpload.ts
+'use client';
+
+import { useState, useCallback } from 'react';
+
+interface UploadState {
+  status: 'idle' | 'presigning' | 'uploading' | 'done' | 'error';
+  progress: number;
+  key: string | null;
+  error: string | null;
+}
+
+export function useFileUpload() {
+  const [state, setState] = useState<UploadState>({
+    status: 'idle',
+    progress: 0,
+    key: null,
+    error: null,
+  });
+
+  const upload = useCallback(async (file: File) => {
+    setState({ status: 'presigning', progress: 0, key: null, error: null });
+
+    try {
+      // Step 1: Get presigned URL from our server
+      const presignRes = await fetch('/api/upload/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        }),
+      });
+
+      if (!presignRes.ok) {
+        const err = await presignRes.json();
+        throw new Error(err.error ?? 'Presign failed');
+      }
+
+      const { url, key } = await presignRes.json();
+
+      // Step 2: Upload directly to S3
+      setState((prev) => ({ ...prev, status: 'uploading' }));
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const progress = Math.round((e.loaded / e.total) * 100);
+            setState((prev) => ({ ...prev, progress }));
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200 || xhr.status === 204) resolve();
+          else reject(new Error(`S3 upload failed: HTTP ${xhr.status}`));
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Network error')));
+
+        xhr.open('PUT', url);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
+
+      setState({ status: 'done', progress: 100, key, error: null });
+      return key;
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      setState({ status: 'error', progress: 0, key: null, error: message });
+      throw err;
+    }
+  }, []);
+
+  return { ...state, upload };
+}
+```
+
+## Usage in a component
+
+```tsx
+'use client';
+
+import { useFileUpload } from '@/hooks/useFileUpload';
+import { useRef } from 'react';
+
+export function FileUploader({ onComplete }: { onComplete: (key: string) => void }) {
+  const { status, progress, error, upload } = useFileUpload();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    const key = await upload(file);
+    if (key) onComplete(key);
+  };
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,.pdf,.doc,.docx"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+        }}
+      />
+
+      {status === 'idle' && (
+        <button
+          onClick={() => inputRef.current?.click()}
+          className="px-4 py-2 bg-construx text-black font-mono text-sm"
+        >
+          Choose file
+        </button>
+      )}
+
+      {(status === 'presigning' || status === 'uploading') && (
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className="flex-1 h-1.5 rounded-full overflow-hidden"
+              style={{ background: 'rgba(255,255,255,0.1)' }}
+            >
+              <div
+                className="h-full bg-construx transition-all"
+                style={{ width: `${status === 'presigning' ? 5 : progress}%` }}
+              />
+            </div>
+            <span className="font-mono text-xs text-text-dim tabular-nums">
+              {status === 'presigning' ? '—' : `${progress}%`}
+            </span>
+          </div>
+          <p className="font-mono text-xs text-text-dim">
+            {status === 'presigning' ? 'Preparing...' : 'Uploading to S3...'}
+          </p>
+        </div>
+      )}
+
+      {status === 'done' && (
+        <div className="flex items-center gap-2 text-sm text-emerald-400">
+          <span>✓</span>
+          <span>Upload complete</span>
+          <button
+            onClick={() => inputRef.current?.click()}
+            className="ml-3 font-mono text-xs text-text-dim hover:text-text-muted"
+          >
+            Upload another
+          </button>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="text-sm text-red-400">
+          <span>✗ {error}</span>
+          <button
+            onClick={() => inputRef.current?.click()}
+            className="ml-3 font-mono text-xs"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Generating presigned download URLs
+
+```ts
+// lib/storage.ts
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { s3, BUCKET } from './s3';
+
+export async function getDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+  });
+  return getSignedUrl(s3, command, { expiresIn });
+}
+
+// Use in a route handler — return a signed URL for authenticated file access
+export async function GET(req: Request, { params }: { params: { key: string } }) {
+  const session = await getSession(req);
+  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Verify the user owns this file
+  const file = await db.query.files.findFirst({
+    where: and(eq(files.key, params.key), eq(files.userId, session.userId)),
+  });
+  if (!file) return Response.json({ error: 'Not found' }, { status: 404 });
+
+  const url = await getDownloadUrl(params.key, 300);
+  return Response.redirect(url);
+}
+```
+
+The presigned URL pattern eliminates file proxying entirely. Your server's memory and bandwidth are not involved in the transfer. S3 handles it. You handle auth.

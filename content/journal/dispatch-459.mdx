@@ -1,0 +1,237 @@
+---
+title: "Next.js image optimization: beyond next/image basics"
+date: "2028-09-20"
+excerpt: "next/image handles format conversion, lazy loading, and CLS prevention automatically. But the defaults aren't always right. Here's how to configure image domains, handle dynamic sources, optimize for LCP, and avoid the common mistakes that tank Core Web Vitals."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+`next/image` converts images to WebP/AVIF, serves them at the right size for each device, lazy loads them, and prevents layout shift. Most teams use it without understanding the configuration surface — which leads to CLS issues, unnecessary network requests, and missed LCP opportunities.
+
+## Basic setup
+
+```tsx
+import Image from 'next/image';
+
+// Static import — Next.js knows dimensions at build time
+import heroImage from '@/public/hero.jpg';
+
+export function Hero() {
+  return (
+    <Image
+      src={heroImage}
+      alt="Construx Group hero"
+      priority  // LCP image — don't lazy load
+      quality={90}
+      placeholder="blur"  // Uses blurDataURL from static import
+    />
+  );
+}
+```
+
+```tsx
+// Dynamic source — must provide width and height
+export function ProductImage({ src, alt }: { src: string; alt: string }) {
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={600}
+      height={400}
+      className="w-full h-auto object-cover rounded"
+    />
+  );
+}
+```
+
+## next.config.js configuration
+
+```js
+// next.config.js
+const nextConfig = {
+  images: {
+    // External domains you'll load images from
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.construxgroup.io',
+        pathname: '/uploads/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.amazonaws.com',
+        pathname: '/construx-prod/**',
+      },
+    ],
+
+    // Output formats — AVIF has better compression but slower encode
+    formats: ['image/avif', 'image/webp'],
+
+    // Sizes for `sizes` prop matching
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+
+    // Disable optimization for SVGs (they're already small)
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+
+    // Cache optimised images for 1 year
+    minimumCacheTTL: 31536000,
+  },
+};
+```
+
+## The `sizes` prop — the most important attribute you're probably missing
+
+```tsx
+// Wrong — browser requests a full-width image even in a 3-column grid
+<Image src={product.image} alt={product.title} width={400} height={400} />
+
+// Right — tell the browser what size the image will be at each breakpoint
+<Image
+  src={product.image}
+  alt={product.title}
+  fill
+  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+  className="object-cover"
+/>
+```
+
+Without `sizes`, Next.js generates a correct srcset but the browser defaults to requesting the largest image. With `sizes`, the browser picks the right size for the current viewport — often 3–5x less data on mobile.
+
+## Fill mode for responsive containers
+
+```tsx
+// Image fills parent — parent controls the aspect ratio
+export function ProductCard({ image, title }: { image: string; title: string }) {
+  return (
+    <div className="relative aspect-square overflow-hidden rounded-lg">
+      <Image
+        src={image}
+        alt={title}
+        fill
+        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 400px"
+        className="object-cover"
+        loading="lazy"
+      />
+    </div>
+  );
+}
+```
+
+## Priority for LCP
+
+```tsx
+// The largest contentful paint (LCP) image should NEVER be lazy loaded
+// Add priority={true} to any image visible above the fold
+export function Hero() {
+  return (
+    <div className="relative h-screen">
+      <Image
+        src="/hero.jpg"
+        alt="Hero"
+        fill
+        priority                          // ← Disables lazy loading, adds <link rel="preload">
+        sizes="100vw"
+        className="object-cover"
+        quality={85}
+      />
+    </div>
+  );
+}
+
+// Everything else — lazy load (default)
+export function GalleryImage({ src, alt }: { src: string; alt: string }) {
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={800}
+      height={600}
+      loading="lazy"     // Default — explicit for clarity
+      sizes="(max-width: 768px) 100vw, 800px"
+    />
+  );
+}
+```
+
+## Blur placeholder
+
+```tsx
+// For static imports — blurDataURL is generated automatically
+import productImage from '@/public/products/scoutr-preview.jpg';
+
+<Image
+  src={productImage}
+  alt="Scoutr preview"
+  placeholder="blur"     // Built-in blur-up from static import
+/>
+
+// For dynamic images — generate a blurDataURL from S3
+async function getBlurDataUrl(url: string): Promise<string> {
+  const res = await fetch(url);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const base64 = buffer.toString('base64');
+  const mime = res.headers.get('content-type') ?? 'image/jpeg';
+  return `data:${mime};base64,${base64}`;
+}
+
+// Or use a tiny fixed placeholder for all dynamic images
+const BLUR_PLACEHOLDER = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...'; // 10x10 px
+
+<Image
+  src={product.imageUrl}
+  alt={product.title}
+  width={600}
+  height={400}
+  placeholder="blur"
+  blurDataURL={BLUR_PLACEHOLDER}
+/>
+```
+
+## Cloudflare Images or S3 + CloudFront as loader
+
+```ts
+// next.config.js — custom loader for Cloudflare Images
+const nextConfig = {
+  images: {
+    loader: 'custom',
+    loaderFile: './lib/cloudflare-image-loader.ts',
+  },
+};
+```
+
+```ts
+// lib/cloudflare-image-loader.ts
+export default function cloudflareLoader({
+  src,
+  width,
+  quality,
+}: {
+  src: string;
+  width: number;
+  quality?: number;
+}) {
+  const params = [`width=${width}`, `quality=${quality ?? 75}`, 'format=auto'];
+  return `https://imagedelivery.net/${process.env.CF_ACCOUNT_HASH}/${src}/${params.join(',')}`;
+}
+```
+
+## Core Web Vitals checklist
+
+**LCP (Largest Contentful Paint)**
+- Add `priority` to the hero/banner image on every page
+- Add `<link rel="preconnect">` for external image domains
+- Use `quality={80-85}` for hero images — below 75 shows compression artefacts
+
+**CLS (Cumulative Layout Shift)**
+- Always provide `width` and `height` or use `fill` with a parent container
+- Never load images without dimensions
+- Use `placeholder="blur"` for images above the fold
+
+**LCP vs Lazy Loading**
+- Only the single LCP element needs `priority` — everything else should lazy load
+- Adding `priority` to multiple images increases page weight unnecessarily
+
+The `sizes` attribute is the single highest-impact configuration. Most pages load 2-3x more image data than needed because `sizes` isn't set. Fix that first.

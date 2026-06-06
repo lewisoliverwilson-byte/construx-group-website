@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getAllPostMeta } from '@/lib/posts';
 import { ventures } from '@/lib/ventures';
+import BuildOutputPanel from '@/components/BuildOutputPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -334,6 +335,11 @@ export default function StatsPage() {
             <span className="font-mono" style={{ fontSize: '8px', color: 'rgba(249,115,22,0.45)' }}>construx@sys</span>
           </div>
         </div>
+      </div>
+
+      {/* Build output panel */}
+      <div className="mt-6">
+        <BuildOutputPanel />
       </div>
     </div>
   );
