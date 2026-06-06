@@ -1,0 +1,81 @@
+---
+title: "The economics of dropshipping at scale: where margin curves break and Scoutr's model runs out"
+date: "2026-11-23"
+excerpt: "Every dropshipping model has a ceiling. Understanding where that ceiling is — what drives it and how to push it further — is the most important strategic question for Scoutr's users. Here's the full economics."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Dropshipping is straightforward in principle: source products cheaply from one market, sell them at a margin in another, pocket the difference. The economic reality is more complicated. Margins erode as competition increases, volume creates operational complexity, and the viable opportunity set is smaller than it looks.
+
+Understanding the economics precisely is what Scoutr is for. Here's the model.
+
+## The basic margin calculation
+
+For a UK→eBay dropshipper:
+
+```
+Source price (Amazon UK)             £18.00
+Shipping to buyer                    £0.00    (Prime, free delivery)
+eBay final value fee (13.25%)        £3.18
+eBay listing fee                     £0.35
+PayPal/Stripe processing (2.9%)      £0.70
+Packaging materials                  £0.40
+───────────────────────────────────────────
+Total costs                         £22.63
+eBay sale price                     £29.99
+───────────────────────────────────────────
+Gross margin                         £7.36   (24.5%)
+```
+
+This is the margin on a single transaction. The question is what happens to this margin as volume scales.
+
+## The margin compression forces
+
+**Competition discovery:** A 24.5% margin on a product is a public signal. Scoutr finds these opportunities — but so do other tools, and so do competing sellers who scan eBay manually. High-margin products attract competition within weeks. The response from buyers: sell before margin compresses. But at scale, you're competing in hundreds of categories simultaneously, and reaction speed becomes the bottleneck.
+
+**Source price volatility:** Amazon pricing changes dynamically. A product that yielded 24.5% yesterday might yield 12% today because Amazon updated the price. Scoutr's real-time scan catches this for new orders, but existing inventory decisions become wrong when source prices move.
+
+**Category saturation:** The highest-volume, most-competed categories (electronics, baby products, home goods) have the tightest margins because the most sellers have found them. Scoutr's value is in finding underserved categories — but these are inherently lower-volume.
+
+**Returns and disputes:** eBay's resolution process for buyer disputes defaults to buyer protection. Returns, items-not-as-described claims, and lost packages are costs that don't appear in the basic margin model. Experienced sellers budget 2-4% for dispute and return costs on top of the base calculation.
+
+## The volume-margin curve
+
+At low volume (10-50 orders/month), margins are highest because:
+- Manual sourcing allows cherry-picking only high-margin products
+- Operational overhead is absorbed by the operator personally
+- No systems costs
+
+At medium volume (50-500 orders/month), margins compress slightly because:
+- Increased visibility on high-margin products attracts competition
+- Partial automation is needed — tools, software, VA costs appear
+- Returns/disputes start to have statistical regularity
+
+At high volume (500+ orders/month):
+- Systematic competition erodes the best opportunities
+- VA or software costs become material
+- eBay seller limits and defect rate monitoring add friction
+- Cashflow management becomes complex (float between source purchase and sale proceeds)
+
+The optimal operating range for most dropshippers is 100-300 orders/month: high enough to generate meaningful income, low enough to remain below the visibility threshold that attracts serious competition.
+
+## Where Scoutr's model runs out
+
+Scoutr solves the discovery problem: finding which products have positive margins at the current moment. It does not solve:
+
+**Velocity:** By the time an opportunity is discovered and listed, other sellers may have already listed at a lower price. Scoutr includes days-since-first-listed for the source product, but this is a proxy for opportunity freshness, not a guarantee.
+
+**Repricing:** Once listed, the eBay sale price needs to move as source prices change. Scoutr is a scan tool, not a live repricing engine. A product that Scoutr identified as a 24% margin opportunity can become a 5% margin (or a loss) within 48 hours if the source price increases and the eBay listing price hasn't changed.
+
+**Account health:** eBay seller accounts have defect rate limits and performance thresholds. A dropshipping operation that relies on Amazon delivery (inherently less reliable than a seller controlling their own logistics) will have higher defect rates. Scoutr doesn't track account health metrics — that's a separate tool problem.
+
+## The long-term arbitrage question
+
+All arbitrage opportunities compress over time as information spreads. The structural question is whether Scoutr's users can consistently find new opportunities faster than existing opportunities compress.
+
+The answer depends on category diversity. Sellers who search in the same high-visibility categories will face compression. Sellers who use Scoutr to find niche categories — specific product types with stable demand and few sellers — can maintain margins longer.
+
+Scoutr's category inference (mapping scanned products to eBay's taxonomy) and its confidence scoring are both designed to help identify these niches. The high-confidence, low-competition signal is the most valuable output the system produces. That's the indicator that points toward sustainable margin, not just momentary arbitrage.
+
+The ceiling exists. The job is to push it further out.
