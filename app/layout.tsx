@@ -7,6 +7,7 @@ import PostHogProvider from '@/components/PostHogProvider';
 import ConsoleGreeting from '@/components/ConsoleGreeting';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import CommandPalette from '@/components/CommandPalette';
+import SysBeacon from '@/components/SysBeacon';
 import { getAllPostMeta } from '@/lib/posts';
 
 const spaceGrotesk = Space_Grotesk({
@@ -85,6 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <KeyboardShortcuts />
           <CommandPalette posts={allPosts} />
           <Nav postCount={postCount} />
+          <SysBeacon />
           <main id="main-content">{children}</main>
           <Footer />
         </PostHogProvider>
