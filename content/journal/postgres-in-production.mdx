@@ -1,0 +1,100 @@
+---
+title: "Postgres in production: the basics we got wrong first"
+date: "2026-08-19"
+excerpt: "All three Construx products use Postgres. Here's the operational lessons from running Postgres in production — connection pooling, indexes, migrations, and the things we wish we'd known before the first incident."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Postgres is the database for all three Construx products. We run it on AWS RDS (managed service — no self-managed instances). At our scale, Postgres is reliable and performant. Getting to reliable and performant required making a few mistakes first.
+
+Here's the actual operational lessons.
+
+## Connection pooling: the first mistake
+
+The first Scoutr production issue that could reasonably be called an incident: connection pool exhaustion.
+
+Next.js serverless functions open a new database connection on each invocation. Without connection pooling, a traffic spike creates hundreds of simultaneous connections to Postgres. Postgres has a maximum connection limit (`max_connections`), and when it's reached, new connection attempts fail with an error.
+
+RDS db.t3.micro (our initial tier) has `max_connections` around 80. Scoutr's API routes, deployed as serverless functions, can easily create 80 simultaneous connections under moderate load.
+
+The fix: connection pooling. We use `@neondatabase/serverless` or configure PgBouncer to pool connections in front of Postgres. Each Postgres connection is expensive to create; pooling reuses connections across multiple serverless function invocations.
+
+The configuration we run:
+```typescript
+import { Pool } from 'pg';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,         // max connections in the pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+```
+
+In a serverless environment, the pool is per-function invocation (not shared across invocations). The real solution for serverless is a connection proxy like PgBouncer or Neon's serverless driver, which maintains a persistent pool outside the function lifecycle.
+
+We use Neon's serverless Postgres for The Hyve and The Marqet — it handles connection pooling transparently. Scoutr uses RDS with manual pool configuration. Next time, all products would use Neon or similar from the start.
+
+## Migrations: never modify existing migrations
+
+We use `node-postgres-migrate` for database migrations. Each migration is a `.sql` file with an `up` and `down` section.
+
+The rule we learned the hard way: never modify a migration that has already run in production. Only add new migrations.
+
+The mistake: we had a migration that created the `listings` table with a specific schema. We realised the schema needed adjustment (an additional column) and edited the existing migration file rather than creating a new one.
+
+The result: the local migration state (which had been reset and re-run) matched the edited file. The production state still reflected the old file. The migration tracking table recorded the old file as "applied" — so the new column was never added in production.
+
+We caught this before it caused data loss (the application failed fast with a clear error about the missing column), but it was preventable.
+
+The rule: migrations are append-only. Add a new migration for every schema change. Never edit applied migrations.
+
+## Index design: what we got wrong
+
+We added indexes reactively — after query performance problems appeared in production. The correct approach is to add indexes proactively, during schema design.
+
+The indexes we should have added from the start and didn't:
+
+**Scoutr**: `CREATE INDEX ON scans (user_id, created_at DESC)`. The most common query is "get the most recent scans for this user" — this index makes that query fast. Without it, the query does a full table scan, which was imperceptibly slow with 100 rows and noticeably slow with 50,000 rows.
+
+**The Marqet**: `CREATE INDEX ON listings (category, created_at DESC)` and a GiST index for the vector embedding column (`CREATE INDEX ON listings USING ivfflat (embedding vector_cosine_ops)`). The vector index matters for semantic search at scale.
+
+The general principle: index columns that appear in `WHERE` clauses or `ORDER BY` clauses of frequently-run queries. For foreign keys, always add an index.
+
+We now include `EXPLAIN ANALYZE` output in every pull request that adds or changes queries. This makes the query plan visible in the review and surfaces missing indexes before they become production problems.
+
+## Backups: trust but verify
+
+RDS handles automated backups (daily snapshots, 7-day retention). We rely on this for disaster recovery.
+
+What we didn't do initially: test restores. A backup that can't be restored is not a backup.
+
+We now run a monthly restore test: we take the most recent RDS snapshot, restore it to a test instance, verify that the data is consistent, and delete the test instance. This verifies that the backup is restorable and gives us practise with the restore process before we need it under pressure.
+
+The restore process takes 10-15 minutes. Knowing this in advance means we can accurately communicate the recovery time during an incident rather than discovering it in the middle of one.
+
+## Query timeouts
+
+We set a query timeout on the database connection:
+
+```typescript
+await pool.query('SET statement_timeout = 5000'); // 5 seconds
+```
+
+This prevents runaway queries from holding database connections indefinitely. A query that takes 10 seconds is either doing something wrong or hitting a performance issue that needs investigation. Timing it out after 5 seconds limits the blast radius.
+
+Without a query timeout, a slow query holds a connection open, the connection pool fills up, and the application starts rejecting requests. With a timeout, the slow query fails fast with a timeout error that's logged and visible.
+
+## The operational habit
+
+Once a month, we look at `pg_stat_statements` for slow queries:
+
+```sql
+SELECT query, mean_exec_time, calls
+FROM pg_stat_statements
+ORDER BY mean_exec_time DESC
+LIMIT 10;
+```
+
+This shows the top 10 slowest queries by average execution time. Any query above 100ms is investigated. Most are either missing indexes or inefficient query patterns that can be improved. This is a low-effort practice that catches performance problems before users notice them.

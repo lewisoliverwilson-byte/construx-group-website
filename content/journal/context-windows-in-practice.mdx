@@ -1,0 +1,85 @@
+---
+title: "Context windows in practice: managing what the AI sees"
+date: "2026-08-17"
+excerpt: "AI language models have finite context windows. For products that need AI to work with long documents, extended conversations, or large knowledge bases, context management is an engineering problem with real consequences."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+An AI language model's context window is the total amount of text it can process in a single call. Claude's context window is large — 200k tokens at the time of writing, which is roughly 150,000 words. For many use cases, this is more than enough.
+
+For The Hyve's AI agent, it isn't.
+
+## The Hyve's context challenge
+
+The Hyve is a team workspace where an AI agent participates in channels alongside human team members. The agent needs context about:
+- Recent messages in the current channel
+- Past decisions made in this project
+- Documents and specs the team has created
+- Task context for in-progress work items
+
+For an active project, this context can easily exceed 200k tokens. A year of channel history, dozens of documents, hundreds of decisions — this doesn't fit in a single context window.
+
+Naive implementation: dump everything into the context and hope. This fails when the project grows beyond the window size, and even before that limit is reached, irrelevant context degrades response quality. The AI's attention is distributed across all the context; a large context dilutes the relevance of any specific piece.
+
+## The retrieval-augmented generation (RAG) pattern
+
+The standard solution to the context problem: don't put everything in context, put only what's relevant.
+
+RAG (retrieval-augmented generation) works in three steps:
+
+1. **Embed and store**: chunk the knowledge base (documents, past messages, decisions) into segments, generate embeddings for each segment, store in a vector database.
+
+2. **Retrieve**: when processing a new message, embed the message, search the vector store for semantically similar segments, retrieve the top N most relevant results.
+
+3. **Augment**: include the retrieved segments in the prompt alongside the new message. The AI has relevant context without having irrelevant context.
+
+The key insight: semantic search retrieves what's relevant to the specific question, not everything that exists. A question about "how do we handle user authentication?" retrieves past decisions about auth, not past decisions about the database schema or the UI design.
+
+## The Hyve's context pipeline
+
+The Hyve's AI agent context pipeline:
+
+1. **New message arrives** in a channel
+2. **Embed the message** using Claude Embeddings
+3. **Vector search** against the project's stored context (past decisions, documents, channel history) — retrieve top 8 results
+4. **Recent channel messages** — always include the last 15-20 messages verbatim (recent messages are the most relevant by recency)
+5. **Compose prompt**: system context + retrieved segments + recent messages + new message
+6. **Call Claude** with the composed prompt
+7. **Store the response** as a channel message, and embed it for future retrieval
+
+The retrieved segments are ranked by cosine similarity to the new message. We include a relevance threshold — segments below a minimum similarity score aren't included even if they're in the top N. This prevents including segments that are technically the most similar but not actually relevant.
+
+## Chunking strategy
+
+How you chunk the knowledge base matters significantly for retrieval quality.
+
+Too large: each chunk contains multiple topics. A chunk about "the database schema and the API design and the authentication flow" is retrieved for queries about any of those topics, but the retrieved text contains two-thirds irrelevant information.
+
+Too small: chunks lose context. A single sentence extracted from a decision document might not be meaningful without the surrounding reasoning.
+
+The approach we've landed on: chunk by semantic unit. For documents, this is usually by section (H2-level heading boundaries). For channel messages, this is by conversation thread (messages in a single thread are chunked together). For decisions, this is by decision item (each decision is a separate chunk).
+
+The average chunk size in The Hyve is 200-400 tokens. Long documents produce many small chunks; short message threads produce a single chunk.
+
+## The recency bias
+
+Recent information is usually more relevant than older information for the same query. A decision made last week is more likely to reflect current project direction than a decision made six months ago.
+
+We weight recency in the retrieval scoring: the final relevance score is a combination of semantic similarity and a recency decay factor. Older content needs higher semantic similarity to compete with more recent content.
+
+This isn't a strict rule — sometimes an old decision is exactly the right context for a current question. But on average, recency-weighted retrieval produces better results than pure semantic similarity.
+
+## What we haven't solved
+
+**Multi-modal context**: The Hyve stores images and diagrams uploaded to channels. Embedding images requires a different embedding model. We currently skip image files in the context pipeline — they're present in the channel but don't contribute to the agent's knowledge. This is a gap.
+
+**Context from other channels**: the current pipeline retrieves context within a project, but a question in one channel might be relevant to a decision made in a different channel. Cross-channel retrieval is more complex (larger search space, more relevance filtering needed) and is on the roadmap.
+
+**Very long documents**: a 50,000-word spec document produces hundreds of chunks. Retrieving from a large set of chunks from a single document can produce fragmented context. We handle this by including a document-level summary alongside chunk-level retrieval, but the implementation is early.
+
+## The practical lesson
+
+Context management is where AI application engineering gets genuinely complex. The model itself is a solved problem (call the API, get a response). Making the model useful for long-running projects with large knowledge bases requires retrieval infrastructure, chunking strategy, relevance scoring, and careful composition of the final prompt.
+
+These are solvable engineering problems, but they're not trivial. The Hyve's context pipeline took longer to build and tune than any other feature. It's also the feature that makes the AI agent genuinely useful rather than a novelty — the agent that can only see the last 20 messages is much less useful than the agent that can access the entire project's relevant history.
