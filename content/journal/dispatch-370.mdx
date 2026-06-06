@@ -1,0 +1,256 @@
+---
+title: "Next.js internationalization: routing, translations, and locale detection"
+date: "2027-12-26"
+excerpt: "Internationalizing a Next.js app requires routing by locale, loading the right translation strings, and detecting the user's language. The App Router makes this cleaner than Pages Router did — here's the pattern."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Internationalization (i18n) in Next.js involves three distinct problems: locale routing (serving `/en/about` vs `/fr/about`), translation loading (the right strings for each locale), and locale detection (figuring out which locale to serve). They're connected but separable.
+
+## Route structure
+
+The App Router approach: create a `[locale]` segment at the root of your routes:
+
+```
+app/
+  [locale]/
+    layout.tsx
+    page.tsx
+    about/
+      page.tsx
+  layout.tsx   ← root layout (no locale context)
+```
+
+```ts
+// app/[locale]/layout.tsx
+import { notFound } from 'next/navigation';
+
+const locales = ['en', 'fr', 'de', 'es'] as const;
+type Locale = typeof locales[number];
+
+export function generateStaticParams() {
+  return locales.map((locale) => ({ locale }));
+}
+
+export default function LocaleLayout({
+  children,
+  params: { locale },
+}: {
+  children: React.ReactNode;
+  params: { locale: string };
+}) {
+  if (!locales.includes(locale as Locale)) notFound();
+
+  return (
+    <html lang={locale}>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+## Translation files
+
+Keep translations as JSON files per locale:
+
+```json
+// messages/en.json
+{
+  "nav": {
+    "home": "Home",
+    "about": "About",
+    "contact": "Contact"
+  },
+  "hero": {
+    "headline": "Build something real",
+    "cta": "Get started"
+  }
+}
+```
+
+```json
+// messages/fr.json
+{
+  "nav": {
+    "home": "Accueil",
+    "about": "À propos",
+    "contact": "Contact"
+  },
+  "hero": {
+    "headline": "Construisez quelque chose de réel",
+    "cta": "Commencer"
+  }
+}
+```
+
+## next-intl for type-safe translations
+
+`next-intl` is the standard i18n library for the Next.js App Router:
+
+```bash
+npm install next-intl
+```
+
+```ts
+// i18n.ts
+import { getRequestConfig } from 'next-intl/server';
+
+export default getRequestConfig(async ({ locale }) => ({
+  messages: (await import(`./messages/${locale}.json`)).default,
+}));
+```
+
+```ts
+// middleware.ts
+import createMiddleware from 'next-intl/middleware';
+
+export default createMiddleware({
+  locales: ['en', 'fr', 'de', 'es'],
+  defaultLocale: 'en',
+  localeDetection: true,  // use Accept-Language header
+});
+
+export const config = {
+  matcher: ['/((?!api|_next|.*\\..*).*)'],
+};
+```
+
+```tsx
+// app/[locale]/page.tsx
+import { useTranslations } from 'next-intl';
+
+export default function HomePage() {
+  const t = useTranslations('hero');
+
+  return (
+    <main>
+      <h1>{t('headline')}</h1>
+      <a href="/contact">{t('cta')}</a>
+    </main>
+  );
+}
+```
+
+TypeScript auto-completes translation keys when you configure the types:
+
+```ts
+// global.d.ts
+import en from './messages/en.json';
+
+declare module 'next-intl' {
+  interface AppConfig {
+    Messages: typeof en;
+  }
+}
+```
+
+Now `t('nav.home')` is type-checked — mistyped keys are caught at compile time.
+
+## Locale detection in middleware
+
+next-intl's middleware handles detection automatically, but here's what it does:
+
+1. Check the URL path for a locale prefix (`/fr/about` → `fr`)
+2. Check cookies (previous locale preference)
+3. Check `Accept-Language` header from the browser
+4. Fall back to `defaultLocale`
+
+```ts
+import createMiddleware from 'next-intl/middleware';
+import { pathnames } from './pathnames';  // optional: localized route paths
+
+export default createMiddleware({
+  locales: ['en', 'fr', 'de', 'es'],
+  defaultLocale: 'en',
+  localePrefix: 'as-needed',  // /en/ prefix omitted for default locale
+  localeDetection: true,
+  pathnames,  // optional: /about → /a-propos in French
+});
+```
+
+`localePrefix: 'as-needed'` means English users see `/about` while French users see `/fr/about`. Cleaner URLs for the default market.
+
+## Localized paths (optional)
+
+If you want `/fr/a-propos` instead of `/fr/about`:
+
+```ts
+// pathnames.ts
+export const pathnames = {
+  '/': '/',
+  '/about': {
+    en: '/about',
+    fr: '/a-propos',
+    de: '/uber-uns',
+  },
+  '/contact': {
+    en: '/contact',
+    fr: '/contact',
+    de: '/kontakt',
+  },
+} satisfies Pathnames<typeof locales>;
+```
+
+## Date, number, and currency formatting
+
+Translation strings are only part of i18n. Dates, numbers, and currencies also need locale-aware formatting:
+
+```ts
+import { useFormatter } from 'next-intl';
+
+export function PriceDisplay({ amount, currency }: { amount: number; currency: string }) {
+  const format = useFormatter();
+
+  return (
+    <span>
+      {format.number(amount, {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 2,
+      })}
+    </span>
+  );
+}
+// In en: $99.99 / In fr: 99,99 € / In de: 99,99 €
+```
+
+```ts
+// Date formatting
+const format = useFormatter();
+format.dateTime(new Date(), { dateStyle: 'long' });
+// en: January 15, 2028
+// fr: 15 janvier 2028
+// de: 15. Januar 2028
+```
+
+## SEO: hreflang tags
+
+For multilingual pages, tell search engines about locale variants:
+
+```tsx
+// app/[locale]/layout.tsx
+export function generateMetadata({ params: { locale } }: { params: { locale: string } }) {
+  const url = process.env.NEXT_PUBLIC_SITE_URL!;
+
+  return {
+    alternates: {
+      canonical: `${url}/${locale}`,
+      languages: {
+        'en': `${url}/en`,
+        'fr': `${url}/fr`,
+        'de': `${url}/de`,
+        'x-default': url,  // default (no language)
+      },
+    },
+  };
+}
+```
+
+This generates `<link rel="alternate" hreflang="fr" href="..." />` tags that prevent duplicate content penalties and help Google serve the right locale.
+
+## Translation management
+
+For small teams: JSON files in the repo, reviewed in PRs like code. For larger projects, use a TMS (Translation Management System) like Phrase or Lokalise to give translators a UI and handle the file sync.
+
+The rule: start with in-repo JSON. Migrate to a TMS when the translation volume and number of translators makes PR-based review unworkable.
