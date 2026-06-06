@@ -204,56 +204,92 @@ export default async function VenturePage({ params }: Props) {
           <div className="lg:col-span-2 space-y-6">
             {/* What it is */}
             <div
-              className="p-6"
+              className="overflow-hidden"
               style={{
                 background: 'rgba(3,3,14,0.8)',
                 border: `1px solid ${venture.accent}14`,
                 borderRadius: '3px',
               }}
             >
-              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-text-dim mb-4">
-                // WHAT IT IS
-              </h2>
-              <p className="text-text-muted leading-relaxed text-base">{venture.what}</p>
+              <div
+                className="flex items-center gap-2 px-4 py-2.5 select-none"
+                style={{ background: 'rgba(0,0,8,0.4)', borderBottom: `1px solid ${venture.accent}10` }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: `${venture.accent}60` }}>
+                  {venture.slug}.overview — what it is
+                </span>
+              </div>
+              <div className="p-6">
+                <p className="text-text-muted leading-relaxed text-base">{venture.what}</p>
+              </div>
             </div>
 
             {/* The pitch */}
             <div
-              className="p-6"
+              className="overflow-hidden"
               style={{
                 background: 'rgba(3,3,14,0.8)',
                 border: `1px solid ${venture.accent}14`,
                 borderRadius: '3px',
               }}
             >
-              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-text-dim mb-4">
-                // THE PITCH
-              </h2>
-              <p className="text-text-muted leading-relaxed text-base">{venture.pitch}</p>
+              <div
+                className="flex items-center gap-2 px-4 py-2.5 select-none"
+                style={{ background: 'rgba(0,0,8,0.4)', borderBottom: `1px solid ${venture.accent}10` }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: `${venture.accent}60` }}>
+                  {venture.slug}.pitch — why it exists
+                </span>
+              </div>
+              <div className="p-6">
+                <p className="text-text-muted leading-relaxed text-base">{venture.pitch}</p>
+              </div>
             </div>
 
             {/* Key capabilities */}
             <div
-              className="p-6"
+              className="overflow-hidden"
               style={{
                 background: 'rgba(3,3,14,0.8)',
                 border: `1px solid ${venture.accent}14`,
                 borderRadius: '3px',
               }}
             >
-              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-text-dim mb-5">
-                // KEY CAPABILITIES
-              </h2>
-              <ul className="space-y-3">
-                {venture.features.map((f, i) => (
-                  <li key={f} className="flex items-start gap-3">
-                    <span className="font-mono text-[10px] flex-shrink-0 mt-0.5 tabular-nums" style={{ color: venture.accent }}>
-                      {String(i + 1).padStart(2, '0')}.
-                    </span>
-                    <span className="text-sm text-text-muted leading-relaxed">{f}</span>
-                  </li>
-                ))}
-              </ul>
+              <div
+                className="flex items-center gap-2 px-4 py-2.5 select-none"
+                style={{ background: 'rgba(0,0,8,0.4)', borderBottom: `1px solid ${venture.accent}10` }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: `${venture.accent}60` }}>
+                  {venture.slug}.capabilities — {venture.features.length} modules
+                </span>
+              </div>
+              <div className="p-6">
+                <ul className="space-y-3">
+                  {venture.features.map((f, i) => (
+                    <li key={f} className="flex items-start gap-3">
+                      <span className="font-mono text-[10px] flex-shrink-0 mt-0.5 tabular-nums" style={{ color: venture.accent }}>
+                        {String(i + 1).padStart(2, '0')}.
+                      </span>
+                      <span className="text-sm text-text-muted leading-relaxed">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
 
@@ -314,56 +350,80 @@ export default async function VenturePage({ params }: Props) {
 
             {/* Latency panel */}
             <div
-              className="p-4"
+              className="overflow-hidden"
               style={{ background: 'rgba(3,3,14,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
             >
-              <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
-                // NET.LATENCY
-              </p>
-              <div className="flex items-end gap-0.5 mb-2">
-                {venture.latencyBars.split('').map((bar, i) => (
-                  <span
-                    key={i}
-                    className="font-mono text-[11px] leading-none tabular-nums"
-                    style={{ color: `${venture.accent}${i % 4 === 0 ? 'cc' : '66'}` }}
-                  >
-                    {bar}
-                  </span>
-                ))}
+              <div
+                className="flex items-center gap-2 px-3 py-2 select-none"
+                style={{ background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.18em] flex-1 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                  net.latency
+                </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">p50</span>
-                <span className="font-mono text-[9px] tabular-nums" style={{ color: venture.accent }}>{'<'}80ms</span>
-              </div>
-              <div className="flex items-center justify-between mt-1">
-                <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">uptime</span>
-                <span className="font-mono text-[9px] tabular-nums text-text-muted">99.9%</span>
+              <div className="p-4">
+                <div className="flex items-end gap-0.5 mb-2">
+                  {venture.latencyBars.split('').map((bar, i) => (
+                    <span
+                      key={i}
+                      className="font-mono text-[11px] leading-none tabular-nums"
+                      style={{ color: `${venture.accent}${i % 4 === 0 ? 'cc' : '66'}` }}
+                    >
+                      {bar}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">p50</span>
+                  <span className="font-mono text-[9px] tabular-nums" style={{ color: venture.accent }}>{'<'}80ms</span>
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">uptime</span>
+                  <span className="font-mono text-[9px] tabular-nums text-text-muted">99.9%</span>
+                </div>
               </div>
             </div>
 
             {/* Tech stack panel */}
             <div
-              className="p-4"
+              className="overflow-hidden"
               style={{ background: 'rgba(3,3,14,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
             >
-              <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
-                // TECH.STACK
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {venture.techStack.map((tech) => (
-                  <span
-                    key={tech}
-                    className="font-mono text-[9px] px-2 py-0.5 uppercase tracking-wider"
-                    style={{
-                      background: `${venture.accent}10`,
-                      border: `1px solid ${venture.accent}22`,
-                      borderRadius: '2px',
-                      color: `${venture.accent}cc`,
-                    }}
-                  >
-                    {tech}
-                  </span>
-                ))}
+              <div
+                className="flex items-center gap-2 px-3 py-2 select-none"
+                style={{ background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.18em] flex-1 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                  tech.stack — {venture.techStack.length} layers
+                </span>
+              </div>
+              <div className="p-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {venture.techStack.map((tech) => (
+                    <span
+                      key={tech}
+                      className="font-mono text-[9px] px-2 py-0.5 uppercase tracking-wider"
+                      style={{
+                        background: `${venture.accent}10`,
+                        border: `1px solid ${venture.accent}22`,
+                        borderRadius: '2px',
+                        color: `${venture.accent}cc`,
+                      }}
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 

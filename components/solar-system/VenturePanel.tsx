@@ -60,19 +60,21 @@ export default function VenturePanel({ venture, onClose }: Props) {
               }}
             />
 
-            {/* Terminal breadcrumb bar */}
+            {/* Terminal title bar */}
             <div
-              className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+              className="flex items-center gap-3 px-3 py-2.5 flex-shrink-0 select-none"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,8,0.4)' }}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
-                  <span className="text-construx">// </span>
-                  CONSTRUX.SYS &rsaquo; {venture.slug.toUpperCase()}
-                </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-widest">
+              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center truncate">
+                construx.sys &rsaquo; {venture.slug}
+              </span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-widest">
                   <span style={{
                     width: 5, height: 5, borderRadius: '50%',
                     backgroundColor: venture.accent,
@@ -85,7 +87,7 @@ export default function VenturePanel({ venture, onClose }: Props) {
                 </span>
                 <button
                   onClick={onClose}
-                  className="h-6 w-6 flex items-center justify-center text-text-dim hover:text-text-base transition-colors font-mono text-xs"
+                  className="h-5 w-5 flex items-center justify-center text-text-dim hover:text-text-base transition-colors font-mono text-xs"
                   style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px' }}
                   aria-label="Close panel"
                 >
