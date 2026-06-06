@@ -7,6 +7,7 @@ import WhoamiPanel from '@/components/WhoamiPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
+import UlimitPanel from '@/components/UlimitPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -464,6 +465,11 @@ export default function FoundersPage() {
         {/* Login history */}
         <div className="mt-6">
           <LastLoginPanel />
+        </div>
+
+        {/* Resource limits */}
+        <div className="mt-6">
+          <UlimitPanel />
         </div>
 
         {/* CTA */}
