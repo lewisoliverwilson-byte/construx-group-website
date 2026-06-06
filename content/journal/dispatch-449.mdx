@@ -1,0 +1,251 @@
+---
+title: "Upstash Redis: serverless-compatible rate limiting and caching"
+date: "2028-08-21"
+excerpt: "Traditional Redis requires a persistent connection — incompatible with serverless functions that spin up cold. Upstash provides Redis over HTTP, which works anywhere. Here's how to use it for rate limiting, caching, and job queuing in Next.js."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Serverless functions can't hold open TCP connections. The standard Redis client (`ioredis`) tries to maintain a connection pool — on a cold start, that pool doesn't exist, and on warm instances, connections are shared unpredictably across invocations. Upstash solves this with an HTTP-based Redis client. Each call is a fresh HTTP request. No connection pool, no cold-start penalty.
+
+## Setup
+
+```bash
+npm install @upstash/redis @upstash/ratelimit
+```
+
+```ts
+// lib/redis.ts
+import { Redis } from '@upstash/redis';
+
+export const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+```
+
+## Rate limiting
+
+```ts
+// lib/ratelimit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { redis } from './redis';
+
+// 10 requests per 10 seconds, sliding window
+export const ratelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '10 s'),
+  analytics: true,
+  prefix: '@upstash/ratelimit',
+});
+
+// Stricter limit for auth endpoints
+export const authRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.fixedWindow(5, '60 s'),
+  analytics: true,
+  prefix: 'auth',
+});
+```
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { ratelimit } from '@/lib/ratelimit';
+
+export async function middleware(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? '127.0.0.1';
+  const { success, limit, remaining, reset } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return new NextResponse('Too Many Requests', {
+      status: 429,
+      headers: {
+        'X-RateLimit-Limit': String(limit),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': new Date(reset).toISOString(),
+        'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)),
+      },
+    });
+  }
+
+  const response = NextResponse.next();
+  response.headers.set('X-RateLimit-Limit', String(limit));
+  response.headers.set('X-RateLimit-Remaining', String(remaining));
+  return response;
+}
+
+export const config = {
+  matcher: ['/api/:path*'],
+};
+```
+
+## Response caching
+
+```ts
+// lib/cache.ts
+import { redis } from './redis';
+
+export async function withCache<T>(
+  key: string,
+  fn: () => Promise<T>,
+  ttlSeconds = 300,
+): Promise<T> {
+  // Check cache
+  const cached = await redis.get<T>(key);
+  if (cached !== null) return cached;
+
+  // Cache miss — compute and store
+  const result = await fn();
+  await redis.setex(key, ttlSeconds, result);
+  return result;
+}
+
+export async function invalidateCache(pattern: string) {
+  const keys = await redis.keys(pattern);
+  if (keys.length > 0) {
+    await redis.del(...keys);
+  }
+}
+```
+
+```ts
+// app/api/products/route.ts
+import { withCache } from '@/lib/cache';
+import { db } from '@/lib/db';
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const category = searchParams.get('category') ?? 'all';
+
+  const products = await withCache(
+    `products:${category}`,
+    () => db.query.products.findMany({
+      where: category !== 'all' ? eq(products.category, category) : undefined,
+      orderBy: desc(products.createdAt),
+      limit: 100,
+    }),
+    60, // 1 minute TTL
+  );
+
+  return Response.json({ products });
+}
+```
+
+## Pub/Sub for notifications
+
+```ts
+// Publish from any route handler
+import { redis } from '@/lib/redis';
+
+export async function POST(req: Request) {
+  const data = await req.json();
+
+  // Process the request...
+
+  // Notify subscribers
+  await redis.publish('user-events', JSON.stringify({
+    type: 'scan-complete',
+    userId: data.userId,
+    results: data.results,
+  }));
+
+  return Response.json({ ok: true });
+}
+```
+
+## Sorted sets for leaderboards
+
+```ts
+// lib/leaderboard.ts
+import { redis } from './redis';
+
+const LEADERBOARD_KEY = 'leaderboard:weekly';
+
+export async function addScore(userId: string, points: number) {
+  await redis.zincrby(LEADERBOARD_KEY, points, userId);
+}
+
+export async function getTopUsers(limit = 10): Promise<Array<{ userId: string; score: number }>> {
+  // Returns [member, score, member, score, ...]
+  const entries = await redis.zrevrange(LEADERBOARD_KEY, 0, limit - 1, { withScores: true });
+  
+  const results: Array<{ userId: string; score: number }> = [];
+  for (let i = 0; i < entries.length; i += 2) {
+    results.push({
+      userId: entries[i] as string,
+      score: Number(entries[i + 1]),
+    });
+  }
+  return results;
+}
+
+export async function getUserRank(userId: string) {
+  const rank = await redis.zrevrank(LEADERBOARD_KEY, userId);
+  const score = await redis.zscore(LEADERBOARD_KEY, userId);
+  return { rank: rank !== null ? rank + 1 : null, score: score ? Number(score) : 0 };
+}
+```
+
+## Atomic operations with pipelines
+
+```ts
+// Process multiple Redis operations atomically
+import { redis } from '@/lib/redis';
+
+export async function recordPageView(slug: string, userId: string) {
+  const pipeline = redis.pipeline();
+  
+  // Increment total views
+  pipeline.incr(`views:${slug}`);
+  
+  // Track unique visitors (set expires in 24h)
+  pipeline.sadd(`unique:${slug}:${new Date().toISOString().slice(0, 10)}`, userId);
+  pipeline.expire(`unique:${slug}:${new Date().toISOString().slice(0, 10)}`, 86400);
+  
+  // Add to recent views sorted set (score = timestamp)
+  pipeline.zadd('recent-views', { score: Date.now(), member: slug });
+  
+  // Keep only the last 1000 in recent views
+  pipeline.zremrangebyrank('recent-views', 0, -1001);
+  
+  await pipeline.exec();
+}
+```
+
+## Session storage
+
+```ts
+// lib/session.ts
+import { redis } from './redis';
+import { nanoid } from 'nanoid';
+
+interface Session {
+  userId: string;
+  email: string;
+  role: string;
+  createdAt: number;
+}
+
+const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
+
+export async function createSession(data: Omit<Session, 'createdAt'>): Promise<string> {
+  const sessionId = nanoid(32);
+  const session: Session = { ...data, createdAt: Date.now() };
+  
+  await redis.setex(`session:${sessionId}`, SESSION_TTL, session);
+  return sessionId;
+}
+
+export async function getSession(sessionId: string): Promise<Session | null> {
+  return redis.get<Session>(`session:${sessionId}`);
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await redis.del(`session:${sessionId}`);
+}
+```
+
+## When not to use it
+
+Upstash's HTTP model adds ~20-40ms per call vs. a persistent connection on the same network. For low-latency use cases where you're calling Redis 10+ times per request on a persistent server, traditional Redis is faster. Upstash shines in serverless, edge functions, and anywhere connection management is a problem. For Railway or EC2 with a persistent Node.js process, `ioredis` with a connection pool will be faster.

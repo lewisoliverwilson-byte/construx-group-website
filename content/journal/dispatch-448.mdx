@@ -1,0 +1,298 @@
+---
+title: "WebSockets in Next.js: real-time without the complexity"
+date: "2028-08-18"
+excerpt: "Next.js doesn't include a WebSocket server — the App Router is stateless by design. Real-time features require a separate persistent process. Here's the pattern: a standalone Node.js WebSocket server alongside your Next.js app, with shared authentication and a clean client-side hook."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js route handlers are stateless — they process a request and exit. WebSockets need a persistent connection. You need a separate server.
+
+## The architecture
+
+```
+┌─────────────────────┐     ┌──────────────────────┐
+│   Next.js App       │     │  WebSocket Server    │
+│   (port 3000)       │     │  (port 3001)         │
+│                     │     │                      │
+│  /api/auth  ────────┼─────┼──> token validation  │
+│  /dashboard ────────┼──┐  │  connection pool     │
+│                     │  │  │  broadcast           │
+└─────────────────────┘  │  └──────────────────────┘
+                         │         ↑
+                    browser ───────┘
+                    (connects to both)
+```
+
+## WebSocket server
+
+```ts
+// ws-server/server.ts
+import { WebSocketServer, WebSocket } from 'ws';
+import { jwtVerify } from 'jose';
+import { parse as parseCookie } from 'cookie';
+
+const PORT = parseInt(process.env.WS_PORT ?? '3001');
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+
+interface AuthenticatedClient extends WebSocket {
+  userId?: string;
+  channels?: Set<string>;
+}
+
+const wss = new WebSocketServer({ port: PORT });
+const clients = new Set<AuthenticatedClient>();
+
+wss.on('connection', async (ws: AuthenticatedClient, request) => {
+  // Authenticate via cookie on upgrade request
+  const cookies = parseCookie(request.headers.cookie ?? '');
+  const token = cookies['session'];
+
+  if (!token) {
+    ws.close(4001, 'Unauthorized');
+    return;
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    ws.userId = payload.sub as string;
+    ws.channels = new Set(['global']);
+  } catch {
+    ws.close(4001, 'Invalid token');
+    return;
+  }
+
+  clients.add(ws);
+  console.log(`[ws] ${ws.userId} connected — ${clients.size} total`);
+
+  ws.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      handleMessage(ws, msg);
+    } catch {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
+    }
+  });
+
+  ws.on('close', () => {
+    clients.delete(ws);
+    console.log(`[ws] ${ws.userId} disconnected — ${clients.size} total`);
+  });
+
+  ws.send(JSON.stringify({ type: 'connected', userId: ws.userId }));
+});
+
+function handleMessage(client: AuthenticatedClient, msg: { type: string; channel?: string; data?: unknown }) {
+  if (msg.type === 'subscribe' && msg.channel) {
+    client.channels?.add(msg.channel);
+    client.send(JSON.stringify({ type: 'subscribed', channel: msg.channel }));
+  }
+
+  if (msg.type === 'unsubscribe' && msg.channel) {
+    client.channels?.delete(msg.channel);
+  }
+}
+
+// Broadcast to a channel
+export function broadcast(channel: string, payload: unknown) {
+  const message = JSON.stringify({ type: 'broadcast', channel, data: payload });
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN && client.channels?.has(channel)) {
+      client.send(message);
+    }
+  }
+}
+
+// Send to a specific user
+export function sendToUser(userId: string, payload: unknown) {
+  const message = JSON.stringify({ type: 'direct', data: payload });
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN && client.userId === userId) {
+      client.send(message);
+    }
+  }
+}
+
+console.log(`[ws] server running on port ${PORT}`);
+```
+
+## Client hook
+
+```ts
+// hooks/useWebSocket.ts
+'use client';
+
+import { useEffect, useRef, useCallback, useState } from 'react';
+
+type MessageHandler = (data: unknown) => void;
+
+interface UseWebSocketOptions {
+  url: string;
+  onMessage?: MessageHandler;
+  reconnectDelay?: number;
+}
+
+export function useWebSocket({ url, onMessage, reconnectDelay = 2000 }: UseWebSocketOptions) {
+  const ws = useRef<WebSocket | null>(null);
+  const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const connect = useCallback(() => {
+    if (ws.current?.readyState === WebSocket.OPEN) return;
+
+    ws.current = new WebSocket(url);
+
+    ws.current.onopen = () => {
+      setStatus('open');
+    };
+
+    ws.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onMessage?.(data);
+      } catch {
+        console.error('[ws] failed to parse message');
+      }
+    };
+
+    ws.current.onclose = () => {
+      setStatus('closed');
+      // Reconnect after delay
+      reconnectTimer.current = setTimeout(connect, reconnectDelay);
+    };
+
+    ws.current.onerror = () => {
+      ws.current?.close();
+    };
+  }, [url, onMessage, reconnectDelay]);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      clearTimeout(reconnectTimer.current);
+      ws.current?.close();
+    };
+  }, [connect]);
+
+  const send = useCallback((data: unknown) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify(data));
+    }
+  }, []);
+
+  const subscribe = useCallback((channel: string) => {
+    send({ type: 'subscribe', channel });
+  }, [send]);
+
+  return { status, send, subscribe };
+}
+```
+
+## Usage in a component
+
+```tsx
+'use client';
+
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useCallback, useState } from 'react';
+
+interface ScanResult {
+  productId: string;
+  title: string;
+  priceDelta: number;
+  alertLevel: 'low' | 'medium' | 'high';
+}
+
+export default function ScanDashboard() {
+  const [results, setResults] = useState<ScanResult[]>([]);
+
+  const handleMessage = useCallback((data: unknown) => {
+    const msg = data as { type: string; channel: string; data: ScanResult };
+
+    if (msg.type === 'broadcast' && msg.channel === 'scan-results') {
+      setResults((prev) => [msg.data, ...prev].slice(0, 50));
+    }
+  }, []);
+
+  const { status, subscribe } = useWebSocket({
+    url: process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001',
+    onMessage: handleMessage,
+  });
+
+  // Subscribe when connected
+  useEffect(() => {
+    if (status === 'open') {
+      subscribe('scan-results');
+    }
+  }, [status, subscribe]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <span
+          className="w-2 h-2 rounded-full"
+          style={{ background: status === 'open' ? '#4ade80' : '#F97316' }}
+        />
+        <span className="font-mono text-xs">
+          {status === 'open' ? 'connected' : 'reconnecting...'}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {results.map((r) => (
+          <div key={r.productId} className="flex items-center gap-4 p-3 font-mono text-xs">
+            <span className="text-text-dim">{r.productId}</span>
+            <span className="flex-1">{r.title}</span>
+            <span style={{ color: r.priceDelta > 0 ? '#4ade80' : '#F97316' }}>
+              {r.priceDelta > 0 ? '+' : ''}{r.priceDelta.toFixed(2)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Triggering broadcasts from Next.js route handlers
+
+```ts
+// app/api/scan/complete/route.ts
+import { broadcast } from '@/ws-server/server';
+
+export async function POST(req: Request) {
+  const result = await req.json();
+
+  // Notify all dashboard subscribers
+  broadcast('scan-results', {
+    productId: result.productId,
+    title: result.title,
+    priceDelta: result.priceDelta,
+    alertLevel: result.alertLevel,
+  });
+
+  return Response.json({ ok: true });
+}
+```
+
+In practice, the Next.js server calls the WS server via HTTP rather than importing it directly — cleaner separation, works across processes:
+
+```ts
+// lib/notify.ts
+export async function notifyChannel(channel: string, data: unknown) {
+  await fetch(`${process.env.WS_SERVER_URL}/broadcast`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.WS_INTERNAL_SECRET}`,
+    },
+    body: JSON.stringify({ channel, data }),
+  });
+}
+```
+
+## Deployment
+
+On Railway: one service for Next.js, one for the WS server. Both connect to the same Postgres database. The WS server URL is an environment variable in the Next.js app (`NEXT_PUBLIC_WS_URL`). Both services share the same `JWT_SECRET` for token validation.
+
+The pattern works. WebSockets don't belong in the Next.js runtime — keep them in a dedicated persistent process and call it cleanly from your route handlers.
