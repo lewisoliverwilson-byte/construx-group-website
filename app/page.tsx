@@ -14,6 +14,7 @@ import DmesgPanel from '@/components/DmesgPanel';
 import UptimePanel from '@/components/UptimePanel';
 import PingPanel from '@/components/PingPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
+import VmstatPanel from '@/components/VmstatPanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -166,8 +167,13 @@ export default function HomePage() {
       </div>
 
       {/* CPU and memory stats */}
-      <div className="pb-10">
+      <div className="pb-6">
         <CpuStatsPanel />
+      </div>
+
+      {/* Virtual memory stats */}
+      <div className="pb-10">
+        <VmstatPanel />
       </div>
 
       {/* Below-fold: What is Construx */}

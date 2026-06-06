@@ -1,0 +1,185 @@
+---
+title: "React error boundaries: catching runtime failures without crashing your app"
+date: "2029-07-08"
+excerpt: "Error boundaries are React components that catch JavaScript errors in their child component tree, display a fallback UI, and log the error — instead of crashing the entire page. They're one of the most important production resilience patterns in React and consistently under-used."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+When a component throws an unhandled error, React unmounts the entire tree and shows nothing — a blank page in production. Error boundaries intercept the throw before React can unmount, display a fallback, and keep the rest of the application running.
+
+## The basic error boundary
+
+Error boundaries must be class components (functional components can't use `componentDidCatch`):
+
+```tsx
+// components/ErrorBoundary.tsx
+import { Component, ReactNode } from 'react';
+
+interface Props {
+  children:  ReactNode;
+  fallback?: ReactNode;
+  onError?:  (error: Error, info: React.ErrorInfo) => void;
+}
+
+interface State {
+  hasError: boolean;
+  error:    Error | null;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    this.props.onError?.(error, info);
+    // Log to your error tracking service
+    console.error('ErrorBoundary caught:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? (
+        <div className="p-4 text-sm text-red-500 border border-red-200 rounded">
+          Something went wrong. Try refreshing.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+```
+
+## Wrapping components
+
+Wrap individual features, not the whole app:
+
+```tsx
+// Wrap individual panels — one failing panel doesn't break the page
+<ErrorBoundary fallback={<PanelError />}>
+  <UptimePanel />
+</ErrorBoundary>
+
+<ErrorBoundary fallback={<PanelError />}>
+  <NginxAccessLogPanel />
+</ErrorBoundary>
+```
+
+If you wrap the whole app in one boundary, any error anywhere causes the entire UI to be replaced with the fallback — worse than keeping the working parts visible.
+
+## Integration with PostHog and error tracking
+
+```tsx
+// Send errors to your tracking service
+<ErrorBoundary
+  onError={(error, info) => {
+    posthog.capture('$exception', {
+      message: error.message,
+      stack:   error.stack,
+      componentStack: info.componentStack,
+    });
+  }}
+>
+  <PricingPanel />
+</ErrorBoundary>
+```
+
+## The `react-error-boundary` package
+
+The `react-error-boundary` package provides a functional wrapper so you don't have to write class components:
+
+```bash
+npm install react-error-boundary
+```
+
+```tsx
+import { ErrorBoundary } from 'react-error-boundary';
+
+function PanelError({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+  return (
+    <div className="p-4 text-sm">
+      <p className="text-red-500 mb-2">{error.message}</p>
+      <button onClick={resetErrorBoundary} className="text-blue-500 hover:underline">
+        Try again
+      </button>
+    </div>
+  );
+}
+
+<ErrorBoundary
+  FallbackComponent={PanelError}
+  onError={(error, info) => console.error(error, info)}
+  onReset={() => {
+    // Reset any state that caused the error
+  }}
+>
+  <UptimePanel />
+</ErrorBoundary>
+```
+
+The `resetErrorBoundary` function clears the error state and re-renders the child. Useful for transient errors (network failures, API timeouts) where retrying might succeed.
+
+## What error boundaries don't catch
+
+Error boundaries do not catch errors in:
+- Event handlers (`onClick`, `onChange`) — use try/catch there
+- Async code (fetch, setTimeout) — errors thrown after render are not caught
+- Server-side rendering — errors in `getServerSideProps` or Server Components
+- Errors within the error boundary itself
+
+For async errors that need the same UI treatment, use a state pattern:
+
+```tsx
+function DataPanel() {
+  const [error, setError] = useState<Error | null>(null);
+
+  async function fetchData() {
+    try {
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  if (error) return <div>Failed to load: {error.message}</div>;
+  return <div>...</div>;
+}
+```
+
+## Next.js App Router: error.tsx
+
+In Next.js App Router, `error.tsx` files serve as route-level error boundaries:
+
+```tsx
+// app/journal/error.tsx
+'use client';
+
+export default function JournalError({
+  error,
+  reset,
+}: {
+  error:  Error & { digest?: string };
+  reset:  () => void;
+}) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
+        <p className="text-muted mb-6">{error.message}</p>
+        <button onClick={reset} className="btn-primary">Try again</button>
+      </div>
+    </div>
+  );
+}
+```
+
+Calling `reset()` re-renders the route segment and attempts to recover. `error.digest` is a hash that Next.js logs server-side, so you can correlate client-visible errors with server logs.
+
+## What we use
+
+All terminal chrome panels on the Construx site are wrapped individually in error boundaries. If a panel's data simulation throws (unlikely but possible), the panel shows a silent fallback — not the entire page. The fallback matches the panel's visual style: a dark box with the traffic lights and a short error message.
+
+For the journal pages, the `error.tsx` file catches any MDX rendering failures. Bad frontmatter or a broken code block in a dispatch shows the error page rather than a crash.

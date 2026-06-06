@@ -1,0 +1,110 @@
+---
+title: "Supabase vs Neon: managed Postgres for Next.js in 2029"
+date: "2029-07-11"
+excerpt: "Supabase and Neon are both managed Postgres providers, but they solve different problems. Supabase is a full backend platform: Postgres + auth + storage + realtime + Edge Functions. Neon is serverless Postgres with branching — it focuses on the database and does that well. Here's which to choose."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Supabase and Neon are frequently compared because both are "managed Postgres for Next.js." The comparison doesn't hold up well on inspection — they have different value propositions and different ideal use cases.
+
+## Supabase: backend as a service built on Postgres
+
+Supabase is a Firebase alternative. It gives you:
+- Managed Postgres with PostGIS
+- Auth (OAuth, magic links, SSO)
+- Storage (S3-compatible, with image transformations)
+- Realtime subscriptions via websockets
+- Edge Functions (Deno runtime)
+- Postgres Row Level Security managed through a dashboard
+- Auto-generated REST and GraphQL APIs from your schema
+
+```ts
+// Supabase client
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
+
+// Auth
+const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'github' });
+
+// Database
+const { data: posts } = await supabase.from('posts').select('*').eq('published', true);
+
+// Realtime
+supabase.channel('posts').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, payload => {
+  console.log('Change:', payload);
+}).subscribe();
+```
+
+The appeal of Supabase is integration: auth, database, storage, and realtime all configured together. You get RLS policies that reference the auth user, storage tied to user accounts, and realtime subscriptions filtered by row-level rules.
+
+The trade-off: the Supabase client is a layer of abstraction over SQL. For complex queries, you bypass it and use `supabase.rpc()` to call Postgres functions, which adds friction.
+
+## Neon: serverless Postgres with branching
+
+Neon is a managed Postgres database with two distinguishing features:
+
+**Serverless**: the database scales to zero when not in use. You're not charged for idle time. The first query after idle takes a cold start (typically 500ms-1s), acceptable for dev environments and low-traffic apps.
+
+**Database branching**: create a full copy of your database in seconds, non-destructive, isolated.
+
+```bash
+# Neon CLI
+neonctl branch create --name feature/new-schema
+neonctl branch list
+neonctl branch delete feature/new-schema
+```
+
+Branches let you run migrations against a production copy without affecting production. Your PR gets its own database branch, migrations are tested there, and the branch is deleted after merge. This is the workflow that solves "I broke the staging database" forever.
+
+```ts
+// Neon connection
+import { neon } from '@neondatabase/serverless';
+
+const sql = neon(process.env.DATABASE_URL!);
+
+// HTTP-based queries — works in Vercel Edge, Cloudflare Workers
+const posts = await sql`SELECT * FROM posts WHERE published = true`;
+```
+
+The `@neondatabase/serverless` package uses HTTP requests instead of TCP connections. This works in serverless environments where long-lived connections aren't feasible.
+
+## Pricing comparison
+
+Both have free tiers:
+
+**Supabase free**: 500MB storage, 50,000 monthly active users, 1GB bandwidth. Pauses after 1 week of inactivity.
+
+**Neon free**: 0.5GB storage, unlimited database branches, 5GB data transfer. Scales to zero, no pausing.
+
+Paid tiers scale differently — Supabase charges more as your MAU grows (auth-based pricing); Neon charges for compute hours.
+
+## When to use Supabase
+
+- You're replacing Firebase and want auth + database + realtime in one platform
+- Your app is heavily auth-dependent and you want RLS policies in a dashboard
+- You need realtime subscriptions to Postgres changes
+- You want managed storage tied to auth users
+- You're building quickly and want to avoid configuring separate services
+
+## When to use Neon
+
+- You already have auth (Clerk, Auth.js) and just need the database
+- You want database branching for your dev/staging/PR workflow
+- You're deploying to Vercel Edge, Cloudflare Workers, or another serverless environment
+- You need to scale to zero and not pay for idle time
+- You want direct SQL without an abstraction layer
+
+## What we use
+
+Scoutr uses Neon. Auth is handled by Clerk, storage by S3. All we needed was Postgres — Neon gives us that with branching, which we use extensively. Every feature branch has a database branch; migrations are tested there before merge.
+
+The Hyve uses Supabase. It relies heavily on realtime — team members need live updates when others edit shared workspaces. Supabase's realtime subscriptions were the fastest path to that feature. The auth was also already solved by Supabase Auth, which reduced setup friction at the start.
+
+The Marqet uses self-hosted Postgres on Railway. Our scraping and embedding workloads needed compute co-located with the database, and managed services added cost without solving a real problem for that workload.
+
+Different products, different choices. Neither Supabase nor Neon is better — they're appropriate in different contexts.
