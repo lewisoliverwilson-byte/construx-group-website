@@ -193,46 +193,64 @@ export default function HomePage() {
                 <Link
                   key={v.id}
                   href={`/ventures/${v.slug}`}
-                  className="group relative flex items-center gap-4 px-5 py-4 transition-all duration-200 bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
+                  className="group relative overflow-hidden transition-all duration-200 bg-[rgba(5,5,18,0.6)] hover:bg-subtle"
                   style={{
                     border: `1px solid ${v.accent}18`,
                     borderRadius: '3px',
                   }}
                 >
+                  {/* Terminal title bar */}
                   <div
-                    className="h-10 w-10 rounded-full flex-shrink-0 transition-transform duration-300 group-hover:scale-110"
-                    style={{
-                      background: `radial-gradient(circle at 35% 35%, ${v.accent}cc, ${v.accent}44)`,
-                      boxShadow: `0 0 16px ${v.accent}44`,
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-bold text-text-base">{v.name}</span>
-                      <StatusBadge status={v.status} />
+                    className="flex items-center gap-2 px-3 py-1.5 select-none"
+                    style={{ borderBottom: `1px solid ${v.accent}12`, background: `${v.accent}05` }}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
                     </div>
-                    <p className="text-xs text-text-muted truncate mb-1.5">{v.tagline}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {v.techStack.slice(0, 3).map((tech) => (
-                        <span
-                          key={tech}
-                          className="font-mono text-[8px] px-1.5 py-0.5 uppercase tracking-wider transition-colors duration-150"
-                          style={{
-                            background: `${v.accent}0d`,
-                            border: `1px solid ${v.accent}1a`,
-                            color: `${v.accent}88`,
-                            borderRadius: '2px',
-                          }}
-                        >
-                          {tech}
-                        </span>
-                      ))}
-                    </div>
+                    <span className="font-mono text-[7px] uppercase tracking-[0.2em] flex-1 text-center truncate" style={{ color: `${v.accent}45` }}>
+                      construx.{v.slug} — {v.category.toLowerCase()}
+                    </span>
+                    <span className="font-mono text-[7px] uppercase tracking-widest flex-shrink-0" style={{ color: 'rgba(74,222,128,0.4)' }}>● live</span>
                   </div>
-                  <ArrowRight
-                    size={14}
-                    className="flex-shrink-0 text-text-dim group-hover:text-text-muted group-hover:translate-x-0.5 transition-all"
-                  />
+                  {/* Content */}
+                  <div className="flex items-center gap-4 px-5 py-3.5">
+                    <div
+                      className="h-10 w-10 rounded-full flex-shrink-0 transition-transform duration-300 group-hover:scale-110"
+                      style={{
+                        background: `radial-gradient(circle at 35% 35%, ${v.accent}cc, ${v.accent}44)`,
+                        boxShadow: `0 0 16px ${v.accent}44`,
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-bold text-text-base">{v.name}</span>
+                        <StatusBadge status={v.status} />
+                      </div>
+                      <p className="text-xs text-text-muted truncate mb-1.5">{v.tagline}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {v.techStack.slice(0, 3).map((tech) => (
+                          <span
+                            key={tech}
+                            className="font-mono text-[8px] px-1.5 py-0.5 uppercase tracking-wider transition-colors duration-150"
+                            style={{
+                              background: `${v.accent}0d`,
+                              border: `1px solid ${v.accent}1a`,
+                              color: `${v.accent}88`,
+                              borderRadius: '2px',
+                            }}
+                          >
+                            {tech}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <ArrowRight
+                      size={14}
+                      className="flex-shrink-0 text-text-dim group-hover:text-text-muted group-hover:translate-x-0.5 transition-all"
+                    />
+                  </div>
                 </Link>
               ))}
               <div

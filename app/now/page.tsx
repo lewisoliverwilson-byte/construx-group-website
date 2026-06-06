@@ -8,8 +8,8 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://construxgroup.io/now' },
 };
 
-const LAST_UPDATED = 'March 2027';
-const BUILD_STAMP = '2027-03-19T09:00:00Z';
+const LAST_UPDATED = 'May 2027';
+const BUILD_STAMP = '2027-05-12T09:00:00Z';
 
 const nowItems = [
   {
@@ -51,8 +51,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '276 dispatches and continuing',
-        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover Zod API contracts, zero-downtime database migrations, error boundaries, logging strategy, file uploads with presigned URLs, and feature discovery patterns. The journal compounds.',
+        title: '294 dispatches and continuing',
+        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover rate limiting without Redis, Content Security Policy in Next.js, distributed tracing with OpenTelemetry, background jobs in serverless, multi-tenant data isolation, structured outputs from Claude, webhook ingestion patterns, prompt caching, and Drizzle ORM. The journal compounds.',
         status: 'ONGOING',
       },
     ],
