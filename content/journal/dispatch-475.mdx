@@ -1,0 +1,201 @@
+---
+title: "Drizzle ORM: the schema-first approach to database access"
+date: "2028-11-07"
+excerpt: "Drizzle sits between raw SQL and heavy ORMs: you write your schema in TypeScript, query with a SQL-like API, and get full type inference on results. No query builder magic, no N+1 footguns you can't see. Here's the setup that holds up across migrations and team growth."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+ORMs exist to avoid writing SQL by hand. Drizzle takes a different position: write queries that look like SQL, with full TypeScript types on the result, and let the schema drive everything. You always know what query you're running. The type system catches mismatches before they reach the database.
+
+## Schema definition
+
+```ts
+// db/schema.ts
+import { pgTable, text, integer, timestamp, boolean, uuid } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  name: text('name').notNull(),
+  role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
+  scanLimit: integer('scan_limit').notNull().default(50),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const products = pgTable('products', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  asin: text('asin').notNull().unique(),
+  category: text('category').notNull(),
+  currentPrice: integer('current_price').notNull(),  // pence
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const scans = pgTable('scans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  alertLevel: text('alert_level', { enum: ['high', 'medium', 'low'] }).notNull(),
+  priceDelta: integer('price_delta').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// TypeScript types inferred from schema
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Product = typeof products.$inferSelect;
+export type Scan = typeof scans.$inferSelect;
+```
+
+## Database connection
+
+```ts
+// db/index.ts
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import * as schema from './schema';
+
+const client = postgres(process.env.DATABASE_URL!, {
+  max: process.env.NODE_ENV === 'production' ? 10 : 3,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
+
+export const db = drizzle(client, { schema });
+```
+
+## Querying
+
+```ts
+import { db } from '@/db';
+import { users, scans, products } from '@/db/schema';
+import { eq, desc, and, gte, count } from 'drizzle-orm';
+
+// Simple find
+const user = await db.query.users.findFirst({
+  where: (u, { eq }) => eq(u.email, 'lewis@construxgroup.io'),
+});
+// user is typed as User | undefined
+
+// With relations
+const userWithScans = await db.query.users.findFirst({
+  where: (u, { eq }) => eq(u.id, userId),
+  with: {
+    scans: {
+      orderBy: (s, { desc }) => desc(s.createdAt),
+      limit: 10,
+      with: { product: true },
+    },
+  },
+});
+
+// Filtered list with pagination
+const recentHighAlerts = await db.query.scans.findMany({
+  where: (s, { eq, and, gte }) => and(
+    eq(s.userId, userId),
+    eq(s.alertLevel, 'high'),
+    gte(s.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+  ),
+  orderBy: (s, { desc }) => desc(s.createdAt),
+  limit: 20,
+  offset: page * 20,
+});
+```
+
+## Mutations
+
+```ts
+// Insert
+const [newProduct] = await db
+  .insert(products)
+  .values({
+    title: 'LEGO Technic Set',
+    asin: 'B09X3Y4Z12',
+    category: 'toys',
+    currentPrice: 4999,
+  })
+  .returning();
+// newProduct typed as Product
+
+// Update
+await db
+  .update(users)
+  .set({ scanLimit: 100, updatedAt: new Date() })
+  .where(eq(users.id, userId));
+
+// Delete
+await db.delete(scans).where(
+  and(
+    eq(scans.userId, userId),
+    gte(scans.createdAt, cutoffDate),
+  ),
+);
+
+// Upsert
+await db
+  .insert(products)
+  .values({ asin, title, currentPrice })
+  .onConflictDoUpdate({
+    target: products.asin,
+    set: { currentPrice, updatedAt: new Date() },
+  });
+```
+
+## Raw SQL when needed
+
+```ts
+import { sql } from 'drizzle-orm';
+
+// Aggregation
+const [{ totalScans }] = await db
+  .select({ totalScans: count() })
+  .from(scans)
+  .where(eq(scans.userId, userId));
+
+// Complex query with SQL fragment
+const results = await db
+  .select({
+    productId: scans.productId,
+    title: products.title,
+    avgDelta: sql<number>`avg(${scans.priceDelta})`,
+    alertCount: count(),
+  })
+  .from(scans)
+  .innerJoin(products, eq(scans.productId, products.id))
+  .where(eq(scans.userId, userId))
+  .groupBy(scans.productId, products.title)
+  .orderBy(desc(sql`avg(${scans.priceDelta})`))
+  .limit(10);
+```
+
+## Relations definition
+
+For the `with` API to work, define relations:
+
+```ts
+// db/relations.ts
+import { relations } from 'drizzle-orm';
+import { users, products, scans } from './schema';
+
+export const usersRelations = relations(users, ({ many }) => ({
+  scans: many(scans),
+}));
+
+export const productsRelations = relations(products, ({ many }) => ({
+  scans: many(scans),
+}));
+
+export const scansRelations = relations(scans, ({ one }) => ({
+  user: one(users, { fields: [scans.userId], references: [users.id] }),
+  product: one(products, { fields: [scans.productId], references: [products.id] }),
+}));
+```
+
+## The Drizzle advantage
+
+The comparison to Prisma is instructive. Prisma abstracts queries to the point where you can't see the SQL — which means N+1 queries and missing indexes hide until production. Drizzle's queries look like SQL because they compile to predictable SQL. `EXPLAIN ANALYZE` on a Drizzle query shows what you'd expect.
+
+For teams moving fast, the schema-as-code approach means TypeScript catches column mismatches, missing fields, and wrong types before the query runs. Combined with `drizzle-kit generate` for migration files, the database schema and the TypeScript types stay in sync without manual reconciliation.

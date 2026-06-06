@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { getAllPostMeta } from '@/lib/posts';
+import GitShortlogPanel from '@/components/GitShortlogPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -434,6 +435,11 @@ export default function FoundersPage() {
             </span>
             <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>exit: 0</span>
           </div>
+        </div>
+
+        {/* Contribution stats */}
+        <div className="mt-8">
+          <GitShortlogPanel />
         </div>
 
         {/* CTA */}
