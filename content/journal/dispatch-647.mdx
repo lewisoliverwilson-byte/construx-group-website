@@ -1,0 +1,198 @@
+---
+title: "Prisma: ORM with a type-safe generated client"
+date: "2030-04-07"
+excerpt: "Prisma generates a TypeScript client from your database schema. Every model, every relation, every field is typed — query results have the exact shape your selector describes. The migration system tracks schema changes in SQL files. Prisma Studio gives you a browser-based database GUI. It's the most complete ORM story for TypeScript: schema → migration → typed client → GUI."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Prisma's value is the generated client. You define your schema once in `schema.prisma`; Prisma generates a client that knows your models, relations, and field types. A typo in a field name is a compile error. A query that returns a nullable field forces you to handle `null`.
+
+## Schema
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  posts     Post[]
+  profile   Profile?
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  status    PostStatus @default(DRAFT)
+  authorId  String
+  createdAt DateTime @default(now())
+
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  tags      Tag[]    @relation("PostTags")
+}
+
+model Tag {
+  id    String  @id @default(cuid())
+  name  String  @unique
+  posts Post[]  @relation("PostTags")
+}
+
+model Profile {
+  id     String @id @default(cuid())
+  bio    String?
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+```
+
+## Migrations
+
+```bash
+# Generate and apply a migration
+npx prisma migrate dev --name add_post_status
+
+# Apply to production (no interactive prompt)
+npx prisma migrate deploy
+
+# Reset dev database (drops all data)
+npx prisma migrate reset
+
+# Generate client after schema change
+npx prisma generate
+```
+
+Migrations are SQL files stored in `prisma/migrations/`. Each migration is applied in order and tracked in a `_prisma_migrations` table. `migrate dev` creates the SQL, applies it, and regenerates the client in one step.
+
+## Querying
+
+```ts
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Find all published posts with their author
+const posts = await prisma.post.findMany({
+  where:   { status: 'PUBLISHED' },
+  include: { author: { select: { email: true, name: true } } },
+  orderBy: { createdAt: 'desc' },
+  take:    10,
+});
+// posts: Array<{ id: string; title: string; status: "PUBLISHED"; author: { email: string; name: string | null } }>
+
+// Find one or throw
+const post = await prisma.post.findUniqueOrThrow({
+  where: { id: postId },
+});
+
+// Aggregation
+const stats = await prisma.post.groupBy({
+  by:       ['status'],
+  _count:   { id: true },
+  orderBy:  { _count: { id: 'desc' } },
+});
+```
+
+## Mutations
+
+```ts
+// Create with relation
+const post = await prisma.post.create({
+  data: {
+    title:   'Hello Prisma',
+    content: 'Content here',
+    author:  { connect: { id: userId } },
+    tags:    { connectOrCreate: [{ where: { name: 'Build Log' }, create: { name: 'Build Log' } }] },
+  },
+  include: { author: true, tags: true },
+});
+
+// Update
+await prisma.post.update({
+  where: { id: postId },
+  data:  { status: 'PUBLISHED' },
+});
+
+// Upsert
+await prisma.user.upsert({
+  where:  { email },
+  update: { name },
+  create: { email, name },
+});
+
+// Delete many
+await prisma.post.deleteMany({
+  where: { status: 'ARCHIVED', createdAt: { lt: new Date('2029-01-01') } },
+});
+```
+
+## Transactions
+
+```ts
+// Interactive transaction (can query between operations)
+const result = await prisma.$transaction(async (tx) => {
+  const user = await tx.user.create({
+    data: { email, name },
+  });
+
+  const post = await tx.post.create({
+    data: { title: 'Welcome', content: '!', authorId: user.id },
+  });
+
+  return { user, post };
+});
+
+// Sequential transaction (all-or-nothing, no intermediate queries)
+const [updatedPost, newActivity] = await prisma.$transaction([
+  prisma.post.update({ where: { id: postId }, data: { status: 'PUBLISHED' } }),
+  prisma.activityLog.create({ data: { action: 'publish', postId } }),
+]);
+```
+
+## Pagination
+
+```ts
+// Cursor-based pagination (preferred for large tables)
+const { posts, nextCursor } = await getPosts({ cursor: lastCursor });
+
+async function getPosts({ cursor }: { cursor?: string }) {
+  const posts = await prisma.post.findMany({
+    take:    11,  // take one extra to check if there's a next page
+    cursor:  cursor ? { id: cursor } : undefined,
+    skip:    cursor ? 1 : 0,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const hasMore = posts.length > 10;
+  return {
+    posts:      hasMore ? posts.slice(0, -1) : posts,
+    nextCursor: hasMore ? posts[posts.length - 2].id : null,
+  };
+}
+```
+
+## Prisma Studio
+
+```bash
+npx prisma studio  # opens at localhost:5555
+```
+
+A browser-based GUI: browse records, filter, create, update, delete. Connects to the database in `DATABASE_URL`. Useful for debugging data issues in development without writing raw SQL.

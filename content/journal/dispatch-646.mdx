@@ -1,0 +1,168 @@
+---
+title: "Docker multi-stage builds: smaller images, faster deploys"
+date: "2030-04-04"
+excerpt: "A multi-stage Dockerfile uses one image to build and a different, smaller image to run. The build stage has compilers, dev dependencies, and source files. The runtime stage has only what the app needs to run — often under 100MB versus 1GB+ for a full build image. Smaller images pull faster, push faster, and reduce attack surface."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The key insight: everything needed to build an app is not needed to run it. The TypeScript compiler, build tools, test dependencies, and source files can all be left behind. Multi-stage builds formalise this — the final image only receives explicit COPY instructions from earlier stages.
+
+## Node.js multi-stage build
+
+```dockerfile
+# Dockerfile
+# Stage 1: Install dependencies
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --only=production
+
+# Stage 2: Build the application
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 3: Production runtime
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy only what's needed to run
+COPY --from=deps    /app/node_modules ./node_modules
+COPY --from=builder /app/dist         ./dist
+COPY --from=builder /app/package.json ./
+
+# Non-root user for security
+RUN addgroup -S construx && adduser -S construx -G construx
+USER construx
+
+EXPOSE 3000
+CMD ["node", "dist/server.js"]
+```
+
+The final image contains: Node.js runtime, production node_modules, compiled dist files. No TypeScript compiler, no test libraries, no source maps.
+
+## Next.js optimised build
+
+```dockerfile
+FROM node:22-alpine AS base
+
+# Stage 1: Install dependencies
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Stage 2: Build
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Next.js telemetry disable
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# Stage 3: Production
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser  --system --uid 1001 nextjs
+
+# Copy Next.js standalone output
+COPY --from=builder /app/public         ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static     ./.next/static
+
+USER nextjs
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+Next.js standalone output (`output: 'standalone'` in `next.config.ts`) bundles only the files needed to run — often 70MB versus 400MB for the full build.
+
+## Bun runtime (even smaller)
+
+```dockerfile
+FROM oven/bun:1-alpine AS deps
+WORKDIR /app
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile --production
+
+FROM oven/bun:1-alpine AS builder
+WORKDIR /app
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile
+COPY . .
+RUN bun run build
+
+FROM oven/bun:1-alpine AS runner
+WORKDIR /app
+
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+COPY --from=deps    /app/node_modules ./node_modules
+COPY --from=builder /app/dist         ./dist
+COPY package.json ./
+
+EXPOSE 3000
+CMD ["bun", "run", "dist/server.js"]
+```
+
+The `oven/bun:1-alpine` base image is ~75MB versus ~180MB for `node:22-alpine`.
+
+## .dockerignore
+
+```
+node_modules
+.next
+dist
+.git
+.env*
+*.log
+coverage
+.nyc_output
+```
+
+`.dockerignore` works like `.gitignore` — it excludes files from the build context sent to the Docker daemon. Without it, `COPY . .` sends the entire directory including node_modules and .git — slow and unnecessary.
+
+## Layer caching
+
+```dockerfile
+# Bad: dependencies and source in one layer
+COPY . .
+RUN npm ci && npm run build
+
+# Good: separate layers so dependency cache survives source changes
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+```
+
+Docker caches each layer. If `package.json` hasn't changed, `npm ci` is skipped and the cached layer is used. Source code changes more often than dependencies — put COPY source after npm ci so only the build step reruns.
+
+## Checking image size
+
+```bash
+docker build -t construx-api .
+docker image ls construx-api
+
+# Inspect layers and their sizes
+docker history construx-api
+
+# Dive: interactive layer explorer
+dive construx-api
+```
+
+Compare the size of the full image (all stages) versus the final stage. A well-optimised Next.js image should be under 150MB.
