@@ -53,6 +53,11 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, 'max-video-preview': -1, 'max-image-preview': 'large' },
   },
+  alternates: {
+    types: {
+      'application/rss+xml': [{ url: '/feed.xml', title: 'Construx Group — Dispatch' }],
+    },
+  },
 };
 
 export const viewport: Viewport = {

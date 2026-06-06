@@ -188,6 +188,14 @@ export default function Footer() {
             <Link href="/manifesto" className="font-mono text-[10px] text-text-dim hover:text-text-muted transition-colors uppercase tracking-wider">
               Manifesto
             </Link>
+            <a
+              href="/feed.xml"
+              className="font-mono text-[10px] text-text-dim hover:text-construx transition-colors uppercase tracking-wider flex items-center gap-1"
+              title="RSS Feed"
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500/50" />
+              RSS
+            </a>
           </div>
         </div>
       </div>
