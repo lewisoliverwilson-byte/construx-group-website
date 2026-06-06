@@ -1,0 +1,184 @@
+---
+title: "AI prompt caching: reducing latency and cost on repeated context"
+date: "2027-05-09"
+excerpt: "Large system prompts and shared context get re-processed on every API call. Anthropic's prompt caching pins the expensive part of a prompt to the cache — subsequent calls with the same prefix skip the processing and pay 90% less."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The cost of an AI API call is proportional to tokens processed: input tokens + output tokens. For most products, the system prompt is large and fixed — it contains your product's context, instructions, and examples. Processing that same system prompt on every request is waste.
+
+Anthropic's prompt caching pins a section of your prompt to a cache. On the first call, the section is processed and cached. On subsequent calls with the same prefix, the model reads from cache instead of reprocessing — at 90% lower cost and significantly lower latency.
+
+## How it works
+
+Cache control is set on individual message blocks using a `cache_control` parameter:
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+
+const client = new Anthropic();
+
+const SYSTEM_PROMPT = `You are an expert resell intelligence analyst for Scoutr, an Amazon marketplace research tool.
+
+Your role is to analyse product listings and provide actionable intelligence for professional Amazon resellers. You have deep knowledge of:
+
+- Amazon FBA fee structures and profitability calculations
+- Category-specific sourcing patterns and margin expectations
+- Common restricted or gated categories and brands
+- Seasonal demand patterns for consumer goods
+- Competition dynamics on the Amazon marketplace
+
+[... 2000 more tokens of context ...]`;
+
+const response = await client.messages.create({
+  model: 'claude-sonnet-4-6',
+  max_tokens: 1024,
+  system: [
+    {
+      type: 'text',
+      text: SYSTEM_PROMPT,
+      cache_control: { type: 'ephemeral' }, // Cache this block
+    },
+  ],
+  messages: [
+    {
+      role: 'user',
+      content: `Analyse ASIN: B08N5WRWNW\nTitle: Echo Dot (5th Gen)\nPrice: $49.99`,
+    },
+  ],
+});
+```
+
+The first request processes the full system prompt. Subsequent requests with the same prefix hit the cache — no reprocessing, 90% cost reduction, lower latency.
+
+## Minimum cache size
+
+The cache only activates for blocks above a minimum token count:
+
+- `claude-sonnet-4-6`: 1,024 tokens minimum
+- `claude-haiku-4-5`: 2,048 tokens minimum
+
+System prompts under these thresholds aren't cached. For most products, the system prompt is large enough — but check the response's `cache_creation_input_tokens` and `cache_read_input_tokens` to confirm the cache is activating.
+
+## Checking cache status in the response
+
+```ts
+const response = await client.messages.create({ /* ... */ });
+
+console.log({
+  inputTokens: response.usage.input_tokens,
+  cacheCreationTokens: response.usage.cache_creation_input_tokens, // tokens written to cache
+  cacheReadTokens: response.usage.cache_read_input_tokens,         // tokens read from cache
+  outputTokens: response.usage.output_tokens,
+});
+```
+
+On the first call: `cache_creation_input_tokens` is non-zero, `cache_read_input_tokens` is 0 — the cache was written.
+
+On subsequent calls: `cache_creation_input_tokens` is 0, `cache_read_input_tokens` is non-zero — the cache was hit.
+
+## Caching product context
+
+For Scoutr's scan enrichment, a large portion of the prompt is per-ASIN product data that's the same across multiple calls (description, reviews, category). This can be cached too:
+
+```ts
+async function enrichWithCachedContext(
+  asin: string,
+  productData: string,
+  question: string,
+) {
+  return client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 512,
+    system: [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            // Product data is large and shared across questions — cache it
+            text: `Product context for ASIN ${asin}:\n\n${productData}`,
+            cache_control: { type: 'ephemeral' },
+          },
+          {
+            type: 'text',
+            text: question,
+          },
+        ],
+      },
+    ],
+  });
+}
+```
+
+If you ask multiple questions about the same product (margin analysis, competition check, seasonality), the product context is cached after the first call — each follow-up pays only for the question tokens.
+
+## Cache TTL
+
+The cache TTL is 5 minutes. If 5 minutes pass without a request using the same prefix, the cache is evicted. For high-traffic endpoints this is irrelevant — the cache stays warm. For infrequent calls, the first call in a 5-minute window pays full price.
+
+You can't extend the TTL or force cache persistence. The `ephemeral` type is the only available option — Anthropic may add longer TTLs in future.
+
+## Multi-turn conversations
+
+Prompt caching is most powerful for multi-turn conversations where the same context accumulates:
+
+```ts
+const messages: Anthropic.MessageParam[] = [];
+
+async function chat(userMessage: string) {
+  messages.push({ role: 'user', content: userMessage });
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    system: [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: messages.map((msg, i) => {
+      // Cache the conversation history except the latest turn
+      if (i === messages.length - 1) return msg;
+      return {
+        ...msg,
+        content: Array.isArray(msg.content)
+          ? msg.content.map((block, j) =>
+              j === msg.content.length - 1
+                ? { ...block, cache_control: { type: 'ephemeral' } }
+                : block
+            )
+          : [{ type: 'text' as const, text: msg.content as string, cache_control: { type: 'ephemeral' } }],
+      };
+    }),
+  });
+
+  messages.push({ role: 'assistant', content: response.content });
+  return response.content[0].type === 'text' ? response.content[0].text : '';
+}
+```
+
+As the conversation grows, each new turn caches the accumulated history. The third turn of a long conversation pays only for the new turn, not the entire history.
+
+## Cost calculation
+
+At claude-sonnet-4-6 pricing:
+- Normal input tokens: $3 per million
+- Cache write tokens: $3.75 per million (25% premium to write)
+- Cache read tokens: $0.30 per million (90% discount to read)
+
+A 2,000-token system prompt called 1,000 times:
+- Without cache: 2,000 × 1,000 × $3/1M = $6.00
+- With cache: (2,000 × $3.75/1M) + (1,999 × 2,000 × $0.30/1M) = $0.0075 + $1.20 = $1.21
+
+80% cost reduction on the system prompt across 1,000 calls. At scale, this is significant.

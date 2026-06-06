@@ -1,0 +1,223 @@
+---
+title: "Email delivery with Resend: transactional and broadcast from one API"
+date: "2027-05-06"
+excerpt: "Sendgrid and Mailchimp solved the email problem for the last decade. Resend solves it for the stack we use now — React email templates, TypeScript types, a proper developer API, and domain authentication that doesn't take a week."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Email is the layer most products set up wrong and then never revisit. The wrong setup leads to deliverability problems, domain reputation issues, and transactional emails landing in spam.
+
+Resend gets the defaults right: proper DKIM/DMARC setup from the start, React-based email templates, a clean TypeScript API, and sensible pricing that doesn't punish you for growing.
+
+## Setting up the client
+
+```bash
+npm install resend @react-email/components
+```
+
+```ts
+// lib/email.ts
+import { Resend } from 'resend';
+
+export const resend = new Resend(process.env.RESEND_API_KEY);
+```
+
+## React email templates
+
+Email templates in React are written like any React component. The `@react-email/components` library provides email-safe primitives that render to inline-styled HTML:
+
+```tsx
+// emails/welcome.tsx
+import {
+  Body, Container, Head, Heading, Html, Link, Preview, Section, Text,
+} from '@react-email/components';
+
+interface WelcomeEmailProps {
+  name: string;
+  product: string;
+  loginUrl: string;
+}
+
+export function WelcomeEmail({ name, product, loginUrl }: WelcomeEmailProps) {
+  return (
+    <Html>
+      <Head />
+      <Preview>Welcome to {product} — you're in.</Preview>
+      <Body style={{ backgroundColor: '#000008', fontFamily: 'sans-serif' }}>
+        <Container style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 20px' }}>
+          <Heading
+            style={{ color: '#F97316', fontSize: '24px', fontWeight: '700', marginBottom: '16px' }}
+          >
+            Welcome to {product}.
+          </Heading>
+          <Text style={{ color: '#e5e5e5', lineHeight: '1.6', marginBottom: '24px' }}>
+            You're in, {name}. Your account is active and everything is set up.
+          </Text>
+          <Section>
+            <Link
+              href={loginUrl}
+              style={{
+                backgroundColor: '#F97316',
+                color: '#000',
+                padding: '12px 24px',
+                borderRadius: '3px',
+                fontWeight: '600',
+                textDecoration: 'none',
+                display: 'inline-block',
+              }}
+            >
+              Go to your dashboard
+            </Link>
+          </Section>
+          <Text style={{ color: '#666', fontSize: '12px', marginTop: '32px' }}>
+            Construx Group · London, UK · Unsubscribe
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+```
+
+## Sending transactional email
+
+```ts
+// From a route handler or server action
+import { resend } from '@/lib/email';
+import { WelcomeEmail } from '@/emails/welcome';
+
+export async function sendWelcomeEmail(to: string, name: string) {
+  const { data, error } = await resend.emails.send({
+    from: 'Construx Group <hello@construxgroup.io>',
+    to: [to],
+    subject: `Welcome to Scoutr, ${name}`,
+    react: WelcomeEmail({
+      name,
+      product: 'Scoutr',
+      loginUrl: 'https://app.construxgroup.io/dashboard',
+    }),
+  });
+
+  if (error) {
+    console.error('[email] Failed to send welcome email', { to, error });
+    throw new Error(`Email send failed: ${error.message}`);
+  }
+
+  return data;
+}
+```
+
+The `react` parameter accepts a React element. Resend renders it server-side to HTML with inlined styles — no build step, no template compilation.
+
+## Audience management for broadcast
+
+Resend's Audiences API handles subscriber lists for broadcast email (newsletters, product updates):
+
+```ts
+// lib/email-audience.ts
+import { resend } from '@/lib/email';
+
+const CONSTRUX_DAILY_AUDIENCE_ID = process.env.RESEND_AUDIENCE_ID!;
+
+export async function addToAudience(email: string, name: string) {
+  const { error } = await resend.contacts.create({
+    email,
+    firstName: name.split(' ')[0],
+    lastName: name.split(' ').slice(1).join(' '),
+    audienceId: CONSTRUX_DAILY_AUDIENCE_ID,
+    unsubscribed: false,
+  });
+
+  if (error) {
+    console.error('[email] Failed to add to audience', { email, error });
+  }
+}
+
+export async function removeFromAudience(email: string) {
+  const contacts = await resend.contacts.list({
+    audienceId: CONSTRUX_DAILY_AUDIENCE_ID,
+  });
+
+  const contact = contacts.data?.data.find((c) => c.email === email);
+  if (!contact) return;
+
+  await resend.contacts.update({
+    id: contact.id,
+    audienceId: CONSTRUX_DAILY_AUDIENCE_ID,
+    unsubscribed: true,
+  });
+}
+```
+
+## Broadcast campaigns
+
+Sending a broadcast to an audience:
+
+```ts
+// app/api/admin/broadcast/route.ts
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session?.isAdmin) return new Response('Forbidden', { status: 403 });
+
+  const { subject, previewText } = await req.json();
+
+  const { data, error } = await resend.broadcasts.create({
+    audienceId: process.env.RESEND_AUDIENCE_ID!,
+    from: 'Lewis @ Construx Daily <lewis@construxdaily.io>',
+    subject,
+    react: DailyNewsletterEmail({ previewText }),
+  });
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+
+  // Send immediately (or schedule with scheduledAt)
+  await resend.broadcasts.send(data!.id);
+
+  return Response.json({ broadcastId: data!.id });
+}
+```
+
+## Handling bounces and complaints
+
+Resend fires webhooks on email events: `email.delivered`, `email.bounced`, `email.complained`. Wire these up to the webhook ingestion pattern:
+
+```ts
+// In the webhook processor
+async function handleEmailBounced(payload: Record<string, unknown>) {
+  const email = payload.to as string;
+
+  // Mark in your database
+  await db.update(users)
+    .set({ emailBounced: true, emailBouncedAt: new Date() })
+    .where(eq(users.email, email));
+
+  // Remove from audience to protect sender reputation
+  await removeFromAudience(email);
+}
+
+async function handleEmailComplained(payload: Record<string, unknown>) {
+  const email = payload.to as string;
+  await removeFromAudience(email);
+}
+```
+
+**Bounce handling is not optional.** Sending to bounced addresses damages your domain reputation and eventually leads to your emails landing in spam for everyone. The handler above runs within seconds of a bounce — no manual list cleaning needed.
+
+## Previewing templates locally
+
+The `react-email` CLI renders templates in a browser for local preview:
+
+```bash
+npx react-email dev --dir ./emails --port 3003
+```
+
+A local UI at `localhost:3003` shows all templates with hot reload. You can preview on desktop and mobile, check dark mode, and inspect the HTML output. This is the correct way to test email templates — sending a test email to yourself every iteration is slow.
+
+## Domain authentication
+
+Resend requires DKIM records on your sending domain. The setup flow is: add your domain in the Resend dashboard, add two DNS TXT records (DKIM keys), add a DMARC TXT record. The whole process takes under 10 minutes and Resend walks you through it.
+
+Without DKIM and DMARC, your emails will land in spam for Gmail users regardless of content quality. Set it up before sending a single production email.
