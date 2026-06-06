@@ -166,6 +166,18 @@ export default function UsesPage() {
               {sections.length} modules
             </span>
           </div>
+          {/* Shell prompt */}
+          <div
+            className="px-4 py-1.5 select-none"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
+          >
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
+              construx@sys:~$
+            </span>
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(240,239,255,0.22)' }}>
+              {' '}ls /var/construx/uses/
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2 p-4">
             {sections.map((s) => (
               <a
