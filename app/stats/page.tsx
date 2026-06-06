@@ -6,6 +6,7 @@ import BuildOutputPanel from '@/components/BuildOutputPanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import TopProcessPanel from '@/components/TopProcessPanel';
+import SsSocketPanel from '@/components/SsSocketPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -358,6 +359,11 @@ export default function StatsPage() {
       {/* Top process monitor */}
       <div className="mt-6">
         <TopProcessPanel />
+      </div>
+
+      {/* Listening sockets */}
+      <div className="mt-6">
+        <SsSocketPanel />
       </div>
     </div>
   );

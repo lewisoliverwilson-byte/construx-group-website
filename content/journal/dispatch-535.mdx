@@ -1,0 +1,176 @@
+---
+title: "API versioning: how to evolve a public API without breaking clients"
+date: "2029-05-06"
+excerpt: "An unversioned public API is a breaking change waiting to happen. Versioning through the URL path is the most explicit and widely understood approach. Here's the strategy and how to implement it in a Next.js Route Handler."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+API versioning is about controlling when clients break. Without versioning, every change to your API that removes or renames a field breaks all clients immediately. With versioning, clients can stay on the version they built against while you evolve the next version.
+
+## URL path versioning
+
+The most common approach: embed the version in the URL path.
+
+```
+GET /api/v1/products
+GET /api/v2/products
+```
+
+Clients know exactly which contract they're using. Routing in Next.js is explicit:
+
+```
+app/
+└── api/
+    ├── v1/
+    │   └── products/
+    │       └── route.ts      # v1 handler
+    └── v2/
+        └── products/
+            └── route.ts      # v2 handler
+```
+
+```ts
+// app/api/v1/products/route.ts
+export async function GET() {
+  const products = await db.select().from(productsTable);
+
+  // v1 response shape — flattened price
+  return Response.json(
+    products.map((p) => ({
+      id:          p.id,
+      name:        p.name,
+      price:       p.priceInPence / 100,  // v1: decimal pounds
+      description: p.description,
+    })),
+  );
+}
+```
+
+```ts
+// app/api/v2/products/route.ts
+export async function GET() {
+  const products = await db.select().from(productsTable);
+
+  // v2 response shape — structured price object, added fields
+  return Response.json(
+    products.map((p) => ({
+      id:          p.id,
+      name:        p.name,
+      price: {
+        amount:    p.priceInPence,
+        currency:  'GBP',
+        formatted: `£${(p.priceInPence / 100).toFixed(2)}`,
+      },
+      description: p.description,
+      createdAt:   p.createdAt,
+      slug:        p.slug,
+    })),
+  );
+}
+```
+
+## Sharing logic between versions
+
+Don't copy-paste handlers — share the database and business logic, transform the response per version:
+
+```ts
+// lib/api/products.ts — shared business logic
+export async function fetchProducts() {
+  return db
+    .select()
+    .from(productsTable)
+    .where(eq(productsTable.active, true))
+    .orderBy(desc(productsTable.createdAt));
+}
+
+// Transformers per version
+export function toV1Product(p: Product) {
+  return {
+    id:          p.id,
+    name:        p.name,
+    price:       p.priceInPence / 100,
+    description: p.description,
+  };
+}
+
+export function toV2Product(p: Product) {
+  return {
+    id:    p.id,
+    name:  p.name,
+    price: { amount: p.priceInPence, currency: 'GBP' },
+    createdAt: p.createdAt,
+    slug:  p.slug,
+  };
+}
+```
+
+```ts
+// app/api/v2/products/route.ts
+import { fetchProducts, toV2Product } from '@/lib/api/products';
+
+export async function GET() {
+  const products = await fetchProducts();
+  return Response.json(products.map(toV2Product));
+}
+```
+
+## Deprecation headers
+
+Signal to clients that a version is deprecated without breaking them:
+
+```ts
+// app/api/v1/products/route.ts
+export async function GET() {
+  const products = await fetchProducts();
+
+  return Response.json(
+    products.map(toV1Product),
+    {
+      headers: {
+        'Deprecation':       'Sun, 01 Sep 2030 00:00:00 GMT',
+        'Sunset':            'Sun, 01 Dec 2030 00:00:00 GMT',
+        'Link':              '</api/v2/products>; rel="successor-version"',
+      },
+    },
+  );
+}
+```
+
+Clients that inspect response headers can detect deprecation and migrate ahead of the sunset date.
+
+## Header-based versioning (the alternative)
+
+Some APIs use headers instead of URL paths:
+
+```
+GET /api/products
+API-Version: 2
+```
+
+```ts
+// app/api/products/route.ts
+export async function GET(req: Request) {
+  const version = req.headers.get('API-Version') ?? '1';
+  const products = await fetchProducts();
+
+  if (version === '2') {
+    return Response.json(products.map(toV2Product));
+  }
+
+  return Response.json(products.map(toV1Product));
+}
+```
+
+Header versioning keeps URLs clean but makes the version less visible — clients can forget to send the header, and caching is more complex (must vary on the header).
+
+## The versioning lifecycle
+
+1. **Design v2** while v1 is in production
+2. **Release v2** alongside v1 — both work
+3. **Communicate the deprecation** — deprecation header, changelog, email to API users
+4. **Set a sunset date** — at least 6 months, ideally 12 for external partners
+5. **Monitor v1 traffic** — see who's still using it
+6. **Sunset v1** — return 410 Gone (not 404 — it existed) after the sunset date
+
+For The Marqet's partner API: v1 (JWT tokens) and v2 (OAuth 2.0 client credentials) ran concurrently for 8 months. v1 traffic dropped to under 2% before sunset.
