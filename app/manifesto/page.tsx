@@ -12,6 +12,7 @@ import TypeCheckPanel from '@/components/TypeCheckPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -255,8 +256,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* Coverage report */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CoverageReportPanel />
+        </div>
+
+        {/* ESLint output */}
+        <div className="mt-4 pb-6">
+          <EslintOutputPanel />
         </div>
 
         {/* Sign-off */}

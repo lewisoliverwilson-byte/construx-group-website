@@ -1,0 +1,130 @@
+---
+title: "React Server Components: the mental model, finally clear"
+date: "2030-09-16"
+excerpt: "React Server Components run only on the server — they have no client JavaScript bundle, no useState, no event handlers. They can read the database, read files, and access environment variables directly. Client Components run on both server (for SSR) and client. The boundary between them is explicit: 'use client' marks a component and its subtree as client. Server Components can import Client Components but not vice versa."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The confusion with Server Components is not the concept — it is the terminology. "Server Component" sounds like SSR, which React had before. The difference is what happens after the initial render.
+
+## The three component types in Next.js App Router
+
+**Server Components** (default): render once on the server, return HTML and a serialized tree. No JavaScript sent to the client. No hydration. Can `await` directly.
+
+**Client Components** (`'use client'`): render on the server for the initial HTML (SSR), then hydrate and re-render on the client. Have access to state, effects, and browser APIs.
+
+**Shared Components**: pure UI that works in both contexts — no special APIs, no state, no effects. Can be imported from both Server and Client Components.
+
+## Server Component: direct database access
+
+```tsx
+// app/posts/page.tsx — Server Component (no 'use client')
+import { db } from '@/lib/db';
+
+export default async function PostsPage() {
+  // This runs on the server — no API call needed
+  const posts = await db.posts.findMany({
+    where:   { published: true },
+    orderBy: { publishedAt: 'desc' },
+    take:    20,
+  });
+
+  return (
+    <main>
+      {posts.map((post) => (
+        <article key={post.id}>
+          <h2>{post.title}</h2>
+          <p>{post.excerpt}</p>
+        </article>
+      ))}
+    </main>
+  );
+}
+// Zero JavaScript sent to the client for this component
+// The database query runs at request time (no API layer needed)
+```
+
+## Client Component: state and interactivity
+
+```tsx
+// components/LikeButton.tsx
+'use client';
+
+import { useState } from 'react';
+import { likePost } from '@/app/actions';
+
+export function LikeButton({ postId, initialLikes }: { postId: string; initialLikes: number }) {
+  const [likes, setLikes] = useState(initialLikes);
+  const [liked, setLiked] = useState(false);
+
+  const handleLike = async () => {
+    if (liked) return;
+    setLikes((n) => n + 1);
+    setLiked(true);
+    await likePost(postId);
+  };
+
+  return (
+    <button onClick={handleLike} disabled={liked}>
+      ♥ {likes}
+    </button>
+  );
+}
+```
+
+## Composing them
+
+```tsx
+// app/posts/[slug]/page.tsx — Server Component
+import { db }         from '@/lib/db';
+import { LikeButton } from '@/components/LikeButton';  // Client Component
+
+export default async function PostPage({ params }: { params: { slug: string } }) {
+  const post = await db.posts.findUniqueOrThrow({ where: { slug: params.slug } });
+
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <div dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+      {/* Client Component rendered inside Server Component — fine */}
+      <LikeButton postId={post.id} initialLikes={post.likeCount} />
+    </article>
+  );
+}
+```
+
+The `LikeButton` Client Component is a leaf — it does not import other Client Components that need server data. Server Components pass serializable props to Client Components.
+
+## The rule: Server Components cannot import Client Components that use server-only APIs
+
+```tsx
+// ❌ Wrong — Client Component trying to use server-only API
+'use client';
+import { db } from '@/lib/db'; // Error: db uses Node.js APIs unavailable in the browser
+```
+
+```tsx
+// ✓ Correct pattern: pass data as props from Server to Client
+// Server Component fetches → Client Component receives data
+```
+
+## Context in Server Components
+
+```tsx
+// Server Components cannot use useContext — they have no React context tree
+// Pass data via props or use async/await at each level
+
+// For config that all Server Components need:
+import { cache } from 'react';
+
+export const getConfig = cache(async () => {
+  return db.config.findFirst();
+});
+// cache() deduplicates: multiple Server Components calling getConfig()
+// in the same render only query the database once
+```
+
+## When to use Server vs Client
+
+Use a Server Component when: you need to fetch data, you are rendering static content, you need access to backend resources. Use a Client Component when: you need `useState`, `useEffect`, event handlers, browser APIs (localStorage, geolocation, canvas), third-party UI libraries that use hooks. When in doubt, start with a Server Component and push `'use client'` down to the smallest subtree that needs it.
