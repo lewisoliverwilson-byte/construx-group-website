@@ -306,6 +306,16 @@ export default function VenturesPage() {
                   </div>
                   <ChevronRight size={15} className="text-text-dim group-hover:text-text-muted transition-colors" />
                 </div>
+                {/* Status footer */}
+                <div
+                  className="flex items-center justify-between px-3 py-1.5 select-none"
+                  style={{ borderTop: `1px solid ${v.accent}10`, background: 'rgba(0,0,0,0.22)' }}
+                >
+                  <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: `${v.accent}45` }}>
+                    ◈ {v.status.toUpperCase()}
+                  </span>
+                  <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.08)' }}>pending</span>
+                </div>
               </Link>
             ))}
           </div>
