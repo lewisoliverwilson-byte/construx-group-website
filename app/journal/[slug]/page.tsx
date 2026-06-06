@@ -136,24 +136,65 @@ export default async function JournalPostPage({ params }: Props) {
             // JOURNAL
           </Link>
 
-          <div className="flex items-center gap-3 mb-4 animate-fade-in flex-wrap">
-            <span className="font-mono text-[9px] text-construx/40 tabular-nums">
-              #{dispatchNumber}
-            </span>
-            <Link
-              href={`/journal?tag=${encodeURIComponent(post.tag)}`}
-              className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest hover:bg-construx/20 transition-colors"
-              style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
+          {/* Dispatch metadata — terminal chrome panel */}
+          <div
+            className="mb-8 overflow-hidden animate-fade-in"
+            style={{
+              background: 'rgba(2,2,12,0.92)',
+              border: '1px solid rgba(249,115,22,0.14)',
+              borderRadius: '4px',
+              boxShadow: '0 0 30px rgba(249,115,22,0.04), inset 0 1px 0 rgba(255,255,255,0.02)',
+            }}
+          >
+            {/* Title bar */}
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 select-none"
+              style={{ borderBottom: '1px solid rgba(249,115,22,0.08)', background: 'rgba(249,115,22,0.025)' }}
             >
-              {post.tag}
-            </Link>
-            <span className="font-mono text-[10px] text-text-dim">{post.author}</span>
-            <span className="text-text-dim text-xs opacity-50">·</span>
-            <time dateTime={post.date} className="font-mono text-[10px] text-text-dim">
-              {formatDate(post.date)}
-            </time>
-            <span className="text-text-dim text-xs opacity-50">·</span>
-            <span className="font-mono text-[10px] text-text-dim">{post.readingTime} min read</span>
+              <div className="flex items-center gap-1.5">
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 3px rgba(255,95,87,0.4)' }} />
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 3px rgba(255,189,46,0.35)' }} />
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 3px rgba(40,200,64,0.35)' }} />
+              </div>
+              <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: 'rgba(249,115,22,0.4)' }}>
+                construx.journal — dispatch-{dispatchNumber}
+              </span>
+              <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                {post.readingTime}m
+              </span>
+            </div>
+            {/* Shell prompt */}
+            <div className="flex items-center gap-2 px-4 py-2.5 font-mono text-[10px]" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)' }}>
+              <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@sys</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+              <span style={{ color: 'rgba(240,239,255,0.3)' }}>
+                dispatch --read {post.slug} --format=article
+              </span>
+            </div>
+            {/* Metadata row */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+              <span className="font-mono text-[9px] tabular-nums font-semibold" style={{ color: 'rgba(249,115,22,0.6)' }}>
+                #{dispatchNumber}
+              </span>
+              <span style={{ width: '1px', height: '12px', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+              <Link
+                href={`/journal?tag=${encodeURIComponent(post.tag)}`}
+                className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest hover:bg-construx/20 transition-colors"
+                style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
+              >
+                {post.tag}
+              </Link>
+              <span style={{ width: '1px', height: '12px', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+              <span className="font-mono text-[10px]" style={{ color: 'rgba(240,239,255,0.4)' }}>{post.author}</span>
+              <span style={{ width: '1px', height: '12px', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+              <time dateTime={post.date} className="font-mono text-[10px] tabular-nums" style={{ color: 'rgba(240,239,255,0.35)' }}>
+                {formatDate(post.date)}
+              </time>
+              <span className="ml-auto font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'rgba(74,222,128,0.55)' }}>
+                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#4ade80', boxShadow: '0 0 3px rgba(74,222,128,0.5)' }} />
+                indexed
+              </span>
+            </div>
           </div>
 
           <h1 className="text-display-sm text-text-base mb-5 leading-tight animate-fade-up"
