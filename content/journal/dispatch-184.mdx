@@ -1,0 +1,85 @@
+---
+title: "The anatomy of a good product changelog: what we include and why it matters"
+date: "2026-11-15"
+excerpt: "Changelogs are often an afterthought. Done well, they're a trust-building touchpoint with users who want to know the product is improving. Here's our approach to changelogs across three products."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+A changelog is a record of what changed. Most are boring. Some are actively good — they make users feel connected to the product's progress, understand what changed and why, and feel confident that the product is improving.
+
+Here's how we think about changelogs.
+
+## The audience
+
+Changelogs are read by three types of users:
+
+**Power users:** Heavy users who want to know what changed before they notice it. They'll read every entry.
+
+**Support-triggered readers:** Users who encountered a bug, raised it, and are checking if it's been fixed. They search for their specific issue.
+
+**Casual browsers:** Users who open the changelog occasionally to see what's new. They scan the headlines.
+
+Good changelogs serve all three. Power users get complete information. Support-triggered readers can find specific fixes. Casual browsers understand the product direction without reading every word.
+
+## What we include
+
+**What changed.** The specific, concrete thing that changed. Not "improved performance" — "reduced listing page load time by 40% by adding missing database index."
+
+**Why it changed.** Where the change was user-driven (from feedback), we say so. "Added from user feedback" signals that we listen. Where it was proactive, we say why: "Added as a precaution ahead of increased traffic."
+
+**What it means for you.** For changes that affect user workflows, explain the impact. "Previously, typing @hyve in any channel triggered the AI response. Now, @hyve is only active in channels where AI has been enabled by an admin. This reduces unintended AI responses in channels where you want human-only conversation."
+
+## The format
+
+We use a date-first format, with emoji category indicators:
+
+```
+November 2026
+
+🔧 Scoutr — 12 Nov
+  - Fixed: Scan results for electronics now correctly apply category-specific 
+    eBay fee rates. Previously, all electronics scans used a flat 12.9% fee 
+    regardless of subcategory.
+  - Improved: Confidence score now weights price consistency more heavily for 
+    categories with volatile pricing (trading cards, limited edition items).
+
+✨ The Marqet — 10 Nov
+  - New: Sellers can now set service-level packages (Basic, Standard, Premium) 
+    with distinct pricing and deliverables per tier.
+  - New: Buyer wishlist — save listings to revisit later.
+
+🏗️ The Hyve — 8 Nov
+  - Improved: AI agent context window now includes up to 30 messages of recent 
+    history (previously 10), producing more coherent responses in active channels.
+  - Fixed: Channel membership updates now correctly refresh the member list in 
+    real time without requiring a page refresh.
+```
+
+The emoji categorisation (🔧 fix, ✨ new feature, 🏗️ infrastructure) gives power users a quick visual way to filter for what they care about.
+
+## The anti-patterns
+
+**Vague entries.** "Performance improvements," "bug fixes," "stability updates." These tell the user nothing useful. If you're not willing to describe what changed, the entry shouldn't exist.
+
+**Corporate passive voice.** "Enhancements have been made to the search algorithm." Write like a person: "We improved search ranking for listings where skills match the query."
+
+**Too much at once.** A changelog entry with 25 items suggests the product is unstable (why so many changes?) or that you batch-published months of work without communicating along the way.
+
+**No context.** "Fixed NaN display in fee calculation." Why was there a NaN? What caused it? What does it affect? "Fixed: fee calculations now handle listings where eBay doesn't return a category fee rate, preventing 'NaN' from appearing in the margin estimate."
+
+## Changelogs as trust signals
+
+Users who read changelogs are the users most engaged with the product. They're checking in on whether the product is improving, whether their feedback was heard, and whether the team is active.
+
+A changelog that's updated regularly — weekly to bi-weekly — signals an active team. A changelog with the last entry six months ago signals a product that might be abandoned.
+
+We update changelogs on each product at least bi-weekly. The update is part of the deploy checklist: if something shipped that users would notice, it goes in the changelog before the deploy.
+
+## The connection to the journal
+
+The journal dispatches and the product changelogs are complementary. The changelog says what changed; the journal explains how and why. A power user who wants to understand the design decisions behind a changelog entry can search the journal for the relevant dispatch.
+
+This creates a multi-depth communication system: the changelog for "what changed," the journal for "how we built it," and direct support for "something is broken."
+
+The changelog is the product's honest face: the record of what actually shipped, in plain language, for users who care enough to read it.
