@@ -1,0 +1,94 @@
+---
+title: "Client-side state management in 2026: why we don't use Redux"
+date: "2026-11-29"
+excerpt: "React's built-in state management has caught up to the problems Redux was solving in 2016. Here's what we use instead across the Construx products — and where third-party state management still earns its complexity."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redux was the standard for React state management for years — a centralized store, reducers, actions, selectors. The pattern made sense when React's built-in tools were limited and when the alternative was deeply nested prop drilling or scattered setState calls.
+
+In 2026, the ecosystem has moved. Here's what we actually use.
+
+## The state management landscape
+
+**React built-ins:** `useState`, `useReducer`, `useContext`, and `useSyncExternalStore` cover most local and shared state needs. For server state in Next.js App Router, React cache and server-side data fetching solve what previously required client-side caching libraries.
+
+**React Query (TanStack Query):** Server state management — fetching, caching, synchronisation, background refetching. This handles the largest category of "state management" problems in modern web apps.
+
+**Zustand:** Minimal global client state when useContext becomes awkward. Zustand's API is small enough to understand completely in 30 minutes.
+
+**URL state:** For state that should be bookmarkable and shareable (filters, search queries, pagination), the URL is the store. `useSearchParams` + `router.push` or `router.replace` handles this cleanly in Next.js.
+
+## What each approach handles
+
+**`useState` + lifting state:** The default. Works for the vast majority of component-local state and shared state between close components. The rule: start here; only reach for something heavier when this stops working.
+
+**`useReducer`:** Complex state transitions where multiple pieces of state update together. The command palette's state (open/closed, query, selected index, results) benefits from a reducer — the transitions are clearer than multiple `setState` calls.
+
+**`useContext`:** Shared state for a subtree that doesn't need to be global. Theme preferences, user session context, feature flags. Context has a performance caveat (every consumer re-renders when context changes) but is fine for low-frequency state changes.
+
+**React Query:** Every API call. Instead of `useState` + `useEffect` + error handling, React Query gives you:
+
+```ts
+const { data, isLoading, error } = useQuery({
+  queryKey: ['scan', scanId],
+  queryFn: () => fetchScan(scanId),
+  refetchInterval: (data) => data?.status === 'complete' ? false : 500,
+  enabled: Boolean(scanId),
+});
+```
+
+That `refetchInterval` line is doing the polling-until-complete pattern from dispatch #197's job queue, cleanly. No timer management, no cleanup effects.
+
+**Zustand:** We use Zustand in one place — The Hyve's real-time message state. The chat interface has shared state (channel messages, online users, typing indicators) that needs to be accessible from multiple disconnected components and updated by the SSE event handler.
+
+```ts
+interface HyveStore {
+  messages: Record<string, Message[]>;  // channelId → messages
+  onlineUsers: Set<string>;
+  typingUsers: Record<string, string[]>;  // channelId → userIds
+  addMessage: (channelId: string, message: Message) => void;
+  setOnline: (userId: string, online: boolean) => void;
+  setTyping: (channelId: string, userId: string, typing: boolean) => void;
+}
+
+const useHyveStore = create<HyveStore>((set) => ({
+  messages: {},
+  onlineUsers: new Set(),
+  typingUsers: {},
+  addMessage: (channelId, message) =>
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [channelId]: [...(s.messages[channelId] ?? []), message],
+      },
+    })),
+  // ...
+}));
+```
+
+Zustand's selector pattern avoids the context performance problem:
+
+```ts
+// Only re-renders when #general's messages change
+const messages = useHyveStore((s) => s.messages['general'] ?? []);
+```
+
+**URL state:** The journal's tag filter is stored in the URL (`/journal?tag=Build+Log`). Sharing the URL shares the filtered view. Navigating back restores the filter. No state management library required — the URL is the source of truth.
+
+## When Redux would make sense
+
+Redux's overhead is justified when:
+1. You have deeply complex shared state with many interdependent slices
+2. You need time-travel debugging (Redux DevTools)
+3. You have a team where the explicit action→reducer→state cycle prevents hard-to-trace bugs
+4. You're maintaining an existing Redux codebase
+
+None of these conditions hold for a two-person team building new products. The tooling overhead and conceptual complexity aren't worth it.
+
+## The test of the approach
+
+The best test of a state management approach is: can a new developer pick up a component and understand what state it uses, where that state comes from, and how it changes? With the combination above, the answer is consistently yes — useState and useReducer are obvious, React Query's queryKey makes the data source clear, and Zustand's selectors make the store shape visible.
+
+Redux's indirection (action type strings, reducers, selectors spread across files) makes this harder, not easier, for small teams on well-scoped products.

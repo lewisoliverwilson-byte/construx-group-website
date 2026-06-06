@@ -42,6 +42,7 @@ const sections: UseSection[] = [
       { name: 'PostgreSQL + pgvector', description: 'Database for The Hyve. pgvector extension for vector embeddings alongside relational data.', tag: 'Database' },
       { name: 'Three.js + React Three Fiber', description: 'The solar system hero on this site. R3F wraps Three.js in a declarative React API.', tag: '3D' },
       { name: 'MDX + next-mdx-remote', description: 'Content format for the journal. Posts are MDX files in the repo, rendered server-side.', tag: 'Content' },
+      { name: 'BullMQ', description: 'Redis-backed job queue for background processing — Scoutr product scans, AI response generation, content moderation pipelines.', url: 'https://bullmq.io', tag: 'Queue' },
     ],
   },
   {
@@ -90,6 +91,7 @@ const TAG_COLORS: Record<string, string> = {
   Database: 'rgba(234,179,8,0.12)',
   '3D': 'rgba(249,115,22,0.12)',
   Content: 'rgba(34,197,94,0.12)',
+  Queue: 'rgba(234,179,8,0.12)',
   Hosting: 'rgba(249,115,22,0.12)',
   'Source Control': 'rgba(240,239,255,0.06)',
   Backend: 'rgba(59,130,246,0.12)',
@@ -122,7 +124,7 @@ export default function UsesPage() {
           <h1 className="text-display-sm text-text-base mb-4 leading-tight">What we use</h1>
           <p className="text-text-muted leading-relaxed text-base max-w-2xl">
             The tools, services, and hardware behind Construx Group and its ventures.
-            Last updated June 2026.
+            Last updated November 2026.
           </p>
         </div>
       </section>
