@@ -1,0 +1,78 @@
+---
+title: "One database per product: why we don't share infrastructure"
+date: "2026-07-31"
+excerpt: "We run three separate Postgres instances, three separate Amplify environments, three separate everything. The overhead is real. So is the isolation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Each Construx product has its own Postgres database, its own AWS Amplify environment, its own set of environment variables, its own deployment pipeline. Nothing is shared across product boundaries.
+
+This was a deliberate choice, made early. Here's the reasoning and what we've learned from it.
+
+## Why separate everything
+
+The argument for shared infrastructure is cost efficiency. One database, one hosting environment, one set of configurations to maintain. The argument against is blast radius.
+
+When The Marqet's search index ran a particularly expensive query in April, it consumed database CPU for 45 seconds. If Scoutr and The Hyve had been on the same database, they'd have experienced degraded query performance for those 45 seconds. With separate infrastructure, the blast radius was contained to The Marqet.
+
+This isolation principle applies across the board:
+- A deployment that breaks The Hyve doesn't affect Scoutr
+- A configuration change in The Marqet's environment variables doesn't leak into Scoutr's build
+- A traffic spike on Scoutr doesn't consume resources allocated to The Hyve
+- A database migration on The Marqet can run without affecting the other products
+
+Operationally, the rule is: no shared mutable state across product boundaries.
+
+## The actual overhead
+
+Running three separate products means maintaining three times the configuration. Three sets of Amplify environment variables. Three Postgres instances with separate connection strings, backup configurations, and monitoring. Three separate deployment pipelines.
+
+In practice, the overhead is around 2-3 hours per month across all three products combined — mainly time spent reviewing infrastructure costs, updating environment variables when services change, and ensuring backups are current.
+
+We've reduced this overhead by making the configurations as similar as possible. The Amplify configuration for each product follows the same pattern. The Postgres setup follows the same schema migration conventions. The environment variable naming follows the same scheme. When we learn something about one product's infrastructure, we apply it to the others.
+
+The fixed cost is low enough that the isolation benefit clearly outweighs it.
+
+## Database schema isolation
+
+Each product has its own schema, its own migration history, and its own data. There is no cross-product query.
+
+This might seem extreme — a "users" table is a "users" table, why not share it? — but the data models for our three products are meaningfully different:
+
+Scoutr's data model is built around product scans: retailers, products, fees, profit calculations, scan sessions. The user-product relationship is scans-over-time.
+
+The Marqet's data model is built around a content directory: listings, categories, purchases, reviews, embeddings. The user-product relationship is browse-and-purchase.
+
+The Hyve's data model is built around collaborative AI sessions: workspaces, channels, messages, agent runs, context windows. The user-product relationship is real-time collaborative sessions.
+
+These are not the same data model with slight variations. They're meaningfully different data structures that happen to have a "users" concept in common. Sharing a "users" table would couple three independent products to a single schema decision. When Scoutr needs to add professional arbitrage trader attributes to a user, it shouldn't require a migration that affects The Marqet and The Hyve.
+
+## Cross-product data: how we actually handle it
+
+The legitimate cross-product data needs are minimal:
+- Marketing attribution (which product did the user sign up for first?)
+- Aggregate usage metrics for internal reporting
+- Billing if we ever move to a unified subscription
+
+None of these require a shared database. Marketing attribution is handled at the analytics layer (PostHog). Aggregate metrics are computed from each product's database separately and combined in reporting. Billing would be handled by Stripe, which sits outside the database layer anyway.
+
+If a genuine cross-product data need emerged that required a shared data store, we'd handle it with a dedicated integration layer — not by merging the product databases.
+
+## When shared infrastructure makes sense
+
+Not for three early-stage products at different stages of product development. Yes, probably, for:
+
+- A large product with clearly distinct feature modules that will never have independent infrastructure concerns
+- A platform with tenants who need data isolation from each other but not from the platform
+- A mature product where the development stage is similar enough that shared infrastructure changes don't create cross-team coordination problems
+
+Our situation: three products with different traffic patterns, different development velocities, different infrastructure needs, and independent deployment schedules. Shared infrastructure would introduce coupling that creates more problems than it solves.
+
+## The cost
+
+Three Postgres instances on the smallest available tier cost roughly $21/month combined. We're on AWS RDS db.t3.micro for each product. This is a negligible infrastructure cost.
+
+Three Amplify environments are priced per build minute and per data transfer. The combined cost is low — we're early-stage, not serving millions of requests — and separate deployments don't meaningfully increase it.
+
+The separation is nearly free at our scale. At larger scale, the isolation benefits become even more valuable, and the cost is amortized across much higher revenue. The argument for shared infrastructure on cost grounds requires a scale we're not at and probably won't reach before the isolation benefits justify continued separation.

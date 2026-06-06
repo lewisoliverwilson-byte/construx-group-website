@@ -1,0 +1,78 @@
+---
+title: "The four product ideas we didn't build"
+date: "2026-08-03"
+excerpt: "For every product we've shipped, there are three or four that didn't make the cut. Here's what we considered and why we didn't build it — the decisions are more instructive than the launches."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+Decisions about what not to build are at least as important as decisions about what to build. The products you don't pursue define your focus as much as the ones you do.
+
+Here are four ideas that went through serious consideration and didn't make the cut, and the reasoning that killed them.
+
+## 1. An Amazon price history tracker
+
+This was the first idea we evaluated before Scoutr. The problem: Amazon prices fluctuate frequently, and resellers and consumers both want to know whether the current price is low relative to historical prices.
+
+The research phase:
+
+- Products like Keepa and CamelCamelCamel already do this, with years of historical data and large established user bases
+- The competitive moat in price tracking is data history — you can't compete with a service that has years of price data by launching today
+- The differentiation we could offer (AI-powered "is this a good deal" judgment) required building the price history we didn't have
+
+Killed: the problem is real, the market exists, but the competitive dynamics are wrong for a new entrant. You can't buy your way into a data moat.
+
+The lesson from Scoutr, which we built instead: don't compete on historical data. Scoutr uses current fee calculations and live product data. No historical data advantage needed.
+
+## 2. A SaaS invoice and accounting tool for freelancers
+
+This was evaluated before The Marqet. The problem: freelancers spend significant time on administrative work that isn't their core skill — invoicing, expense tracking, tax preparation.
+
+The research phase:
+
+- FreeAgent, QuickBooks, FreshBooks, Wave, Bonsai, Honeybook, and a dozen others already address this
+- The market is saturated with well-funded incumbents offering free or near-free tiers
+- Switching costs in accounting software are high (historical data, accountant integrations), which makes displacement of incumbents slow
+- AI differentiation in accounting was possible but not compelling enough relative to the incumbents' roadmaps
+
+Killed: the problem is real, the market is large, but it's a market where incumbents have strong moats and new entrants have to be dramatically better, not incrementally better.
+
+The broader pattern: avoid markets where the incumbents are entrenched, well-funded, and have data moats. The energy required to displace them is disproportionate to the opportunity.
+
+## 3. A job application tracker and recruiter CRM
+
+This was evaluated while building The Hyve. The problem: job seekers manage multiple simultaneous applications, each at different stages, with different contacts and deadlines. The tracking is manual and tedious.
+
+The research phase:
+
+- Several tools already address this (Huntr, Teal, Simplify)
+- The market is constrained: the users are temporary (once employed, they leave)
+- Monetisation is difficult — job seekers are cash-constrained and reluctant to pay for tools
+- AI differentiation (auto-filling applications, tracking outcomes) was interesting but the distribution channel was unclear
+
+Killed: the retention problem is structural. A product that users leave when it works is fundamentally harder to build a business around. The successful user is the user who cancels.
+
+This rejection sharpened our thinking about The Hyve: team collaboration tools have the opposite retention property. When the product works, the team gets more committed to it, not less.
+
+## 4. An AI writing assistant for technical documentation
+
+This was evaluated most recently — about a month ago. The problem: engineering teams write documentation reluctantly, documentation goes stale quickly, and the gap between what the code does and what the docs say it does grows over time.
+
+The research phase:
+
+- This is a real, frequently-complained-about problem at engineering organisations of all sizes
+- Existing solutions (Mintlify, GitBook, Notion, Confluence) solve the "where do docs live" problem but not the "docs are stale and wrong" problem
+- An AI tool that reads the codebase, reads the existing docs, and identifies where they've diverged is technically feasible
+- The problem: "docs diverged from code" is chronic and the solution is a workflow change, not just a tool
+
+The deeper issue: documentation quality problems are usually people and process problems, not tool problems. A tool that makes it easier to identify stale docs doesn't make it easier to update them. That requires writer time, which is always scarce for engineering teams.
+
+Killed — but with less confidence than the others. This might come back. The AI capability to read code and generate or verify documentation is real, and if the user problem is framed differently (not "fix stale docs" but "generate docs automatically from code that a human can review") the product might be viable. It's in research, not ruled out.
+
+## What the pattern reveals
+
+Looking at the four rejections together: we avoid markets with data-moated incumbents, avoid structural retention problems, avoid tool-only solutions to process problems.
+
+What we build: tools where the AI does calculation rather than assists with creation, tools where the workflow is repeated (not one-time), tools where the user stays in the market after the tool works.
+
+The idea evaluation process is the same for each: 48 hours of research, a landing page (sometimes), a set of specific questions. The questions that matter most: "Is the competitive dynamic right?" and "Does the product get better for the user over time?" Those two questions have killed more ideas than any other consideration.

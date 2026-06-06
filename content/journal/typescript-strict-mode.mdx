@@ -1,0 +1,85 @@
+---
+title: "TypeScript strict mode: why we enable it and what it costs"
+date: "2026-08-02"
+excerpt: "All three products run with TypeScript strict mode enabled. It costs time upfront and saves time continuously. Here's the specific ways it's caught bugs before they reached production."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+TypeScript's `strict` mode enables a set of type-checking rules that the default TypeScript configuration leaves off. The rules exist because the problems they catch are real and common.
+
+All three Construx products run with `strict: true`. Here's what that means in practice.
+
+## What strict mode actually enables
+
+The `strict` flag in `tsconfig.json` is a shorthand for several individual checks:
+
+- `strictNullChecks` — values can't be `null` or `undefined` unless explicitly typed that way
+- `strictFunctionTypes` — function parameter types are checked contravariantly
+- `strictPropertyInitialization` — class properties must be initialised in the constructor
+- `noImplicitAny` — variables can't silently have type `any`
+- `noImplicitThis` — `this` must be explicitly typed in function contexts
+- And a few others
+
+The most important in practice: `strictNullChecks` and `noImplicitAny`.
+
+## The strictNullChecks dividend
+
+`strictNullChecks` is the change that catches the most bugs. Without it, TypeScript treats `null` and `undefined` as valid values for any type. With it, you have to handle the nullable case explicitly.
+
+This sounds theoretical until you're looking at a runtime error in production that says `Cannot read properties of undefined` — and realising that TypeScript without `strictNullChecks` would have let that code compile happily.
+
+A concrete example from Scoutr: a function that fetches a product from an external retailer's API can return the product data or `undefined` (if the product isn't found). Without `strictNullChecks`, we could pass the result directly to a fee calculation function. With `strictNullChecks`, TypeScript requires us to handle the `undefined` case before calling the function:
+
+```typescript
+const product = await fetchProduct(url);
+// Without strict: product.price would compile but crash if undefined
+// With strict: must handle the undefined case
+if (!product) {
+  return { error: 'Product not found' };
+}
+// Now TypeScript knows product is not undefined
+calculateFees(product);
+```
+
+Every place we had to add a null check during the initial TypeScript migration was a potential runtime crash. `strictNullChecks` converted runtime bugs into compile-time errors.
+
+## noImplicitAny: forcing precision
+
+`noImplicitAny` prevents variables from silently having type `any`. Without it, TypeScript infers `any` for variables it can't determine a type for, which means "this value can be anything — we're not checking it."
+
+`any` is a type hole. Code that operates on `any` values bypasses the type checker entirely. Bugs that would be caught by TypeScript will slip through if the data flows through `any` values.
+
+The discipline `noImplicitAny` enforces: if you don't know the type of a value, you have to say so explicitly (using `any`, `unknown`, or a more specific type). This is a small friction that creates a large benefit — every `any` in the codebase is visible and deliberate, not hidden.
+
+We use `unknown` over `any` where possible. `unknown` requires a runtime type check before use; `any` doesn't. The difference matters for external API responses and JSON parsing.
+
+## The cost
+
+Strict mode adds friction to the first-time setup of a project. You write more types. You handle more edge cases explicitly. Some things that "just work" in JavaScript require explicit typing in strict TypeScript.
+
+The cost is front-loaded. After the initial setup, strict mode is a safety net that runs silently — TypeScript finds problems automatically before code is shipped.
+
+We've run the count internally: since adopting TypeScript strict mode across all three products, TypeScript has caught and prevented at least 12 bugs that would have reached production. These range from minor (a function returning `undefined` that the caller expected to always return a value) to potentially significant (a payment calculation that silently used a default value when a required input was missing).
+
+12 bugs prevented across six months of active development. That's the return on the upfront investment.
+
+## Strict mode with third-party libraries
+
+The challenge with strict mode is third-party libraries that aren't fully typed. Many npm packages have `@types/` packages that are incomplete or inaccurate for their actual behavior.
+
+Our approach: when a library type is wrong or missing, use a local type override rather than casting to `any`. A `// @ts-expect-error` comment with an explanation of why is better than propagating `any` through calling code:
+
+```typescript
+// Vendor type is incorrect — this function can accept both string and string[]
+// @ts-expect-error
+const result = vendorLib.process(inputs);
+```
+
+The `@ts-expect-error` comment is tracked — TypeScript warns you if the error goes away and the comment is no longer needed. This creates a self-cleaning mechanism for type workarounds.
+
+## The recommendation
+
+Enable `strict: true` from the start of any TypeScript project. The cost of migrating an existing non-strict codebase to strict is high (every nullable value needs explicit handling). The cost of starting strict is low.
+
+For new projects: the additional typing overhead in the first two days pays back across the lifetime of the project. Every production bug that TypeScript catches before deployment is worth more than the time spent writing the type.
