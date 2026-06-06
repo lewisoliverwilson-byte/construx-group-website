@@ -1,0 +1,192 @@
+---
+title: "tRPC: end-to-end type safety without a schema"
+date: "2029-08-07"
+excerpt: "tRPC gives you end-to-end type safety between your Next.js server and client without writing a schema. Types flow automatically from your router definition to your React hooks. No REST, no GraphQL, no code generation. Just TypeScript — the same types on both sides."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+tRPC solves the type-safety gap between server and client in TypeScript applications. The problem: you define types on the server, but when you fetch from those endpoints on the client, TypeScript has no way to know what the response looks like. You either duplicate types, write OpenAPI specs and generate types, or accept that the client side is untyped.
+
+tRPC's approach: define your server procedures in TypeScript, and those exact types are available in your client hooks — with no code generation, no schema language, and no manual duplication.
+
+## The router
+
+```ts
+// server/routers/users.ts
+import { z } from 'zod';
+import { router, publicProcedure } from '../trpc';
+import { db } from '../db';
+
+export const usersRouter = router({
+  byId: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      return db.user.findUnique({ where: { id: input.id } });
+    }),
+
+  list: publicProcedure
+    .query(async () => {
+      return db.user.findMany({ orderBy: { createdAt: 'desc' } });
+    }),
+
+  create: publicProcedure
+    .input(z.object({
+      name:  z.string().min(1),
+      email: z.string().email(),
+    }))
+    .mutation(async ({ input }) => {
+      return db.user.create({ data: input });
+    }),
+});
+```
+
+```ts
+// server/routers/_app.ts
+import { router } from '../trpc';
+import { usersRouter } from './users';
+import { postsRouter } from './posts';
+
+export const appRouter = router({
+  users: usersRouter,
+  posts: postsRouter,
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+`AppRouter` is the single type export that bridges server and client.
+
+## The client
+
+```ts
+// lib/trpc.ts
+import { createTRPCReact } from '@trpc/react-query';
+import type { AppRouter } from '../server/routers/_app';
+
+export const trpc = createTRPCReact<AppRouter>();
+```
+
+```tsx
+// components/UserList.tsx
+import { trpc } from '@/lib/trpc';
+
+export function UserList() {
+  const { data, isLoading } = trpc.users.list.useQuery();
+
+  if (isLoading) return <Spinner />;
+
+  return (
+    <ul>
+      {data?.map((user) => (
+        <li key={user.id}>{user.name}</li>  // data is fully typed — no any, no assertion
+      ))}
+    </ul>
+  );
+}
+```
+
+TypeScript knows `data` is `User[] | undefined`. The `User` type comes from your Prisma schema (or wherever you defined it in the router). If you rename a field on the server and forget to update the client, TypeScript catches it at compile time.
+
+## Mutations
+
+```tsx
+function CreateUserForm() {
+  const utils = trpc.useUtils();
+  const createUser = trpc.users.create.useMutation({
+    onSuccess: () => {
+      utils.users.list.invalidate();
+    },
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const form = new FormData(e.currentTarget);
+        createUser.mutate({
+          name:  form.get('name') as string,
+          email: form.get('email') as string,
+        });
+      }}
+    >
+      <input name="name" />
+      <input name="email" type="email" />
+      <button type="submit" disabled={createUser.isPending}>
+        Create
+      </button>
+    </form>
+  );
+}
+```
+
+The mutation input is typed from the Zod schema you defined in the router. If you pass the wrong shape, TypeScript errors — not a runtime 400 from the server.
+
+## Setting up with Next.js App Router
+
+tRPC works with App Router via the `fetch` adapter:
+
+```ts
+// app/api/trpc/[trpc]/route.ts
+import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import { appRouter } from '@/server/routers/_app';
+import { createContext } from '@/server/context';
+
+const handler = (req: Request) =>
+  fetchRequestHandler({
+    endpoint: '/api/trpc',
+    req,
+    router: appRouter,
+    createContext,
+  });
+
+export { handler as GET, handler as POST };
+```
+
+The context function gives you access to the request (for auth headers, cookies):
+
+```ts
+// server/context.ts
+import { getServerSession } from 'next-auth';
+import type { inferAsyncReturnType } from '@trpc/server';
+
+export async function createContext(opts: { req: Request }) {
+  const session = await getServerSession();
+  return { session };
+}
+
+export type Context = inferAsyncReturnType<typeof createContext>;
+```
+
+## Protected procedures
+
+```ts
+import { TRPCError } from '@trpc/server';
+
+export const protectedProcedure = publicProcedure.use(({ ctx, next }) => {
+  if (!ctx.session?.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      session: ctx.session,  // narrowed — session is non-null
+    },
+  });
+});
+
+// Usage
+export const postsRouter = router({
+  myPosts: protectedProcedure.query(async ({ ctx }) => {
+    return db.post.findMany({ where: { authorId: ctx.session.user.id } });
+  }),
+});
+```
+
+## When tRPC fits
+
+tRPC is ideal when your client and server are in the same TypeScript codebase — a Next.js monorepo where the frontend and backend deploy together. The type sharing is automatic because they share the same build.
+
+It doesn't fit when: you have multiple clients in different languages, you need to expose a public API consumed by third parties, or you want your API to be independently versioned and documented. For those cases, REST or GraphQL with a schema is the right choice — the schema becomes the contract.
+
+For internal Next.js full-stack apps, tRPC eliminates an entire category of bugs (type drift between server and client) with essentially no overhead.

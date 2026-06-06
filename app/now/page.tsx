@@ -5,6 +5,7 @@ import RecentCommitsPanel from '@/components/RecentCommitsPanel';
 import TerminalCalPanel from '@/components/TerminalCalPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
+import IostatPanel from '@/components/IostatPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -316,6 +317,11 @@ export default function NowPage() {
         {/* Disk usage */}
         <div className="mt-6">
           <DiskUsagePanel />
+        </div>
+
+        {/* Disk I/O stats */}
+        <div className="mt-6">
+          <IostatPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

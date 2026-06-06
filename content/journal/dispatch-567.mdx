@@ -1,0 +1,139 @@
+---
+title: "Optimistic UI: making apps feel instant"
+date: "2029-08-10"
+excerpt: "Optimistic UI updates the interface immediately on user action, before the server confirms. The mutation appears to succeed instantly. If the server returns an error, you roll back. The result is an app that feels instant because it doesn't wait for the network. Here's the pattern, the edge cases, and when not to use it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The fundamental problem with network-dependent UIs: the server takes time to respond. A delete button that waits for a 200 OK before removing the item feels sluggish. On a 100ms network it's tolerable. On a 400ms network it's noticeable. On a slow mobile connection it feels broken.
+
+Optimistic UI inverts the order: update the UI immediately, then send the request. If the request succeeds, nothing changes (the UI is already correct). If the request fails, roll back to the previous state and show an error.
+
+## The pattern with TanStack Query
+
+TanStack Query's `useMutation` has `onMutate`, `onError`, and `onSettled` hooks designed for this:
+
+```ts
+const queryClient = useQueryClient();
+
+const deleteTodo = useMutation({
+  mutationFn: (id: string) => fetch(`/api/todos/${id}`, { method: 'DELETE' }),
+
+  onMutate: async (id) => {
+    // Cancel any in-flight refetches (they'd overwrite our optimistic update)
+    await queryClient.cancelQueries({ queryKey: ['todos'] });
+
+    // Snapshot the previous value
+    const previous = queryClient.getQueryData<Todo[]>(['todos']);
+
+    // Optimistically update the cache
+    queryClient.setQueryData<Todo[]>(['todos'], (old = []) =>
+      old.filter((t) => t.id !== id)
+    );
+
+    // Return context for rollback
+    return { previous };
+  },
+
+  onError: (_err, _id, context) => {
+    // Roll back on failure
+    if (context?.previous) {
+      queryClient.setQueryData(['todos'], context.previous);
+    }
+  },
+
+  onSettled: () => {
+    // Always refetch to sync with server truth
+    queryClient.invalidateQueries({ queryKey: ['todos'] });
+  },
+});
+```
+
+Three hooks, one invariant: the UI is always consistent with either the optimistic state (on success) or the previous state (on error).
+
+## The same pattern for create
+
+Create is slightly different because the new item doesn't have a server-assigned ID yet:
+
+```ts
+const createTodo = useMutation({
+  mutationFn: (text: string) =>
+    fetch('/api/todos', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }).then(r => r.json()),
+
+  onMutate: async (text) => {
+    await queryClient.cancelQueries({ queryKey: ['todos'] });
+    const previous = queryClient.getQueryData<Todo[]>(['todos']);
+
+    // Use a temporary ID — will be replaced by invalidation after settle
+    const tempId = `temp-${Date.now()}`;
+    queryClient.setQueryData<Todo[]>(['todos'], (old = []) => [
+      { id: tempId, text, completed: false },
+      ...old,
+    ]);
+
+    return { previous, tempId };
+  },
+
+  onError: (_err, _text, context) => {
+    queryClient.setQueryData(['todos'], context?.previous);
+  },
+
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ['todos'] });
+  },
+});
+```
+
+After `onSettled` fires, the invalidation replaces the temp ID with the real one from the server.
+
+## With SWR
+
+SWR's mutation story is less complete but still covers the common case:
+
+```ts
+import { useSWRConfig } from 'swr';
+
+function TodoList() {
+  const { data: todos, mutate } = useSWR<Todo[]>('/api/todos');
+  const { mutate: globalMutate } = useSWRConfig();
+
+  async function deleteTodo(id: string) {
+    // Optimistic update
+    mutate(
+      todos?.filter((t) => t.id !== id),
+      false  // don't revalidate yet
+    );
+
+    try {
+      await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+      mutate();  // revalidate after success
+    } catch {
+      mutate();  // revalidate to roll back
+    }
+  }
+}
+```
+
+SWR's approach works but the rollback requires re-fetching. TanStack Query's `context` pattern is more explicit and doesn't need a network round-trip to roll back.
+
+## When not to use optimistic UI
+
+**Irreversible actions**: deleting an account, sending a payment, triggering a one-time event. If the optimistic update shows "payment sent" and the server then returns an error, the user had a moment of false belief about something important. Show a loading state instead.
+
+**Low success rate operations**: if your mutation fails 5% of the time (rate limits, validation errors), optimistic UI means 5% of interactions visibly snap back. Use a loading indicator instead.
+
+**Complex server-side side effects**: if the server's response includes derived data that's hard to compute client-side (a new balance, a rank, a computed field), the optimistic state and the server state will differ in ways you can't predict. Waiting for the server response is safer.
+
+**Multi-user environments**: if other users can modify the same resource, your optimistic state may conflict with server truth more often. The invalidation after `onSettled` handles this, but the flicker is more frequent.
+
+The rule: use optimistic UI when the success rate is high, the operation is reversible, and the optimistic state is easy to compute correctly. For everything else, show a loading indicator.
+
+## The UX cost of getting it wrong
+
+A bad optimistic update that frequently rolls back is worse than a loading indicator. The visible snap — item appears, then disappears a second later when the server rejects — breaks the user's mental model. They stop trusting the UI.
+
+Get the success rate right first. If your API endpoint fails frequently, fix that before adding optimistic updates on top.
