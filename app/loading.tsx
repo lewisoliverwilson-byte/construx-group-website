@@ -55,6 +55,20 @@ export default function Loading() {
           </span>
         </div>
 
+        {/* Shell prompt */}
+        <div
+          style={{
+            padding: '5px 16px',
+            borderBottom: '1px solid rgba(249,115,22,0.05)',
+            background: 'rgba(249,115,22,0.015)',
+            userSelect: 'none',
+            fontFamily: 'var(--font-jetbrains-mono), monospace',
+          }}
+        >
+          <span style={{ fontSize: '8px', color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+          <span style={{ fontSize: '8px', marginLeft: '6px', color: 'rgba(240,239,255,0.2)' }}>construx runtime --boot --env=production</span>
+        </div>
+
         {/* Body */}
         <div style={{ padding: '20px' }}>
           {/* Orb */}
