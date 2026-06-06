@@ -10,6 +10,7 @@ import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
 import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
+import LighthousePanel from '@/components/LighthousePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -245,6 +246,11 @@ export default function ManifestoPage() {
         {/* Bundle analysis */}
         <div className="mt-4">
           <BundleAnalysisPanel />
+        </div>
+
+        {/* Lighthouse audit */}
+        <div className="mt-4">
+          <LighthousePanel />
         </div>
 
         {/* Sign-off */}

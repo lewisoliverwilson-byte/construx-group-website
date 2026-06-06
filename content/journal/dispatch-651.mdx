@@ -1,0 +1,196 @@
+---
+title: "Hono: fast web framework for the edge"
+date: "2030-04-19"
+excerpt: "Hono is a lightweight, edge-first web framework that runs anywhere the Web Fetch API runs: Cloudflare Workers, Deno Deploy, Bun, Node.js, AWS Lambda, and Vercel Edge. It's fast — consistently near the top of benchmarks — and it's built for TypeScript. Route handlers, middleware, and validators are all typed. The API is familiar if you know Express."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Hono's elevator pitch: Express's ergonomics, but typed, fast, and runs at the edge. The same code runs on Cloudflare Workers, Bun, Deno, and Node.js. No adapter layer, no configuration — just import from the runtime-specific entrypoint.
+
+## Basic setup (Cloudflare Workers)
+
+```ts
+// src/index.ts
+import { Hono } from 'hono';
+
+const app = new Hono();
+
+app.get('/', (c) => {
+  return c.json({ status: 'ok', region: c.req.raw.cf?.colo });
+});
+
+app.get('/hello/:name', (c) => {
+  const name = c.req.param('name');
+  return c.text(`Hello, ${name}!`);
+});
+
+export default app;
+```
+
+```bash
+npm create hono@latest my-api
+cd my-api
+wrangler dev
+```
+
+## Routing
+
+```ts
+import { Hono } from 'hono';
+
+const app = new Hono();
+
+// Methods
+app.get('/posts',        handler);
+app.post('/posts',       handler);
+app.put('/posts/:id',    handler);
+app.delete('/posts/:id', handler);
+app.all('/webhook',      handler);  // all methods
+
+// Route groups
+const api = new Hono().basePath('/api');
+api.get('/posts', handler);
+api.post('/posts', handler);
+
+// Mount the group
+app.route('/api', api);
+
+// Wildcard
+app.get('/files/*', (c) => {
+  const path = c.req.param('*');
+  return c.text(`File: ${path}`);
+});
+```
+
+## Middleware
+
+```ts
+import { Hono }   from 'hono';
+import { logger } from 'hono/logger';
+import { cors }   from 'hono/cors';
+import { timing } from 'hono/timing';
+import { compress } from 'hono/compress';
+
+const app = new Hono();
+
+// Built-in middleware
+app.use('*', logger());
+app.use('*', timing());
+app.use('*', compress());
+app.use('/api/*', cors({
+  origin:      'https://construxgroup.io',
+  credentials: true,
+}));
+
+// Custom middleware
+app.use('/api/*', async (c, next) => {
+  const token = c.req.header('authorization')?.replace('Bearer ', '');
+  if (!token || token !== c.env.API_TOKEN) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  await next();
+});
+```
+
+## Typed context with Zod validation
+
+```ts
+import { Hono }       from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z }          from 'zod';
+
+const app = new Hono<{ Bindings: { DATABASE_URL: string } }>();
+
+const createPostSchema = z.object({
+  title:   z.string().min(1).max(200),
+  content: z.string().min(1),
+  status:  z.enum(['draft', 'published']).default('draft'),
+});
+
+app.post(
+  '/posts',
+  zValidator('json', createPostSchema),
+  async (c) => {
+    const data = c.req.valid('json');  // fully typed from the schema
+    const db   = createDb(c.env.DATABASE_URL);
+    const post  = await db.post.create({ data });
+    return c.json(post, 201);
+  },
+);
+```
+
+`zValidator` validates the request body against the Zod schema and makes it available via `c.req.valid('json')` — typed as the inferred type.
+
+## RPC client: end-to-end type safety
+
+```ts
+// server/routes/posts.ts
+import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+
+const postsRoute = new Hono()
+  .get('/', async (c) => {
+    const posts = await getPosts();
+    return c.json(posts);
+  })
+  .post('/', zValidator('json', createPostSchema), async (c) => {
+    const data = c.req.valid('json');
+    const post  = await createPost(data);
+    return c.json(post, 201);
+  });
+
+export type PostsRouteType = typeof postsRoute;
+export default postsRoute;
+```
+
+```ts
+// client.ts
+import { hc } from 'hono/client';
+import type { PostsRouteType } from './routes/posts';
+
+const client = hc<PostsRouteType>('https://api.construxgroup.io');
+
+// Fully typed — return types inferred from route handlers
+const posts = await client.posts.$get().then((r) => r.json());
+const post  = await client.posts.$post({ json: { title: 'Hello', content: 'World' } }).then((r) => r.json());
+```
+
+`hc` (Hono client) infers request and response types from the route definition. No code generation, no schema files — types flow from server to client through TypeScript imports.
+
+## Running on Bun
+
+```ts
+// index.ts
+import { Hono } from 'hono';
+
+const app = new Hono();
+app.get('/', (c) => c.text('Hello from Bun!'));
+
+export default {
+  port: 3000,
+  fetch: app.fetch,
+};
+```
+
+```bash
+bun run index.ts
+```
+
+## Running on Node.js
+
+```ts
+import { Hono }    from 'hono';
+import { serve }   from '@hono/node-server';
+
+const app = new Hono();
+app.get('/', (c) => c.text('Hello from Node!'));
+
+serve({ fetch: app.fetch, port: 3000 });
+```
+
+The same `app` works on any runtime — swap the entrypoint, keep the routes. This is the key selling point: write once, deploy anywhere the Fetch API runs.
+
+## Hono vs Express vs Fastify
+
+Hono wins on: edge runtime support, TypeScript types out of the box, raw performance, modern API surface. Express wins on: ecosystem maturity, middleware compatibility, familiarity. Fastify wins on: plugin architecture, schema-based validation, highest Node.js throughput. For new API projects targeting the edge, Hono is the natural choice.
