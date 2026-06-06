@@ -9,6 +9,7 @@ import GitGraphPanel from '@/components/GitGraphPanel';
 import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
 import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
+import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -239,6 +240,11 @@ export default function ManifestoPage() {
         {/* Type check */}
         <div className="mt-4">
           <TypeCheckPanel />
+        </div>
+
+        {/* Bundle analysis */}
+        <div className="mt-4">
+          <BundleAnalysisPanel />
         </div>
 
         {/* Sign-off */}
