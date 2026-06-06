@@ -1,0 +1,195 @@
+---
+title: "Authentication patterns: sessions, JWTs, and the HttpOnly cookie"
+date: "2027-03-28"
+excerpt: "Most auth bugs come from the storage decision: where does the token live? JWTs in localStorage are fast to implement and easy to steal. HttpOnly cookies are the right answer for web applications. Here's the full pattern."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Authentication has one core decision that everything else follows from: where does the session token live? The answer determines your XSS exposure, your CSRF exposure, your logout semantics, and how you handle token refresh.
+
+The wrong answer is common because it's easier to implement. The right answer requires understanding why the wrong one fails.
+
+## Why localStorage is the wrong answer
+
+The naive implementation stores a JWT in `localStorage`:
+
+```ts
+// ✗ — XSS-vulnerable token storage
+const token = await login(email, password);
+localStorage.setItem('auth_token', token);
+
+// Client includes it manually in requests
+const response = await fetch('/api/data', {
+  headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+});
+```
+
+The problem: any JavaScript on the page can read `localStorage`. An XSS vulnerability anywhere on the page — in a third-party script, in a user-supplied comment rendered unsafely, in a dependency with a supply chain compromise — can exfiltrate the token. Once the token is gone, the session is stolen silently, with no way to invalidate it server-side (JWTs are stateless by design).
+
+For applications that handle sensitive data, this risk is unacceptable.
+
+## HttpOnly cookies: the correct foundation
+
+An HttpOnly cookie cannot be read by JavaScript. The browser sends it automatically with same-origin requests. An XSS attack that reads cookies gets nothing — they're invisible to the script context.
+
+```ts
+// app/api/auth/login/route.ts
+import { cookies } from 'next/headers';
+
+export async function POST(req: Request) {
+  const { email, password } = await req.json();
+  const user = await verifyCredentials(email, password);
+
+  if (!user) {
+    return Response.json({ error: 'Invalid credentials' }, { status: 401 });
+  }
+
+  const sessionToken = await createSession(user.id);
+
+  const cookieStore = await cookies();
+  cookieStore.set('session', sessionToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 7,  // 7 days
+    path: '/',
+  });
+
+  return Response.json({ success: true });
+}
+```
+
+The `secure` flag ensures the cookie is only sent over HTTPS. The `sameSite: 'lax'` attribute protects against CSRF: the cookie is not sent on cross-site requests initiated from other origins, which covers the common CSRF attack vector.
+
+## Session storage: server-side state
+
+A JWT is self-contained — the server can verify it without a database lookup. This is convenient, but it means you can't invalidate a session without a blocklist.
+
+The pattern we use: store sessions server-side, look up on each request.
+
+```ts
+// lib/auth.ts
+
+export async function createSession(userId: string): Promise<string> {
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db.insert(sessions).values({
+    token,
+    userId,
+    expiresAt,
+    createdAt: new Date(),
+  });
+
+  return token;
+}
+
+export async function getSession(): Promise<Session | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('session')?.value;
+  if (!token) return null;
+
+  const session = await db
+    .select()
+    .from(sessions)
+    .where(and(eq(sessions.token, token), gt(sessions.expiresAt, new Date())))
+    .limit(1);
+
+  return session[0] ?? null;
+}
+
+export async function deleteSession() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('session')?.value;
+
+  if (token) {
+    await db.delete(sessions).where(eq(sessions.token, token));
+    cookieStore.delete('session');
+  }
+}
+```
+
+`getSession()` is called at the top of any route handler or server component that requires authentication. The session is looked up by token in the database. An expired or missing token returns `null`.
+
+This means logout is real: delete the row, the session is gone, no blocklist needed.
+
+## Middleware-level auth guards
+
+In Next.js, route-level auth runs in middleware — before the route handler fires. This prevents the user from ever reaching protected content with an invalid session:
+
+```ts
+// middleware.ts
+import { NextResponse, type NextRequest } from 'next/server';
+
+const PROTECTED = ['/dashboard', '/api/scan', '/api/portfolio', '/api/upload'];
+const PUBLIC = ['/login', '/signup', '/', '/journal', '/ventures'];
+
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+
+  const isProtected = PROTECTED.some((p) => path.startsWith(p));
+  if (!isProtected) return NextResponse.next();
+
+  const session = req.cookies.get('session')?.value;
+  if (!session) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};
+```
+
+The middleware check is fast — it just looks for the cookie, it doesn't query the database. The full session lookup happens in the route handler when the request is actually processed.
+
+## Refresh tokens
+
+A 7-day session that doesn't auto-renew is fine for many applications. If you need rolling sessions — where activity extends the session — you extend the expiry on every request:
+
+```ts
+// Extend session on access
+export async function getSession(): Promise<Session | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('session')?.value;
+  if (!token) return null;
+
+  const session = await db
+    .select()
+    .from(sessions)
+    .where(and(eq(sessions.token, token), gt(sessions.expiresAt, new Date())))
+    .limit(1);
+
+  if (!session[0]) return null;
+
+  // Extend expiry if it will expire within 24 hours
+  const oneDayFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  if (session[0].expiresAt < oneDayFromNow) {
+    const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await db.update(sessions)
+      .set({ expiresAt: newExpiry })
+      .where(eq(sessions.token, token));
+
+    cookieStore.set('session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    });
+  }
+
+  return session[0];
+}
+```
+
+A rolling window that extends on access is a good balance: genuinely inactive users are logged out, but active users stay logged in without friction.
+
+## The invariant
+
+No authentication token should ever be accessible to JavaScript. If your token is in `localStorage`, in a non-HttpOnly cookie, or passed through `window.location`, it can be stolen by XSS. The attack surface for XSS is larger than most people realise — third-party analytics, ad scripts, customer chat widgets, and dependency vulnerabilities all run JavaScript in your page context.
+
+HttpOnly cookies are the one storage location the browser protects from script access by design. Build around them.

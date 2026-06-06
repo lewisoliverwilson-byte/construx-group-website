@@ -1,0 +1,151 @@
+---
+title: "Server state management: SWR, React Query, and when to use each"
+date: "2027-03-22"
+excerpt: "Client-side data fetching is a solved problem with two good solutions. The choice between SWR and TanStack Query comes down to what you're building and how much complexity you need. Here's where each one fits."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Fetching data on the client should be simple, but the naive implementation — a `useEffect` that sets state — creates a pile of problems. Loading states, error states, deduplication, cache invalidation, background refetching, optimistic updates. Each one is solvable individually, but solving all of them from scratch is a lot of code that doesn't differentiate your product.
+
+SWR and TanStack Query (formerly React Query) solve this pile. Both are good. The choice matters for specific use cases.
+
+## SWR: minimal API, minimal overhead
+
+SWR is Vercel's library. The API is deliberately minimal:
+
+```ts
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then(r => r.json());
+
+function ScanHistory({ userId }: { userId: string }) {
+  const { data, error, isLoading } = useSWR(
+    `/api/scans?userId=${userId}`,
+    fetcher,
+  );
+
+  if (isLoading) return <ScanSkeleton />;
+  if (error) return <ScanError />;
+  return <ScanList scans={data} />;
+}
+```
+
+SWR's key insight: the URL is the cache key. The same URL anywhere in the tree shares the same cache entry and the same request. If three components on the page call `useSWR('/api/user')`, one request fires.
+
+SWR handles:
+- Deduplication of in-flight requests
+- Revalidation on focus (configurable)
+- Revalidation on reconnect
+- Interval polling
+- Optimistic mutation with rollback
+
+The API for mutation is `mutate`:
+
+```ts
+import useSWR, { mutate } from 'swr';
+
+// Invalidate cache for a key — re-fetches on next access
+await mutate('/api/scans?userId=123');
+
+// Or pass an optimistic update function
+await mutate(
+  '/api/scans?userId=123',
+  (current: Scan[]) => [...current, newScan],  // optimistic
+  { revalidate: true },                         // then revalidate from server
+);
+```
+
+SWR is the right choice for: apps that primarily need read data with occasional mutations, simpler requirements, projects already on Vercel infrastructure.
+
+## TanStack Query: more power, more surface area
+
+TanStack Query gives you more. The key additions: queries and mutations as distinct concepts, query invalidation by key prefix, background sync management, and more granular control over cache behaviour.
+
+```ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+function ScanHistory({ userId }: { userId: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['scans', userId],
+    queryFn: () => fetch(`/api/scans?userId=${userId}`).then(r => r.json()),
+    staleTime: 30_000,  // treat as fresh for 30s
+  });
+
+  if (isLoading) return <ScanSkeleton />;
+  if (error) return <ScanError />;
+  return <ScanList scans={data} />;
+}
+```
+
+Mutations are explicit, with `onSuccess` handlers for cache invalidation:
+
+```ts
+const queryClient = useQueryClient();
+
+const deleteScan = useMutation({
+  mutationFn: (scanId: string) =>
+    fetch(`/api/scans/${scanId}`, { method: 'DELETE' }),
+  onSuccess: () => {
+    // Invalidate all queries that start with ['scans'] — re-fetches them
+    queryClient.invalidateQueries({ queryKey: ['scans'] });
+  },
+});
+
+// Usage
+deleteScan.mutate(scanId);
+```
+
+The `queryKey` array is a hierarchical key. `['scans']` invalidates all queries with `['scans', ...]` as the prefix. This is useful when you have multiple filtered views of the same data:
+
+```ts
+// These all get invalidated by queryClient.invalidateQueries({ queryKey: ['scans'] })
+useQuery({ queryKey: ['scans', userId] })
+useQuery({ queryKey: ['scans', userId, { tag: 'amazon' }] })
+useQuery({ queryKey: ['scans', 'recent'] })
+```
+
+TanStack Query is the right choice for: apps with complex mutation patterns, real-time or frequently-updated data, heavy use of background syncing, or projects where you need fine-grained cache control.
+
+## The common pattern: keeping query functions DRY
+
+Both libraries benefit from extracting query functions into a separate module:
+
+```ts
+// lib/queries/scans.ts
+
+export const scanKeys = {
+  all: ['scans'] as const,
+  byUser: (userId: string) => ['scans', userId] as const,
+  detail: (scanId: string) => ['scans', 'detail', scanId] as const,
+};
+
+export function useScanHistory(userId: string) {
+  return useQuery({
+    queryKey: scanKeys.byUser(userId),
+    queryFn: () => fetch(`/api/scans?userId=${userId}`).then(r => r.json()),
+    enabled: !!userId,
+  });
+}
+
+export function useDeleteScan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (scanId: string) =>
+      fetch(`/api/scans/${scanId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: scanKeys.all });
+    },
+  });
+}
+```
+
+The `enabled: !!userId` guard means the query only fires when `userId` is truthy. This prevents a fetch during the authentication loading phase.
+
+## What we don't do
+
+We don't use either library for data that doesn't change: static site content, user preferences loaded once at login, enum values. For those, we fetch once in a server component or pass as props. Server state libraries are for data that can change while the user is on the page.
+
+We also don't mix both libraries in the same project. Pick one and commit.
+
+For Scoutr, we use SWR — simpler app, fewer complex mutations. For The Hyve, we use TanStack Query — real-time channel updates, complex cache invalidation across workspace, channel, and message hierarchies.

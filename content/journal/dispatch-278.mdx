@@ -1,0 +1,163 @@
+---
+title: "CSS architecture in Next.js: Tailwind at scale"
+date: "2027-03-25"
+excerpt: "Tailwind is fast to start with and hard to maintain at scale if you treat it as a bag of utility classes rather than a design system. Here's the structure that keeps it consistent as the codebase grows."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Tailwind CSS has two failure modes at scale. The first: inconsistent visual output because developers apply similar-but-different utilities across components. The second: unmaintainable classname strings that nobody wants to touch.
+
+Both are preventable with the right structure. The structure we use across all Construx products.
+
+## Design tokens in the config
+
+Tailwind's config is your design system. If a value appears more than once in your UI — a colour, a spacing unit, a border radius — it belongs in the config, not hardcoded in a component.
+
+```ts
+// tailwind.config.ts
+import type { Config } from 'tailwindcss';
+
+export default {
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        construx: '#F97316',
+        'text-base':  'rgba(240,239,255,0.95)',
+        'text-muted': 'rgba(240,239,255,0.55)',
+        'text-dim':   'rgba(240,239,255,0.3)',
+        border:       'rgba(255,255,255,0.08)',
+        'border-bright': 'rgba(255,255,255,0.14)',
+        subtle:       'rgba(255,255,255,0.04)',
+      },
+      fontSize: {
+        'display':    ['3.5rem',  { lineHeight: '1', letterSpacing: '-0.02em', fontWeight: '700' }],
+        'display-sm': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '700' }],
+        'heading-xl': ['1.5rem',  { lineHeight: '1.2', fontWeight: '700' }],
+      },
+      fontFamily: {
+        sans: ['Space Grotesk', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
+    },
+  },
+} satisfies Config;
+```
+
+Now `text-text-muted`, `border-border`, `text-display` are reusable tokens, not hex values scattered through components.
+
+## Component variants without a component library
+
+For components that have visual variants — buttons, badges, input states — define them as objects, not repeated classname strings:
+
+```ts
+// components/ui/Button.tsx
+const VARIANTS = {
+  primary: 'bg-construx text-black hover:bg-orange-400 shadow-[0_0_16px_rgba(249,115,22,0.3)]',
+  secondary: 'bg-transparent text-text-muted border border-border-bright hover:text-text-base hover:border-construx',
+  ghost: 'bg-transparent text-text-dim hover:text-text-muted',
+} as const;
+
+type Variant = keyof typeof VARIANTS;
+
+interface Props {
+  variant?: Variant;
+  className?: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+}
+
+export function Button({ variant = 'primary', className = '', children, onClick }: Props) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        inline-flex items-center gap-2 px-5 py-2.5
+        font-mono text-xs font-semibold uppercase tracking-wider
+        transition-all rounded-[3px]
+        ${VARIANTS[variant]}
+        ${className}
+      `}
+    >
+      {children}
+    </button>
+  );
+}
+```
+
+Variants are one source of truth. Adding a new variant means adding one entry, not hunting for all the places you wrote `bg-construx`.
+
+## The `cn` utility
+
+When class merging gets complex — applying conditional classes, merging external `className` props — use `clsx` + `tailwind-merge`:
+
+```ts
+// lib/cn.ts
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+`twMerge` handles the Tailwind-specific conflict resolution — `cn('px-4 px-6')` correctly produces `px-6`, not both. Without it, later classes don't always win because Tailwind's specificity isn't determined by order in the classname string.
+
+Usage:
+
+```ts
+function Card({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div
+      className={cn(
+        'px-5 py-4 rounded-[3px]',
+        'bg-[rgba(5,5,18,0.5)] border border-border',
+        className,  // merges without conflicts
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+```
+
+## Prose styles via @layer
+
+For MDX or CMS content that you can't add classes to directly, use `@layer components` in your global CSS:
+
+```css
+/* app/globals.css */
+@layer components {
+  .prose-construx {
+    @apply text-text-muted leading-relaxed;
+  }
+  .prose-construx h2 {
+    @apply text-text-base text-xl font-bold mt-10 mb-4;
+  }
+  .prose-construx p {
+    @apply mb-5;
+  }
+  .prose-construx code:not(pre code) {
+    @apply font-mono text-sm text-construx bg-construx/10 px-1.5 py-0.5 rounded;
+  }
+  .prose-construx pre {
+    @apply my-6 rounded-[3px] overflow-x-auto;
+  }
+  .prose-construx a {
+    @apply text-construx underline underline-offset-2 decoration-construx/30 hover:decoration-construx/60 transition-colors;
+  }
+}
+```
+
+This is the only place in the codebase where we write CSS rather than Tailwind utilities. It's legitimate because it targets generated markup that we can't annotate with classes.
+
+## What we don't do
+
+We don't use `@apply` outside of `@layer components`. `@apply` inside component files is a Tailwind anti-pattern — it defeats the utility-first model and makes class inference harder.
+
+We don't use CSS modules. Tailwind makes them unnecessary for component scope, and they add a context switch between files.
+
+We don't tolerate inline style strings for values that appear more than once. If you write `style={{ color: '#F97316' }}` twice, that's a token. Add it to the config.
+
+The threshold for adding a config token is: does this value appear more than once in the codebase, or does it represent a design decision that should be consistent? If yes, it's a token. If it's a one-off value for a specific visual effect, an inline style is fine.
