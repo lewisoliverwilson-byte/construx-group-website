@@ -6,6 +6,7 @@ import Footer from '@/components/footer/Footer';
 import PostHogProvider from '@/components/PostHogProvider';
 import ConsoleGreeting from '@/components/ConsoleGreeting';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
+import CommandPalette from '@/components/CommandPalette';
 import { getAllPostMeta } from '@/lib/posts';
 
 const spaceGrotesk = Space_Grotesk({
@@ -62,7 +63,8 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const postCount = getAllPostMeta().length;
+  const allPosts = getAllPostMeta();
+  const postCount = allPosts.length;
   return (
     <html lang="en" className={`noise scanlines ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>
@@ -76,6 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PostHogProvider>
           <ConsoleGreeting postCount={postCount} />
           <KeyboardShortcuts />
+          <CommandPalette posts={allPosts} />
           <Nav postCount={postCount} />
           <main id="main-content">{children}</main>
           <Footer />

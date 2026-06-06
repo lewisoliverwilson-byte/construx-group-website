@@ -21,7 +21,7 @@ export default function ConsoleGreeting({ postCount }: Props) {
       'color: #F97316; font-family: monospace; font-size: 11px;'
     );
     console.log(
-      '%cPress ? for keyboard shortcuts. g+j, g+v, g+m to navigate.',
+      '%c⌘K search · ? shortcuts · g+j journal · g+v ventures · g+m manifesto',
       'color: rgba(240,239,255,0.3); font-family: monospace; font-size: 10px;'
     );
   }, []);

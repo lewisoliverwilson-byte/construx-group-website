@@ -126,6 +126,10 @@ export default function KeyboardShortcuts() {
                 </div>
               ))}
               <div className="flex items-center justify-between pt-2 mt-2 border-t border-border">
+                <kbd className="font-mono text-[10px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-text-dim">⌘K</kbd>
+                <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">search</span>
+              </div>
+              <div className="flex items-center justify-between">
                 <kbd className="font-mono text-[10px] px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-text-dim">?</kbd>
                 <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">toggle this</span>
               </div>
