@@ -1,0 +1,68 @@
+---
+title: "Operating rhythm: how we structure time across three products"
+date: "2026-08-29"
+excerpt: "Three products, two people, no formal sprints, no standups. Here's the time structure we've settled on that keeps all three products moving without fragmenting attention beyond recovery."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+The fundamental tension of a multi-product company at small scale: three products need ongoing development, maintenance, and strategic attention, but context-switching between products has real cognitive cost. Switching from Scoutr's fee calculation logic to The Hyve's AI context pipeline to The Marqet's taxonomy restructuring in a single day produces shallow work on all three.
+
+Here's the time structure we've evolved to manage this.
+
+## The weekly allocation
+
+A rough template for the week:
+
+**Monday and Tuesday**: primary focus product for the week. Deep work on features, architecture decisions, code that requires sustained attention. We pick one product at the start of the week based on what's most urgent or most valuable, and that product gets extended focus.
+
+**Wednesday**: cross-product maintenance. Bug fixes, user support, infrastructure work, documentation. Tasks that don't require deep context on any specific product — they're discrete and completable in an hour or less.
+
+**Thursday and Friday**: secondary focus. Either the second most urgent product, or exploration work (research, design, writing dispatches).
+
+This isn't rigid — a production incident overrides the schedule, a user conversation that reveals an important insight might redirect focus. But having a template means we don't start each day deciding what to work on. The default is set; deviating from it requires a reason.
+
+## The "primary product" rotation
+
+We don't rotate products on a strict schedule. Rotation happens when:
+- The current primary product's urgent work is complete
+- A different product has clearly higher-priority work
+- One of us has been on the same product for 3+ weeks and needs fresh perspective
+
+The rotation isn't mechanical. It's driven by where the leverage is highest at the current moment. Three months ago, Scoutr was the primary focus for 6 weeks — we were in a critical iteration on the scan results interface, and the depth of focus produced better work than if we'd split time.
+
+## Managing the other products while one is primary
+
+The products that aren't in primary focus still need attention. They don't stop receiving user messages, experiencing bugs, or evolving.
+
+The minimum viable maintenance for a non-primary product:
+- Check the support inbox daily (5 minutes)
+- Review any error alerts (as they come in)
+- Ship bug fixes if P1 or P2 severity
+- Don't let the dependency list get stale (security patches, dependency updates)
+
+This is about 20-30 minutes per non-primary product per day. The rest of the attention goes to the primary product.
+
+## The content window
+
+The journal dispatches happen in a specific time window: late evenings or early mornings, outside the main product development time. Writing dispatches requires different cognitive mode from building — it's reflective and synthetic, not generative and analytical. Doing both in the same block degrades both.
+
+We've found that writing dispatches at the end of a work day (when the build energy is depleted but reflection is still available) produces better posts than writing in the morning, when the build energy is fresh and the cognitive cost of switching is higher.
+
+## The planning horizon
+
+We work on three timescales:
+
+**This week**: the specific tasks that are in progress or queued. No more than 5-6 tasks per product in the weekly view. If the list is longer, we're either planning too far ahead or haven't prioritised.
+
+**This month**: the significant deliverables and milestones. "Ship Scoutr batch export", "publish 15 dispatches", "launch The Marqet professional role bundles". Monthly goals are rough and adjust weekly.
+
+**This quarter**: the strategic direction. Where is each product supposed to be in three months? What are the problems that need to be solved to get there? Quarterly thinking is longer-horizon and more speculative.
+
+The mistake we made early: trying to maintain weekly granularity at the three-month horizon. Weekly plans that far out become useless almost immediately as reality diverges from the plan. The correct answer is to plan in detail for short horizons and more roughly for longer ones.
+
+## The one thing that doesn't have a slot
+
+User research. We talk to users opportunistically — when a user contacts us, when someone in a relevant community asks a question, when we notice something unusual in the analytics. We don't schedule dedicated user research time.
+
+This is a gap. Structured user research (planned user interviews, usability testing, systematic feedback collection) would produce better product decisions. The time cost of scheduling it has consistently seemed too high relative to other priorities. At some point, this trade-off will tip the other way.
