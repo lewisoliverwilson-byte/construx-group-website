@@ -10,6 +10,7 @@ import K8sEventsPanel from '@/components/K8sEventsPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import PrometheusMetricsPanel from '@/components/PrometheusMetricsPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
+import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -592,6 +593,11 @@ export default function WorkWithUsPage() {
       {/* Kubectl logs */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <KubectlLogsPanel />
+      </section>
+
+      {/* Argo rollout progress */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ArgoRolloutPanel />
       </section>
 
       {/* CTA */}

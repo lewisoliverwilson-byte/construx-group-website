@@ -1,0 +1,132 @@
+---
+title: "Zod v4: faster, smaller, composable schema validation"
+date: "2030-09-10"
+excerpt: "Zod v4 rewrites the core parser for 4-14x faster parsing speeds, reduces bundle size by 57%, and adds new APIs for coercion, discriminated unions, and file input validation. The biggest architectural change is that Zod schemas are now plain JavaScript objects — no class instances, better tree-shaking, and a simpler mental model. Existing Zod v3 code migrates with minimal changes."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Zod v3 was already the de-facto schema library for TypeScript. v4 makes it faster, smaller, and fixes the rough edges without breaking the core API you already know.
+
+## Install
+
+```bash
+npm install zod@4
+```
+
+## Breaking changes from v3
+
+```ts
+// v3: .default() and .optional() were confusing at the edges
+// v4: explicit, predictable behaviour
+
+// v3: z.string().email() — validator method
+// v4: z.email()          — top-level shorthand (string implied)
+
+// v3: z.object().partial() mutated the schema
+// v4: z.partial() is a new top-level utility
+```
+
+## Core schemas (unchanged from v3)
+
+```ts
+import { z } from 'zod';
+
+const PostSchema = z.object({
+  id:          z.string().uuid(),
+  title:       z.string().min(1).max(200),
+  content:     z.string().min(10),
+  tags:        z.array(z.string()).max(10).default([]),
+  publishedAt: z.coerce.date().optional(),  // coerce: "2024-01-01" → Date
+  status:      z.enum(['draft', 'published', 'archived']),
+  metadata:    z.record(z.string(), z.unknown()).optional(),
+  viewCount:   z.number().int().nonnegative().default(0),
+});
+
+type Post = z.infer<typeof PostSchema>;
+```
+
+## v4 new: top-level string format validators
+
+```ts
+// v4 shorthand — cleaner, more readable
+const EmailSchema = z.email();
+const UrlSchema   = z.url();
+const UuidSchema  = z.uuid();
+const IpSchema    = z.ip({ version: 'v4' });
+const EmojiSchema = z.emoji();
+
+// Still works the old way:
+const OldEmail = z.string().email();
+```
+
+## v4 new: discriminated unions (improved)
+
+```ts
+const EventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('click'),    x: z.number(), y: z.number() }),
+  z.object({ type: z.literal('keydown'),  key: z.string(), code: z.string() }),
+  z.object({ type: z.literal('resize'),   width: z.number(), height: z.number() }),
+]);
+
+type Event = z.infer<typeof EventSchema>;
+// Fully narrowed: if event.type === 'click', TypeScript knows x and y exist
+```
+
+## v4 new: file validation
+
+```ts
+const FileSchema = z.file({
+  maxSize:  5 * 1024 * 1024,  // 5 MB
+  accept:   ['image/jpeg', 'image/png', 'image/webp'],
+});
+
+// Route handler
+export async function POST(req: Request) {
+  const form = await req.formData();
+  const file = form.get('avatar');
+  const parsed = FileSchema.safeParse(file);
+  if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+}
+```
+
+## Transform and refine
+
+```ts
+const PasswordSchema = z
+  .string()
+  .min(8)
+  .max(100)
+  .refine((val) => /[A-Z]/.test(val), { message: 'Must contain an uppercase letter' })
+  .refine((val) => /[0-9]/.test(val), { message: 'Must contain a number' })
+  .transform((val) => val.trim());
+
+const SlugSchema = z
+  .string()
+  .transform((val) => val.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
+```
+
+## Error formatting
+
+```ts
+const result = PostSchema.safeParse(untrustedData);
+
+if (!result.success) {
+  // Flat: { title: ['String must contain at least 1 character'] }
+  const flat     = result.error.flatten().fieldErrors;
+
+  // Formatted tree
+  const formatted = result.error.format();
+
+  // First error message
+  const first = result.error.issues[0]?.message;
+}
+```
+
+## v4 performance
+
+v4 parses schemas 4-14x faster than v3 in benchmarks because it avoids allocating intermediate objects during validation. For forms validated on every keystroke, or APIs processing thousands of requests per second, this is a real improvement. Bundle size drops from 15 KB to 6.5 KB gzipped — worthwhile for edge functions and browser bundles.
+
+## Zod v4 vs Valibot vs ArkType
+
+Zod v4: familiar API, excellent ecosystem support (tRPC, React Hook Form, drizzle-zod), now fast. Valibot: modular, tree-shakeable, minimal, slightly different API. ArkType: compile-time type inference, fastest at runtime, smaller audience. For TypeScript projects already in the Zod ecosystem, upgrade to v4 — the speed and size improvements come for free.

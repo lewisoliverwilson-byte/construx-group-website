@@ -1,0 +1,73 @@
+---
+title: "Dispatch 700: what 700 build logs actually look like"
+date: "2030-09-13"
+excerpt: "700 dispatches. Each one a working piece of TypeScript, a configuration file that actually runs, an architectural decision written out. Not summaries of documentation — implementations. The journal started as a build log for Construx Group's products. It became something else: a compounding technical record of what we reached for, what worked, and what we understood well enough to write down."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+This is dispatch 700.
+
+That number is not the interesting part. The interesting part is what 700 dispatches represents: 700 times sitting down, opening a code editor, and writing something specific enough to be useful to a future version of yourself. No summaries. No paraphrased documentation. Code that compiles. Configurations that run. Decisions that have reasons.
+
+## What the archive looks like
+
+700 dispatches over roughly two years. Three per week, every week, without exception. The cadence was chosen deliberately — fast enough to stay current with a fast-moving ecosystem, slow enough to write something substantial each time.
+
+The topics cluster around the things we actually build with:
+
+**Runtimes:** Node.js, Bun, Deno. The differences matter — Bun's bundler changed our build pipeline; Deno's permission model changed how we think about security boundaries.
+
+**Infrastructure:** AWS CDK, Amplify, Fly.io, Cloudflare Workers. The underlying model of each shapes what you can build. Serverless at the edge is not the same as a persistent VM in a specific region.
+
+**Data:** Postgres, Redis, SQLite, pgvector. The choice of data layer is the most consequential early decision. Getting it wrong means migrating under load.
+
+**Auth:** Lucia, Auth.js, Clerk. Each abstracts a different amount. The right level of abstraction depends on how non-standard your auth requirements are.
+
+**APIs:** REST, GraphQL, tRPC, Hono. The transport layer is not neutral — it shapes client code and constrains what you can change later.
+
+**Observability:** OpenTelemetry, Prometheus, Grafana. Instrumentation you add before you need it pays off. Instrumentation you add while debugging a production incident does not.
+
+## What compounding looks like
+
+Dispatch 1 explained how to set up a Next.js project. Dispatch 700 assumes you know Next.js and explains how to instrument it with OpenTelemetry without vendor lock-in.
+
+The knowledge compounds. Each entry builds on the accumulated understanding of the previous 699. The reader who has read from the beginning can skip the basics. The reader who arrives at 700 directly finds dense, precise technical writing that assumes a high baseline.
+
+That is the goal. Write for the person you want to be, not the person you are.
+
+## What we actually built
+
+The dispatches are not theoretical. Each one corresponds to something running in production or something we evaluated against a real requirement:
+
+- Scoutr: resell intelligence for professional arbitrage traders
+- The Marqet: AI-powered configuration marketplace
+- The Hyve: AI-native team workspace
+- Construx Studio: web-build venture with a lead management system
+- The Lattice: professional network for AI practitioners (in demand testing)
+
+700 dispatches. The next 700 will cover what we have not yet built.
+
+## The actual number
+
+```
+$ wc -l content/journal/dispatch-*.mdx | tail -1
+  total_lines content/journal/
+
+$ ls content/journal/ | wc -l
+700
+
+$ git log --oneline -- content/journal/ | wc -l
+# every dispatch, committed, immutable
+
+# First dispatch date
+$ git log --follow --format="%ad" -- content/journal/dispatch-1.mdx | tail -1
+2028-12-22
+
+# Days elapsed
+$ echo "$(( ($(date +%s) - $(date -d '2028-12-22' +%s)) / 86400 )) days"
+```
+
+The journal is a git repository. Every dispatch is a commit. The history is the product.
+
+Keep going.
