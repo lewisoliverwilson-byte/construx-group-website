@@ -1,0 +1,156 @@
+---
+title: "Svelte 5 runes: reactivity without magic"
+date: "2031-03-18"
+excerpt: "Svelte 5 replaces its compiler-based reactivity with an explicit rune API. Instead of reactive variables being implied by assignment, you declare them with $state(), $derived(), and $effect(). The mental model is closer to Solid.js signals than Svelte 4. Runes work in .svelte files and in plain .ts files, making shared reactive state straightforward without a state management library."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Svelte dropped the reactive-assignment magic and replaced it with explicit signals. The result is more predictable code with better TypeScript support.
+
+## Runes overview
+
+```ts
+$state()    // reactive primitive — replaces let in reactive context
+$derived()  // computed value — replaces $: reactive declarations
+$effect()   // side effects — replaces $: side-effect blocks and afterUpdate
+$props()    // component props — replaces export let
+$bindable() // two-way bindable prop
+```
+
+## $state — reactive variables
+
+```svelte
+<script>
+  // Svelte 4
+  let count = 0;
+  // count = 1 was reactive because of Svelte's compiler analysis
+
+  // Svelte 5
+  let count = $state(0);
+  // Explicit — TypeScript knows it's reactive
+</script>
+
+<button onclick={() => count++}>
+  Count: {count}
+</button>
+```
+
+## $derived — computed values
+
+```svelte
+<script>
+  let items  = $state(['apple', 'banana', 'cherry']);
+  let filter = $state('');
+
+  // Svelte 4
+  $: filtered = items.filter(i => i.includes(filter));
+
+  // Svelte 5
+  let filtered = $derived(items.filter(i => i.includes(filter)));
+</script>
+```
+
+`$derived` recomputes only when its dependencies change. No magic tracking — it's a transparent function call.
+
+## $effect — side effects
+
+```svelte
+<script>
+  let searchQuery = $state('');
+
+  // Svelte 5 — replaces onMount + $: for effects
+  $effect(() => {
+    if (searchQuery.length > 2) {
+      document.title = `Search: ${searchQuery}`;
+    }
+    // Return a cleanup function (like useEffect)
+    return () => {
+      document.title = 'Construx';
+    };
+  });
+</script>
+```
+
+## $props — typed component props
+
+```svelte
+<!-- Button.svelte -->
+<script lang="ts">
+  // Svelte 4 — less type-safe
+  // export let label: string;
+  // export let variant: 'primary' | 'secondary' = 'primary';
+
+  // Svelte 5
+  let { label, variant = 'primary', onclick }: {
+    label:    string;
+    variant?: 'primary' | 'secondary';
+    onclick?: () => void;
+  } = $props();
+</script>
+
+<button class={variant} {onclick}>{label}</button>
+```
+
+## Shared reactive state in .ts files
+
+The biggest win of runes: reactive state in plain TypeScript files, shared across components without a store library:
+
+```ts
+// src/lib/workspace-state.svelte.ts
+// .svelte.ts extension enables runes in non-component files
+
+class WorkspaceState {
+  current = $state<Workspace | null>(null);
+  list    = $state<Workspace[]>([]);
+
+  activeCount = $derived(this.list.filter(w => w.isActive).length);
+
+  async load(userId: string) {
+    this.list = await fetchWorkspaces(userId);
+    this.current = this.list[0] ?? null;
+  }
+}
+
+export const workspace = new WorkspaceState();
+```
+
+```svelte
+<!-- Any component -->
+<script>
+  import { workspace } from '$lib/workspace-state.svelte';
+</script>
+
+<p>{workspace.activeCount} active workspaces</p>
+```
+
+## Snippets — replace slots
+
+```svelte
+<!-- Svelte 5 — snippets replace named slots -->
+<script>
+  let { header, children }: {
+    header:   import('svelte').Snippet;
+    children: import('svelte').Snippet;
+  } = $props();
+</script>
+
+<div class="card">
+  <header>{@render header()}</header>
+  <main>{@render children()}</main>
+</div>
+```
+
+```svelte
+<!-- Usage -->
+<Card>
+  {#snippet header()}
+    <h2>Workspace</h2>
+  {/snippet}
+  <p>Content here</p>
+</Card>
+```
+
+## Migration from Svelte 4
+
+Svelte 4 syntax still works in Svelte 5 in compatibility mode. Migrate incrementally: new components use runes, existing components stay as-is until you touch them. The Svelte CLI includes a migration tool: `npx sv migrate svelte-5`.

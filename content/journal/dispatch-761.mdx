@@ -1,0 +1,124 @@
+---
+title: "Electric SQL: local-first sync for Postgres"
+date: "2031-03-15"
+excerpt: "Electric SQL syncs Postgres data to the client in real time. Your app reads from a local SQLite database — queries are instant, offline mode is built in, and writes sync back to Postgres when connectivity returns. The sync engine runs on your server as a stateless process that streams Postgres WAL changes to connected clients. For collaborative tools, dashboards, and apps that need to work offline, Electric replaces the standard client-server fetch pattern."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Postgres on the server, SQLite on the client, synced automatically. Local-first without rewriting your data model.
+
+## Install
+
+```bash
+npm install electric-sql @electric-sql/pglite
+```
+
+## Start the Electric sync service
+
+```yaml
+# docker-compose.yml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: construx
+      POSTGRES_PASSWORD: secret
+    command: postgres -c wal_level=logical
+
+  electric:
+    image: electricsql/electric:latest
+    environment:
+      DATABASE_URL: postgresql://postgres:secret@postgres:5432/construx
+      AUTH_MODE: insecure  # use JWT in production
+    ports: ['3000:3000']
+    depends_on: [postgres]
+```
+
+## Sync a shape to the client
+
+Electric uses "shapes" — a declarative subset of Postgres data to sync to the client:
+
+```ts
+// src/lib/electric.ts
+import { ShapeStream, Shape } from '@electric-sql/client';
+
+// Sync all workspaces for the current user
+const stream = new ShapeStream({
+  url:    'http://localhost:3000/v1/shape/workspaces',
+  params: { where: `owner_id = '${userId}'` },
+});
+
+const shape = new Shape(stream);
+
+// Subscribe to changes
+shape.subscribe(({ rows }) => {
+  console.log('Workspaces:', rows);
+});
+```
+
+## React hook
+
+```tsx
+// src/hooks/useShape.ts
+import { useShape } from '@electric-sql/react';
+
+export function WorkspaceList({ userId }: { userId: string }) {
+  const { data, isLoading, error } = useShape({
+    url:    'http://localhost:3000/v1/shape/workspaces',
+    params: { where: `owner_id = '${userId}'` },
+  });
+
+  if (isLoading) return <p>Loading...</p>;
+
+  return (
+    <ul>
+      {data.map((workspace) => (
+        <li key={workspace.id}>{workspace.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+The component re-renders automatically when Postgres data changes. No polling, no WebSocket management — Electric handles the connection.
+
+## PGlite — Postgres in the browser
+
+```ts
+// Full Postgres in the browser via WebAssembly
+import { PGlite } from '@electric-sql/pglite';
+import { electricSync } from '@electric-sql/pglite/sync';
+
+const pg = await PGlite.create({
+  extensions: { electricSync },
+});
+
+await pg.electric.syncShapeToTable({
+  shape: {
+    url:    'http://localhost:3000/v1/shape/workspaces',
+    params: { where: `owner_id = '${userId}'` },
+  },
+  table:       'workspaces',
+  primaryKey:  ['id'],
+});
+
+// Now query locally — instant, no network
+const { rows } = await pg.query('SELECT * FROM workspaces ORDER BY created_at DESC');
+```
+
+## Write path
+
+Electric syncs reads. Writes go directly to Postgres through your API:
+
+```ts
+// POST /api/workspaces — standard route handler
+// Electric picks up the change from Postgres WAL and syncs to all clients
+await db.insert(workspaces).values({ name, slug, ownerId: userId });
+```
+
+No conflict resolution primitives are needed for most workloads — the server is the source of truth. Electric gives you the sync infrastructure; your API handles writes as before.
+
+## Electric SQL vs SyncedStore vs Replicache
+
+Electric SQL: Postgres-native, standard SQL schema, WAL-based sync, production ready. SyncedStore: CRDT-based (Yjs), best for collaborative text editing. Replicache: optimistic mutations with server confirmation, similar pattern but proprietary sync protocol. The Construx default: Electric SQL for any project already using Postgres that wants real-time sync without a Firebase-style rewrite.

@@ -12,6 +12,7 @@ import PrometheusMetricsPanel from '@/components/PrometheusMetricsPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import VaultSecretsPanel from '@/components/VaultSecretsPanel';
+import FluxCdPanel from '@/components/FluxCdPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -602,8 +603,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* Vault secrets management */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <VaultSecretsPanel />
+      </section>
+
+      {/* Flux CD GitOps reconciliation */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <FluxCdPanel />
       </section>
 
       {/* CTA */}
