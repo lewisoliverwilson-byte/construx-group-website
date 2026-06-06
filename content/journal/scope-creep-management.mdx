@@ -1,0 +1,79 @@
+---
+title: "Scope creep and how we fight it"
+date: "2026-08-20"
+excerpt: "Every feature added mid-build delays launch, increases complexity, and risks missing the market. Here's the process we use to keep scope contained across three actively developing products."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+Scope creep is the gradual addition of requirements to a project beyond its original intent. It's universal, it's often well-intentioned, and left unchecked it is one of the primary ways software projects fail to ship on time — or fail to ship at all.
+
+We build three products simultaneously with two people. Scope discipline is not optional.
+
+## The mechanisms of scope creep
+
+Scope creep doesn't usually arrive as "let's completely change what we're building." It arrives as:
+
+- "While we're in this file, let's also fix..."
+- "Users would definitely want this feature if we shipped it"
+- "It would be more complete if we added..."
+- "The first version should at least support..."
+
+Each individual addition seems small. The cumulative effect is a project that takes three times as long as planned, ships with unexpected complexity, and often doesn't clearly solve the original problem because it's solving five adjacent problems at once.
+
+## The definition of done before the build starts
+
+The most effective scope management tool: define what "done" looks like before writing any code.
+
+For every feature or product, we write a brief spec that answers:
+- What problem does this solve?
+- What does the user do with it?
+- What is explicitly NOT in scope for this version?
+
+The "not in scope" list is as important as the in-scope list. It forces explicit acknowledgement of the things we've considered and deliberately excluded, which makes it harder to add them back incrementally during the build.
+
+When we built Scoutr's batch scan feature, the spec included:
+- **In scope**: scan up to 10 product URLs simultaneously, show all results on one page, allow re-scan of individual items
+- **Not in scope**: saved scans (deferred to v2), team sharing (deferred to v2), API access (deferred to Business tier), custom export formats (plain CSV only in v1)
+
+Having the "not in scope" list meant that when one of us had the idea during the build of "we should let users save scan results", the response was: "it's on the list, it's deliberately out of scope for v1". Not "great idea, let's add it" — the decision was already made.
+
+## The minimum viable feature question
+
+For any feature addition proposed during a build, we ask: "what is the minimum version of this that would be useful?"
+
+Usually, the minimum version is much smaller than the proposed version. "Let users share scans with their team" becomes "generate a shareable link that shows the scan results read-only" — a fraction of the work, much of the value.
+
+The minimum version ships, users validate it (or don't), and the fuller version is built based on evidence rather than assumption.
+
+## The cost of features in terms of other features
+
+Every feature added to a product is a feature we're not working on instead. In a two-person team building three products, opportunity cost is especially acute.
+
+When a feature addition is proposed, the useful question is: "what are we not building instead?" If we add export to Excel to Scoutr, we're not shipping the improved eBay fee calculation that three users have asked for this month. The Excel export has higher appeal to the person who suggested it; the fee calculation has higher demand from actual users.
+
+Making the trade-off explicit — "adding X means not doing Y" — often resolves the scope discussion quickly, because Y is usually clearly more important.
+
+## The "later" list
+
+We maintain a "later" list for each product in Linear — a backlog of features and improvements that are deliberately not being worked on right now. Everything that doesn't make the current sprint goes on the later list.
+
+The later list serves two purposes: it captures the idea so it's not lost, and it makes clear that the idea has been considered and deliberately deferred rather than ignored. This reduces the urge to add things in immediately — the idea is captured, it's not going anywhere.
+
+Monthly, we review the later list. Items that have accumulated user demand get promoted. Items that seemed important but haven't been requested move to the archive.
+
+## When scope expansion is correct
+
+Scope management isn't about never expanding scope — it's about expanding scope deliberately rather than accidentally.
+
+Scope expansion is correct when:
+- New evidence suggests the original spec misunderstood the user problem
+- A technical constraint makes the in-scope implementation infeasible
+- A simpler alternative accomplishes the same goal more elegantly
+
+Scope expansion is incorrect when:
+- It's solving a problem no user has expressed
+- It's adding completeness that doesn't affect the user's core workflow
+- It's driven by personal interest rather than user need
+
+The distinguishing question: "what evidence do we have that this addition is worth the time it costs?"
