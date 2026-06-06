@@ -1,0 +1,160 @@
+---
+title: "React Server Components: what actually runs where"
+date: "2028-06-19"
+excerpt: "React Server Components render on the server, never ship JavaScript to the browser, and can talk directly to databases. The mental model sounds simple but the boundary between server and client is where confusion happens. Here's the complete picture."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React Server Components (RSC) are the most significant change to React since hooks. They change where rendering happens, what code ships to the browser, and how data fetching works. The Next.js App Router is built on top of RSC.
+
+## The core distinction
+
+**Server Components** — render on the server. No JavaScript shipped to the browser. Can be async. Can access server-only resources (databases, file system, environment variables). Cannot use state, effects, or browser APIs.
+
+**Client Components** — render on both server and client (pre-rendered on server, hydrated on client). Full React features. Marked with `'use client'` directive.
+
+```tsx
+// Server Component (default in App Router)
+// No 'use client' directive — this runs on the server only
+async function UserProfile({ userId }: { userId: string }) {
+  const user = await db.query.users.findFirst({  // direct DB access
+    where: eq(users.id, userId),
+  });
+
+  if (!user) return <NotFound />;
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
+      <FollowButton userId={userId} />  {/* Client Component */}
+    </div>
+  );
+}
+```
+
+```tsx
+// Client Component
+'use client';
+
+import { useState } from 'react';
+
+function FollowButton({ userId }: { userId: string }) {
+  const [following, setFollowing] = useState(false);  // hooks work here
+
+  return (
+    <button onClick={async () => {
+      await follow(userId);
+      setFollowing(true);
+    }}>
+      {following ? 'Following' : 'Follow'}
+    </button>
+  );
+}
+```
+
+## What you gain from Server Components
+
+**Zero bundle size** — Server Components don't ship any JavaScript to the browser. A server-rendered markdown article with syntax highlighting: the highlight.js library never touches the client.
+
+```tsx
+// This import doesn't ship to the browser
+import { marked } from 'marked';
+import hljs from 'highlight.js';
+
+export default function Article({ content }: { content: string }) {
+  const html = marked(content);  // runs server-side only
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+```
+
+**Direct data access** — no API routes needed for server-rendered data:
+
+```tsx
+// Before RSC: fetch → API route → database
+// After RSC: query database directly in the component
+
+export default async function BlogPage() {
+  const posts = await db.query.posts.findMany({
+    orderBy: desc(posts.createdAt),
+    columns: { id: true, title: true, excerpt: true, createdAt: true },
+  });
+
+  return <PostGrid posts={posts} />;
+}
+```
+
+**Waterfall elimination** — parallel data fetching by co-locating fetch with the component that needs it:
+
+```tsx
+// These fetch in parallel — no prop drilling, no request waterfall
+async function DashboardPage() {
+  return (
+    <div>
+      <Suspense fallback={<StatsSkeleton />}>
+        <Stats />          {/* fetches its own data */}
+      </Suspense>
+      <Suspense fallback={<FeedSkeleton />}>
+        <ActivityFeed />  {/* fetches its own data */}
+      </Suspense>
+    </div>
+  );
+}
+
+async function Stats() {
+  const stats = await getStats();  // runs concurrently with ActivityFeed
+  return <StatsUI stats={stats} />;
+}
+
+async function ActivityFeed() {
+  const feed = await getFeed();  // runs concurrently with Stats
+  return <FeedUI items={feed} />;
+}
+```
+
+## The boundary rules
+
+1. Server Components can import Client Components
+2. Client Components **cannot** import Server Components
+3. Server Components can pass data to Client Components as props — but only serializable data (no functions, no class instances, no React elements from async code)
+
+```tsx
+// OK — Server imports Client
+import InteractiveChart from './InteractiveChart';  // Client Component
+
+export default async function AnalyticsPage() {
+  const data = await fetchAnalytics();
+  return <InteractiveChart data={data} />;  // data must be serializable
+}
+```
+
+```tsx
+// NOT OK — Client cannot import Server
+'use client';
+import { ServerOnlyComponent } from './ServerOnlyComponent';  // ❌ error
+```
+
+## Shared components
+
+A component with `'use client'` can be used anywhere. A component without it runs on the server — and if imported by a Client Component, Next.js will convert it to a Client Component automatically.
+
+## Rendering lifecycle
+
+```
+1. Request arrives
+2. Server renders the tree (async components can await)
+3. RSC payload sent to browser (JSON-like, not HTML)
+4. Browser renders HTML from RSC payload
+5. Client Components hydrate (event handlers attach)
+```
+
+The RSC payload is different from HTML. It's a serialized representation of the rendered tree that React uses to efficiently update the page without losing client state.
+
+## When to use each
+
+**Server Component:** static content, data fetching, expensive computations, server secrets (API keys), large third-party imports.
+
+**Client Component:** interactive UI, useState/useEffect, event handlers, browser APIs (localStorage, geolocation, clipboard), third-party libraries that use browser APIs.
+
+The default in Next.js App Router is Server Component. Only add `'use client'` when you actually need client-side React features — this minimizes the JavaScript sent to the browser.

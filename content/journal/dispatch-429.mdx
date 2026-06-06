@@ -1,0 +1,235 @@
+---
+title: "Async TypeScript: Promise patterns that actually work"
+date: "2028-06-22"
+excerpt: "Async/await cleaned up callback hell but introduced its own patterns and pitfalls. Parallel execution, error handling, timeouts, retries, and concurrency limits — here's how to write async TypeScript that's reliable and performant."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Async/await is synchronous-looking code that runs asynchronously. The readability improvement over raw Promises is real. But sequential-looking code runs sequentially — and that's often slower than it needs to be.
+
+## Sequential vs parallel
+
+```ts
+// Slow — three sequential requests, one after another
+async function slow() {
+  const user = await getUser(id);         // 100ms
+  const posts = await getPosts(id);       // 100ms
+  const analytics = await getAnalytics(id); // 100ms
+  // Total: ~300ms
+  return { user, posts, analytics };
+}
+
+// Fast — three parallel requests
+async function fast() {
+  const [user, posts, analytics] = await Promise.all([
+    getUser(id),           // runs concurrently
+    getPosts(id),          // runs concurrently
+    getAnalytics(id),      // runs concurrently
+  ]);
+  // Total: ~100ms
+  return { user, posts, analytics };
+}
+```
+
+If the second request doesn't depend on the first, run them in parallel with `Promise.all`.
+
+## Error handling with Promise.all
+
+`Promise.all` rejects immediately if any promise rejects. If one request fails, you lose the others:
+
+```ts
+// If getPosts fails, you lose the user and analytics results
+const [user, posts, analytics] = await Promise.all([
+  getUser(id),
+  getPosts(id),     // throws
+  getAnalytics(id),
+]);
+```
+
+Use `Promise.allSettled` when you want results from successful promises even if others fail:
+
+```ts
+const results = await Promise.allSettled([
+  getUser(id),
+  getPosts(id),
+  getAnalytics(id),
+]);
+
+const [userResult, postsResult, analyticsResult] = results;
+
+const user = userResult.status === 'fulfilled' ? userResult.value : null;
+const posts = postsResult.status === 'fulfilled' ? postsResult.value : [];
+```
+
+## Timeout wrapper
+
+External APIs can hang. Wrap calls with a timeout:
+
+```ts
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`Operation timed out after ${ms}ms`));
+    }, ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    clearTimeout(timeoutHandle);
+  });
+}
+
+// Usage
+const user = await withTimeout(getUser(id), 5000);  // 5 second timeout
+```
+
+## Retry with exponential backoff
+
+```ts
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: {
+    maxAttempts?: number;
+    initialDelay?: number;
+    factor?: number;
+    shouldRetry?: (error: unknown) => boolean;
+  } = {},
+): Promise<T> {
+  const {
+    maxAttempts = 3,
+    initialDelay = 500,
+    factor = 2,
+    shouldRetry = () => true,
+  } = options;
+
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === maxAttempts || !shouldRetry(error)) {
+        throw error;
+      }
+
+      const delay = initialDelay * Math.pow(factor, attempt - 1);
+      const jitter = Math.random() * 100;  // avoid thundering herd
+      await new Promise((r) => setTimeout(r, delay + jitter));
+    }
+  }
+
+  throw lastError;
+}
+
+// Usage
+const data = await withRetry(
+  () => fetch('/api/data').then((r) => r.json()),
+  {
+    maxAttempts: 3,
+    shouldRetry: (err) => err instanceof NetworkError,
+  },
+);
+```
+
+## Concurrency limiting
+
+`Promise.all` runs everything simultaneously. With 1,000 items, that's 1,000 parallel network requests — which will overwhelm your rate limits or database:
+
+```ts
+async function pMap<T, R>(
+  items: T[],
+  mapper: (item: T, index: number) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = index++;
+      results[current] = await mapper(items[current], current);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker);
+  await Promise.all(workers);
+  return results;
+}
+
+// Process 1000 users, 10 at a time
+const results = await pMap(users, async (user) => {
+  return sendEmail(user.email, template);
+}, 10);
+```
+
+Or use the `p-limit` package:
+
+```ts
+import pLimit from 'p-limit';
+
+const limit = pLimit(10);
+
+const results = await Promise.all(
+  users.map((user) => limit(() => sendEmail(user.email, template)))
+);
+```
+
+## Async queue
+
+For background processing where you want to collect work and drain it:
+
+```ts
+class AsyncQueue<T> {
+  private queue: T[] = [];
+  private processing = false;
+  private processor: (item: T) => Promise<void>;
+
+  constructor(processor: (item: T) => Promise<void>) {
+    this.processor = processor;
+  }
+
+  enqueue(item: T) {
+    this.queue.push(item);
+    if (!this.processing) this.drain();
+  }
+
+  private async drain() {
+    this.processing = true;
+    while (this.queue.length > 0) {
+      const item = this.queue.shift()!;
+      try {
+        await this.processor(item);
+      } catch (err) {
+        console.error('Queue processor error:', err);
+      }
+    }
+    this.processing = false;
+  }
+}
+
+// Usage
+const emailQueue = new AsyncQueue<{ to: string; template: string }>(
+  ({ to, template }) => sendEmail(to, template),
+);
+
+emailQueue.enqueue({ to: 'user@example.com', template: 'welcome' });
+```
+
+## Error boundaries in async code
+
+Never let an unhandled rejection crash your process:
+
+```ts
+// Global handler for uncaught rejections (Node.js)
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled rejection', { reason, promise });
+  // Don't crash — log and let monitoring handle it
+  Sentry.captureException(reason);
+});
+```
+
+The patterns: run independent operations in parallel, handle partial failures with `allSettled`, wrap external calls in timeouts and retries, limit concurrency for bulk operations.
