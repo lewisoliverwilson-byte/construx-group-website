@@ -261,12 +261,24 @@ export default async function VenturePage({ params }: Props) {
           <div className="space-y-3">
             {/* System info block */}
             <div
-              className="p-4"
+              className="overflow-hidden"
               style={{ background: 'rgba(3,3,14,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
             >
-              <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
-                // SYS.INFO
-              </p>
+              {/* Title bar */}
+              <div
+                className="flex items-center gap-2 px-3 py-2 border-b border-border select-none"
+                style={{ background: 'rgba(255,255,255,0.01)' }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.18em] flex-1 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                  sys.info
+                </span>
+              </div>
+              <div className="p-4">
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">Status</span>
@@ -296,6 +308,7 @@ export default async function VenturePage({ params }: Props) {
                   <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider">Orbit.R</span>
                   <span className="font-mono text-[10px] text-text-dim uppercase tracking-wider tabular-nums">{venture.orbitRadius} AU</span>
                 </div>
+              </div>
               </div>
             </div>
 
