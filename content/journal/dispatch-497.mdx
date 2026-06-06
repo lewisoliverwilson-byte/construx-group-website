@@ -1,0 +1,205 @@
+---
+title: "Postgres row-level security: multi-tenant data isolation in the database"
+date: "2029-01-12"
+excerpt: "Row-level security (RLS) enforces data isolation at the database layer rather than the application layer. Every query is automatically filtered by the policy — no WHERE clauses to forget, no middleware to bypass. Here's the setup with Drizzle ORM and Supabase."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Multi-tenant applications need data isolation: user A must not see user B's records. The application-layer approach is to add `WHERE tenant_id = $current_tenant` to every query. This works until someone forgets the filter, adds a new query path without it, or makes a mistake in a complex join. Row-level security moves the enforcement into the database: Postgres evaluates a policy on every row access, regardless of which query issued it.
+
+## How it works
+
+RLS policies are expressions evaluated for each row. A policy on `SELECT` means every query against that table is automatically filtered to rows that satisfy the expression. The expression typically reads a session-level variable (`current_setting('app.current_user_id')`) that your application sets at connection time.
+
+```sql
+-- Enable RLS on the table
+ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+
+-- Policy: users can only see their own posts
+CREATE POLICY "users_own_posts" ON posts
+  FOR ALL
+  TO authenticated
+  USING (user_id = current_setting('app.current_user_id', true)::uuid);
+```
+
+With this policy:
+- `SELECT * FROM posts` returns only rows where `user_id` matches the session variable
+- `UPDATE posts SET title = 'x'` silently skips rows that don't match (or throws, if you prefer)
+- `INSERT INTO posts ...` without a matching `user_id` is rejected
+
+## Setup with Drizzle ORM
+
+```sql
+-- Create application-level roles
+CREATE ROLE authenticated;
+CREATE ROLE anon;
+
+-- Grant read/write to authenticated role (not superuser)
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+```
+
+```ts
+// db/schema.ts
+import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
+
+export const posts = pgTable('posts', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  userId:    uuid('user_id').notNull(),
+  title:     text('title').notNull(),
+  body:      text('body').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Apply RLS migrations
+```
+
+```sql
+-- migrations/0010_add_rls.sql
+ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: own posts only
+CREATE POLICY "select_own_posts" ON posts
+  FOR SELECT
+  TO authenticated
+  USING (user_id = current_setting('app.current_user_id', true)::uuid);
+
+-- INSERT: can only insert rows with own user_id
+CREATE POLICY "insert_own_posts" ON posts
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (user_id = current_setting('app.current_user_id', true)::uuid);
+
+-- UPDATE/DELETE: own posts only
+CREATE POLICY "update_own_posts" ON posts
+  FOR UPDATE
+  TO authenticated
+  USING (user_id = current_setting('app.current_user_id', true)::uuid);
+
+CREATE POLICY "delete_own_posts" ON posts
+  FOR DELETE
+  TO authenticated
+  USING (user_id = current_setting('app.current_user_id', true)::uuid);
+```
+
+## Setting the session variable
+
+In a Next.js Server Action or API route, set the current user ID before querying:
+
+```ts
+// lib/db.ts
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import { sql } from 'drizzle-orm';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+export const db = drizzle(pool);
+
+// Set RLS context for the current request
+export async function withRLS<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    // Set the session variable — visible to all queries in this transaction
+    await tx.execute(sql`SET LOCAL app.current_user_id = ${userId}`);
+    // Set the role to authenticated (not superuser)
+    await tx.execute(sql`SET LOCAL ROLE authenticated`);
+    return fn();
+  });
+}
+```
+
+```ts
+// app/api/posts/route.ts
+import { withRLS, db } from '@/lib/db';
+import { posts } from '@/db/schema';
+import { getCurrentUser } from '@/lib/auth';
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // All queries inside withRLS automatically filter to user's data
+  const userPosts = await withRLS(user.id, async () => {
+    return db.select().from(posts).orderBy(posts.createdAt);
+  });
+
+  return Response.json(userPosts);
+}
+
+export async function POST(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { title, body } = await req.json();
+
+  const [post] = await withRLS(user.id, async () => {
+    return db.insert(posts).values({
+      userId: user.id,  // Policy verifies this matches the session var
+      title,
+      body,
+    }).returning();
+  });
+
+  return Response.json(post, { status: 201 });
+}
+```
+
+## Admin bypass
+
+Superuser connections bypass all RLS policies. For admin operations, use the `BYPASSRLS` privilege or `SET ROLE` to the superuser:
+
+```ts
+// Bypass RLS for admin operations — use sparingly
+export async function adminQuery<T>(fn: (tx: typeof db) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL ROLE postgres`);  // Superuser bypasses RLS
+    return fn(tx);
+  });
+}
+
+// Admin endpoint — list all posts for moderation
+export async function GET() {
+  const admin = await requireAdmin();
+  const allPosts = await adminQuery((tx) =>
+    tx.select().from(posts).orderBy(posts.createdAt)
+  );
+  return Response.json(allPosts);
+}
+```
+
+## Supabase
+
+Supabase runs Postgres with RLS enabled by default and provides helpers for the session variable pattern via JWT claims:
+
+```sql
+-- Supabase-specific: use auth.uid() instead of current_setting
+CREATE POLICY "users_own_posts" ON posts
+  FOR ALL
+  TO authenticated
+  USING (user_id = auth.uid());
+```
+
+`auth.uid()` is a Supabase function that reads the user ID from the JWT in the current session. The Supabase client sets this automatically when using `supabase.from(...)` with an authenticated session.
+
+## Testing RLS
+
+Always test that RLS policies work correctly:
+
+```ts
+// Test: user A cannot see user B's posts
+const userA = await createTestUser();
+const userB = await createTestUser();
+
+await withRLS(userB.id, async () => {
+  await db.insert(posts).values({ userId: userB.id, title: 'B post', body: '...' });
+});
+
+const postsVisibleToA = await withRLS(userA.id, async () => {
+  return db.select().from(posts);
+});
+
+expect(postsVisibleToA).toHaveLength(0);  // A cannot see B's posts
+```
+
+The cost of a bug here is severe — data leakage between tenants. Test explicitly, not just implicitly through application logic.

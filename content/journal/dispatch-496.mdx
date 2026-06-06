@@ -1,0 +1,291 @@
+---
+title: "tRPC subscriptions and WebSockets: real-time without REST"
+date: "2029-01-09"
+excerpt: "tRPC procedures aren't just request-response — they support subscriptions over WebSockets for real-time data. Here's the setup for a tRPC WebSocket server alongside the existing HTTP server, client subscriptions in React, and the patterns for presence, live updates, and collaborative features."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+tRPC subscriptions extend the same type-safe RPC model to real-time: the client calls a procedure, and the server streams events until the subscription ends. Because it's tRPC, the event types are fully inferred — no hand-rolling event schemas.
+
+## Server setup
+
+tRPC WebSocket support requires a separate WebSocket server, typically running on a different port alongside the Next.js HTTP server:
+
+```bash
+npm install @trpc/server ws
+npm install -D tsx
+```
+
+```ts
+// server/wss.ts
+import { applyWSSHandler } from '@trpc/server/adapters/ws';
+import { WebSocketServer } from 'ws';
+import { appRouter } from './router';
+import { createContext } from './context';
+
+const wss = new WebSocketServer({ port: 3001 });
+
+const handler = applyWSSHandler({
+  wss,
+  router: appRouter,
+  createContext,
+});
+
+wss.on('connection', (ws) => {
+  console.log(`WebSocket client connected (${wss.clients.size} total)`);
+  ws.on('close', () => {
+    console.log(`WebSocket client disconnected (${wss.clients.size} remaining)`);
+  });
+});
+
+process.on('SIGTERM', () => {
+  handler.broadcastReconnectNotification();
+  wss.close();
+});
+```
+
+Run the WebSocket server as a separate process — in development with `tsx`, in production with a process manager alongside the Next.js server.
+
+## Subscription procedures
+
+```ts
+// server/router.ts
+import { observable } from '@trpc/server/observable';
+import { EventEmitter } from 'events';
+import { z } from 'zod';
+import { router, publicProcedure, protectedProcedure } from './trpc';
+
+// Shared event emitter — for production use Redis pub/sub instead
+const ee = new EventEmitter();
+
+const ChatMessage = z.object({
+  id:        z.string(),
+  userId:    z.string(),
+  content:   z.string(),
+  createdAt: z.string(),
+});
+
+type ChatMessage = z.infer<typeof ChatMessage>;
+
+export const chatRouter = router({
+  // Standard query
+  getMessages: publicProcedure
+    .input(z.object({ channelId: z.string() }))
+    .query(async ({ input }) => {
+      return db.select().from(messages).where(eq(messages.channelId, input.channelId));
+    }),
+
+  // Subscription
+  onMessage: publicProcedure
+    .input(z.object({ channelId: z.string() }))
+    .subscription(({ input }) => {
+      return observable<ChatMessage>((emit) => {
+        const onMessage = (data: ChatMessage) => {
+          // Only emit events for this channel
+          if (data.channelId === input.channelId) {
+            emit.next(data);
+          }
+        };
+
+        ee.on('message', onMessage);
+
+        // Cleanup when client unsubscribes
+        return () => {
+          ee.off('message', onMessage);
+        };
+      });
+    }),
+
+  // Send a message and broadcast to subscribers
+  sendMessage: protectedProcedure
+    .input(z.object({
+      channelId: z.string(),
+      content:   z.string().min(1).max(2000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const message = await db.insert(messages).values({
+        id:        crypto.randomUUID(),
+        userId:    ctx.user.id,
+        channelId: input.channelId,
+        content:   input.content,
+        createdAt: new Date().toISOString(),
+      }).returning();
+
+      // Broadcast to all subscribers
+      ee.emit('message', message[0]);
+
+      return message[0];
+    }),
+});
+```
+
+## Client setup
+
+The client needs both HTTP and WebSocket links:
+
+```ts
+// lib/trpc-client.ts
+import { createTRPCClient, splitLink, httpBatchLink, wsLink } from '@trpc/client';
+import { createWSClient } from '@trpc/client/links/wsLink';
+import type { AppRouter } from '@/server/router';
+
+const wsClient = createWSClient({
+  url: process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001',
+});
+
+export const trpc = createTRPCClient<AppRouter>({
+  links: [
+    splitLink({
+      // Subscriptions go over WebSocket
+      condition: (op) => op.type === 'subscription',
+      true:  wsLink({ client: wsClient }),
+      // Queries and mutations go over HTTP
+      false: httpBatchLink({ url: '/api/trpc' }),
+    }),
+  ],
+});
+```
+
+## React hook for subscriptions
+
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { trpc } from '@/lib/trpc-client';
+
+interface Message {
+  id: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+}
+
+export function useChannelMessages(channelId: string) {
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  // Load existing messages
+  const { data: initial } = trpc.chat.getMessages.useQuery({ channelId });
+
+  useEffect(() => {
+    if (initial) setMessages(initial);
+  }, [initial]);
+
+  // Subscribe to new messages
+  trpc.chat.onMessage.useSubscription(
+    { channelId },
+    {
+      onData(message) {
+        setMessages((prev) => [...prev, message]);
+      },
+      onError(err) {
+        console.error('Subscription error:', err);
+      },
+    },
+  );
+
+  return messages;
+}
+```
+
+```tsx
+function ChatWindow({ channelId }: { channelId: string }) {
+  const messages = useChannelMessages(channelId);
+  const sendMessage = trpc.chat.sendMessage.useMutation();
+
+  return (
+    <div>
+      <div>
+        {messages.map((m) => (
+          <div key={m.id}>{m.content}</div>
+        ))}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const form = e.currentTarget;
+          const content = new FormData(form).get('content') as string;
+          sendMessage.mutate({ channelId, content });
+          form.reset();
+        }}
+      >
+        <input name="content" placeholder="Message..." />
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  );
+}
+```
+
+## Presence
+
+```ts
+// Track connected users per channel
+const presence = new Map<string, Set<string>>();  // channelId → Set<userId>
+
+const presenceRouter = router({
+  join: protectedProcedure
+    .input(z.object({ channelId: z.string() }))
+    .subscription(({ input, ctx }) => {
+      return observable<{ users: string[] }>((emit) => {
+        // Add user to presence
+        if (!presence.has(input.channelId)) {
+          presence.set(input.channelId, new Set());
+        }
+        presence.get(input.channelId)!.add(ctx.user.id);
+        ee.emit('presence', input.channelId);
+
+        const onPresence = (channelId: string) => {
+          if (channelId === input.channelId) {
+            emit.next({
+              users: [...(presence.get(channelId) ?? [])],
+            });
+          }
+        };
+
+        ee.on('presence', onPresence);
+
+        // Send initial presence
+        emit.next({ users: [...presence.get(input.channelId)!] });
+
+        return () => {
+          // Remove user on disconnect
+          presence.get(input.channelId)?.delete(ctx.user.id);
+          ee.off('presence', onPresence);
+          ee.emit('presence', input.channelId);
+        };
+      });
+    }),
+});
+```
+
+## Production: Redis pub/sub
+
+In production, multiple server instances can't share a Node.js `EventEmitter`. Replace it with Redis pub/sub:
+
+```ts
+import { createClient } from 'redis';
+
+const publisher  = createClient({ url: process.env.REDIS_URL });
+const subscriber = createClient({ url: process.env.REDIS_URL });
+
+await publisher.connect();
+await subscriber.connect();
+
+// Publish instead of ee.emit
+await publisher.publish(`channel:${channelId}`, JSON.stringify(message));
+
+// Subscribe in the tRPC observable
+await subscriber.subscribe(`channel:${channelId}`, (rawMessage) => {
+  const message = JSON.parse(rawMessage);
+  emit.next(message);
+});
+
+// Cleanup
+return async () => {
+  await subscriber.unsubscribe(`channel:${channelId}`);
+};
+```
+
+The Hyve's real-time features (shared documents, live cursors, activity feeds) use this pattern: Railway for the WebSocket server, Upstash Redis for pub/sub between Railway instances.

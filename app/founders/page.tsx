@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { getAllPostMeta } from '@/lib/posts';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
+import WhoamiPanel from '@/components/WhoamiPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -440,6 +441,11 @@ export default function FoundersPage() {
         {/* Contribution stats */}
         <div className="mt-8">
           <GitShortlogPanel />
+        </div>
+
+        {/* Identity panel */}
+        <div className="mt-6">
+          <WhoamiPanel />
         </div>
 
         {/* CTA */}
