@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import { getAllPostMeta } from '@/lib/posts';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -11,17 +12,29 @@ export const metadata: Metadata = {
 const founders = [
   {
     name: 'Lewis Wilson',
+    handle: 'LW',
     role: 'Co-founder',
     bio: `Builder and product architect. Leads the technical direction for every venture in the portfolio — from architecture decisions to the prompt engineering that sits at the core of each product.\n\nCame up in full-stack web development before AI made it interesting to build in a completely different way. Now spends most of his time proving that a two-person team with the right tools can build what previously took ten.`,
     focus: ['Product strategy', 'Technical architecture', 'AI integration', 'Venture direction'],
     accent: '#F97316',
+    stats: [
+      { label: 'VENTURES', value: '003' },
+      { label: 'BUILDS', value: '1k+' },
+      { label: 'STACK', value: 'TS / Next.js' },
+    ],
   },
   {
     name: 'Dan',
+    handle: 'DAN',
     role: 'Co-founder',
     bio: `Operator and creative director. Turns half-formed ideas into something real, and real things into something people actually want to use.\n\nHandles the side of building that isn't code — the go-to-market framing, the product design decisions, the user experience decisions that determine whether a technically excellent product gets used or ignored.`,
     focus: ['Design', 'Operations', 'Product direction', 'Growth'],
     accent: '#8B5CF6',
+    stats: [
+      { label: 'VENTURES', value: '003' },
+      { label: 'DESIGNS', value: '12+' },
+      { label: 'DOMAIN', value: 'GTM / UX' },
+    ],
   },
 ];
 
@@ -38,7 +51,17 @@ const foundersSchema = {
   })),
 };
 
+function pad(n: string, len: number) {
+  return String(n).padEnd(len, ' ');
+}
+
 export default function FoundersPage() {
+  const allPosts = getAllPostMeta();
+
+  const now = new Date();
+  const launchDate = new Date('2026-03-01');
+  const tenure = Math.floor((now.getTime() - launchDate.getTime()) / (1000 * 60 * 60 * 24));
+
   return (
     <div className="min-h-screen">
       <script
@@ -52,12 +75,16 @@ export default function FoundersPage() {
           <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-5 animate-fade-in">
             // THE PEOPLE
           </p>
-          <h1 className="text-display text-text-base mb-6 leading-none animate-fade-up"
-            style={{ animationDelay: '90ms' }}>
+          <h1
+            className="text-display text-text-base mb-6 leading-none animate-fade-up"
+            style={{ animationDelay: '90ms', animationFillMode: 'both' }}
+          >
             The <span className="text-gradient-orange">Founders</span>
           </h1>
-          <p className="text-text-muted text-base leading-relaxed max-w-lg mx-auto animate-fade-up"
-            style={{ animationDelay: '220ms' }}>
+          <p
+            className="text-text-muted text-base leading-relaxed max-w-lg mx-auto animate-fade-up"
+            style={{ animationDelay: '220ms', animationFillMode: 'both' }}
+          >
             Two people. Equal billing. Everything built, owned, and shipped together.
           </p>
         </div>
@@ -73,46 +100,93 @@ export default function FoundersPage() {
               style={{
                 background: 'rgba(5,5,18,0.88)',
                 border: `1px solid ${f.accent}20`,
-                boxShadow: `0 0 40px ${f.accent}08`,
+                boxShadow: `0 0 40px ${f.accent}06`,
                 borderRadius: '3px',
               }}
             >
+              {/* Top gradient line */}
               <div
-                className="h-1"
+                className="h-px w-full"
                 style={{ background: `linear-gradient(90deg, transparent, ${f.accent}, transparent)` }}
               />
 
               <div className="p-8">
-                {/* Avatar placeholder */}
-                <div className="mb-6">
-                  <div
-                    className="h-20 w-20 flex items-center justify-center text-2xl font-bold"
-                    style={{
-                      background: `radial-gradient(circle at 30% 30%, ${f.accent}55, ${f.accent}11)`,
-                      border: `1px solid ${f.accent}28`,
-                      color: f.accent,
-                      borderRadius: '3px',
-                    }}
+                {/* ID panel */}
+                <div
+                  className="mb-7 p-4 overflow-hidden"
+                  style={{
+                    background: 'rgba(0,0,6,0.7)',
+                    border: `1px solid ${f.accent}18`,
+                    borderRadius: '3px',
+                    fontFamily: 'var(--font-jetbrains-mono)',
+                  }}
+                >
+                  <p
+                    className="text-[9px] font-medium uppercase tracking-[0.25em] mb-3"
+                    style={{ color: `${f.accent}80` }}
                   >
-                    {f.name.charAt(0)}
+                    // ID.PROFILE
+                  </p>
+                  <div className="space-y-1.5">
+                    {[
+                      ['USER', f.handle],
+                      ['STATUS', '● ONLINE'],
+                      ['ROLE', f.role.toUpperCase()],
+                      ['TENURE', `${String(tenure).padStart(3, '0')}D`],
+                      ['DISPATCHES', String(allPosts.length).padStart(3, '0')],
+                      ...f.stats.map((s) => [s.label, s.value]),
+                    ].map(([key, val]) => (
+                      <p key={key} className="text-[9px] flex items-center">
+                        <span style={{ color: 'rgba(255,255,255,0.22)', minWidth: '90px' }}>
+                          {pad(key, 12)}
+                        </span>
+                        <span
+                          style={{
+                            color:
+                              val === '● ONLINE'
+                                ? '#4ade80'
+                                : 'rgba(240,239,255,0.65)',
+                          }}
+                        >
+                          {val}
+                        </span>
+                      </p>
+                    ))}
                   </div>
                 </div>
 
-                <div className="mb-5">
-                  <h2 className="text-xl font-bold text-text-base mb-1">{f.name}</h2>
-                  <p className="text-sm font-medium" style={{ color: f.accent }}>
-                    {f.role}, Construx Group
-                  </p>
+                {/* Name + role */}
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-text-base mb-1">{f.name}</h2>
+                    <p className="text-sm font-medium" style={{ color: f.accent }}>
+                      {f.role}, Construx Group
+                    </p>
+                  </div>
+                  {/* Pulsing status dot */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full animate-glow-pulse"
+                      style={{ background: '#4ade80', boxShadow: '0 0 6px rgba(74,222,128,0.8)' }}
+                    />
+                    <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: '#4ade80' }}>
+                      Online
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-3 mb-6">
+                {/* Bio */}
+                <div className="flex flex-col gap-3 mb-7">
                   {f.bio.split('\n\n').map((para, i) => (
-                    <p key={i} className="text-sm text-text-muted leading-relaxed">{para}</p>
+                    <p key={i} className="text-sm text-text-muted leading-relaxed">
+                      {para}
+                    </p>
                   ))}
                 </div>
 
+                {/* Focus areas */}
                 <div>
-                  <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-2.5">
+                  <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
                     // FOCUS AREAS
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -149,9 +223,7 @@ export default function FoundersPage() {
           <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
             // ORIGIN
           </p>
-          <h2 className="text-heading-xl text-text-base mb-6">
-            How Construx started
-          </h2>
+          <h2 className="text-heading-xl text-text-base mb-6">How Construx started</h2>
           <p className="text-text-muted leading-relaxed text-base mb-4">
             Construx started from a simple observation: the tools had changed enough that a small,
             disciplined team could build and ship things that previously required significant
@@ -160,16 +232,25 @@ export default function FoundersPage() {
           </p>
           <p className="text-text-muted leading-relaxed text-base mb-4">
             The first test was{' '}
-            <Link href="/ventures/scoutr" className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors">
+            <Link
+              href="/ventures/scoutr"
+              className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors"
+            >
               Scoutr
             </Link>{' '}
             — a resell intelligence product built in three weeks, live in production, with real users
             before most startups have finished their pitch deck. That worked. So we kept going.{' '}
-            <Link href="/ventures/the-marqet" className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors">
+            <Link
+              href="/ventures/the-marqet"
+              className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors"
+            >
               The Marqet
             </Link>{' '}
             followed. Then{' '}
-            <Link href="/ventures/the-hyve" className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors">
+            <Link
+              href="/ventures/the-hyve"
+              className="text-construx hover:text-orange-400 underline underline-offset-2 decoration-construx/40 transition-colors"
+            >
               The Hyve
             </Link>
             . Each venture was proof that the model held at the next level of complexity.
