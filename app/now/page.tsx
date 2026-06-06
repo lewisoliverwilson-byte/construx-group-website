@@ -50,7 +50,7 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '60+ dispatches and continuing',
+        title: '111 dispatches and continuing',
         body: 'Writing consistently about what we build and why. Build logs, methodology posts, product thinking, and strategy. The journal compounds — early posts still drive discovery months after publication.',
         status: 'ONGOING',
       },

@@ -1,0 +1,72 @@
+---
+title: "Technical debt: what we accumulate on purpose and what we fix fast"
+date: "2026-09-05"
+excerpt: "Technical debt isn't always bad. Some debt is deliberately taken on to ship faster. Here's how we distinguish acceptable debt from debt that has to be fixed now."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+Technical debt has a bad name. "Technical debt" is how engineers justify the perception that everything should be perfect before shipping, and how they explain why everything takes longer than expected.
+
+The reality: some technical debt is deliberate, reasonable, and the right call. Some is a mistake that compounds. The distinction matters.
+
+## The two kinds of debt
+
+**Deliberate debt**: a known shortcut taken intentionally to ship faster, with a documented intention to fix it later. The debt is conscious; the trade-off is explicit.
+
+Example: Scoutr's initial eBay fee calculation used a simplified model that averaged fees rather than calculating them category-by-category. We knew this was inaccurate; we shipped it anyway because 80% accuracy was sufficient to validate the product, and implementing the full model would have added two weeks to launch. The debt: we shipped with a known inaccuracy. The payoff: we launched earlier and validated demand before investing in the complete implementation. We fixed it after the first 30 days of user feedback confirmed that eBay accuracy mattered.
+
+**Accidental debt**: shortcuts taken without realising they're shortcuts, or complexity that accumulated gradually without anyone noticing. The debt is unconscious; there's no plan to fix it.
+
+Example: The Hyve's initial channel message storage used a simple array representation that worked for up to ~500 messages. Beyond that, performance degraded because the entire message history was loaded on channel open. This wasn't a deliberate choice — we didn't anticipate channels growing past 500 messages in the early stages. The debt accumulated, and we noticed it when early users reported slow channel loads.
+
+Deliberate debt is manageable. Accidental debt is the actual problem.
+
+## How we incur deliberate debt
+
+When we take on deliberate debt, we:
+1. **Name it explicitly** — write a Linear issue with "TECH DEBT:" prefix
+2. **Estimate the impact** — is this something that will block us in 2 weeks or 6 months?
+3. **Set a trigger for fixing** — "fix this when X happens" not "fix this someday"
+
+The trigger is the important part. "Fix this someday" becomes "never fix this." "Fix this when the eBay error rate exceeds 5%" becomes actionable.
+
+Current explicitly-acknowledged debt across the three products:
+
+- Scoutr: the product classification uses category-level fee rates; subcategory rates would be more accurate. Trigger: when subcategory-specific errors appear in user feedback.
+- The Marqet: listing search uses pure vector similarity; a hybrid keyword+vector search would be better for exact product name searches. Trigger: when search accuracy complaints appear.
+- The Hyve: AI job processing is synchronous in the request lifecycle. Trigger: when response latency under load exceeds 3 seconds.
+- This website: the contact form doesn't send emails (RESEND_API_KEY not configured in Amplify). Trigger: now — this should already be fixed.
+
+## What we fix immediately
+
+Some things aren't acceptable to defer:
+
+**Security vulnerabilities** — HIGH and CRITICAL CVEs in dependencies get patched same day.
+
+**Data integrity issues** — any bug that could corrupt user data or produce incorrect results in a payment-adjacent context gets fixed immediately, regardless of complexity.
+
+**P1 production incidents** — when something is completely broken for users, fixing it is the only priority.
+
+**Anything that blocks other work** — if a piece of debt is blocking building the next feature, it's not really optional. Fix it.
+
+The classification: if the debt creates risk (security, data integrity, revenue), fix now. If the debt creates inconvenience (slower, less elegant, harder to extend), accumulate it consciously and fix when triggered.
+
+## The accumulation rate
+
+We add 1-2 deliberate debt items per month and fix 1-2 per month. The debt backlog stays roughly stable.
+
+Accidental debt is harder to measure. We notice it during code reviews, when a new feature reveals an assumption we didn't know we were making, or when performance problems surface. Our best estimate is that we spend about 15-20% of development time on debt reduction.
+
+The goal isn't to eliminate debt. It's to ensure the debt we carry is documented, deliberate, and manageable. A codebase with no debt is either very new or very simple — neither applies to three production products in active development.
+
+## The warning signs of unmanageable debt
+
+- Features consistently take longer than expected to implement
+- New bugs appear in areas that "shouldn't" be affected by recent changes
+- Adding a new feature requires understanding a non-obvious set of constraints
+- No one is confident making changes to a particular part of the codebase
+
+These are signs that accidental debt has accumulated in a specific area and is now slowing development. At that point, a focused debt reduction sprint — before new features — is often faster than continuing to work around the debt.
+
+We've had two focused debt reduction sessions across the three products. Both produced measurable improvements in subsequent development velocity. Neither was fun. Both were worth it.

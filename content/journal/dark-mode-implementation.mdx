@@ -1,0 +1,72 @@
+---
+title: "Dark mode by default: why the Construx sites don't have a toggle"
+date: "2026-09-04"
+excerpt: "We don't offer a dark/light mode toggle on any Construx product or the group website. Here's the design reasoning and what it costs us."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Every Construx interface is dark-only. No light mode, no toggle, no system preference detection. This is deliberate and it costs something.
+
+Here's the reasoning.
+
+## The case for dark-only
+
+The Construx brand is built around a specific visual language: deep black backgrounds, high-contrast orange accents, monospace terminal aesthetics, the occasional Three.js solar system. This visual language has a tone — technical, dense, frontier-facing.
+
+That tone doesn't survive translation to a light mode. Light backgrounds with the same orange accents produce a different feeling entirely — more casual, less technical. The terminal chrome (the SystemLog component, the CodeBlock windows, the DispatchHUD) looks wrong on white.
+
+Our products are built for professional users who make deliberate tool choices. They've opted into an aesthetic, not just a function. A dark interface with this specific design language communicates something about what kind of product this is. We're not trying to appeal to everyone.
+
+## The implementation argument
+
+Supporting both dark and light mode properly is significant work. Not just inverting colors — designing both modes such that contrast ratios, readability, and visual hierarchy are preserved in both. Every component needs to be reviewed in both modes. Every new component needs to be designed for both modes from the start.
+
+For a two-person team building three products and a group website simultaneously, the design and maintenance overhead of two modes is not worth the marginal user who prefers light mode.
+
+If we built a light mode, it would be a second-class citizen. We know this. A second-class light mode is worse than no light mode.
+
+## The accessibility consideration
+
+Dark mode doesn't mean inaccessible. WCAG contrast requirements apply regardless of background color. Our designs maintain a minimum 4.5:1 contrast ratio for body text and 3:1 for large text and graphical elements.
+
+Where dark mode creates accessibility challenges: users with certain visual conditions (corneal conditions, some forms of myopia) may find light text on dark backgrounds harder to read. We're aware of this trade-off and have accepted it.
+
+The mitigation: `prefers-color-scheme: dark` in CSS means that users whose OS is in dark mode get an experience that aligns with their system preference. Users whose OS is in light mode also get our dark interface — which some will find less comfortable.
+
+## What we check
+
+Every color combination in our interfaces is checked against the APCA (Advanced Perceptual Contrast Algorithm) standard, which is more sophisticated than the older WCAG 2.x luminance formula. APCA accounts for the different perception of contrast for dark and light text on different backgrounds.
+
+The specific checks:
+- Body text against background: APCA ≥ 75 (well-readable)
+- UI labels against their backgrounds: APCA ≥ 45 (readable)
+- Decorative elements (not conveying information): no minimum
+
+Most of our dimmed text (the `text-text-dim` class, `rgba(240,239,255,0.3)`) is at the boundary of legible. This is intentional — it creates visual hierarchy where dimmed text recedes. We check that the intended primary content passes the higher threshold.
+
+## The `prefers-reduced-motion` complement
+
+We do respond to one user preference: `prefers-reduced-motion`. Every CSS animation in the Construx sites is gated behind a media query that disables animations for users who have requested reduced motion in their OS:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+This disables the solar system animations, the log entry fade-ins, the boot sequence, the histogram bars, the cursor blink — all of it. The site is still fully functional without animations.
+
+Respecting `prefers-reduced-motion` is accessibility-critical for users with vestibular disorders (motion sensitivity). Respecting `prefers-color-scheme` is a preference accommodation. We chose to prioritise the accessibility-critical one.
+
+## When we might add light mode
+
+If The Marqet ever needs to present listings in a context where light mode is expected (integration with another platform, an embedded widget, a print-friendly view), we'd build a targeted light mode for that context.
+
+If product analytics ever showed a significant drop-off correlated with dark-mode preference detection, we'd reconsider. "Some users might prefer light mode" is different from "we're losing users because of dark mode."
+
+Neither condition is currently met. Until it is, dark-only is the right call.
