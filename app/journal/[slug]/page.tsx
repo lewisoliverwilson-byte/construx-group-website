@@ -239,17 +239,31 @@ export default async function JournalPostPage({ params }: Props) {
         {/* Venture signal strip */}
         {mentionedVentures.length > 0 && (
           <div
-            className="mt-10 p-4 font-mono"
+            className="mt-10 overflow-hidden font-mono"
             style={{
               background: 'rgba(0,0,6,0.6)',
-              border: '1px solid rgba(255,255,255,0.05)',
-              borderRadius: '3px',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '4px',
             }}
           >
-            <p className="text-[8px] uppercase tracking-[0.2em] mb-3" style={{ color: 'rgba(255,255,255,0.2)' }}>
-              // VENTURE.SIGNAL — MENTIONED IN THIS DISPATCH
-            </p>
-            <div className="flex flex-wrap gap-2">
+            {/* title bar */}
+            <div
+              className="flex items-center gap-3 px-4 py-2.5"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,8,0.4)' }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                venture.signal — mentioned in this dispatch
+              </span>
+              <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.12)' }}>
+                {mentionedVentures.length}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 p-4">
               {mentionedVentures.map((v) => (
                 <Link
                   key={v.id}

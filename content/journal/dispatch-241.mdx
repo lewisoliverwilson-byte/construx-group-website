@@ -1,0 +1,188 @@
+---
+title: "The Marqet's escrow state machine: designing payment flow for a marketplace"
+date: "2027-01-12"
+excerpt: "Marketplace payments require holding funds between buyer payment and seller fulfillment. The Marqet uses an escrow pattern with an explicit state machine. Here's the state transitions, the edge cases, and what triggers each state change."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Marqet connects buyers with AI professionals. A buyer finds a seller offering a service — a Claude configuration, a custom AI workflow, a prompt engineering consultation. The buyer pays. The seller delivers. The buyer approves. The seller gets paid.
+
+The payment system has to hold funds safely between purchase and delivery, handle the cases where delivery doesn't happen or isn't satisfactory, and give both parties confidence that the outcome will be fair.
+
+The solution is an escrow pattern with an explicit state machine.
+
+## The state machine
+
+A transaction in The Marqet moves through these states:
+
+```
+INITIATED → FUNDED → IN_DELIVERY → COMPLETED
+                  ↓              ↓
+              DISPUTED        DISPUTED
+                  ↓              ↓
+            RESOLVED_BUYER   RESOLVED_SELLER
+```
+
+Each transition is triggered by a specific action from a specific actor:
+
+| Transition | Action | Actor |
+|-----------|--------|-------|
+| `INITIATED → FUNDED` | Stripe payment succeeds | System (Stripe webhook) |
+| `FUNDED → IN_DELIVERY` | Seller marks delivery started | Seller |
+| `IN_DELIVERY → COMPLETED` | Buyer accepts delivery | Buyer |
+| `IN_DELIVERY → COMPLETED` | Auto-accept after 7 days | System (cron job) |
+| `FUNDED → DISPUTED` | Buyer opens dispute | Buyer |
+| `IN_DELIVERY → DISPUTED` | Buyer opens dispute | Buyer |
+| `DISPUTED → RESOLVED_BUYER` | Admin rules for buyer | Admin |
+| `DISPUTED → RESOLVED_SELLER` | Admin rules for seller | Admin |
+
+## The database model
+
+```sql
+CREATE TABLE transactions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id      UUID NOT NULL REFERENCES listings(id),
+  buyer_id        TEXT NOT NULL,
+  seller_id       TEXT NOT NULL,
+  amount_pence    INTEGER NOT NULL,
+  platform_fee    INTEGER NOT NULL,
+  stripe_pi_id    TEXT NOT NULL, -- Stripe PaymentIntent
+  state           TEXT NOT NULL DEFAULT 'INITIATED',
+  dispute_reason  TEXT,
+  dispute_opened  TIMESTAMPTZ,
+  delivery_due    TIMESTAMPTZ NOT NULL, -- calculated at FUNDED
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Log every state transition for audit trail
+CREATE TABLE transaction_events (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id UUID NOT NULL REFERENCES transactions(id),
+  from_state     TEXT NOT NULL,
+  to_state       TEXT NOT NULL,
+  actor_id       TEXT,
+  actor_type     TEXT NOT NULL, -- 'buyer' | 'seller' | 'admin' | 'system'
+  note           TEXT,
+  created_at     TIMESTAMPTZ DEFAULT now()
+);
+```
+
+Every state transition inserts a `transaction_event` row. The full event log provides an audit trail for dispute resolution — you can see exactly when each state change happened and who triggered it.
+
+## State transitions in code
+
+```ts
+async function transitionState(
+  transactionId: string,
+  from: TransactionState,
+  to: TransactionState,
+  actor: { id: string; type: 'buyer' | 'seller' | 'admin' | 'system' },
+  note?: string
+) {
+  return db.transaction(async (tx) => {
+    // Lock the row and verify current state
+    const [transaction] = await tx.execute(sql`
+      SELECT * FROM transactions
+      WHERE id = ${transactionId}
+      FOR UPDATE
+    `);
+
+    if (!transaction) throw new Error('Transaction not found');
+    if (transaction.state !== from) {
+      throw new Error(`Invalid transition: expected ${from}, got ${transaction.state}`);
+    }
+
+    // Update state
+    await tx.update(transactions)
+      .set({ state: to, updatedAt: new Date() })
+      .where(eq(transactions.id, transactionId));
+
+    // Record event
+    await tx.insert(transactionEvents).values({
+      transactionId,
+      fromState: from,
+      toState: to,
+      actorId: actor.id,
+      actorType: actor.type,
+      note,
+    });
+
+    return { ...transaction, state: to };
+  });
+}
+```
+
+The `FOR UPDATE` row lock prevents concurrent transitions from interfering. If two requests try to transition the same transaction simultaneously (unlikely but possible), one will read the post-transition state and fail the state check, returning an error.
+
+## The FUNDED → IN_DELIVERY transition
+
+When a transaction reaches FUNDED, the clock starts. The buyer has paid; the seller needs to know a transaction is waiting and begin work.
+
+```ts
+// Triggered by Stripe webhook: payment_intent.succeeded
+async function handlePaymentSucceeded(stripePaymentIntentId: string) {
+  const transaction = await db.query.transactions.findFirst({
+    where: eq(transactions.stripePaymentIntentId, stripePaymentIntentId),
+  });
+  if (!transaction) throw new Error('Transaction not found for PaymentIntent');
+
+  await transitionState(transaction.id, 'INITIATED', 'FUNDED', {
+    id: 'stripe',
+    type: 'system',
+  });
+
+  // Calculate delivery deadline: 7 business days from funding
+  const deliveryDue = addBusinessDays(new Date(), 7);
+  await db.update(transactions)
+    .set({ deliveryDue })
+    .where(eq(transactions.id, transaction.id));
+
+  // Notify seller
+  await sendSellerNotification(transaction.sellerId, transaction.id);
+}
+```
+
+## Auto-accept after 7 days
+
+If a buyer doesn't accept or dispute a delivery within 7 days of the seller marking it complete, the funds are automatically released to the seller. This prevents sellers from being held indefinitely by unresponsive buyers.
+
+```ts
+// Cron job: runs daily at 00:00
+async function processAutoAccepts() {
+  const cutoff = subDays(new Date(), 7);
+
+  const staleTransactions = await db.query.transactions.findMany({
+    where: and(
+      eq(transactions.state, 'IN_DELIVERY'),
+      lt(transactions.updatedAt, cutoff)
+    ),
+  });
+
+  for (const tx of staleTransactions) {
+    await transitionState(tx.id, 'IN_DELIVERY', 'COMPLETED', {
+      id: 'system',
+      type: 'system',
+    }, 'Auto-accepted after 7 days without response');
+
+    await releaseFundsToSeller(tx.id);
+  }
+}
+```
+
+## The dispute path
+
+Opening a dispute holds funds and routes the transaction to admin review. Both buyer and seller can submit evidence through the dispute interface; an admin makes the determination.
+
+The admin resolves to either `RESOLVED_BUYER` (refund to buyer) or `RESOLVED_SELLER` (release to seller). These are terminal states — the transaction can't be transitioned further.
+
+## What's not in the state machine
+
+**Partial releases.** The Marqet doesn't support partial payment release — the full transaction amount goes to the buyer (in a dispute resolved for buyer) or the seller (all other completions). Partial releases would require a different payment architecture (multiple Stripe transfers rather than one).
+
+**Seller cancellation.** If a seller can't complete the work, the current flow requires them to contact support, who open a dispute resolved for the buyer. A self-service seller cancellation path is a planned addition.
+
+**Multiple deliveries.** The state machine assumes a single delivery event. Some services involve multiple deliverables; the current model treats the whole transaction as a single unit.
+
+These are known limitations, not architectural accidents. Each would add meaningful complexity. We built the simplest state machine that handles the common case correctly, with explicit states for the important edge cases.
