@@ -1,0 +1,164 @@
+---
+title: "Upstash: serverless Redis and QStash for the edge"
+date: "2030-05-10"
+excerpt: "Upstash provides serverless Redis with per-request pricing and HTTP-based access — no persistent connection, no connection pool, works from Cloudflare Workers, Vercel Edge, and AWS Lambda. QStash is a serverless message queue and scheduler: publish a message, it delivers to your endpoint with retries and dead-letter handling. Both are built for the edge."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Traditional Redis requires a persistent TCP connection. Edge functions live for milliseconds — they can't hold connections open between requests. Upstash Redis solves this with an HTTP API that wraps Redis commands. Each request is stateless, billed per 100k commands, and works from any runtime.
+
+## Upstash Redis setup
+
+```bash
+npm install @upstash/redis
+```
+
+```ts
+// lib/redis.ts
+import { Redis } from '@upstash/redis';
+
+export const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+```
+
+Or use environment variable auto-detection:
+
+```ts
+export const redis = Redis.fromEnv();
+// reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN automatically
+```
+
+## Common patterns
+
+```ts
+import { redis } from '@/lib/redis';
+
+// String: set and get
+await redis.set('user:1:email', 'lewis@construxgroup.io', { ex: 3600 });  // TTL: 1 hour
+const email = await redis.get<string>('user:1:email');
+
+// Counter
+const views = await redis.incr('page:home:views');
+
+// Hash: object storage
+await redis.hset('user:1', { name: 'Lewis', plan: 'pro', createdAt: Date.now() });
+const user = await redis.hgetall<{ name: string; plan: string }>('user:1');
+
+// Set: unique members
+await redis.sadd('online-users', userId);
+await redis.srem('online-users', userId);
+const onlineCount = await redis.scard('online-users');
+
+// List: queue or history
+await redis.lpush('recent-searches', query);
+await redis.ltrim('recent-searches', 0, 9);  // keep last 10
+const searches = await redis.lrange('recent-searches', 0, -1);
+
+// Sorted set: leaderboard
+await redis.zadd('scores', { score: 1420, member: userId });
+const top10 = await redis.zrange('scores', 0, 9, { rev: true, withScores: true });
+
+// Pipeline: batch commands
+const pipeline = redis.pipeline();
+pipeline.incr('counter');
+pipeline.expire('counter', 3600);
+const [count] = await pipeline.exec();
+```
+
+## Rate limiting with @upstash/ratelimit
+
+```ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis }     from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis:   Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(10, '10 s'),
+  prefix:  'construx:rl',
+  analytics: true,  // track hit/miss in Upstash console
+});
+
+// In middleware or API route:
+const identifier = request.ip ?? 'global';
+const { success, limit, remaining, reset } = await ratelimit.limit(identifier);
+
+if (!success) {
+  return new Response('Too Many Requests', {
+    status: 429,
+    headers: { 'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)) },
+  });
+}
+```
+
+Algorithms: `fixedWindow`, `slidingWindow` (most accurate), `tokenBucket` (burst-friendly). Token bucket is best when you want to allow short bursts (10 requests) within a sustained rate limit (1 req/sec average).
+
+## QStash: serverless message queue
+
+```bash
+npm install @upstash/qstash
+```
+
+```ts
+// lib/qstash.ts
+import { Client } from '@upstash/qstash';
+
+export const qstash = new Client({
+  token: process.env.QSTASH_TOKEN!,
+});
+```
+
+```ts
+// Publish a message to an HTTP endpoint
+await qstash.publishJSON({
+  url:     'https://construxgroup.io/api/jobs/process-order',
+  body:    { orderId: '123', userId: '456' },
+  retries: 3,
+  delay:   '5s',  // deliver after 5 seconds
+});
+
+// Deliver to multiple endpoints
+await qstash.publishJSON({
+  urlGroup: 'order-processors',  // group defined in Upstash console
+  body:     { orderId: '123' },
+});
+```
+
+## QStash: scheduled jobs (cron)
+
+```ts
+// Schedule a cron job
+await qstash.schedules.create({
+  destination: 'https://construxgroup.io/api/cron/daily-report',
+  cron:        '0 8 * * 1-5',  // 8am UTC, Mon-Fri
+  body:        JSON.stringify({ type: 'daily-report' }),
+  headers:     { 'Content-Type': 'application/json' },
+});
+
+// List schedules
+const schedules = await qstash.schedules.list();
+```
+
+## Verifying QStash signatures (security)
+
+```ts
+// app/api/jobs/process-order/route.ts
+import { verifySignatureAppRouter } from '@upstash/qstash/nextjs';
+
+async function handler(req: Request) {
+  const body = await req.json();
+  await processOrder(body.orderId);
+  return Response.json({ ok: true });
+}
+
+// Wrap the handler to verify QStash's HMAC signature
+export const POST = verifySignatureAppRouter(handler);
+```
+
+Without signature verification, any HTTP client can POST to your job endpoint. QStash signs every delivery; verify the signature to ensure the request came from QStash.
+
+## Upstash vs Vercel KV vs Cloudflare KV
+
+Upstash Redis: full Redis API (sorted sets, pub/sub, scripting), HTTP-first, works everywhere. Vercel KV: Upstash Redis under the hood, tighter Vercel integration. Cloudflare KV: global, eventually consistent, no rich data structures — good for config and caches, not for counters or leaderboards. For most use cases, Upstash Redis with `@upstash/ratelimit` is the pragmatic choice.

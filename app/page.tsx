@@ -18,6 +18,7 @@ import VmstatPanel from '@/components/VmstatPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import RoutingTablePanel from '@/components/RoutingTablePanel';
 import SystemdServicesPanel from '@/components/SystemdServicesPanel';
+import IpLinkPanel from '@/components/IpLinkPanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -190,8 +191,13 @@ export default function HomePage() {
       </div>
 
       {/* Systemd services */}
-      <div className="pb-10">
+      <div className="pb-6">
         <SystemdServicesPanel />
+      </div>
+
+      {/* Network interfaces */}
+      <div className="pb-10">
+        <IpLinkPanel />
       </div>
 
       {/* Below-fold: What is Construx */}
