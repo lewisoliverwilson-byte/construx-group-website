@@ -1,0 +1,219 @@
+---
+title: "Real-time with WebSockets: Pusher, Ably, and PartyKit"
+date: "2028-02-28"
+excerpt: "WebSockets power live cursors, presence indicators, collaborative editing, and instant notifications. Here's how to pick a provider and wire it into a Next.js app without leaking connection state into Server Components."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+HTTP is request/response: the client asks, the server answers. WebSockets are persistent bidirectional connections. Once open, either side can push data without waiting for a request. That's what powers live presence, collaborative cursors, instant chat, and push notifications that aren't email.
+
+## Provider comparison
+
+**Pusher Channels** — the standard. Hosted, simple API, channels + events model. Good for presence, notifications, simple pub/sub. Pricing scales with connections.
+
+**Ably** — more capable than Pusher. History/replay, message ordering guarantees, better durability. Worth it when you need reliability guarantees.
+
+**PartyKit** — the interesting new one. Your backend logic runs in Durable Objects on Cloudflare's edge. State lives in the server room. Great for collaborative tools (Figma-style cursors, shared whiteboards).
+
+For most apps: Pusher Channels. For collaborative experiences: PartyKit.
+
+## Pusher Channels setup
+
+```bash
+npm install pusher pusher-js
+```
+
+```ts
+// lib/pusher.ts — server-side client
+import Pusher from 'pusher';
+
+export const pusherServer = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.PUSHER_CLUSTER!,
+  useTLS: true,
+});
+```
+
+```ts
+// lib/pusher-client.ts — browser client (lazy init)
+import PusherJs from 'pusher-js';
+
+let pusherClient: PusherJs | null = null;
+
+export function getPusher() {
+  if (!pusherClient) {
+    pusherClient = new PusherJs(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.PUSHER_CLUSTER!,
+    });
+  }
+  return pusherClient;
+}
+```
+
+## Publishing events from Route Handlers
+
+```ts
+// app/api/messages/route.ts
+import { pusherServer } from '@/lib/pusher';
+
+export async function POST(req: Request) {
+  const { channelId, text } = await req.json();
+  const session = await auth();
+
+  const message = await db.insert(messages)
+    .values({ channelId, userId: session!.user!.id, text })
+    .returning()
+    .then((rows) => rows[0]);
+
+  // Trigger the event — broadcast to all subscribers
+  await pusherServer.trigger(`channel-${channelId}`, 'new-message', {
+    id: message.id,
+    text: message.text,
+    userId: message.userId,
+    createdAt: message.createdAt,
+  });
+
+  return Response.json(message);
+}
+```
+
+## Subscribing in Client Components
+
+```tsx
+// components/chat/MessageList.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getPusher } from '@/lib/pusher-client';
+import type { Channel } from 'pusher-js';
+
+type Message = { id: string; text: string; userId: string; createdAt: string };
+
+export function MessageList({
+  channelId,
+  initialMessages,
+}: {
+  channelId: string;
+  initialMessages: Message[];
+}) {
+  const [messages, setMessages] = useState(initialMessages);
+
+  useEffect(() => {
+    const pusher = getPusher();
+    const channel: Channel = pusher.subscribe(`channel-${channelId}`);
+
+    channel.bind('new-message', (data: Message) => {
+      setMessages((prev) => [...prev, data]);
+    });
+
+    return () => {
+      channel.unbind_all();
+      pusher.unsubscribe(`channel-${channelId}`);
+    };
+  }, [channelId]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      {messages.map((m) => (
+        <div key={m.id}>{m.text}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Presence channels
+
+Presence channels track who's subscribed — you get a member list and join/leave events:
+
+```ts
+// Route Handler for presence auth
+export async function POST(req: Request) {
+  const session = await auth();
+  const { socket_id, channel_name } = await req.json();
+
+  const auth = pusherServer.authorizeChannel(socket_id, channel_name, {
+    user_id: session!.user!.id,
+    user_info: { name: session!.user!.name },
+  });
+
+  return Response.json(auth);
+}
+```
+
+```tsx
+// Client — subscribe to presence channel
+const pusher = getPusher();
+pusher.config.authEndpoint = '/api/pusher/auth';
+
+const channel = pusher.subscribe(`presence-room-${roomId}`);
+
+channel.bind('pusher:subscription_succeeded', ({ members }: { members: any }) => {
+  setOnlineUsers(Object.values(members.members));
+});
+
+channel.bind('pusher:member_added', ({ info }: { info: any }) => {
+  setOnlineUsers((prev) => [...prev, info]);
+});
+
+channel.bind('pusher:member_removed', ({ info }: { info: any }) => {
+  setOnlineUsers((prev) => prev.filter((u) => u.id !== info.id));
+});
+```
+
+## PartyKit for collaborative state
+
+PartyKit runs a JavaScript server on Cloudflare's Durable Objects. State persists in the room.
+
+```ts
+// party/cursor-room.ts — runs on Cloudflare's edge
+import type * as Party from 'partykit/server';
+
+export default class CursorRoom implements Party.Server {
+  cursors: Record<string, { x: number; y: number }> = {};
+
+  async onMessage(message: string, sender: Party.Connection) {
+    const { x, y } = JSON.parse(message);
+    this.cursors[sender.id] = { x, y };
+
+    // Broadcast to everyone except sender
+    this.party.broadcast(
+      JSON.stringify({ type: 'cursors', cursors: this.cursors }),
+      [sender.id],
+    );
+  }
+
+  async onClose(connection: Party.Connection) {
+    delete this.cursors[connection.id];
+    this.party.broadcast(
+      JSON.stringify({ type: 'cursors', cursors: this.cursors }),
+    );
+  }
+}
+```
+
+```tsx
+// Client cursor sync
+import PartySocket from 'partysocket';
+
+const socket = new PartySocket({
+  host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
+  room: 'document-123',
+});
+
+document.addEventListener('mousemove', (e) => {
+  socket.send(JSON.stringify({ x: e.clientX, y: e.clientY }));
+});
+
+socket.onmessage = (e) => {
+  const { cursors } = JSON.parse(e.data);
+  renderCursors(cursors);
+};
+```
+
+## Don't use WebSockets for polling
+
+The temptation is to reach for WebSockets whenever you want data updates. Often polling is simpler and good enough: `setInterval(() => fetch('/api/unread-count'), 30_000)` is zero infrastructure, works everywhere, and is perfectly fine for notification badges. Reserve WebSockets for genuinely low-latency, high-frequency interactions.
