@@ -5,6 +5,7 @@ import { getAllPostMeta } from '@/lib/posts';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import WhoamiPanel from '@/components/WhoamiPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
+import IpAddrPanel from '@/components/IpAddrPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -452,6 +453,11 @@ export default function FoundersPage() {
         {/* GPG key fingerprints */}
         <div className="mt-6">
           <GpgFingerprintPanel />
+        </div>
+
+        {/* Network interfaces */}
+        <div className="mt-6">
+          <IpAddrPanel />
         </div>
 
         {/* CTA */}

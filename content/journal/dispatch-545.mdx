@@ -1,0 +1,168 @@
+---
+title: "Content Security Policy: hardening your Next.js app"
+date: "2029-06-05"
+excerpt: "Content Security Policy (CSP) is an HTTP header that tells browsers which sources are allowed to load scripts, styles, fonts, and other resources. A correctly configured CSP eliminates the entire class of cross-site scripting (XSS) attacks. Most Next.js apps don't have one. Here's how to add it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A Content Security Policy is a browser-enforced allowlist. Even if an attacker manages to inject a script into your page, the browser refuses to execute it if it doesn't come from an allowed source. CSP is the last line of defence after input sanitisation.
+
+## The simplest CSP that actually helps
+
+```
+Content-Security-Policy:
+  default-src 'self';
+  script-src  'self';
+  style-src   'self' 'unsafe-inline';
+  img-src     'self' data: https:;
+  font-src    'self' https://fonts.gstatic.com;
+  connect-src 'self' https://api.posthog.com;
+  frame-src   'none';
+  object-src  'none';
+  base-uri    'self';
+  form-action 'self';
+```
+
+This blocks:
+- Inline scripts (`<script>alert(1)</script>`) — no `unsafe-inline` in `script-src`
+- Scripts from external hosts not in the allowlist
+- iframes from any source
+- Object/embed elements (Flash, plugins)
+
+It allows:
+- Your own scripts from the same origin
+- Inline styles (necessary for styled-components, Tailwind's injected styles)
+- Images from any HTTPS source (permissive but practical)
+
+## Adding CSP to Next.js via middleware
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+const CSP = `
+  default-src 'self';
+  script-src  'self' 'nonce-{NONCE}';
+  style-src   'self' 'unsafe-inline';
+  img-src     'self' data: blob: https:;
+  font-src    'self' https://fonts.gstatic.com;
+  connect-src 'self' https://api.posthog.com https://vitals.vercel-insights.com;
+  frame-src   'none';
+  object-src  'none';
+  base-uri    'self';
+  form-action 'self';
+  upgrade-insecure-requests;
+`.replace(/\s{2,}/g, ' ').trim();
+
+export function middleware(req: NextRequest) {
+  const nonce    = Buffer.from(crypto.randomUUID()).toString('base64');
+  const cspValue = CSP.replace('{NONCE}', nonce);
+
+  const res = NextResponse.next({
+    request: { headers: new Headers(req.headers) },
+  });
+
+  res.headers.set('Content-Security-Policy', cspValue);
+  res.headers.set('X-Nonce', nonce);
+  return res;
+}
+```
+
+The nonce is a random value per request. Scripts tagged with the matching nonce are allowed to execute even without `unsafe-inline`. This is more secure than `unsafe-inline` because each nonce is single-use.
+
+## Using nonces with Next.js Script components
+
+Pass the nonce to your layout so inline scripts (analytics, etc.) get tagged:
+
+```ts
+// app/layout.tsx
+import { headers } from 'next/headers';
+import Script from 'next/script';
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = headers().get('X-Nonce') ?? '';
+
+  return (
+    <html>
+      <head>
+        <Script
+          nonce={nonce}
+          strategy="afterInteractive"
+          src="https://cdn.posthog.com/analytics.js"
+        />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+Next.js's `<Script>` component passes the nonce to the generated `<script>` tag automatically.
+
+## Report-only mode for gradual rollout
+
+Start in report-only mode. The browser doesn't enforce the policy but reports violations to a URL you control. Review the violations for a week before switching to enforcement.
+
+```ts
+// In middleware — switch header name:
+res.headers.set('Content-Security-Policy-Report-Only', cspValue + "; report-uri /api/csp-report");
+```
+
+```ts
+// app/api/csp-report/route.ts
+export async function POST(req: Request) {
+  const report = await req.json();
+  console.log('CSP violation:', JSON.stringify(report));
+  // Or send to your logging service
+  return new Response(null, { status: 204 });
+}
+```
+
+After a week of reports with no unexpected violations, switch to `Content-Security-Policy`.
+
+## Other security headers worth setting
+
+While you're in middleware:
+
+```ts
+res.headers.set('X-Frame-Options', 'DENY');
+res.headers.set('X-Content-Type-Options', 'nosniff');
+res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+res.headers.set(
+  'Strict-Transport-Security',
+  'max-age=63072000; includeSubDomains; preload'
+);
+```
+
+**HSTS** (`Strict-Transport-Security`) tells browsers to always use HTTPS for your domain, even if the user types `http://`. After 63072000 seconds (2 years) in the preload list, browsers will enforce HTTPS before the request even leaves the machine.
+
+## Common CSP mistakes
+
+**`unsafe-inline` in script-src**: Negates most of the protection. If you need it because of inline scripts, migrate them to external files or use nonces.
+
+**Forgetting `connect-src`**: Fetch calls and WebSocket connections are controlled by `connect-src`, not `script-src`. If your API is on a different domain, add it.
+
+**`*` in any directive**: Too permissive. Use specific domains. `img-src *` is a common concession for images — it's a lower-risk directive since images can't execute code, but avoid it in `script-src` and `connect-src`.
+
+**Missing `base-uri`**: Without `base-uri 'self'`, an attacker who can inject a `<base>` tag can redirect all relative URLs to their server.
+
+## Test your CSP
+
+```bash
+# Check headers in curl
+curl -I https://construxgroup.io | grep -i content-security
+
+# Online tools
+# https://csp-evaluator.withgoogle.com
+# https://observatory.mozilla.org
+```
+
+The Mozilla Observatory gives a letter grade for your security headers. A correctly configured CSP should get you to A+.
+
+## What we run
+
+All Construx domains run with CSP enforcement (not just report-only). The nonce approach lets us use Next.js analytics scripts without `unsafe-inline`. It took an afternoon to configure and a week of report-only monitoring to validate.
+
+The most common violation during the report-only week: browser extensions injecting scripts. These show up as violations but can be filtered from reports by checking `violated-directive` — they're not your problem to fix.
