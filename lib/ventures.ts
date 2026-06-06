@@ -22,6 +22,8 @@ export interface Venture {
   stats: VentureStat[];
   features: string[];
   journalSlugs?: string[];
+  techStack: string[];
+  latencyBars: string;
 }
 
 export const ventures: Venture[] = [
@@ -56,6 +58,8 @@ export const ventures: Venture[] = [
       'Works across retail, wholesale, and clearance pages',
     ],
     journalSlugs: ['building-scoutr', 'scoutr-real-time-design', 'scoutr-fee-calculator', 'scoutr-first-30-days', 'pricing-ai-products'],
+    techStack: ['Next.js 15', 'Claude API', 'Postgres', 'AWS Amplify', 'TypeScript', 'Tailwind'],
+    latencyBars: '▂▃▄▃▂▃▅▄▃▂▃▂▄▃▂',
   },
   {
     id: 'the-marqet',
@@ -88,6 +92,8 @@ export const ventures: Venture[] = [
       'Built exclusively for Claude Projects',
     ],
     journalSlugs: ['the-marqet-167-listings', 'the-marqet-content-pipeline', 'the-marqet-ux'],
+    techStack: ['Next.js 15', 'pgvector', 'Claude Embeddings', 'Stripe', 'AWS Amplify', 'TypeScript'],
+    latencyBars: '▃▂▃▄▃▃▄▅▃▂▃▄▃▃▂',
   },
   {
     id: 'the-hyve',
@@ -120,6 +126,8 @@ export const ventures: Venture[] = [
       'Replaces Slack, Notion, GitHub discussions, and Discord in one tab',
     ],
     journalSlugs: ['building-the-hyve', 'hyve-ai-team-member', 'the-hyve-decision-engine', 'the-hyve-architecture'],
+    techStack: ['Next.js 15', 'Claude API', 'Supabase', 'pgvector', 'AWS Amplify', 'WebSockets'],
+    latencyBars: '▄▃▄▅▄▃▄▃▄▅▄▃▄▃▄',
   },
 ];
 

@@ -299,6 +299,61 @@ export default async function VenturePage({ params }: Props) {
               </div>
             </div>
 
+            {/* Latency panel */}
+            <div
+              className="p-4"
+              style={{ background: 'rgba(3,3,14,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
+            >
+              <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
+                // NET.LATENCY
+              </p>
+              <div className="flex items-end gap-0.5 mb-2">
+                {venture.latencyBars.split('').map((bar, i) => (
+                  <span
+                    key={i}
+                    className="font-mono text-[11px] leading-none tabular-nums"
+                    style={{ color: `${venture.accent}${i % 4 === 0 ? 'cc' : '66'}` }}
+                  >
+                    {bar}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">p50</span>
+                <span className="font-mono text-[9px] tabular-nums" style={{ color: venture.accent }}>{'<'}80ms</span>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="font-mono text-[9px] text-text-dim uppercase tracking-wider">uptime</span>
+                <span className="font-mono text-[9px] tabular-nums text-text-muted">99.9%</span>
+              </div>
+            </div>
+
+            {/* Tech stack panel */}
+            <div
+              className="p-4"
+              style={{ background: 'rgba(3,3,14,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
+            >
+              <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
+                // TECH.STACK
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {venture.techStack.map((tech) => (
+                  <span
+                    key={tech}
+                    className="font-mono text-[9px] px-2 py-0.5 uppercase tracking-wider"
+                    style={{
+                      background: `${venture.accent}10`,
+                      border: `1px solid ${venture.accent}22`,
+                      borderRadius: '2px',
+                      color: `${venture.accent}cc`,
+                    }}
+                  >
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            </div>
+
             {/* Visit CTA */}
             {venture.url && (
               <a
