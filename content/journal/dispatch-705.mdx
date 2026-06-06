@@ -1,0 +1,166 @@
+---
+title: "Server-Sent Events: real-time streaming without WebSockets"
+date: "2030-09-28"
+excerpt: "Server-Sent Events (SSE) stream data from server to client over a persistent HTTP connection. Unlike WebSockets, SSE is unidirectional and works over standard HTTP/2. The browser reconnects automatically on disconnect. SSE is the right protocol for live dashboards, AI streaming responses, notification feeds, and progress updates — anything that sends data server→client without needing to receive it back."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+WebSockets are bidirectional. SSE is not — and that is the point. Most real-time use cases are server→client only: AI responses streaming in, a deployment progressing through stages, a dashboard refreshing metrics. SSE handles all of these with less complexity and better HTTP caching semantics than WebSockets.
+
+## Server: Next.js Route Handler
+
+```ts
+// app/api/stream/route.ts
+export const dynamic = 'force-dynamic';  // prevent caching
+
+export async function GET(req: Request) {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        controller.enqueue(encoder.encode(msg));
+      };
+
+      // Send an initial event
+      send('connected', { ts: Date.now() });
+
+      // Stream metrics every 2 seconds
+      let count = 0;
+      const interval = setInterval(() => {
+        send('metrics', {
+          requestsPerSec: Math.floor(Math.random() * 200) + 100,
+          latencyMs:      Math.floor(Math.random() * 50) + 20,
+          activeConns:    Math.floor(Math.random() * 30) + 10,
+          ts:             Date.now(),
+        });
+        if (++count >= 30) {
+          clearInterval(interval);
+          send('done', { total: count });
+          controller.close();
+        }
+      }, 2000);
+
+      // Clean up when the client disconnects
+      req.signal.addEventListener('abort', () => {
+        clearInterval(interval);
+        controller.close();
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection':    'keep-alive',
+      'X-Accel-Buffering': 'no',  // disable Nginx buffering
+    },
+  });
+}
+```
+
+## Client: EventSource API
+
+```tsx
+'use client';
+import { useEffect, useState } from 'react';
+
+interface Metrics {
+  requestsPerSec: number;
+  latencyMs:      number;
+  activeConns:    number;
+  ts:             number;
+}
+
+export function LiveDashboard() {
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [status,  setStatus]  = useState<'connecting' | 'live' | 'done' | 'error'>('connecting');
+
+  useEffect(() => {
+    const es = new EventSource('/api/stream');
+
+    es.addEventListener('connected', () => setStatus('live'));
+    es.addEventListener('metrics',   (e) => setMetrics(JSON.parse(e.data)));
+    es.addEventListener('done',      () => { setStatus('done'); es.close(); });
+
+    es.onerror = () => {
+      setStatus('error');
+      es.close();
+    };
+
+    return () => es.close();
+  }, []);
+
+  if (!metrics) return <div>Connecting…</div>;
+
+  return (
+    <div>
+      <span>{status === 'live' ? '● LIVE' : status}</span>
+      <p>Requests/sec: {metrics.requestsPerSec}</p>
+      <p>P99 latency:  {metrics.latencyMs}ms</p>
+      <p>Connections:  {metrics.activeConns}</p>
+    </div>
+  );
+}
+```
+
+## AI streaming (Vercel AI SDK pattern)
+
+```ts
+// app/api/generate/route.ts
+import { anthropic } from '@ai-sdk/anthropic';
+import { streamText } from 'ai';
+
+export async function POST(req: Request) {
+  const { prompt } = await req.json();
+
+  const result = streamText({
+    model:  anthropic('claude-opus-4-8'),
+    prompt,
+  });
+
+  // toDataStreamResponse() returns an SSE response
+  return result.toDataStreamResponse();
+}
+```
+
+## Progress streaming
+
+```ts
+// Stream build/deploy progress over SSE
+export async function GET() {
+  const encoder = new TextEncoder();
+
+  const steps = [
+    'Installing dependencies…',
+    'Running type check…',
+    'Running tests…',
+    'Building production bundle…',
+    'Deploying to Amplify…',
+    'Invalidating CDN cache…',
+    'Done.',
+  ];
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      for (const [i, step] of steps.entries()) {
+        const msg = `data: ${JSON.stringify({ step, index: i, total: steps.length })}\n\n`;
+        controller.enqueue(encoder.encode(msg));
+        await new Promise((r) => setTimeout(r, 800));
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+  });
+}
+```
+
+## SSE vs WebSockets vs Long polling
+
+SSE: HTTP/2, automatic reconnect, browser-native EventSource, server→client only, simpler infrastructure. WebSockets: bidirectional, binary support, not HTTP, requires separate ws:// connection. Long polling: client polls repeatedly, higher overhead, works everywhere. Use SSE for AI streaming, dashboards, notifications, and progress indicators. Use WebSockets only when you need bidirectional real-time communication (collaborative editing, multiplayer games, chat).

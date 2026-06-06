@@ -11,6 +11,7 @@ import UlimitPanel from '@/components/UlimitPanel';
 import VarLogAuthPanel from '@/components/VarLogAuthPanel';
 import SshAuditPanel from '@/components/SshAuditPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import AuditdPanel from '@/components/AuditdPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -486,8 +487,13 @@ export default function FoundersPage() {
         </div>
 
         {/* JWT decode */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CurlJwtPanel />
+        </div>
+
+        {/* Linux audit log */}
+        <div className="mt-6 pb-10">
+          <AuditdPanel />
         </div>
 
         {/* CTA */}
