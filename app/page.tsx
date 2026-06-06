@@ -211,13 +211,23 @@ export default function HomePage() {
                       <span className="text-sm font-bold text-text-base">{v.name}</span>
                       <StatusBadge status={v.status} />
                     </div>
-                    <p className="text-xs text-text-muted truncate">{v.tagline}</p>
-                    <p
-                      className="text-[10px] font-semibold uppercase tracking-widest mt-0.5"
-                      style={{ color: v.accent, opacity: 0.7 }}
-                    >
-                      {v.category}
-                    </p>
+                    <p className="text-xs text-text-muted truncate mb-1.5">{v.tagline}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {v.techStack.slice(0, 3).map((tech) => (
+                        <span
+                          key={tech}
+                          className="font-mono text-[8px] px-1.5 py-0.5 uppercase tracking-wider transition-colors duration-150"
+                          style={{
+                            background: `${v.accent}0d`,
+                            border: `1px solid ${v.accent}1a`,
+                            color: `${v.accent}88`,
+                            borderRadius: '2px',
+                          }}
+                        >
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <ArrowRight
                     size={14}
