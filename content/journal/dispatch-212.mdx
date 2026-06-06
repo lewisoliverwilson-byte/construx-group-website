@@ -1,0 +1,126 @@
+---
+title: "Dispute resolution on The Marqet: how we adjudicate payment conflicts"
+date: "2026-12-13"
+excerpt: "Every marketplace that handles real money will eventually face disputes. Here's how The Marqet handles payment conflicts between buyers and sellers — the process, the principles, and the edge cases that forced us to think carefully about what we actually believe."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Marqet is a marketplace for services. Buyers pay sellers for deliverables — web design, copywriting, data work, development. Money passes through an escrow system. When a buyer claims the work isn't what was promised, or a seller claims the buyer moved the goalposts, there's a dispute.
+
+Disputes are uncomfortable. They put the platform in the position of making a judgment call about who's right. Getting these calls wrong damages trust on both sides of the marketplace. Here's how we handle them.
+
+## The escrow model
+
+The Marqet uses escrow by design. When a buyer accepts a seller's offer, they fund an escrow account. The seller delivers the work. The buyer approves the delivery. Funds release to the seller.
+
+This model protects both parties:
+- Sellers know the funds exist before starting work
+- Buyers know they haven't paid until the work is approved
+
+Disputes arise at the delivery approval step: the buyer reviews the work and disputes it rather than approving it.
+
+```
+[Offer accepted]
+      ↓
+[Buyer funds escrow]
+      ↓
+[Seller delivers work]
+      ↓
+[Buyer reviews] → [Approve: funds release] OR [Dispute: enters dispute flow]
+```
+
+## What counts as a valid dispute
+
+Not every buyer dissatisfaction is a valid dispute. The first filter is whether the dispute falls within the scope of the original agreement.
+
+**Valid disputes:**
+- Deliverable does not match the written brief in a material way
+- Work contains errors that were part of the agreed scope to avoid (e.g., "code must run without syntax errors")
+- Delivery was made after the agreed deadline and the delay was consequential
+
+**Not valid disputes:**
+- Buyer changed their mind about what they wanted after the seller started
+- Buyer dissatisfied with quality for subjective reasons beyond what was specified
+- Buyer wanting revisions that go beyond the agreed scope
+
+The brief is the contract. What was written down is what the seller agreed to deliver. If the brief is vague, that's a problem with the brief — not necessarily a dispute the platform can resolve.
+
+## The dispute process
+
+**Step 1: Buyer opens dispute**
+The buyer submits a dispute form with:
+- Specific claim about what's wrong (not "I don't like it")
+- Reference to the brief clause they believe wasn't met
+- Evidence (screenshots, comparison, test output)
+
+The dispute puts the escrow on hold. Funds don't release and don't return automatically.
+
+**Step 2: Seller response**
+The seller has 48 hours to respond. They can:
+- Accept the dispute and offer a resolution (revision, partial refund, full refund)
+- Contest the dispute with a counter-argument and evidence
+
+Most disputes resolve at this step. A buyer raising a dispute often prompts a seller who's been evasive to re-engage. A seller contesting a dispute often provides context that changes the buyer's position.
+
+**Step 3: Mediation**
+If the dispute isn't resolved by step 2, it enters mediation. A member of the Construx team reviews:
+- The original brief
+- The delivered work
+- Both parties' claims and evidence
+
+We make a determination within 5 business days. Possible outcomes:
+- Full release to seller (buyer's claim not substantiated)
+- Full refund to buyer (seller's delivery materially failed the brief)
+- Partial split (both parties bear some responsibility)
+- Conditional release (seller makes a specific revision within a set deadline, then funds release)
+
+## The hard edge cases
+
+Theory is clean. The actual cases that land in mediation are not.
+
+**"The brief was ambiguous"**
+A brief saying "build a login page" doesn't specify the design, the authentication method, or how errors are handled. If the seller delivered something functional but visually different from what the buyer imagined, who's right?
+
+Our position: ambiguity in the brief defaults to the seller's professional judgment, unless the seller's delivery is objectively unreasonable given industry norms. If a buyer wanted a specific design, they needed to specify it. Sellers who encounter an ambiguous brief should ask clarifying questions before starting — if they start without asking, they carry more risk.
+
+**"The scope crept"**
+Buyers sometimes add requirements after the seller starts. "While you're in there, can you also..." The seller agrees informally, does the extra work, but the original deliverable has problems. Now the buyer disputes the original work while also having received the extras.
+
+Our position: scope additions that weren't in the brief or formally agreed to don't count for or against either party in the dispute. We evaluate only what was in the original agreement. The extras are a separate conversation.
+
+**"The deliverable worked when the seller submitted it"**
+Some disputes arise from work that passed at delivery but broke later. A data processing script that ran correctly at submission but fails on a new edge case. Is this a dispute?
+
+Our position: the deliverable is evaluated as of the delivery date, against the inputs specified in the brief. If the brief said "process files in format X" and the script processes format X correctly, the delivery is valid. If new inputs expose issues, that's post-delivery support — not a dispute.
+
+**"The buyer is using the work but disputing payment"**
+A seller delivers a logo. The buyer disputes the payment but is already using the logo on their website. This is the hardest case.
+
+Our position: using the deliverable is implicit acceptance. If a buyer is using the work commercially, we consider that strong evidence the delivery met the brief. We've released funds to sellers in this scenario over buyer objection. This is rare but it happens.
+
+## What we've learned
+
+**Most disputes settle before mediation.** The structured process — having to write down exactly what's wrong, with evidence, with reference to the brief — filters out a significant number of non-disputes. Buyers who were frustrated but not genuinely aggrieved often don't complete the dispute form.
+
+**Fast response matters more than the outcome.** A dispute that's resolved in 3 days maintains trust on both sides. A dispute that drags on for 2 weeks damages the platform relationship regardless of who wins.
+
+**Sellers self-select.** Sellers who regularly receive disputes either have genuine quality problems or operate in ambiguous niches. We track dispute rates per seller. A seller with a >15% dispute rate gets removed from the platform. The dispute rate is a quality signal.
+
+**The brief is everything.** We've added brief templates and prompts to guide buyers toward specificity. "Build me a landing page" is a bad brief. "Build me a landing page with the following specs: ..." is a good one. The investment in better briefs reduces disputes more than any process improvement.
+
+## What we don't do
+
+We don't have a formal appeals process. The mediation decision is final. This is intentional — an appeals process that parties can game extends disputes indefinitely and creates an adversarial dynamic that poisons the platform.
+
+We don't pay out disputed funds until mediation is resolved, regardless of how long it takes. There's pressure to resolve quickly for this reason.
+
+We don't expose the mediation reasoning beyond a summary to both parties. The full deliberation is internal. Detailed reasoning creates arguments about the reasoning, not the dispute itself.
+
+## The honest failure mode
+
+Our dispute process assumes good faith on both sides. A seller who deliberately misrepresents a deliverable, or a buyer who disputes in bad faith to get work for free, can game the system.
+
+We handle this through reputation tracking. A buyer who frequently disputes (especially after taking the work) gets flagged. A seller who frequently receives disputes gets removed. The pattern is more reliable than any individual case evaluation.
+
+Bad actors on either side eventually self-reveal. The process is designed to make that revelation cheap.

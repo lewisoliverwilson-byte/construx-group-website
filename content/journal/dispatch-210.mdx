@@ -1,0 +1,130 @@
+---
+title: "Caching strategies: what to cache, for how long, and the invalidation problem"
+date: "2026-12-11"
+excerpt: "Caching is one of those subjects that seems simple until you get it wrong in production. Here's how we think about caching across Construx products — the rules, the trade-offs, and why cache invalidation is genuinely hard."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+There are two hard problems in computer science: cache invalidation and naming things. The joke is old enough to have a Wikipedia page. It persists because both problems are genuinely difficult — and both are responsible for a disproportionate share of bugs in production systems.
+
+Here's how we think about caching across Scoutr, The Marqet, and The Hyve.
+
+## The caching hierarchy
+
+Caching isn't one decision — it's a stack of decisions at different layers.
+
+**Browser cache:** HTTP responses with `Cache-Control` headers. Static assets (JS, CSS, images) are cached aggressively (1 year, content-hashed filenames). Pages are either not cached (`no-store` for authenticated content) or cached briefly (`max-age=60` for public pages).
+
+**CDN cache (Amplify/CloudFront):** Static assets are served from the CDN edge closest to the user. No database involved. Latency is typically <10ms.
+
+**In-process cache (application memory):** Values computed once and held in memory for the lifetime of a process. Useful for configuration, feature flags, and reference data that changes rarely. Dangerous for serverless functions where processes are short-lived — the cache is empty on every cold start.
+
+**Distributed cache (Redis):** Values held in Redis and shared across multiple function instances. The right layer for rate limiting, sessions, and frequently-read data that changes occasionally. Requires careful invalidation logic.
+
+**Database query cache:** PostgreSQL does its own buffer caching of hot pages. For read-heavy queries that run repeatedly with the same parameters, the data will be in Postgres's shared_buffers. This is automatic — no application-level code required.
+
+## What we cache
+
+**Scoutr: eBay API results**
+
+A product URL scanned by Scoutr triggers a set of eBay API calls (active listings, sold history, category data). These API calls are rate-limited by eBay and take 300-500ms to complete. We cache the result keyed by product URL with a 4-hour TTL.
+
+```ts
+const SCAN_CACHE_TTL = 4 * 60 * 60; // 4 hours in seconds
+
+async function getCachedScan(productUrl: string): Promise<ScanResult | null> {
+  const cached = await redis.get(`scan:${productUrl}`);
+  return cached ? JSON.parse(cached) : null;
+}
+
+async function cacheScan(productUrl: string, result: ScanResult): Promise<void> {
+  await redis.setex(`scan:${productUrl}`, SCAN_CACHE_TTL, JSON.stringify(result));
+}
+```
+
+4 hours is a judgement call. eBay prices change throughout the day; a 4-hour window gives us a good balance between freshness and API cost reduction. If a user scans the same product twice within 4 hours, they get the cached result. If they scan 4 hours later, they get fresh data.
+
+**The Marqet: listing counts and category summaries**
+
+The homepage and category pages show aggregate counts (total listings, listings by category, average price ranges). Computing these from a raw query on every page load is expensive as the database grows.
+
+We cache category summaries in Redis with a 15-minute TTL, refreshed by a background job.
+
+```ts
+const CATEGORY_CACHE_TTL = 15 * 60; // 15 minutes
+
+async function getCategoryStats(): Promise<CategoryStats> {
+  const cached = await redis.get('marqet:category-stats');
+  if (cached) return JSON.parse(cached);
+
+  const stats = await db.query.listings.findMany({...}); // expensive aggregation
+  await redis.setex('marqet:category-stats', CATEGORY_CACHE_TTL, JSON.stringify(stats));
+  return stats;
+}
+```
+
+**The Hyve: workspace membership**
+
+Every message sent in The Hyve requires a membership check: "is this user a member of this workspace?" This is a simple query but it runs on every message. We cache workspace membership in Redis with a 5-minute TTL and invalidate on membership changes.
+
+```ts
+async function isMember(userId: string, workspaceId: string): Promise<boolean> {
+  const key = `membership:${workspaceId}:${userId}`;
+  const cached = await redis.get(key);
+  if (cached !== null) return cached === '1';
+
+  const member = await db.query.members.findFirst({
+    where: and(eq(members.userId, userId), eq(members.workspaceId, workspaceId)),
+  });
+  
+  await redis.setex(key, 300, member ? '1' : '0');
+  return !!member;
+}
+
+async function invalidateMembership(userId: string, workspaceId: string): Promise<void> {
+  await redis.del(`membership:${workspaceId}:${userId}`);
+}
+```
+
+## The invalidation problem
+
+Cache invalidation means: when the underlying data changes, how do you ensure the cache doesn't serve stale data?
+
+For TTL-based caches (like our Scoutr scan cache), invalidation is implicit: the cache entry expires after the TTL and the next request gets fresh data. This works when stale data for a bounded period is acceptable.
+
+For data that must be consistent immediately, TTL-based invalidation isn't enough. The Hyve membership cache is a good example: if a workspace admin removes a member, that member must not be able to send messages immediately — not after a 5-minute delay.
+
+The solution is explicit invalidation: when membership changes, delete the cache entry. The next membership check hits the database and gets the correct (non-member) result, then re-caches it.
+
+```ts
+// When membership is removed:
+await db.delete(members).where(
+  and(eq(members.userId, userId), eq(members.workspaceId, workspaceId))
+);
+await invalidateMembership(userId, workspaceId); // explicit cache bust
+```
+
+This pattern — write through to the database, then explicitly invalidate the cache — is reliable but requires discipline: every code path that modifies the underlying data must also invalidate the relevant cache keys.
+
+## What we don't cache
+
+**Authenticated user data:** User profile information, account settings, subscription status. These are low-volume, high-correctness requirements. An outdated cache showing a user is on a free tier when they've upgraded to Pro is a bad experience. We query the database directly.
+
+**Financial data:** Transaction amounts, escrow balances, payout records. Consistency matters too much. We never cache these.
+
+**Recently-written data:** For 30-60 seconds after a write, queries for that data go directly to the database. This handles the read-your-own-writes consistency requirement — a user who creates a listing should immediately see it in their listings view.
+
+## Next.js static generation as cache
+
+The most effective cache we use isn't Redis or HTTP headers — it's Next.js's static generation. Journal pages, venture pages, and most marketing pages are pre-rendered to static HTML at build time.
+
+A static HTML file served from a CDN is faster than any application-level cache. It requires no database queries, no Redis lookups, no JavaScript execution on the server. The "cache invalidation" is a new deployment.
+
+For content that changes infrequently and doesn't require personalisation, static generation is the right answer. The mistake is reaching for Redis caching when static generation would work.
+
+## The monitoring gap
+
+We don't have comprehensive cache hit rate monitoring. We know our caches are working (no performance degradation, no API rate limit errors from eBay) but we don't measure cache hit rates precisely.
+
+This is a known gap. Adding cache hit rate tracking to our PostHog dashboard is on the infrastructure backlog — it's the kind of observability that becomes important at scale but is easy to defer when the current setup is working.
