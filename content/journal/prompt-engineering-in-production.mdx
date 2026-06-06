@@ -1,0 +1,93 @@
+---
+title: "Prompt engineering in production: what actually works"
+date: "2026-06-17"
+excerpt: "Most prompt engineering advice is written for playground use. Production prompts have different constraints: consistency across varied inputs, cost efficiency, failure modes that users will encounter. Here's what we've learned building prompts for three live products."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+Most prompt engineering advice is written for playground use: crafting the perfect prompt for a specific task in a controlled environment. Production prompts are different. They need to work across varied inputs, handle edge cases gracefully, produce consistent output formats, and do all of this economically at scale.
+
+Here's what actually works in production.
+
+## The system prompt is an interface contract
+
+Think of the system prompt as a contract between your application and the model. It defines what role Claude is playing, what it knows, what format it should use, and what it should refuse to do.
+
+A well-written system prompt makes every subsequent user message easier to handle correctly. A poorly written one forces the model to infer your intent, which produces inconsistency.
+
+The four things every production system prompt should specify:
+
+**Role**: What expert or function is Claude playing? Not "you are a helpful assistant" — that's the default. Something specific: "You are a profit margin calculator for Amazon and eBay resellers. Your only function is to analyse product listings and estimate margins after all fees."
+
+**Context**: What does Claude know that it normally wouldn't? Fee schedules, product category rules, specific definitions of terms that might be ambiguous. The more specific the domain, the more context Claude needs.
+
+**Output format**: Exactly what structure should responses take? If you're parsing the output programmatically, specify the format precisely and include an example. "Respond in this exact JSON format: {...}" is not overkill — it prevents the subtle variations that break parsers.
+
+**Boundaries**: What should Claude decline to do? Being explicit about out-of-scope requests prevents the model from trying to help with things outside your application's purpose.
+
+## Specificity beats length
+
+Long system prompts with vague instructions produce worse results than short system prompts with precise ones. The model doesn't benefit from word count — it benefits from clarity.
+
+"Be helpful and professional" contributes almost nothing. "Respond in two to three sentences unless the question requires more detail. Use plain language. Don't recommend specific products by brand." contributes something.
+
+Every sentence in a production system prompt should earn its place. When you're debugging inconsistent output, look at the prompt first — often the issue is an ambiguous instruction the model is interpreting differently across different inputs.
+
+## Structured output is worth the overhead
+
+For any application that processes AI output programmatically (rather than displaying it directly to users), requiring structured output prevents an entire class of production bugs.
+
+The pattern: specify the exact JSON structure in the system prompt, include a complete example, and add a constraint like "respond only with the JSON object, no prose before or after."
+
+The overhead: validating the output on the application side (is it valid JSON? does it have the expected fields?). This overhead is worth it. An output that's in the wrong format is discovered immediately and can be retried. An output that's subtly wrong in content might not be discovered until a user encounters it.
+
+Claude follows structured output instructions reliably. The failures are usually at the edges: very complex nested structures, structures with many optional fields, or prompts where the instruction to use JSON conflicts with another instruction to be conversational.
+
+## Testing prompt changes before they reach production
+
+Every production prompt should have a test suite. Not automated tests with a CI system — just a document with 10-20 representative inputs and expected outputs that you run through before deploying a prompt change.
+
+The test cases should include:
+- The most common input types
+- Edge cases that have caused problems before
+- Inputs that should be handled gracefully but aren't core use cases (off-topic questions, malformed inputs)
+- Inputs where the old and new prompts should produce different outputs (to verify the change worked)
+
+Running this manually takes 15-30 minutes. It catches the majority of regressions from prompt changes. Automated testing is possible (evaluate AI output against expected output with another AI call) but adds latency and cost for a step that 15 minutes of manual review handles adequately at our scale.
+
+## Token economics in production
+
+Input tokens cost money. For high-volume applications, the difference between a 2,000-token system prompt and a 4,000-token one is significant across millions of requests.
+
+The optimisation: write the tightest prompt that produces the required output quality. Remove instructions that don't change behavior. Replace lengthy explanations with concrete examples (often more effective and shorter). Prune domain knowledge to the minimum necessary.
+
+For caching: Claude caches repeated prompt prefixes. If your system prompt is the same across requests (it usually is), and your historical context is often the same, caching dramatically reduces the effective cost of long prompts. Design your context to be cacheable: put the static parts first (system prompt, domain knowledge), add the dynamic parts (user input, current session) last.
+
+## When to use multiple calls instead of one
+
+The instinct is to do everything in one prompt: extract, classify, calculate, and format in a single call. This sometimes produces worse results than chaining simpler calls.
+
+The cases where chaining wins:
+- When early stages produce structured output that later stages use as reliable input
+- When tasks require different "modes" (analytical vs creative, precise vs generative)
+- When you want to inspect intermediate results for debugging
+
+The cases where a single call wins:
+- When the task is genuinely unified and the context of one part informs another
+- When the overhead of multiple API calls is a real constraint
+- When intermediate results aren't actionable without the final output
+
+Scoutr uses a single call: extract all product details, classify category, calculate margin. The extraction and classification inform each other (extracted dimensions affect which fee tier applies), so splitting them would lose information.
+
+The Hyve uses chaining for AI-assisted document drafts: one call to understand the request and create an outline, a second call to draft each section using the outline as structure. The outline is inspectable and the user can edit it before the sections are drafted.
+
+## The prompt drift problem
+
+Prompts drift. You update the model, update the surrounding code, add context that affects how the prompt is interpreted, and suddenly output that was working well is subtly different.
+
+The defence: version your prompts. Keep the current prompt in your codebase with a version number. When you change it, document what changed and why. This sounds obvious but most teams don't do it — they treat prompts as configuration rather than code.
+
+The detection: sample production outputs regularly. Not every output, just a random sample. Look for the subtle degradation that automated tests don't catch — the shift in tone, the subtle format change, the slightly different framing that doesn't break functionality but changes the user experience.
+
+This is the monitoring problem for AI products: the failure modes are gradual and qualitative, not sudden and quantitative. You have to look for them rather than wait for alerts.

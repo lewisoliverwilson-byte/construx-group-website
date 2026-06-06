@@ -1,0 +1,73 @@
+---
+title: "Why we write down every decision we make"
+date: "2026-06-18"
+excerpt: "The Hyve has a decision engine. We built it because we noticed ourselves relitigating the same questions we'd already answered. Writing decisions down is the lowest-overhead way to stop this — and to make the AI context meaningful."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+The Hyve has a decision engine. Every significant decision we make in a project gets logged: the question we were answering, the conclusion we reached, the reasoning, and the context that made that the right call at the time.
+
+We built this because of a specific failure mode: four months into a project, realising you're having a conversation you already had in month one. The reasoning had been lost. The conclusion had been implemented but nobody remembered why. The context had evaporated. So you rebuild the reasoning from scratch — and sometimes reach a different conclusion, which then has to be reconciled with the original implementation.
+
+The decision log is the fix.
+
+## What goes in a decision log entry
+
+Not every decision gets logged. The rule we apply: would this question be worth more than 30 minutes to answer again from scratch? If yes, log it.
+
+The structure of a decision entry:
+
+**The question.** Written as a concrete question, not a vague topic. "Should we use PostgreSQL or MongoDB for the Hyve's document storage?" not "Database decision."
+
+**The conclusion.** What we decided. One or two sentences. "PostgreSQL with pgvector extension — single database for relational data and vector embeddings."
+
+**The reasoning.** Why this was the right call. The alternatives considered, the factors that mattered, the tradeoffs we accepted. This is the most important part and the one most likely to be forgotten. "MongoDB's document model doesn't give clean vector similarity queries without a separate vector store. Keeping everything in Postgres simplifies the data layer and allows transactional embedding updates."
+
+**The context.** What was true at the time that made this the right decision. Scale, team size, specific constraints. "At current scale (~100 concurrent users), pgvector's performance is adequate. Decision should be revisited if the embedding corpus exceeds 1M entries."
+
+The context field is what makes past decisions legible. "We chose X over Y" is ambiguous months later. "We chose X over Y because at the time, cost was the primary constraint and X was 60% cheaper" is interpretable.
+
+## The AI angle
+
+The Hyve's AI agent has access to the decision log via vector similarity search. When someone asks a question in a channel, the AI retrieves the most semantically similar past decisions before responding.
+
+This produces something remarkable: the AI answers questions about the project with the memory of every decision ever made in it. "Why does the document collaboration use polling instead of WebSockets?" The AI retrieves the relevant decision entry (which explains that simultaneous edits are rare enough that polling is adequate at the current team size, and that CRDT complexity would be premature) and incorporates it into its response.
+
+Without the decision log, the AI would respond generically. With it, the AI responds specifically to the current project's history.
+
+We built The Hyve partly to solve this problem for other teams. But we also built it for ourselves — and the decision log is the feature we find most valuable internally.
+
+## How we actually use it
+
+In practice, logging decisions takes two to five minutes per entry. We do it immediately after making a decision, not at the end of a session or week. Memory degrades fast; the reasoning that was clear at the point of decision becomes murky within 24 hours.
+
+The discipline is to log at the moment of decision. The question is already in our heads, the conclusion is fresh, the reasoning is accessible. If we defer, the context is the first thing to go.
+
+We don't log implementation details. Those are in the code and the commit history. We log the decisions that shaped the implementation: why this approach rather than an alternative, what constraint forced this choice, what assumption this decision rests on.
+
+The average entry we've found useful six months later:
+- Why we chose a specific database or external service
+- Why a feature was scoped the way it was (and what we explicitly excluded)
+- Why a product pivot happened and what signal prompted it
+- Why we didn't build something an obvious competitor has
+
+The decisions that seemed obvious at the time are the ones most likely to be reinvestigated later. Log those especially.
+
+## For products, not just projects
+
+The Hyve's decision engine was built for workspace projects: a team building something together, logging decisions about how to build it. But we've found decision logging equally valuable for product decisions.
+
+"Why does Scoutr sort by margin by default?" The original decision — we expected users to be optimising for return, not volume — is logged. When a user asks why it works this way, we have a precise answer. When the question comes up again six months later, we have the reasoning.
+
+Product decisions that seem obvious at the time become invisible in the product. The decision log makes them visible again — to us, to new team members, to the AI agent, and sometimes to users who want to understand why the product works the way it does.
+
+## The operational discipline
+
+The hardest part of a decision log is the discipline to actually write entries. The moment of decision is also the moment of highest activity — you've just resolved a question and you're ready to move forward. Writing it down feels like friction.
+
+The framing that helps: you're writing it for the version of yourself in six months who will encounter this decision again and want the reasoning. That version of you will have lost the context. You're handing them a note.
+
+The second thing that helps: keeping entries short. A paragraph of context, a paragraph of reasoning, a sentence of conclusion. Not an essay. The goal is retrievability, not comprehensiveness.
+
+Done well, a decision log becomes one of the most valuable artifacts in a project: the institutional memory that survives team changes, product pivots, and the natural human tendency to forget why things are the way they are.
