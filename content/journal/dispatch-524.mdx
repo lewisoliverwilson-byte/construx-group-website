@@ -1,0 +1,184 @@
+---
+title: "Stripe: implementing subscriptions and billing in Next.js"
+date: "2029-04-03"
+excerpt: "Stripe's subscription model — products, prices, customers, subscriptions, and webhooks — is well-designed but dense. Here's the implementation pattern for a SaaS billing flow: checkout, portal, webhooks, and entitlement checks."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Stripe billing has five moving pieces: products (what you sell), prices (how you charge), customers (who pays), subscriptions (the ongoing relationship), and webhooks (how Stripe tells you things changed). Getting these connected correctly is the entire job.
+
+## Setup
+
+```bash
+npm install stripe @stripe/stripe-js
+```
+
+```ts
+// lib/stripe.ts
+import Stripe from 'stripe';
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-06-20',
+  typescript:  true,
+});
+```
+
+## Creating a checkout session
+
+When a user clicks "Upgrade", send them to a Stripe-hosted checkout page:
+
+```ts
+// app/api/billing/checkout/route.ts
+import { stripe }   from '@/lib/stripe';
+import { auth }     from '@clerk/nextjs/server';
+import { db }       from '@/lib/db';
+import { users }    from '@/db/schema';
+import { eq }       from 'drizzle-orm';
+
+export async function POST(req: Request) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { priceId } = await req.json();
+
+  const user = await db.select().from(users).where(eq(users.clerkId, userId)).get();
+
+  // Create or reuse a Stripe customer
+  let stripeCustomerId = user?.stripeCustomerId;
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      metadata: { clerkUserId: userId },
+    });
+    stripeCustomerId = customer.id;
+    await db.update(users).set({ stripeCustomerId }).where(eq(users.clerkId, userId));
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    customer:             stripeCustomerId,
+    mode:                 'subscription',
+    payment_method_types: ['card'],
+    line_items:           [{ price: priceId, quantity: 1 }],
+    success_url:          `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard?checkout=success`,
+    cancel_url:           `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`,
+    metadata:             { userId },
+  });
+
+  return Response.json({ url: session.url });
+}
+```
+
+## Billing portal
+
+Let users manage their subscription (upgrade, downgrade, cancel):
+
+```ts
+// app/api/billing/portal/route.ts
+export async function POST(req: Request) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const user = await db.select().from(users).where(eq(users.clerkId, userId)).get();
+  if (!user?.stripeCustomerId) return Response.json({ error: 'No subscription' }, { status: 400 });
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer:   user.stripeCustomerId,
+    return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
+  });
+
+  return Response.json({ url: session.url });
+}
+```
+
+## Webhooks
+
+Stripe sends events when subscriptions change. Handle these in a webhook endpoint — this is how your database stays in sync with Stripe.
+
+```ts
+// app/api/webhooks/stripe/route.ts
+import { stripe } from '@/lib/stripe';
+import Stripe     from 'stripe';
+
+const SIGNING_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
+
+export async function POST(req: Request) {
+  const body      = await req.text();
+  const signature = req.headers.get('stripe-signature')!;
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(body, signature, SIGNING_SECRET);
+  } catch {
+    return Response.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  switch (event.type) {
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated': {
+      const sub      = event.data.object as Stripe.Subscription;
+      const customerId = sub.customer as string;
+      const status   = sub.status;
+      const priceId  = sub.items.data[0]?.price.id;
+      const tier     = priceIdToTier(priceId);
+
+      await db
+        .update(users)
+        .set({ subscriptionStatus: status, subscriptionTier: tier, stripeSubscriptionId: sub.id })
+        .where(eq(users.stripeCustomerId, customerId));
+      break;
+    }
+
+    case 'customer.subscription.deleted': {
+      const sub = event.data.object as Stripe.Subscription;
+      await db
+        .update(users)
+        .set({ subscriptionStatus: 'canceled', subscriptionTier: 'free' })
+        .where(eq(users.stripeCustomerId, sub.customer as string));
+      break;
+    }
+  }
+
+  return Response.json({ received: true });
+}
+
+function priceIdToTier(priceId?: string): 'free' | 'pro' | 'enterprise' {
+  const map: Record<string, 'free' | 'pro' | 'enterprise'> = {
+    [process.env.STRIPE_PRO_PRICE_ID!]:        'pro',
+    [process.env.STRIPE_ENTERPRISE_PRICE_ID!]: 'enterprise',
+  };
+  return priceId ? (map[priceId] ?? 'free') : 'free';
+}
+```
+
+## Entitlement checks
+
+```ts
+// lib/entitlements.ts
+export async function getUserTier(clerkId: string): Promise<'free' | 'pro' | 'enterprise'> {
+  const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).get();
+  if (!user || user.subscriptionStatus !== 'active') return 'free';
+  return user.subscriptionTier ?? 'free';
+}
+
+// In a Server Component or Route Handler:
+const tier = await getUserTier(userId);
+
+if (tier === 'free') {
+  return Response.json({ error: 'Upgrade required' }, { status: 403 });
+}
+```
+
+## Testing locally
+
+```bash
+# Install Stripe CLI
+brew install stripe/stripe-cli/stripe
+
+# Forward events to your local dev server
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+
+# Trigger test events
+stripe trigger customer.subscription.created
+```
+
+The Stripe CLI forwards webhook events to your local endpoint, making it possible to test the full subscription flow without deploying.

@@ -4,6 +4,7 @@ import { ArrowRight, Zap, Layers, Code2, Rocket, BookOpen, ExternalLink } from '
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import TerraformPlanPanel from '@/components/TerraformPlanPanel';
+import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -556,6 +557,11 @@ export default function WorkWithUsPage() {
       {/* Terraform engagement plan */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <TerraformPlanPanel />
+      </section>
+
+      {/* Kubernetes pods */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KubectlPodsPanel />
       </section>
 
       {/* CTA */}
