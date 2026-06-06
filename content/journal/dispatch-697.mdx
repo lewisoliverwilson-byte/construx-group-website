@@ -1,0 +1,161 @@
+---
+title: "OpenTelemetry in Next.js: traces, metrics, and logs without lock-in"
+date: "2030-09-04"
+excerpt: "OpenTelemetry is the open standard for instrumenting applications. It separates instrumentation (the code you add to your app) from exporting (where the data goes). Instrument once, export to any backend. In Next.js, the instrumentation hook and auto-instrumentation handle the most common cases automatically. You add custom spans for business-critical paths and configure an exporter — the rest is wired for you."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Observability without vendor lock-in is the main promise. You instrument your code with the OpenTelemetry SDK; you configure a separate exporter for Datadog, Grafana, Honeycomb, or any OTLP-compatible backend. Swapping backends means changing configuration, not rewriting instrumentation.
+
+## Install
+
+```bash
+npm install @opentelemetry/sdk-node \
+            @opentelemetry/auto-instrumentations-node \
+            @opentelemetry/exporter-trace-otlp-http \
+            @opentelemetry/resources \
+            @opentelemetry/semantic-conventions
+```
+
+## Next.js instrumentation hook
+
+```ts
+// instrumentation.ts (root of project, not in app/)
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { NodeSDK }           = await import('@opentelemetry/sdk-node');
+    const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
+    const { Resource }          = await import('@opentelemetry/resources');
+    const { ATTR_SERVICE_NAME } = await import('@opentelemetry/semantic-conventions');
+    const { getNodeAutoInstrumentations } = await import('@opentelemetry/auto-instrumentations-node');
+
+    const sdk = new NodeSDK({
+      resource: new Resource({ [ATTR_SERVICE_NAME]: 'construx-web' }),
+      traceExporter: new OTLPTraceExporter({
+        url:     process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318/v1/traces',
+        headers: { Authorization: `Bearer ${process.env.OTEL_AUTH_TOKEN}` },
+      }),
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          '@opentelemetry/instrumentation-fs': { enabled: false },
+        }),
+      ],
+    });
+
+    sdk.start();
+  }
+}
+```
+
+## Custom spans
+
+```ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('construx-api');
+
+async function processPayment(orderId: string, amount: number) {
+  return tracer.startActiveSpan('payment.process', async (span) => {
+    span.setAttributes({
+      'order.id':        orderId,
+      'payment.amount':  amount,
+      'payment.currency': 'GBP',
+    });
+
+    try {
+      const result = await stripe.paymentIntents.create({ amount, currency: 'gbp' });
+      span.setAttributes({ 'payment.intent_id': result.id, 'payment.status': result.status });
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+      span.recordException(err as Error);
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+## Metrics
+
+```ts
+import { metrics }           from '@opentelemetry/api';
+import { MeterProvider }     from '@opentelemetry/sdk-metrics';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+
+const meterProvider = new MeterProvider({
+  readers: [
+    new PeriodicExportingMetricReader({
+      exporter:       new OTLPMetricExporter({ url: 'http://localhost:4318/v1/metrics' }),
+      exportIntervalMillis: 10000,
+    }),
+  ],
+});
+
+metrics.setGlobalMeterProvider(meterProvider);
+
+const meter      = metrics.getMeter('construx-api');
+const httpCounter = meter.createCounter('http.requests.total', { description: 'Total HTTP requests' });
+const latency     = meter.createHistogram('http.request.duration', { description: 'Request latency in ms', unit: 'ms' });
+
+// Record in middleware
+httpCounter.add(1, { method: req.method, route: req.url, status: String(res.status) });
+latency.record(Date.now() - start, { route: req.url });
+```
+
+## Structured logging with trace context
+
+```ts
+import { trace } from '@opentelemetry/api';
+
+function logWithContext(level: string, message: string, attrs: Record<string, unknown> = {}) {
+  const span   = trace.getActiveSpan();
+  const ctx    = span?.spanContext();
+  console.log(JSON.stringify({
+    level,
+    message,
+    timestamp: new Date().toISOString(),
+    trace_id:  ctx?.traceId,
+    span_id:   ctx?.spanId,
+    ...attrs,
+  }));
+}
+```
+
+## next.config.ts
+
+```ts
+const nextConfig: NextConfig = {
+  experimental: {
+    instrumentationHook: true,   // enable the instrumentation.ts file
+  },
+};
+```
+
+## Exporters by backend
+
+```ts
+// Grafana Cloud / Tempo
+new OTLPTraceExporter({ url: 'https://tempo-us-central1.grafana.net/tempo/otlp/v1/traces' })
+
+// Honeycomb
+new OTLPTraceExporter({
+  url:     'https://api.honeycomb.io/v1/traces',
+  headers: { 'x-honeycomb-team': process.env.HONEYCOMB_API_KEY! },
+})
+
+// Datadog (via OTLP receiver)
+new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' })
+// Run the Datadog Agent with OTLP enabled
+
+// Local dev: Jaeger
+new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' })
+// docker run -p 4318:4318 -p 16686:16686 jaegertracing/all-in-one
+```
+
+## OpenTelemetry vs Datadog SDK vs custom logging
+
+OpenTelemetry: vendor-neutral, once instrumented you own the data, slightly more setup. Datadog SDK: easier initial setup, tighter product integration, locked in. Custom logging: works but traces (distributed context propagation) are the hard part that OTel solves. Instrument with OpenTelemetry from day one — the lock-in cost of a vendor SDK compounds as you scale.
