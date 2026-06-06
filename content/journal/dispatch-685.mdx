@@ -1,0 +1,157 @@
+---
+title: "Cloudflare Workers: JavaScript at 300+ edge locations"
+date: "2030-07-30"
+excerpt: "Cloudflare Workers run JavaScript and WebAssembly at Cloudflare's edge network — over 300 locations worldwide. Requests execute within milliseconds of the user, not in a single datacenter. No cold starts, sub-millisecond startup, 128MB memory per request. Workers integrate with Cloudflare's other products: KV (global key-value), Durable Objects (stateful coordination), R2 (object storage), D1 (SQLite), and Queues."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Traditional serverless runs your function in one or a few regions. Cloudflare Workers run in every region simultaneously — the request executes at the edge closest to the user. For globally-distributed traffic, this is a significant latency reduction with no infrastructure management.
+
+## Basic Worker
+
+```ts
+// src/index.ts
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url  = new URL(request.url);
+    const path = url.pathname;
+
+    if (path === '/api/health') {
+      return Response.json({ status: 'ok', region: request.cf?.colo });
+    }
+
+    if (path === '/api/time') {
+      return Response.json({ time: new Date().toISOString() });
+    }
+
+    return new Response('Not Found', { status: 404 });
+  },
+};
+
+interface Env {
+  KV:    KVNamespace;
+  DB:    D1Database;
+  QUEUE: Queue;
+  R2:    R2Bucket;
+  SECRET_KEY: string;  // env var
+}
+```
+
+## KV: global key-value store
+
+```ts
+// Read from KV — globally replicated, eventually consistent
+const cached = await env.KV.get('posts:homepage', 'json');
+
+if (cached) return Response.json(cached);
+
+// Miss — fetch from origin, store in KV
+const data = await fetch('https://api.construxgroup.io/posts').then((r) => r.json());
+
+// Store with TTL: auto-expires after 1 hour
+await env.KV.put('posts:homepage', JSON.stringify(data), { expirationTtl: 3600 });
+
+return Response.json(data);
+```
+
+KV is best for read-heavy, globally-distributed data where eventual consistency is acceptable.
+
+## D1: SQLite at the edge
+
+```ts
+// D1 is SQLite accessible from Workers
+const { results } = await env.DB.prepare(
+  'SELECT id, title, created_at FROM posts WHERE published = 1 ORDER BY created_at DESC LIMIT 20'
+).all<{ id: string; title: string; created_at: string }>();
+
+return Response.json(results);
+
+// With parameters
+const post = await env.DB.prepare(
+  'SELECT * FROM posts WHERE slug = ?'
+).bind(slug).first<Post>();
+```
+
+## Durable Objects: stateful Workers
+
+```ts
+// Durable Objects provide consistent state across Workers
+export class RoomCounter implements DurableObject {
+  state: DurableObjectState;
+  count = 0;
+
+  constructor(state: DurableObjectState) {
+    this.state = state;
+    this.state.blockConcurrencyWhile(async () => {
+      this.count = (await this.state.storage.get<number>('count')) ?? 0;
+    });
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    if (request.method === 'POST') {
+      this.count++;
+      await this.state.storage.put('count', this.count);
+    }
+    return Response.json({ count: this.count });
+  }
+}
+
+// In the Worker: each room ID maps to a unique Durable Object
+const id     = env.ROOM_COUNTER.idFromName(roomId);
+const stub   = env.ROOM_COUNTER.get(id);
+const result = await stub.fetch(request);
+```
+
+## Queues: background processing
+
+```ts
+// Producer: enqueue a job
+await env.QUEUE.send({ type: 'send-email', to: email, template: 'welcome' });
+
+// Consumer: process jobs
+export default {
+  async queue(batch: MessageBatch<{ type: string; to: string; template: string }>, env: Env) {
+    for (const msg of batch.messages) {
+      await sendEmail(msg.body.to, msg.body.template);
+      msg.ack();
+    }
+  },
+};
+```
+
+## wrangler.toml
+
+```toml
+name = "construx-api"
+main = "src/index.ts"
+compatibility_date = "2030-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[kv_namespaces]]
+binding = "KV"
+id      = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[[d1_databases]]
+binding       = "DB"
+database_name = "construx-prod"
+database_id   = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+[[queues.producers]]
+binding    = "QUEUE"
+queue      = "email-queue"
+
+[[queues.consumers]]
+queue = "email-queue"
+
+[vars]
+APP_ENV = "production"
+
+[[r2_buckets]]
+binding     = "R2"
+bucket_name = "construx-assets"
+```
+
+## Workers vs AWS Lambda vs Vercel Edge
+
+Workers: 0ms cold start, 300+ locations, CPU time limit (50ms on free, 30s on paid). Best for globally distributed, latency-sensitive APIs. Lambda: any language, up to 15 minutes, VPC access, but cold starts and single-region by default. Vercel Edge: Next.js integrated, simpler DX, fewer capabilities than Workers. For pure edge logic that doesn't need long execution or VPC access, Workers with D1 and KV is the strongest combination.
