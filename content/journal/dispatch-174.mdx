@@ -1,0 +1,97 @@
+---
+title: "Testing strategy for a two-person team: what we test and what we skip"
+date: "2026-11-05"
+excerpt: "Full test coverage is an ideal. For a small team with limited time, the question is which tests produce the most value and which are expensive overhead. Here's our actual testing strategy across three products."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+A two-person team can't write comprehensive tests for everything. The cost of test maintenance grows with the test suite; a large test suite that's poorly maintained is worse than a smaller, well-maintained one.
+
+Here's what we actually test, why, and what we deliberately skip.
+
+## The testing pyramid
+
+The standard testing pyramid: many unit tests, fewer integration tests, fewest end-to-end tests. The rationale: unit tests are fast and cheap; E2E tests are slow and expensive.
+
+We don't follow the pyramid strictly. Here's why: the parts of our products most likely to break are not the parts covered by unit tests. The things that break in production are:
+
+- API contracts between services
+- Database queries under real data conditions
+- Payment flows (Stripe integration)
+- Authentication and session handling
+
+These are integration and E2E concerns, not unit concerns. A unit test that tests a function in isolation doesn't catch the bug where a Drizzle query generates a SQL statement that's valid at the ORM level but fails at the database level.
+
+## What we test
+
+**Critical payment flows (E2E):** Payment initiation, escrow hold, release on completion, refund flow. These use Stripe test mode and a test database. We run these before every release that touches payment code. A broken payment flow is an immediate revenue impact.
+
+**Authentication flows (integration):** Login, session creation, session validation, logout. These run against a test database. Auth bugs are security bugs; they warrant careful testing.
+
+**Critical API routes (integration):** The routes that back the core product flows — listing creation, enquiry submission, workspace message, Scoutr scan. Each has an integration test that exercises the full request lifecycle: HTTP in, database write, HTTP response out.
+
+**Data validation functions (unit):** Pure functions that validate or transform data have unit tests. `formatCurrency`, `calculateMargin`, `validateListingPrice` — these are fast to test and straightforward to keep correct.
+
+## What we explicitly skip
+
+**Component rendering tests (Vitest/React Testing Library):** Testing that a React component renders correctly is expensive (Jest/JSDOM setup) and provides limited signal. Components break when visual regression happens, which unit tests don't catch. We verify component behaviour with Playwright E2E tests for critical flows, not with component render tests.
+
+**Database schema tests:** We trust Drizzle's type inference and the TypeScript compiler to catch schema-level errors. A schema that doesn't match its TypeScript types produces a compilation error, not a runtime error.
+
+**100% coverage targets:** Coverage targets incentivise writing tests for coverage rather than for value. A function with a coverage test that only tests the happy path has 100% coverage and 0% confidence in edge case handling.
+
+## The Playwright E2E setup
+
+For the critical flows, we use Playwright:
+
+```ts
+import { test, expect } from '@playwright/test';
+
+test('buyer can enquire about a listing', async ({ page }) => {
+  // Login as a test buyer
+  await page.goto('/login');
+  await page.fill('[name="email"]', 'test-buyer@example.com');
+  await page.fill('[name="password"]', 'test-password');
+  await page.click('[type="submit"]');
+
+  // Navigate to a test listing
+  await page.goto('/listings/test-listing-slug');
+  
+  // Submit an enquiry
+  await page.fill('[name="message"]', 'I am interested in this service.');
+  await page.click('[data-testid="enquiry-submit"]');
+  
+  // Verify the enquiry was sent
+  await expect(page.locator('[data-testid="enquiry-success"]')).toBeVisible();
+});
+```
+
+These tests run against a staging environment with a seeded test database. They're slow (30-60 seconds per test) but they test the thing that matters: does the critical user flow work end to end?
+
+## The CI configuration
+
+Our Amplify CI runs:
+
+1. `npx tsc --noEmit` (TypeScript compilation)
+2. `npx eslint .` (linting)
+3. `npx vitest run` (unit tests — fast, ~8 seconds)
+4. `next build` (build verification)
+
+Playwright E2E tests don't run in CI on every push — they're too slow and require staging infrastructure. They run manually before major releases and after any change to payment or auth code.
+
+## The false safety of tests
+
+Tests provide confidence, not certainty. The confidence is proportional to how well the tests model real usage.
+
+A test suite that tests each function in isolation at 80% coverage gives false confidence about system behaviour. The bugs that cause incidents aren't usually in individual functions; they're in the interactions between functions, in the assumptions that break under real data, in the edge cases that didn't occur to the person writing the test.
+
+The most valuable thing we've learned about testing: write tests that fail when real bugs occur, not tests that pass no matter what. The integration tests that exercise the full request lifecycle catch a class of bugs that unit tests structurally cannot.
+
+The second most valuable: treat test failures as signal. If a test is consistently failing due to test brittleness rather than real bugs, fix the test or delete it. A flaky test that everyone ignores is worse than no test.
+
+## The investment decision
+
+Testing is an investment in future velocity. A bug that reaches production takes longer to diagnose and fix than a bug caught in a test. The question is whether the investment in a specific test is worth the ongoing maintenance cost.
+
+For critical payment flows: yes, always. For every utility function: probably not. The skill is in calibrating the boundary.
