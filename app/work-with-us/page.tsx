@@ -297,6 +297,11 @@ export default function WorkWithUsPage() {
               construx.filter — probably not a fit
             </span>
           </div>
+          {/* Shell prompt */}
+          <div className="px-5 py-2 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>cat /etc/construx/filter.rules</span>
+          </div>
           <div className="p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-2 mb-5">
               {[
@@ -509,6 +514,16 @@ export default function WorkWithUsPage() {
                   Story
                 </Link>
               </div>
+              </div>
+              {/* Status footer */}
+              <div
+                className="flex items-center justify-between px-3 py-1.5 select-none"
+                style={{ borderTop: `1px solid ${item.accent}10`, background: 'rgba(0,0,0,0.25)' }}
+              >
+                <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: `${item.accent}35` }}>
+                  {item.name.toLowerCase().replace(' ', '.')}.module
+                </span>
+                <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.35)' }}>● live</span>
               </div>
             </div>
           ))}
