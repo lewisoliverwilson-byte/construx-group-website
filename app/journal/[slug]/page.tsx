@@ -14,6 +14,7 @@ import TableOfContents from '@/components/journal/TableOfContents';
 import BackToTop from '@/components/journal/BackToTop';
 import CodeBlock from '@/components/journal/CodeBlock';
 import { extractHeadings, slugify } from '@/lib/headings';
+import { ventures } from '@/lib/ventures';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -68,6 +69,12 @@ export default async function JournalPostPage({ params }: Props) {
     .slice(0, 2);
 
   const headings = extractHeadings(post.content);
+
+  const contentLower = (post.title + ' ' + post.content).toLowerCase();
+  const mentionedVentures = ventures.filter((v) => {
+    const keywords = [v.name.toLowerCase(), v.slug.toLowerCase()];
+    return keywords.some((kw) => contentLower.includes(kw));
+  });
 
   const mdxComponents = {
     h2: ({ children }: { children: React.ReactNode }) => {
@@ -228,6 +235,46 @@ export default async function JournalPostPage({ params }: Props) {
             </div>
           )}
         </div>
+
+        {/* Venture signal strip */}
+        {mentionedVentures.length > 0 && (
+          <div
+            className="mt-10 p-4 font-mono"
+            style={{
+              background: 'rgba(0,0,6,0.6)',
+              border: '1px solid rgba(255,255,255,0.05)',
+              borderRadius: '3px',
+            }}
+          >
+            <p className="text-[8px] uppercase tracking-[0.2em] mb-3" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              // VENTURE.SIGNAL — MENTIONED IN THIS DISPATCH
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {mentionedVentures.map((v) => (
+                <Link
+                  key={v.id}
+                  href={`/ventures/${v.slug}`}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 transition-all hover:opacity-100"
+                  style={{
+                    background: `${v.accent}0d`,
+                    border: `1px solid ${v.accent}22`,
+                    borderRadius: '2px',
+                    opacity: 0.8,
+                  }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: v.accent }}
+                  />
+                  <span className="text-[9px] uppercase tracking-widest" style={{ color: `${v.accent}cc` }}>
+                    {v.name}
+                  </span>
+                  <span className="text-[8px]" style={{ color: `${v.accent}55` }}>→</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
         </article>
       </div>
 
