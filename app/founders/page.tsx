@@ -12,6 +12,7 @@ import VarLogAuthPanel from '@/components/VarLogAuthPanel';
 import SshAuditPanel from '@/components/SshAuditPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import AuditdPanel from '@/components/AuditdPanel';
+import DockerBuildPanel from '@/components/DockerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -492,8 +493,13 @@ export default function FoundersPage() {
         </div>
 
         {/* Linux audit log */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AuditdPanel />
+        </div>
+
+        {/* Docker multi-stage build */}
+        <div className="mt-6 pb-10">
+          <DockerBuildPanel />
         </div>
 
         {/* CTA */}

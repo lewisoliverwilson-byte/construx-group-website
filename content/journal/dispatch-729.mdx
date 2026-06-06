@@ -1,0 +1,134 @@
+---
+title: "Temporal: durable workflow execution"
+date: "2030-12-09"
+excerpt: "Temporal runs workflows that survive server crashes, network failures, and deployments. A workflow is a regular function that Temporal makes fault-tolerant by persisting every step. If a server dies mid-execution, the workflow resumes from where it stopped. This solves the hardest class of distributed systems problems: reliably running multi-step processes that touch external APIs, queues, and databases."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Background jobs fail silently. Queues lose messages. Temporal makes long-running processes as reliable as a database transaction.
+
+## Core concepts
+
+- **Workflow** — a durable function that orchestrates activities. It can sleep for days.
+- **Activity** — a regular function that does the actual work (API calls, DB queries). Temporal retries failed activities.
+- **Worker** — your code that executes workflows and activities.
+- **Temporal Cloud** — hosted Temporal server. Self-host with the open-source version.
+
+## Install
+
+```bash
+npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity
+```
+
+## Define a workflow
+
+```ts
+// src/workflows/onboard-user.ts
+import { proxyActivities, sleep } from '@temporalio/workflow';
+import type { OnboardingActivities } from './activities/onboarding';
+
+const { sendWelcomeEmail, createStripeCustomer, provisionWorkspace, sendSetupReminder } =
+  proxyActivities<OnboardingActivities>({
+    startToCloseTimeout: '30 seconds',
+    retry: {
+      maximumAttempts: 3,
+      initialInterval:  '1 second',
+      backoffCoefficient: 2,
+    },
+  });
+
+export async function onboardUser(userId: string, email: string): Promise<void> {
+  // Each step is checkpointed. Crash here? Resume here.
+  await sendWelcomeEmail(userId, email);
+  await createStripeCustomer(userId, email);
+  await provisionWorkspace(userId);
+
+  // Sleep for 3 days — Temporal persists this, not your server
+  await sleep('3 days');
+
+  // Still the same workflow, resumed after 3 days
+  await sendSetupReminder(userId, email);
+}
+```
+
+## Define activities
+
+```ts
+// src/activities/onboarding.ts
+import { db }     from '@/lib/db';
+import { stripe } from '@/lib/stripe';
+import { resend } from '@/lib/resend';
+
+export const onboardingActivities = {
+  async sendWelcomeEmail(userId: string, email: string): Promise<void> {
+    await resend.emails.send({
+      from:    'hello@construxgroup.io',
+      to:      email,
+      subject: 'Welcome to Construx',
+      html:    '<p>Welcome!</p>',
+    });
+  },
+
+  async createStripeCustomer(userId: string, email: string): Promise<string> {
+    const customer = await stripe.customers.create({ email, metadata: { userId } });
+    await db.users.update({ where: { id: userId }, data: { stripeCustomerId: customer.id } });
+    return customer.id;
+  },
+
+  async provisionWorkspace(userId: string): Promise<void> {
+    await db.workspaces.create({
+      data: { ownerId: userId, name: 'My Workspace', plan: 'free' },
+    });
+  },
+
+  async sendSetupReminder(userId: string, email: string): Promise<void> {
+    const user = await db.users.findUnique({ where: { id: userId } });
+    if (user?.workspaces.length === 0) {
+      await resend.emails.send({ to: email, subject: 'Finish setting up your workspace', html: '…' });
+    }
+  },
+};
+
+export type OnboardingActivities = typeof onboardingActivities;
+```
+
+## Worker
+
+```ts
+// src/worker.ts
+import { Worker } from '@temporalio/worker';
+import { onboardingActivities } from './activities/onboarding';
+
+async function run() {
+  const worker = await Worker.create({
+    workflowsPath:  require.resolve('./workflows/onboard-user'),
+    activities:     onboardingActivities,
+    taskQueue:      'construx-onboarding',
+  });
+
+  await worker.run();
+}
+
+run();
+```
+
+## Start a workflow from your API
+
+```ts
+// src/app/api/signup/route.ts
+import { Client, Connection } from '@temporalio/client';
+
+const connection = await Connection.connect({ address: process.env.TEMPORAL_ADDRESS });
+const client     = new Client({ connection, namespace: 'construx' });
+
+await client.workflow.start('onboardUser', {
+  args:      [user.id, user.email],
+  taskQueue: 'construx-onboarding',
+  workflowId: `onboard-${user.id}`,
+});
+```
+
+## When to use Temporal
+
+Use Temporal for: multi-step processes where each step calls an external service, workflows that take hours or days (trial expiry, billing cycles), processes that must run exactly once despite failures, and human-in-the-loop workflows where you wait for an external event. Keep BullMQ for: simple background jobs, high-throughput queues (thousands of jobs per second), and tasks where retries and idempotency are simple. Temporal adds infrastructure complexity — worth it when the workflow logic is complex enough that silent failures are expensive.
