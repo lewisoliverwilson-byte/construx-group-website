@@ -62,11 +62,16 @@ export default function TableOfContents({ headings }: Props) {
     >
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 py-2.5"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+        className="flex items-center gap-2.5 px-3 py-2.5"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}
       >
-        <span className="font-mono text-[8px] font-medium uppercase tracking-[0.2em]" style={{ color: 'rgba(249,115,22,0.6)' }}>
-          // CONTENTS
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+          <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+          <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+        </div>
+        <span className="font-mono text-[8px] font-medium uppercase tracking-[0.18em] flex-1 text-center" style={{ color: 'rgba(249,115,22,0.5)' }}>
+          contents
         </span>
         <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.2)' }}>
           {String(Math.round(progress)).padStart(3, '0')}%

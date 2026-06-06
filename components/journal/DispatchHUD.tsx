@@ -45,11 +45,15 @@ export default function DispatchHUD({ dispatchNum, readingTime, tag }: Props) {
       {/* Header */}
       <div
         className="flex items-center gap-2 px-3 py-2"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-construx animate-glow-pulse flex-shrink-0" />
-        <span className="uppercase tracking-widest text-construx/70">DISPATCH</span>
-        <span className="ml-auto tabular-nums text-construx/50">#{dispatchNum}</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+        </div>
+        <span className="uppercase tracking-widest text-construx/60 flex-1 text-center">DISPATCH</span>
+        <span className="tabular-nums text-construx/50">#{dispatchNum}</span>
       </div>
 
       {/* Body */}
