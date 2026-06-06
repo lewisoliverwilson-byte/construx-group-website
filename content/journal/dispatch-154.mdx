@@ -1,0 +1,211 @@
+---
+title: "Building a web scraper that survives: rate limiting, retries, and respecting robots.txt"
+date: "2026-10-16"
+excerpt: "The Marqet's data layer is powered by scrapers that have been running without incident for months. Here's the technical architecture of scrapers that are reliable, polite, and maintainable."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Marqet's market intelligence layer — pricing benchmarks, category trends, supply/demand signals — is sourced from public web data. Building scrapers that do this reliably and responsibly is an engineering problem with clear solutions that are commonly overlooked.
+
+Here's how we build scrapers that run without maintenance.
+
+## The baseline principles
+
+**Rate limiting.** We don't request at the maximum speed we can. We request at the minimum speed needed to get the data. Fast scrapers trigger defensive measures from target sites; slow scrapers run indefinitely.
+
+**Robots.txt compliance.** We check and honour robots.txt on every domain. This isn't just ethics — it's practical. Ignoring robots.txt is the fastest path to IP blocks.
+
+**User-Agent honesty.** Our scrapers identify themselves. A descriptive User-Agent (`MarqetDataBot/1.0; +https://themarqet.com/bot`) is more sustainable than a spoofed browser UA, because sites can choose to block or allow it explicitly.
+
+**Idempotent storage.** Each scrape run can safely be re-run. We use upsert semantics: `INSERT ... ON CONFLICT DO UPDATE SET ...`. A scrape that runs twice produces the same data state.
+
+## The architecture
+
+```
+ScrapingJobQueue (PostgreSQL)
+    ↓ (worker polls every 30s)
+ScraperWorker
+    ↓
+RateLimiter (token bucket, per-domain)
+    ↓
+HttpClient (with retry backoff)
+    ↓
+HtmlParser (cheerio)
+    ↓
+DataNormaliser
+    ↓
+PostgreSQL (upsert)
+```
+
+Each component is simple and independently testable.
+
+## Rate limiting: the token bucket
+
+We use a token bucket per domain. The bucket starts full; each request consumes one token; tokens refill at the configured rate.
+
+```ts
+class TokenBucket {
+  private tokens: number;
+  private lastRefill: number;
+
+  constructor(
+    private capacity: number,
+    private refillRatePerSecond: number,
+  ) {
+    this.tokens = capacity;
+    this.lastRefill = Date.now();
+  }
+
+  async consume(): Promise<void> {
+    this.refill();
+    if (this.tokens < 1) {
+      const waitMs = Math.ceil((1 - this.tokens) / this.refillRatePerSecond * 1000);
+      await new Promise((r) => setTimeout(r, waitMs));
+      this.refill();
+    }
+    this.tokens -= 1;
+  }
+
+  private refill() {
+    const now = Date.now();
+    const elapsed = (now - this.lastRefill) / 1000;
+    this.tokens = Math.min(this.capacity, this.tokens + elapsed * this.refillRatePerSecond);
+    this.lastRefill = now;
+  }
+}
+
+const domainBuckets = new Map<string, TokenBucket>();
+
+function getBucket(domain: string): TokenBucket {
+  if (!domainBuckets.has(domain)) {
+    // 1 request per 2 seconds, burst of 3
+    domainBuckets.set(domain, new TokenBucket(3, 0.5));
+  }
+  return domainBuckets.get(domain)!;
+}
+```
+
+Before each request, we call `await getBucket(domain).consume()`. If we're over the rate limit, the bucket waits the appropriate duration before proceeding.
+
+## Retry with exponential backoff
+
+HTTP requests fail. Transient failures (network blips, temporary server errors) should be retried; permanent failures (404s, 403s) should not.
+
+```ts
+async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
+  let attempt = 0;
+  while (true) {
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'MarqetDataBot/1.0; +https://themarqet.com/bot' },
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : 60_000;
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+
+      if (response.status >= 400 && response.status < 500) {
+        throw new PermanentError(`HTTP ${response.status}: ${url}`);
+      }
+
+      if (!response.ok) {
+        throw new TransientError(`HTTP ${response.status}: ${url}`);
+      }
+
+      return response;
+    } catch (err) {
+      if (err instanceof PermanentError) throw err;
+      if (++attempt > maxRetries) throw err;
+      const backoffMs = Math.min(1000 * 2 ** attempt + Math.random() * 500, 30_000);
+      await new Promise((r) => setTimeout(r, backoffMs));
+    }
+  }
+}
+```
+
+429 (rate limited) responses respect the `Retry-After` header. 4xx responses (except 429) are permanent failures that we don't retry. 5xx responses are transient and retried with exponential backoff.
+
+## Robots.txt parsing
+
+We cache parsed robots.txt files per domain and check before every request:
+
+```ts
+import robotsParser from 'robots-parser';
+
+const robotsCache = new Map<string, ReturnType<typeof robotsParser>>();
+
+async function canFetch(url: string): Promise<boolean> {
+  const { hostname, protocol } = new URL(url);
+  const cacheKey = hostname;
+  
+  if (!robotsCache.has(cacheKey)) {
+    try {
+      const robotsUrl = `${protocol}//${hostname}/robots.txt`;
+      const res = await fetch(robotsUrl, { 
+        headers: { 'User-Agent': 'MarqetDataBot/1.0' },
+        signal: AbortSignal.timeout(5_000),
+      });
+      const text = res.ok ? await res.text() : '';
+      robotsCache.set(cacheKey, robotsParser(robotsUrl, text));
+    } catch {
+      robotsCache.set(cacheKey, robotsParser(`${protocol}//${hostname}/robots.txt`, ''));
+    }
+  }
+
+  return robotsCache.get(cacheKey)!.isAllowed(url, 'MarqetDataBot') ?? true;
+}
+```
+
+If robots.txt is unreachable, we assume we're allowed. If it explicitly disallows us, we skip.
+
+## The job queue
+
+Scraping jobs are stored in PostgreSQL. The worker polls for pending jobs:
+
+```sql
+CREATE TABLE scraping_jobs (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  url         text NOT NULL,
+  domain      text NOT NULL GENERATED ALWAYS AS (regexp_replace(url, '^https?://([^/]+).*$', '\1')) STORED,
+  status      text NOT NULL DEFAULT 'pending', -- pending | running | done | failed | skipped
+  attempts    int NOT NULL DEFAULT 0,
+  last_error  text,
+  scheduled_at timestamptz NOT NULL DEFAULT now(),
+  started_at  timestamptz,
+  completed_at timestamptz,
+  data        jsonb
+);
+
+-- Worker claim: atomic status update to avoid double-processing
+UPDATE scraping_jobs
+SET status = 'running', started_at = now(), attempts = attempts + 1
+WHERE id = (
+  SELECT id FROM scraping_jobs
+  WHERE status = 'pending' AND scheduled_at <= now()
+  ORDER BY scheduled_at
+  FOR UPDATE SKIP LOCKED
+  LIMIT 1
+)
+RETURNING *;
+```
+
+`FOR UPDATE SKIP LOCKED` ensures that concurrent workers don't process the same job — each worker claims a row atomically and other workers skip locked rows.
+
+## What breaks and how we handle it
+
+**Layout changes.** Target sites change their HTML structure. Our parsers use CSS selectors against stable class names and data attributes rather than fragile positional selectors (e.g., `div:nth-child(3)`). When selectors break, we get null data instead of silently wrong data, which triggers alerts.
+
+**IP blocks.** If a domain starts returning consistent 403s, we mark it as blocked in our domain config and alert. We don't rotate IPs or attempt to circumvent blocks — if a site blocks us, we don't scrape it.
+
+**Anti-bot JavaScript.** Some pages render content via JavaScript. Our scrapers use fetch-based HTTP requests and can't execute JavaScript. We don't attempt to circumvent this with headless browsers — if the data requires JS execution to access, we accept that it's not available via scraping.
+
+## The lesson
+
+Scrapers that are fast and aggressive are scrapers that get blocked and require maintenance. Scrapers that are slow, polite, and honest run indefinitely without intervention.
+
+The total throughput of a polite scraper over months exceeds the throughput of an aggressive scraper that gets blocked after days.

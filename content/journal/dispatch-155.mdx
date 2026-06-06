@@ -1,0 +1,75 @@
+---
+title: "SEO for technical blogs: what actually moves rankings for build-in-public content"
+date: "2026-10-17"
+excerpt: "The journal has accumulated 150+ posts. Here's what we've learned about what drives search rankings for technical, build-in-public content — what matters, what doesn't, and what we measure."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+The journal ranks for technical queries. Not all of them, not always at position one, but consistently enough that organic search is the primary discovery mechanism for all three products.
+
+Here's what's actually driven that, and what hasn't.
+
+## What drives rankings for technical content
+
+**Specificity.** The most-ranked posts are the specific technical ones: "pgvector semantic search Next.js App Router", "Stripe escrow payment capture_method manual", "Zod env validation Next.js TypeScript". These are low-competition, high-intent queries. The person searching for "pgvector semantic search Next.js App Router" is a developer who has a specific problem; a post that solves that problem ranks because there are few alternatives.
+
+Generic content — "how to build a marketplace", "SaaS pricing strategies" — is high-competition and low-differentiation. The ranking ceiling is low and the effort per ranking is high.
+
+**Completeness.** Posts that work through a full implementation rank better than posts that describe an approach without showing the code. A post titled "rate limiting with Redis sliding window in TypeScript" with a complete, copyable implementation ranks because it satisfies the search intent fully. A post that describes the concept without the implementation satisfies it partially.
+
+**Accuracy.** Technical content that has errors gets corrected by commenters, linked to with caveats, and ranked lower over time. Technical content that's correct gets bookmarked, linked to, and cited. We don't publish posts about implementations we haven't built and tested.
+
+**Author topical authority.** Google's ranking models evaluate the credibility of the author and domain on a given topic. 150 posts about building SaaS products with Next.js, PostgreSQL, and AI APIs establishes topical authority on those technologies in a way that a single post doesn't.
+
+## What doesn't move rankings
+
+**Keyword stuffing.** Writing "pgvector pgvector semantic search pgvector" doesn't help. It signals thin content and degrades readability. We write for the reader; if the topic and implementation are genuine, the keyword appears naturally.
+
+**Meta description optimization.** Meta descriptions don't affect rankings — they affect click-through rate (CTR) from search results. We write descriptive meta descriptions because they help users decide whether to click, not because they influence ranking.
+
+**Updating publish dates.** Some technical blogs update old post dates to appear recent. This is detectable and provides no ranking benefit for content that hasn't actually been updated.
+
+**Internal linking volume.** Internal links help discovery and user navigation; they don't meaningfully change rankings. We link between related posts because it's useful, not as an SEO tactic.
+
+**Post frequency alone.** Publishing frequently with low-quality content produces high crawl rates and low rankings. Publishing infrequently with high-quality content produces better rankings than frequent publication of thin content. We publish every day because the quality is consistent, not because frequency itself helps.
+
+## What we measure
+
+**Impressions and clicks (Google Search Console).** The primary signal. Impressions show that we appear in search results; clicks show that users find the result worth clicking. The ratio (CTR) tells us whether titles and excerpts are compelling.
+
+**Query analysis.** Which queries are driving impressions and clicks? This tells us where topical authority exists and where gaps are.
+
+```
+Top queries by click volume (rolling 90 days):
+1. "pgvector next.js" — 340 clicks, 3,200 impressions
+2. "stripe escrow marketplace" — 210 clicks, 1,800 impressions
+3. "ebay fee calculator typescript" — 180 clicks, 1,400 impressions
+4. "zod environment variables next.js" — 145 clicks, 1,100 impressions
+5. "drizzle orm pgvector" — 120 clicks, 950 impressions
+```
+
+These queries tell us where to publish more depth. The cluster around pgvector and Next.js indicates a content gap we can fill with more implementation detail.
+
+**Core Web Vitals.** Google uses Core Web Vitals (LCP, CLS, FID/INP) as a ranking factor. The journal is a static Next.js site; the metrics are strong by default because there's no client-side data fetching for the post content.
+
+**Backlinks.** Links from other sites improve domain authority and ranking. The primary source of backlinks is other developers and technical writers citing posts in their own content. We don't do outreach or link building; the links come from content that's worth linking to.
+
+## One thing we got wrong early
+
+We spent time on meta tags, structured data, Open Graph images — the technical SEO layer — before we had enough content to rank for anything. This work has value but it shouldn't have been prioritised over writing more and better posts.
+
+The technical SEO baseline matters. But the ranking benefit of going from 0 to 100 posts is vastly larger than the ranking benefit of perfect structured data on 20 posts.
+
+Priority order, if starting from scratch:
+
+1. Write specific, complete, accurate technical posts
+2. Ensure the site is fast and crawlable (Next.js SSG handles most of this)
+3. Write meta descriptions that reflect the actual content
+4. Consider structured data when post volume is significant
+
+## The honest answer
+
+The journal ranks because we've written 150 genuine posts about the specific technical problems we've actually solved. There's no trick, no content strategy framework, no keyword research tool that explains the results.
+
+The posts rank because they're useful. The accumulation of useful, specific, correct content in a coherent topic area is the SEO strategy, and it also happens to be the right way to build in public.
