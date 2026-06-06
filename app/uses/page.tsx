@@ -6,6 +6,7 @@ import BrewListPanel from '@/components/BrewListPanel';
 import VscodeExtensionsPanel from '@/components/VscodeExtensionsPanel';
 import LshwPanel from '@/components/LshwPanel';
 import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
+import SshConfigPanel from '@/components/SshConfigPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -340,6 +341,11 @@ export default function UsesPage() {
         {/* Tmux sessions */}
         <div className="mt-6">
           <TmuxSessionsPanel />
+        </div>
+
+        {/* SSH config */}
+        <div className="mt-6">
+          <SshConfigPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

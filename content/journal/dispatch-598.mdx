@@ -1,0 +1,162 @@
+---
+title: "OpenTelemetry: distributed tracing with spans and traces"
+date: "2029-11-11"
+excerpt: "OpenTelemetry is the standard for distributed tracing, metrics, and logging. It instruments your code to produce traces — chains of spans that show exactly where time is spent across services. The result: you can see that a slow API call is actually a slow database query inside a slow Redis lookup inside a slow upstream fetch, and you know exactly which line of code to fix."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A trace is a record of a request as it travels through your system. Each unit of work within that request is a span. Spans have a start time, duration, status, and attributes — and they form a tree that mirrors your call stack across service boundaries.
+
+OpenTelemetry (OTel) is the vendor-neutral standard for producing this data. You instrument once and export to any backend: Jaeger, Tempo, Honeycomb, Datadog, or any OTLP-compatible collector.
+
+## Setup with Next.js
+
+```bash
+npm install @opentelemetry/sdk-node \
+            @opentelemetry/auto-instrumentations-node \
+            @opentelemetry/exporter-trace-otlp-http
+```
+
+```ts
+// instrumentation.ts  (Next.js 15: loaded via next.config.js instrumentationHook)
+import { NodeSDK }                    from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter }          from '@opentelemetry/exporter-trace-otlp-http';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+
+const sdk = new NodeSDK({
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318/v1/traces',
+  }),
+  instrumentations: [getNodeAutoInstrumentations()],
+});
+
+sdk.start();
+```
+
+`getNodeAutoInstrumentations()` automatically instruments: `fetch`, `http`, `pg`, `redis`, `prisma`, and a dozen other libraries. You get traces from day one without manual instrumentation.
+
+Enable in `next.config.js`:
+
+```js
+// next.config.js
+module.exports = {
+  experimental: {
+    instrumentationHook: true,
+  },
+};
+```
+
+## Creating spans manually
+
+```ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('construx-api', '1.0.0');
+
+async function getUserPosts(userId: string) {
+  return tracer.startActiveSpan('getUserPosts', async (span) => {
+    span.setAttribute('user.id', userId);
+    try {
+      const posts = await db.post.findMany({ where: { authorId: userId } });
+      span.setAttribute('result.count', posts.length);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return posts;
+    } catch (err) {
+      span.recordException(err as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+`startActiveSpan` creates a span and sets it as the active span in the current context. Child spans (created by instrumented libraries) automatically parent themselves to the active span.
+
+## Attributes and events
+
+```ts
+// Attributes: key-value metadata on the span
+span.setAttribute('http.method',       'POST');
+span.setAttribute('http.url',          '/api/posts');
+span.setAttribute('http.status_code',  201);
+span.setAttribute('db.system',         'postgresql');
+span.setAttribute('db.statement',      query);
+
+// Events: timestamped logs attached to the span
+span.addEvent('cache.miss', { key: cacheKey });
+span.addEvent('db.query.start');
+// ... do the query
+span.addEvent('db.query.end', { rows: result.length });
+```
+
+Attributes are indexed and filterable in your tracing backend. Events are a timeline within the span — use them for sub-millisecond steps you want to record without creating a child span.
+
+## Context propagation across services
+
+OTel propagates trace context via HTTP headers (`traceparent`, `tracestate` — W3C Trace Context spec). Auto-instrumentation handles this automatically for `fetch` and `http`. For manual propagation:
+
+```ts
+import { context, propagation } from '@opentelemetry/api';
+
+// Inject context into outgoing request headers
+const carrier: Record<string, string> = {};
+propagation.inject(context.active(), carrier);
+
+const response = await fetch('https://api.scoutr.io/products', {
+  headers: { ...existingHeaders, ...carrier },
+});
+
+// Extract context from incoming request
+const parentContext = propagation.extract(context.active(), req.headers);
+context.with(parentContext, () => {
+  // spans created here are children of the upstream trace
+});
+```
+
+## Sampling
+
+Producing a span for every request is expensive at high traffic. Sampling strategies:
+
+```ts
+import { TraceIdRatioBasedSampler, ParentBasedSampler } from '@opentelemetry/sdk-trace-base';
+
+const sdk = new NodeSDK({
+  sampler: new ParentBasedSampler({
+    root: new TraceIdRatioBasedSampler(0.1),  // sample 10% of new traces
+  }),
+  // ...
+});
+```
+
+`ParentBasedSampler` respects the upstream sampling decision — if the upstream service sampled the trace, you sample it too. `TraceIdRatioBasedSampler` samples deterministically based on trace ID (same trace ID = same sampling decision across services).
+
+For error-heavy or latency-sensitive paths, use tail-based sampling in your collector instead: collect all spans, decide to keep or drop after seeing the full trace.
+
+## Reading traces
+
+A typical trace shows:
+```
+[0ms]  POST /api/posts                                    182ms
+  [2ms]   middleware.auth                                  8ms
+  [10ms]  handler.createPost                             170ms
+    [12ms]  db.query (INSERT INTO posts)                   45ms
+    [58ms]  cache.set (redis SET post:uuid)                 3ms
+    [62ms]  email.queue (resend.send)                      89ms
+```
+
+You can immediately see that the email queue takes 89ms — disproportionate. Without tracing, you'd see a slow `/api/posts` response and guess.
+
+## Exporters
+
+| Exporter               | When to use                               |
+|------------------------|-------------------------------------------|
+| OTLP/HTTP              | Any OTel-compatible backend               |
+| Console                | Local development debugging               |
+| Jaeger                 | Self-hosted open source tracing backend   |
+| Honeycomb              | Managed, good query UX                    |
+| Grafana Tempo          | If already using Grafana for metrics      |
+
+In development, the console exporter prints spans to stdout — no infrastructure needed.

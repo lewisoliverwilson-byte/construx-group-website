@@ -1,0 +1,176 @@
+---
+title: "CSS container queries: component-level responsive design"
+date: "2029-11-14"
+excerpt: "Media queries respond to viewport size. Container queries respond to the size of a component's parent container. The result: a component that adapts its layout based on the space it's actually given, not the device screen — so a card looks right whether it's in a narrow sidebar or a wide main column, without needing any JavaScript or prop drilling."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Media queries break layouts at viewport breakpoints. Container queries break layouts at container breakpoints. The difference matters for component libraries and reusable UI: a card component doesn't know whether it's in a sidebar or a full-width grid — it just knows the space it has.
+
+## Basic container query
+
+```css
+/* 1. Define a containment context on the parent */
+.card-grid {
+  container-type: inline-size;
+  container-name: card-grid;
+}
+
+/* 2. Write rules that respond to the container's width */
+@container card-grid (min-width: 400px) {
+  .card {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 1rem;
+  }
+}
+
+@container card-grid (min-width: 600px) {
+  .card {
+    grid-template-columns: 200px 1fr;
+  }
+}
+```
+
+The card's layout depends on `.card-grid`'s width, not the viewport. Put `.card-grid` in a sidebar (200px wide) and it renders compactly. Put it full-width and it renders with the larger layout. No JavaScript, no ResizeObserver.
+
+## container-type values
+
+```css
+/* inline-size: creates a query context for the inline axis (width) */
+.parent {
+  container-type: inline-size;
+}
+
+/* size: creates a query context for both axes (width + height) */
+.parent {
+  container-type: size;
+}
+
+/* normal: no query context (default) */
+.parent {
+  container-type: normal;
+}
+```
+
+`inline-size` is almost always what you want. `size` is needed when you want to query height, but it requires the container to have a fixed height — use carefully.
+
+## Named containers
+
+```css
+.sidebar {
+  container-type: inline-size;
+  container-name: sidebar;
+}
+
+.main-content {
+  container-type: inline-size;
+  container-name: main;
+}
+
+/* Target a specific named container */
+@container sidebar (max-width: 300px) {
+  .widget { font-size: 0.75rem; }
+}
+
+@container main (min-width: 600px) {
+  .article { column-count: 2; }
+}
+```
+
+Named containers let a component query its specific parent rather than the nearest container ancestor.
+
+## Container query units
+
+Container queries introduce new relative units:
+
+```css
+.card-title {
+  /* cqi: 1% of container's inline size */
+  font-size: clamp(0.875rem, 4cqi, 1.25rem);
+  
+  /* cqb: 1% of container's block size */
+  padding-block: 2cqb;
+  
+  /* cqw / cqh: shorthand for inline/block */
+  margin-inline: 2cqw;
+}
+```
+
+`cqi` and `cqb` work like `vw`/`vh` but relative to the container, not the viewport. Useful for fluid typography that scales with its container.
+
+## Tailwind CSS v4 support
+
+Tailwind v4 ships container query utilities:
+
+```html
+<div class="@container">
+  <div class="@sm:grid @sm:grid-cols-2 @lg:grid-cols-3">
+    <!-- Responds to parent container width, not viewport -->
+  </div>
+</div>
+```
+
+`@sm` = container width ≥ 24rem, `@md` ≥ 28rem, `@lg` ≥ 32rem, etc. You can also define custom container sizes:
+
+```css
+/* tailwind.config.ts */
+theme: {
+  containers: {
+    xs:  '16rem',
+    sm:  '24rem',
+    md:  '28rem',
+    lg:  '32rem',
+    xl:  '36rem',
+    '2xl': '42rem',
+  },
+}
+```
+
+## Practical: a self-adapting card
+
+```tsx
+// Card.tsx — adapts layout based on its container width
+export function Card({ title, description, image }: CardProps) {
+  return (
+    <article className="@container">
+      <div className="
+        flex flex-col gap-3
+        @sm:flex-row @sm:items-start @sm:gap-4
+        @lg:gap-6
+        p-4
+      ">
+        <img
+          src={image}
+          className="
+            w-full rounded
+            @sm:w-24 @sm:shrink-0
+            @lg:w-36
+          "
+        />
+        <div>
+          <h2 className="text-base @sm:text-lg @lg:text-xl font-semibold">{title}</h2>
+          <p className="text-sm text-gray-500 @sm:line-clamp-3 @lg:line-clamp-none">
+            {description}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+}
+```
+
+This `Card` renders correctly in any context: a 200px sidebar, a 400px split panel, a full 1200px page. No props, no JavaScript, no ResizeObserver.
+
+## When to use container queries vs media queries
+
+Use media queries for page-level layout changes — the header collapses at 768px, the sidebar hides below 1024px.
+
+Use container queries for component-level adaptation — a card, a widget, a data table that needs to look right regardless of where it's placed.
+
+The rule: if you're styling based on where the component lives, use container queries. If you're styling based on device type, use media queries.
+
+## Browser support
+
+Container queries have been in all major browsers since early 2023 (Chrome 105, Safari 16, Firefox 110). The `cqi`/`cqb` units followed shortly after. No polyfill needed for any modern browser target.
