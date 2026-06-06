@@ -1,0 +1,224 @@
+---
+title: "Real-time features in Next.js: WebSockets, Server-Sent Events, and long polling"
+date: "2027-12-11"
+excerpt: "Serverless functions don't hold open connections. Building real-time features requires a different architectural approach — a persistent WebSocket server, SSE for one-way streams, or pragmatic long polling. Here's when to use each."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Real-time features — live updates, collaborative editing, presence indicators, activity feeds — require persistent connections. Serverless functions die after the response; they can't hold a WebSocket open for 30 minutes.
+
+Three patterns solve this at different points on the complexity/capability spectrum.
+
+## Server-Sent Events (SSE) for one-way streaming
+
+SSE is HTTP-based: the client makes a request, the server keeps the connection open and pushes events. No WebSocket, no persistent server, works in serverless because you control when the response ends.
+
+Next.js Route Handlers support SSE:
+
+```ts
+// app/api/events/route.ts
+export async function GET(req: Request) {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      // Send an event
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+        );
+      };
+
+      send('connected', { timestamp: new Date().toISOString() });
+
+      // Subscribe to updates (using whatever pub/sub you have)
+      const unsubscribe = await subscribeToUpdates((update) => {
+        send('update', update);
+      });
+
+      // Clean up when client disconnects
+      req.signal.addEventListener('abort', () => {
+        unsubscribe();
+        controller.close();
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+```
+
+```tsx
+// Client-side
+'use client';
+
+import { useEffect, useState } from 'react';
+
+export function LiveFeed() {
+  const [events, setEvents] = useState<string[]>([]);
+
+  useEffect(() => {
+    const es = new EventSource('/api/events');
+
+    es.addEventListener('update', (e) => {
+      setEvents((prev) => [e.data, ...prev].slice(0, 50));
+    });
+
+    es.onerror = () => es.close();
+
+    return () => es.close();
+  }, []);
+
+  return (
+    <ul>
+      {events.map((e, i) => <li key={i}>{e}</li>)}
+    </ul>
+  );
+}
+```
+
+SSE is ideal for one-way streams: notifications, activity feeds, live score updates, AI token streaming.
+
+## Persistent WebSocket server with Ably
+
+For bidirectional real-time (collaborative editing, presence, chat), you need WebSockets — and a service to manage the persistent server.
+
+Ably is a managed WebSocket/pub-sub service. Your serverless functions publish events to Ably channels; clients connect to Ably directly:
+
+```bash
+npm install ably
+```
+
+```ts
+// lib/ably.ts
+import Ably from 'ably';
+
+export const ablyRest = new Ably.Rest(process.env.ABLY_API_KEY!);
+
+export async function publishEvent(channel: string, event: string, data: unknown) {
+  const ch = ablyRest.channels.get(channel);
+  await ch.publish(event, data);
+}
+```
+
+```ts
+// app/api/ably-token/route.ts
+// Client needs a short-lived token to connect directly
+import Ably from 'ably';
+
+const ably = new Ably.Rest(process.env.ABLY_API_KEY!);
+
+export async function POST(req: Request) {
+  const { userId } = await req.json();
+  const tokenRequest = await ably.auth.createTokenRequest({
+    clientId: userId,
+    capability: { [`user:${userId}`]: ['subscribe', 'publish'], 'global': ['subscribe'] },
+  });
+  return Response.json(tokenRequest);
+}
+```
+
+```tsx
+// Client component
+'use client';
+
+import { useEffect, useRef } from 'react';
+import Ably from 'ably';
+
+export function RealtimePresence({ userId }: { userId: string }) {
+  const ablyRef = useRef<Ably.Realtime | null>(null);
+
+  useEffect(() => {
+    const ably = new Ably.Realtime({
+      authUrl: '/api/ably-token',
+      authMethod: 'POST',
+      authParams: { userId },
+      clientId: userId,
+    });
+
+    ablyRef.current = ably;
+    const channel = ably.channels.get(`user:${userId}`);
+
+    channel.subscribe('notification', (msg) => {
+      console.log('New notification:', msg.data);
+    });
+
+    channel.presence.enter({ status: 'active' });
+
+    return () => {
+      channel.presence.leave();
+      ably.close();
+    };
+  }, [userId]);
+
+  return null;
+}
+```
+
+Clients connect to Ably's infrastructure, not your server. Your API routes just publish events when needed — no long-lived connection required.
+
+## Long polling as a fallback
+
+Long polling is HTTP with artificial delay — the server holds the response open until there's data to return, or until a timeout:
+
+```ts
+// app/api/poll/route.ts
+import { NextRequest } from 'next/server';
+
+export async function GET(req: NextRequest) {
+  const lastEventId = req.nextUrl.searchParams.get('lastEventId') ?? '0';
+  const timeout = 25_000;  // 25 seconds max hold
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    const events = await getEventsSince(lastEventId);
+
+    if (events.length > 0) {
+      return Response.json({ events, lastEventId: events[events.length - 1].id });
+    }
+
+    // Wait 500ms before checking again
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  // Timeout — return empty (client re-polls)
+  return Response.json({ events: [], lastEventId });
+}
+```
+
+```ts
+// Client-side polling loop
+async function pollForUpdates(lastEventId: string): Promise<void> {
+  while (true) {
+    const { events, lastEventId: newLastId } = await fetch(
+      `/api/poll?lastEventId=${lastEventId}`
+    ).then((r) => r.json());
+
+    if (events.length > 0) {
+      processEvents(events);
+      lastEventId = newLastId;
+    }
+  }
+}
+```
+
+Long polling has more overhead than SSE or WebSockets — each "event" requires a new HTTP connection. But it works everywhere, requires no special infrastructure, and is easy to debug. Good for low-frequency updates on platforms that don't support SSE.
+
+## Choosing the right pattern
+
+| | SSE | WebSockets (Ably) | Long polling |
+|---|---|---|---|
+| Direction | Server → Client | Bidirectional | Server → Client |
+| Infrastructure | Serverless-compatible | External service | Serverless-compatible |
+| Latency | ~ms | ~ms | ~500ms |
+| Reconnection | Built-in | Built-in | Manual |
+| Best for | Feeds, AI streaming | Chat, presence, collab | Fallback, simple notifications |
+
+For most Next.js projects: SSE for one-way data, Ably/Pusher for bidirectional real-time. Long polling only when the others aren't viable.
