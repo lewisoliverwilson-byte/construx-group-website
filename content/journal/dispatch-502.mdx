@@ -1,0 +1,240 @@
+---
+title: "Monitoring with Sentry: errors, performance, and session replay"
+date: "2029-01-27"
+excerpt: "Sentry captures errors before users report them, traces slow API calls back to their root cause, and replays user sessions to show exactly what happened before a crash. Here's the Next.js integration, source maps, performance tracing, and the configuration that avoids noise."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Production errors have two failure modes: you don't know they're happening, or you know but can't reproduce them. Sentry solves both. Every unhandled exception, every Promise rejection, every failed fetch — captured and grouped with the full stack trace, request context, and user information. Source maps link the minified production stack back to your actual TypeScript code.
+
+## Setup
+
+```bash
+npx @sentry/wizard@latest -i nextjs
+```
+
+The wizard handles the configuration, but here's what it produces:
+
+```ts
+// sentry.client.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn:              process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment:      process.env.NODE_ENV,
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+
+  // Session replay — record interactions before an error
+  replaysSessionSampleRate: 0.05,   // 5% of sessions
+  replaysOnErrorSampleRate: 1.0,    // 100% of sessions that have errors
+
+  integrations: [
+    Sentry.replayIntegration({
+      maskAllText:   true,   // Mask PII by default
+      blockAllMedia: true,
+    }),
+  ],
+
+  // Ignore noise
+  ignoreErrors: [
+    'ResizeObserver loop limit exceeded',
+    'Network request failed',
+    /^AbortError/,
+    /^ChunkLoadError/,
+  ],
+});
+```
+
+```ts
+// sentry.server.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn:              process.env.SENTRY_DSN,
+  environment:      process.env.NODE_ENV,
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 1.0,
+});
+```
+
+## next.config.ts integration
+
+```ts
+// next.config.ts
+import { withSentryConfig } from '@sentry/nextjs';
+
+const nextConfig = {
+  // ...your Next.js config
+};
+
+export default withSentryConfig(nextConfig, {
+  org:     'construx-group',
+  project: 'construx-web',
+
+  // Upload source maps so Sentry can map minified errors to TypeScript
+  sourcemaps: {
+    disable: false,
+    deleteSourcemapsAfterUpload: true,  // Don't serve source maps publicly
+  },
+
+  // Silently suppress Sentry build output
+  silent: process.env.CI !== undefined,
+
+  // Automatic instrumentation
+  autoInstrumentServerFunctions: true,
+  autoInstrumentMiddleware:       true,
+  autoInstrumentAppDirectory:     true,
+});
+```
+
+## Manual error capturing
+
+```ts
+import * as Sentry from '@sentry/nextjs';
+
+// Capture with extra context
+try {
+  await processPayment(orderId);
+} catch (err) {
+  Sentry.captureException(err, {
+    tags:  { component: 'payment', orderId },
+    extra: { userId, planId },
+    level: 'error',
+  });
+  throw err;
+}
+
+// Breadcrumbs — leave a trail before errors
+Sentry.addBreadcrumb({
+  category: 'payment',
+  message:  `Payment initiated for order ${orderId}`,
+  level:    'info',
+});
+```
+
+## Performance tracing
+
+```ts
+// Wrap slow operations in a span
+const result = await Sentry.startSpan(
+  { name: 'generate-ai-response', op: 'ai' },
+  async () => {
+    return anthropic.messages.create({ ... });
+  }
+);
+
+// Custom transaction for a background job
+Sentry.startSpan(
+  { name: 'scan-products', op: 'job' },
+  async (span) => {
+    span.setAttribute('product.count', urls.length);
+
+    for (const url of urls) {
+      await Sentry.startSpan(
+        { name: `scan-url`, op: 'http.client' },
+        async () => {
+          const result = await scrapeUrl(url);
+          span.setAttribute('scan.status', result.status);
+          return result;
+        }
+      );
+    }
+  }
+);
+```
+
+## User context
+
+Attach user identity to errors so you can filter by user or contact them directly:
+
+```ts
+// In your auth middleware or layout
+import * as Sentry from '@sentry/nextjs';
+
+function setUserContext(user: { id: string; email: string; plan: string }) {
+  Sentry.setUser({
+    id:    user.id,
+    email: user.email,
+    plan:  user.plan,
+  });
+}
+
+// Clear on logout
+function clearUserContext() {
+  Sentry.setUser(null);
+}
+```
+
+## Error boundaries in React
+
+```tsx
+import * as Sentry from '@sentry/nextjs';
+
+// app/error.tsx — Next.js error boundary
+'use client';
+
+import { useEffect } from 'react';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
+  return (
+    <div>
+      <h2>Something went wrong</h2>
+      <button onClick={reset}>Try again</button>
+    </div>
+  );
+}
+```
+
+## Alert configuration
+
+The default Sentry alert settings are noisy. Configure them:
+
+1. **First-seen issues**: alert immediately when a new error type appears
+2. **Error rate spikes**: alert when a known issue suddenly increases (not on every occurrence)
+3. **High-frequency errors**: alert on issues that fire more than N times per hour
+
+Turn off "every new event" alerts — they'll fill your inbox with production noise and train you to ignore them.
+
+```yaml
+# sentry-alerts.yml — configured via Sentry UI or API
+- name: "New issue"
+  triggers:
+    - new issue seen for the first time
+  actions:
+    - send Slack message to #errors
+
+- name: "Error spike"
+  triggers:
+    - issue count increases by 50% in 1 hour
+  actions:
+    - send Slack message to #errors
+
+- name: "High frequency"
+  triggers:
+    - issue occurs more than 100 times per hour
+  actions:
+    - send PagerDuty alert
+```
+
+## Tunnel route (ad blocker bypass)
+
+Many users run ad blockers that block Sentry's CDN. Add a tunnel route so error reports go through your own domain:
+
+```ts
+// next.config.ts
+withSentryConfig(nextConfig, {
+  tunnelRoute: '/monitoring',  // Proxies to Sentry through your domain
+})
+```
+
+This routes Sentry events through `/monitoring` on your site, bypassing ad blockers. Sentry's wizard adds this automatically when detected.
