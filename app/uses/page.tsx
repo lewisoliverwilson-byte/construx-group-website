@@ -106,6 +106,15 @@ const TAG_COLORS: Record<string, string> = {
   Input: 'rgba(240,239,255,0.06)',
 };
 
+const SECTION_ACCENTS: Record<string, { accent: string; dim: string }> = {
+  ai:             { accent: '#F97316', dim: 'rgba(249,115,22,0.18)' },
+  stack:          { accent: '#3B82F6', dim: 'rgba(59,130,246,0.16)' },
+  infrastructure: { accent: '#67e8f9', dim: 'rgba(103,232,249,0.15)' },
+  analytics:      { accent: '#a78bfa', dim: 'rgba(167,139,250,0.16)' },
+  tools:          { accent: '#4ade80', dim: 'rgba(74,222,128,0.14)' },
+  hardware:       { accent: 'rgba(240,239,255,0.6)', dim: 'rgba(255,255,255,0.08)' },
+};
+
 export default function UsesPage() {
   return (
     <div className="min-h-screen">
@@ -176,59 +185,119 @@ export default function UsesPage() {
           </div>
         </div>
 
-        <div className="space-y-16">
-          {sections.map((section) => (
-            <section key={section.id} id={section.id} className="scroll-mt-24">
-              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.25em] text-construx/70 mb-5 flex items-center gap-3">
-                <span>// {section.label.toUpperCase()}</span>
-                <span className="flex-1 h-px" style={{ background: 'rgba(249,115,22,0.15)' }} />
-              </h2>
-              <div className="space-y-3">
-                {section.items.map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-start gap-4 px-5 py-4 group"
-                    style={{
-                      background: 'rgba(5,5,18,0.5)',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      borderRadius: '3px',
-                    }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
-                        {item.url ? (
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-sm font-semibold text-text-base hover:text-construx transition-colors"
-                          >
-                            {item.name}
-                            <ExternalLink size={11} className="opacity-30 group-hover:opacity-60 transition-opacity" />
-                          </a>
-                        ) : (
-                          <span className="text-sm font-semibold text-text-base">{item.name}</span>
-                        )}
-                        {item.tag && (
-                          <span
-                            className="font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5"
-                            style={{
-                              background: TAG_COLORS[item.tag] ?? 'rgba(255,255,255,0.06)',
-                              color: 'rgba(240,239,255,0.4)',
-                              borderRadius: '2px',
-                            }}
-                          >
-                            {item.tag}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-text-muted leading-relaxed">{item.description}</p>
-                    </div>
+        <div className="space-y-6">
+          {sections.map((section) => {
+            const { accent, dim } = SECTION_ACCENTS[section.id] ?? { accent: '#F97316', dim: 'rgba(249,115,22,0.15)' };
+            return (
+              <section
+                key={section.id}
+                id={section.id}
+                className="scroll-mt-24 overflow-hidden"
+                style={{
+                  background: 'rgba(3,3,14,0.85)',
+                  border: `1px solid ${dim}`,
+                  borderRadius: '4px',
+                  boxShadow: `0 0 30px ${accent}08`,
+                }}
+              >
+                {/* Terminal title bar */}
+                <div
+                  className="flex items-center gap-3 px-4 py-2.5 select-none"
+                  style={{ borderBottom: `1px solid ${dim}`, background: `${accent}06` }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
                   </div>
-                ))}
-              </div>
-            </section>
-          ))}
+                  <span
+                    className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center"
+                    style={{ color: `${accent}55` }}
+                  >
+                    construx.uses — {section.label.toLowerCase()} · {section.items.length} {section.items.length === 1 ? 'tool' : 'tools'}
+                  </span>
+                  <span
+                    className="font-mono text-[8px] uppercase tracking-widest"
+                    style={{ color: 'rgba(74,222,128,0.45)' }}
+                  >
+                    ● active
+                  </span>
+                </div>
+
+                {/* Shell prompt line */}
+                <div
+                  className="flex items-center gap-2 px-5 py-2 font-mono text-[10px]"
+                  style={{ borderBottom: `1px solid ${dim}`, background: 'rgba(0,0,6,0.3)' }}
+                >
+                  <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@sys</span>
+                  <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+                  <span style={{ color: 'rgba(240,239,255,0.28)' }}>
+                    cat /var/construx/uses/{section.id}.json
+                  </span>
+                </div>
+
+                {/* Items */}
+                <div>
+                  {section.items.map((item, i) => (
+                    <div
+                      key={item.name}
+                      className="flex items-start gap-4 px-5 py-4 group"
+                      style={{
+                        borderBottom: i < section.items.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none',
+                      }}
+                    >
+                      <div className="flex-shrink-0 font-mono text-[9px] tabular-nums mt-0.5" style={{ color: `${accent}40`, minWidth: '1.5rem' }}>
+                        {String(i + 1).padStart(2, '0')}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+                          {item.url ? (
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-sm font-semibold text-text-base hover:text-construx transition-colors"
+                            >
+                              {item.name}
+                              <ExternalLink size={11} className="opacity-30 group-hover:opacity-60 transition-opacity" />
+                            </a>
+                          ) : (
+                            <span className="text-sm font-semibold text-text-base">{item.name}</span>
+                          )}
+                          {item.tag && (
+                            <span
+                              className="font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5"
+                              style={{
+                                background: TAG_COLORS[item.tag] ?? 'rgba(255,255,255,0.06)',
+                                color: 'rgba(240,239,255,0.4)',
+                                borderRadius: '2px',
+                              }}
+                            >
+                              {item.tag}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-text-muted leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Status footer */}
+                <div
+                  className="flex items-center justify-between px-4 py-1.5"
+                  style={{ borderTop: `1px solid ${dim}`, background: 'rgba(0,0,4,0.35)' }}
+                >
+                  <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: `${accent}30` }}>
+                    {section.id}.module
+                  </span>
+                  <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.1)' }}>
+                    {section.items.length} entries
+                  </span>
+                </div>
+              </section>
+            );
+          })}
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
