@@ -13,6 +13,7 @@ import PerfStatPanel from '@/components/PerfStatPanel';
 import StraceProcPanel from '@/components/StraceProcPanel';
 import TcpdumpPanel from '@/components/TcpdumpPanel';
 import SarPanel from '@/components/SarPanel';
+import RedisCLIPanel from '@/components/RedisCLIPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -398,8 +399,13 @@ export default function StatsPage() {
       </div>
 
       {/* CPU utilisation over time */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <SarPanel />
+      </div>
+
+      {/* Redis live stats */}
+      <div className="mt-6 pb-10">
+        <RedisCLIPanel />
       </div>
     </div>
   );

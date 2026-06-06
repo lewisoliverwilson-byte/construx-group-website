@@ -1,0 +1,130 @@
+---
+title: "Cloudflare R2: object storage with zero egress fees"
+date: "2030-11-30"
+excerpt: "Cloudflare R2 is S3-compatible object storage with no egress fees. Storing and retrieving data costs the same per GB as S3, but getting that data out costs nothing. For a site that serves images, videos, or static assets to end users, R2 eliminates the largest part of the S3 bill. The S3 API compatibility means a one-line change to switch."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+S3 egress at $0.09/GB adds up fast. R2 charges nothing for egress. The API is identical.
+
+## Setup
+
+```bash
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+```ts
+// src/lib/r2.ts
+import { S3Client } from '@aws-sdk/client-s3';
+
+export const r2 = new S3Client({
+  region:      'auto',
+  endpoint:    `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+export const BUCKET = process.env.R2_BUCKET_NAME!;
+```
+
+## Upload a file
+
+```ts
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { r2, BUCKET }       from '@/lib/r2';
+
+async function uploadFile(key: string, body: Buffer, contentType: string) {
+  await r2.send(
+    new PutObjectCommand({
+      Bucket:      BUCKET,
+      Key:         key,
+      Body:        body,
+      ContentType: contentType,
+    }),
+  );
+
+  return `https://assets.construxgroup.io/${key}`;
+}
+
+// Example: upload a user avatar
+const buffer = Buffer.from(await file.arrayBuffer());
+const url    = await uploadFile(`avatars/${userId}.webp`, buffer, 'image/webp');
+```
+
+## Presigned upload URLs
+
+Let the browser upload directly to R2 — no server bandwidth used.
+
+```ts
+// app/api/upload-url/route.ts
+import { PutObjectCommand }   from '@aws-sdk/client-s3';
+import { getSignedUrl }       from '@aws-sdk/s3-request-presigner';
+import { r2, BUCKET }         from '@/lib/r2';
+import { nanoid }             from 'nanoid';
+
+export async function POST(request: Request) {
+  const { fileType, size } = await request.json();
+
+  if (size > 10 * 1024 * 1024) {
+    return Response.json({ error: 'Max 10MB' }, { status: 400 });
+  }
+
+  const key = `uploads/${nanoid()}.${fileType.split('/')[1]}`;
+
+  const url = await getSignedUrl(
+    r2,
+    new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: fileType }),
+    { expiresIn: 300 }, // 5 minutes
+  );
+
+  return Response.json({ url, key });
+}
+```
+
+```ts
+// Browser: upload directly to R2
+const { url, key } = await fetch('/api/upload-url', {
+  method: 'POST',
+  body:   JSON.stringify({ fileType: file.type, size: file.size }),
+}).then((r) => r.json());
+
+await fetch(url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+```
+
+## Public bucket with custom domain
+
+In the Cloudflare dashboard, connect a custom domain to the R2 bucket. `assets.construxgroup.io` serves directly from R2 with Cloudflare CDN in front. No CloudFront, no separate CDN configuration.
+
+```ts
+// Construct public URLs
+function publicUrl(key: string): string {
+  return `https://assets.construxgroup.io/${key}`;
+}
+```
+
+## Workers binding (for server-side access without credentials)
+
+```ts
+// worker.ts — runs inside Cloudflare Workers
+export default {
+  async fetch(request: Request, env: { BUCKET: R2Bucket }) {
+    const key  = new URL(request.url).pathname.slice(1);
+    const obj  = await env.BUCKET.get(key);
+
+    if (!obj) return new Response('Not found', { status: 404 });
+
+    return new Response(obj.body, {
+      headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'application/octet-stream' },
+    });
+  },
+};
+```
+
+Workers bound to R2 have zero egress cost and zero network latency — data stays within Cloudflare's network.
+
+## R2 vs S3 vs Backblaze B2
+
+R2: zero egress, S3-compatible, Cloudflare CDN integration, slightly higher storage cost ($0.015/GB vs $0.023/GB on S3). S3: widest ecosystem, more features (lifecycle, replication, analytics), egress costs. Backblaze B2: cheapest storage ($0.006/GB), free egress via Cloudflare CDN partnership, less ecosystem. For most web applications that serve assets to users: R2. For archival and backup: Backblaze B2. For complex workflows with S3 tooling: S3.

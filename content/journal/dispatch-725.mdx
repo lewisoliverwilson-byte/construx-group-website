@@ -1,0 +1,150 @@
+---
+title: "OpenAPI + Zod: generating types from your schema"
+date: "2030-11-27"
+excerpt: "OpenAPI describes your REST API. Zod validates data at runtime. Used together with code generation tools, they give you a type-safe API client, validated request and response bodies, and API documentation from a single source of truth. zod-to-openapi generates OpenAPI specs from your Zod schemas. openapi-typescript generates TypeScript types from any OpenAPI spec. Pick one direction and follow it consistently."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+API contracts should be explicit, versioned, and machine-readable. OpenAPI plus Zod closes the gap between documentation and implementation.
+
+## Direction 1: Zod → OpenAPI
+
+Define Zod schemas, generate OpenAPI spec from them.
+
+```ts
+// src/schemas/post.ts
+import { z }                      from 'zod';
+import { extendZodWithOpenApi }   from '@asteasolutions/zod-to-openapi';
+
+extendZodWithOpenApi(z);
+
+export const PostSchema = z.object({
+  id:        z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
+  title:     z.string().min(1).max(200).openapi({ example: 'Building with Hono' }),
+  content:   z.string().min(10).openapi({ example: 'Hono is a web framework…' }),
+  published: z.boolean().default(false),
+  createdAt: z.string().datetime().openapi({ example: '2030-11-27T09:00:00Z' }),
+  tags:      z.array(z.string()).optional(),
+});
+
+export const CreatePostSchema = PostSchema.omit({ id: true, createdAt: true });
+export const UpdatePostSchema  = CreatePostSchema.partial();
+
+export type Post       = z.infer<typeof PostSchema>;
+export type CreatePost = z.infer<typeof CreatePostSchema>;
+```
+
+```ts
+// src/openapi/registry.ts
+import { OpenAPIRegistry, OpenApiGeneratorV3 } from '@asteasolutions/zod-to-openapi';
+import { PostSchema, CreatePostSchema }         from '../schemas/post';
+
+const registry = new OpenAPIRegistry();
+
+registry.register('Post', PostSchema);
+
+registry.registerPath({
+  method:      'get',
+  path:        '/posts',
+  summary:     'List all posts',
+  responses: {
+    200: {
+      description: 'Array of posts',
+      content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Post' } } } },
+    },
+  },
+});
+
+registry.registerPath({
+  method:   'post',
+  path:     '/posts',
+  summary:  'Create a post',
+  request: {
+    body: { content: { 'application/json': { schema: CreatePostSchema } }, required: true },
+  },
+  responses: {
+    201: { description: 'Created post', content: { 'application/json': { schema: PostSchema } } },
+    400: { description: 'Validation error' },
+  },
+});
+
+const generator = new OpenApiGeneratorV3(registry.definitions);
+export const openApiSpec = generator.generateDocument({
+  openapi: '3.0.0',
+  info:    { title: 'Construx API', version: '2.0.0' },
+  servers: [{ url: 'https://api.construxgroup.io' }],
+});
+```
+
+## Direction 2: OpenAPI → TypeScript types
+
+Start with an OpenAPI spec, generate types from it.
+
+```bash
+npx openapi-typescript https://api.construxgroup.io/openapi.json -o src/types/api.ts
+# or from a local file
+npx openapi-typescript openapi.yaml -o src/types/api.ts
+```
+
+This generates:
+
+```ts
+// src/types/api.ts (generated)
+export interface components {
+  schemas: {
+    Post: {
+      id:        string;
+      title:     string;
+      content:   string;
+      published: boolean;
+      createdAt: string;
+      tags?:     string[];
+    };
+  };
+}
+```
+
+```ts
+// Using the generated types with fetch
+import { createFetch }   from 'openapi-fetch';
+import type { paths }    from './types/api';
+
+const client = createFetch<paths>({ baseUrl: 'https://api.construxgroup.io' });
+
+// Fully typed response
+const { data, error } = await client.GET('/posts/{id}', {
+  params: { path: { id: '550e8400-e29b-41d4-a716-446655440000' } },
+});
+
+// data is typed as components['schemas']['Post']
+```
+
+## Validation in route handlers
+
+```ts
+// Using Zod for runtime validation, OpenAPI for documentation
+import { zValidator } from '@hono/zod-validator';
+import { CreatePostSchema, PostSchema } from '@/schemas/post';
+
+app.post(
+  '/posts',
+  zValidator('json', CreatePostSchema),
+  async (c) => {
+    const body = c.req.valid('json'); // typed as CreatePost
+    const post = await db.posts.create({ data: body });
+    return c.json(PostSchema.parse(post), 201);
+  },
+);
+```
+
+## Serving the spec
+
+```ts
+app.get('/openapi.json', (c) => c.json(openApiSpec));
+app.get('/docs', (c) =>
+  c.html(`<html><body><script src="https://unpkg.com/scalar" data-url="/openapi.json"></script></body></html>`),
+);
+```
+
+Scalar renders a modern API reference UI from the OpenAPI spec. One endpoint, full interactive documentation.
