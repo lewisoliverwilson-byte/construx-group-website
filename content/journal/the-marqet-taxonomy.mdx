@@ -1,0 +1,70 @@
+---
+title: "The Marqet's taxonomy problem: how to organise 167 AI listings"
+date: "2026-06-24"
+excerpt: "When you have 167 Claude configurations across every professional domain, how do you organise them so users can find what they need? The taxonomy decisions that shaped The Marqet's browse experience."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+The Marqet launched with 167 listings. Forty-eight professional domains. Four listing types (system prompts, prompt packs, MCP servers, workflow templates). And a user who arrives not knowing what they need beyond "I use Claude for work and I want it to be better at my job."
+
+The taxonomy problem: how do you organise 167 things so that person finds the right one?
+
+## Why taxonomy matters more than search
+
+Our first instinct was search-first: let users describe what they want and surface the right listings. Search is how users navigate Google, how they find products on Amazon, how they filter through large catalogues.
+
+Search works when users have a clear mental model of what they're looking for. "Claude system prompt for HR interviews" is a good search query because the user knows they want:
+1. A system prompt (not an MCP server)
+2. For HR use (not finance or legal)
+3. Specifically for interview contexts
+
+Most The Marqet users don't start with this clarity. They know they use Claude, they know they want to do better work, they don't know the vocabulary of "system prompt" or "MCP server." They don't know that "HR" is a category or that "interviews" is a subcategory.
+
+Search requires vocabulary. Browse requires structure. The Marqet needed structure first.
+
+## The four-category framework
+
+We landed on four top-level categories:
+
+**By role**: listings grouped by professional role — HR professional, software engineer, financial analyst, real estate agent, and so on. This maps to how users think of themselves. "I'm a financial analyst, what configurations exist for financial analysts?"
+
+**By use case**: listings grouped by activity type — writing, research, analysis, communication, coding. This captures cross-domain patterns. An HR professional and a marketer might both benefit from a research assistant configuration; a role-based taxonomy separates them, a use case taxonomy surfaces the shared tool.
+
+**By listing type**: system prompts, prompt packs, MCP servers, workflow templates. This maps to the technical sophistication of the user. An experienced Claude user who knows what an MCP server is can navigate directly to MCP servers; a new user who doesn't know the vocabulary can ignore this filter entirely.
+
+**New listings**: the most recently added, regardless of category. Users who visit regularly come to see what's new.
+
+This four-category structure is displayed on the main browse page as a tab selector. The user chooses their mental model — their professional identity, their task, the technical category they know, or novelty — and the listing set adapts.
+
+## The cross-listing decision
+
+A system prompt that makes Claude a better financial analyst who specialises in writing investment memos belongs in "Finance" (role), "Writing" (use case), and "System Prompts" (type). It's not in any of these categories exclusively.
+
+We assign each listing to its primary role-based category for the main browse view, and tag it with secondary categories for filtering. A user browsing "Finance" sees the investment memo prompt; a user filtering by "Writing" also sees it.
+
+The risk with cross-listing: surfacing the same listing in multiple places creates a sense of repetition that makes the catalogue feel smaller than it is. We handle this by showing listings in their primary category first and secondary categories with a "also relevant for..." label.
+
+## The taxonomy maintenance problem
+
+167 listings is manageable. At 500+, a manually maintained taxonomy becomes a significant ongoing operation. Categories that made sense at 167 listings may not make sense at scale.
+
+Our current taxonomy has a bias toward professional roles because that's the most intuitive mental model for our users. But as we add more listings, domain-crossing use cases — research, communication, analysis — may become more useful organising principles than role.
+
+The architectural decision we made: keep the taxonomy shallow (4 top-level categories, a flat set of subcategories within each) rather than deep (multiple nested levels). Deep taxonomies require users to commit to a navigation path early, and they're hard to maintain as the catalogue grows. Flat taxonomies with good search and filtering are more flexible.
+
+## The listing page design implication
+
+The taxonomy decision affects more than the browse experience — it affects the listing page. A listing that can be found via multiple paths needs to present itself accurately to each audience.
+
+Our solution: listings have a primary role label prominently displayed, and a list of secondary use cases in the metadata. The description is written to resonate with the primary role user while being comprehensible to users from related roles.
+
+This is more writing work per listing, but it produces listing pages that convert better than generic descriptions. A financial analyst reading "built specifically for analysts writing investment memos, handles Excel-style number formatting, cite sources consistently" converts better than "a writing assistant for financial professionals."
+
+## What we'd change
+
+The browse experience currently doesn't adapt to what the user seems to be looking for. A new user and a returning user who specialises in a specific domain see the same taxonomy.
+
+The better version: a browse experience that learns from browsing and purchase history, surfacing listings from categories the user has engaged with and flagging new listings in their specialisation.
+
+We don't have this. Building personalisation for a listing catalogue requires enough users and enough browsing signal to train on, and we're still in the early data accumulation phase. The taxonomy does the job of personalisation manually for now — by being specific enough that the right user can find the right listing with three or four interactions, rather than requiring ten.
