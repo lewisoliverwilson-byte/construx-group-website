@@ -1,0 +1,217 @@
+---
+title: "API design: versioning, error shapes, and pagination that doesn't break"
+date: "2028-05-29"
+excerpt: "An API is a contract with your clients. Break the contract and you break them. Here's how to version APIs, structure error responses, and paginate large datasets in a way that can evolve without breaking existing integrations."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+An API is a contract. The moment a client depends on a response shape, you're responsible for maintaining it. The decisions you make early — how to version, how to format errors, how to handle pagination — compound over time.
+
+## Versioning
+
+**URL versioning** — `/api/v1/users` and `/api/v2/users` are different routes. Clear, explicit, easy to route. The right default.
+
+**Header versioning** — `Accept: application/vnd.construx.v2+json`. Cleaner URLs. Harder to test in a browser.
+
+**No versioning** — extend fields, never remove them. Only works if your API is extremely stable and you control all clients.
+
+For most apps: URL versioning with a version prefix:
+
+```ts
+// app/api/v1/users/route.ts
+export async function GET() {
+  const users = await db.query.users.findMany({
+    columns: { id: true, name: true, email: true },
+  });
+  return Response.json({ users });
+}
+
+// app/api/v2/users/route.ts — extended response shape
+export async function GET() {
+  const users = await db.query.users.findMany({
+    columns: { id: true, name: true, email: true, role: true, createdAt: true },
+  });
+  return Response.json({
+    users,
+    meta: { count: users.length },
+  });
+}
+```
+
+Retire old versions explicitly. Set a deprecation date, add a `Deprecation` header, communicate to API consumers before removing.
+
+## Error responses
+
+Inconsistent errors are the worst API bug. Pick a shape and stick to it:
+
+```ts
+// lib/api-error.ts
+type ApiErrorCode =
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'VALIDATION_ERROR'
+  | 'CONFLICT'
+  | 'RATE_LIMITED'
+  | 'INTERNAL_ERROR';
+
+interface ApiError {
+  error: {
+    code: ApiErrorCode;
+    message: string;
+    details?: Record<string, string[]>;  // validation errors per field
+    requestId?: string;
+  };
+}
+
+export function errorResponse(
+  code: ApiErrorCode,
+  message: string,
+  status: number,
+  details?: Record<string, string[]>,
+): Response {
+  const body: ApiError = {
+    error: { code, message, details },
+  };
+  return Response.json(body, { status });
+}
+```
+
+```ts
+// Usage in Route Handlers
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session) {
+    return errorResponse('UNAUTHORIZED', 'Authentication required', 401);
+  }
+
+  const parsed = createUserSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return errorResponse(
+      'VALIDATION_ERROR',
+      'Invalid request body',
+      422,
+      parsed.error.flatten().fieldErrors,
+    );
+  }
+
+  const existing = await db.query.users.findFirst({
+    where: eq(users.email, parsed.data.email),
+  });
+  if (existing) {
+    return errorResponse('CONFLICT', 'A user with this email already exists', 409);
+  }
+
+  // ...
+}
+```
+
+Clients can pattern-match on `error.code` rather than HTTP status codes, which is more specific.
+
+## Pagination
+
+Two patterns: offset and cursor.
+
+**Offset pagination** — `?page=2&limit=20`. Simple. Breaks when items are inserted/deleted mid-pagination (items shift, you see duplicates or miss items). SQL: `OFFSET` + `LIMIT`.
+
+**Cursor pagination** — `?after=cursor_token`. Stable — insertion/deletion doesn't affect results. More complex. Requires an ordered field to cursor on.
+
+Cursor pagination:
+
+```ts
+// app/api/posts/route.ts
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const limit = Math.min(parseInt(searchParams.get('limit') ?? '20'), 100);
+  const after = searchParams.get('after');
+
+  let whereClause = undefined;
+
+  if (after) {
+    // Decode cursor — cursor is base64-encoded JSON {id, createdAt}
+    const cursor = JSON.parse(Buffer.from(after, 'base64').toString());
+    whereClause = or(
+      lt(posts.createdAt, cursor.createdAt),
+      and(
+        eq(posts.createdAt, cursor.createdAt),
+        lt(posts.id, cursor.id),
+      ),
+    );
+  }
+
+  const items = await db.query.posts.findMany({
+    where: whereClause,
+    limit: limit + 1,  // fetch one extra to detect hasMore
+    orderBy: [desc(posts.createdAt), desc(posts.id)],
+  });
+
+  const hasMore = items.length > limit;
+  if (hasMore) items.pop();  // remove the extra item
+
+  const nextCursor = hasMore
+    ? Buffer.from(JSON.stringify({ id: items.at(-1)!.id, createdAt: items.at(-1)!.createdAt })).toString('base64')
+    : null;
+
+  return Response.json({
+    items,
+    pagination: {
+      hasMore,
+      nextCursor,
+      count: items.length,
+    },
+  });
+}
+```
+
+Client-side:
+
+```ts
+// Fetch all pages
+async function fetchAllPosts() {
+  const results = [];
+  let cursor = null;
+
+  do {
+    const params = new URLSearchParams({ limit: '100' });
+    if (cursor) params.set('after', cursor);
+
+    const res = await fetch(`/api/posts?${params}`);
+    const data = await res.json();
+
+    results.push(...data.items);
+    cursor = data.pagination.nextCursor;
+  } while (cursor);
+
+  return results;
+}
+```
+
+## Response envelopes
+
+Wrap all responses in a consistent envelope:
+
+```ts
+// Consistent success shape
+{
+  "data": { ... } | [...],
+  "meta": {
+    "requestId": "req_abc123",
+    "version": "v1",
+    "timestamp": "2028-04-11T10:00:00Z"
+  }
+}
+
+// Consistent error shape
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "...",
+    "details": { "email": ["Invalid email format"] }
+  }
+}
+```
+
+The `requestId` in every response is valuable for debugging — include it in logs, pass it to error tracking, tell users to include it in bug reports.
+
+The pattern: URL versioning for explicit contracts, typed error codes for client-side handling, cursor pagination for stability. Your API's design is a long-term commitment — the cost of doing it right once is much lower than migrating it later.
