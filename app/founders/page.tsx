@@ -121,12 +121,19 @@ export default function FoundersPage() {
                     fontFamily: 'var(--font-jetbrains-mono)',
                   }}
                 >
-                  <p
-                    className="text-[9px] font-medium uppercase tracking-[0.25em] mb-3"
-                    style={{ color: `${f.accent}80` }}
-                  >
-                    // ID.PROFILE
-                  </p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                    </div>
+                    <p
+                      className="text-[9px] font-medium uppercase tracking-[0.25em]"
+                      style={{ color: `${f.accent}70` }}
+                    >
+                      id.profile
+                    </p>
+                  </div>
                   <div className="space-y-1.5">
                     {[
                       ['USER', f.handle],
@@ -213,16 +220,28 @@ export default function FoundersPage() {
 
         {/* Origin story */}
         <div
-          className="mt-16 p-10"
+          className="mt-16 overflow-hidden"
           style={{
             background: 'rgba(5,5,18,0.8)',
             border: '1px solid rgba(255,255,255,0.07)',
             borderRadius: '3px',
           }}
         >
-          <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim mb-3">
-            // ORIGIN
-          </p>
+          {/* Title bar */}
+          <div
+            className="flex items-center gap-3 px-4 py-2.5 border-b border-border select-none"
+            style={{ background: 'rgba(255,255,255,0.02)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+            </div>
+            <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
+              construx.origin — how we started
+            </span>
+          </div>
+          <div className="p-10">
           <h2 className="text-heading-xl text-text-base mb-6">How Construx started</h2>
           <p className="text-text-muted leading-relaxed text-base mb-4">
             Construx started from a simple observation: the tools had changed enough that a small,
@@ -261,6 +280,7 @@ export default function FoundersPage() {
             The result is a small group that operates like something much larger, without
             compromising on quality or pace.
           </p>
+          </div>
         </div>
 
         {/* CTA */}
