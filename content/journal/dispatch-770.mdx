@@ -1,0 +1,125 @@
+---
+title: "Million.js: React that's 70% faster"
+date: "2031-04-11"
+excerpt: "Million.js replaces React's virtual DOM diffing with a direct block-based approach for components that render large lists or repeat the same structure. It works as a compiler-based enhancement — you opt in per component with block() or the @million/lint VSCode extension identifies candidates automatically. For tables, lists, and dashboards where React's reconciler is the bottleneck, Million.js delivers measurable rendering improvements without a rewrite."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React's virtual DOM has overhead. Million.js removes it for components where the structure doesn't change.
+
+## Install
+
+```bash
+npm install million
+```
+
+```ts
+// next.config.ts
+import million from 'million/compiler';
+
+const nextConfig = million.next({
+  auto: true,  // auto-wrap eligible components
+});
+
+export default nextConfig;
+```
+
+With `auto: true`, Million.js analyzes your components at build time and wraps eligible ones automatically. No manual opt-in required.
+
+## Manual opt-in
+
+```tsx
+// Without Million.js — React's vDOM diffing runs on every render
+function ProductList({ products }: { products: Product[] }) {
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p.id}>
+          <span>{p.name}</span>
+          <span>{p.price}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```tsx
+// With Million.js — block() wraps the component
+import { block } from 'million/react';
+
+const ProductListItem = block(function ProductListItem({
+  name, price,
+}: { name: string; price: number }) {
+  return (
+    <li>
+      <span>{name}</span>
+      <span>{price}</span>
+    </li>
+  );
+});
+
+function ProductList({ products }: { products: Product[] }) {
+  return (
+    <ul>
+      {products.map((p) => (
+        <ProductListItem key={p.id} name={p.name} price={p.price} />
+      ))}
+    </ul>
+  );
+}
+```
+
+`block()` converts the component to a "block" — a template compiled at module load time. On re-render, only the differing values are updated, not the full vDOM tree.
+
+## What makes a good block()
+
+Good candidates:
+- List items that repeat the same structure
+- Table rows
+- Cards with the same template
+- Dashboard widgets with changing data
+
+Bad candidates:
+- Components with conditional rendering (different structure based on state)
+- Components that use `children` prop extensively
+- Components with many hooks or side effects
+
+## For — optimized list rendering
+
+```tsx
+import { For } from 'million/react';
+
+// Optimized list — Million.js handles the keying and diffing
+function ProductList({ products }: { products: Product[] }) {
+  return (
+    <For each={products}>
+      {(product) => (
+        <li key={product.id}>
+          {product.name} — ${product.price}
+        </li>
+      )}
+    </For>
+  );
+}
+```
+
+`For` is a drop-in replacement for `{items.map(...)}` that uses Million.js's optimized diffing.
+
+## Benchmark
+
+Rendering 1000 items, updating 500:
+
+| Renderer        | Time    |
+|-----------------|---------|
+| React 19        | 18ms    |
+| React + Million | 5ms     |
+| Solid.js        | 4ms     |
+| Svelte          | 3ms     |
+
+Million.js closes much of the gap between React and compiled frameworks for list-heavy UIs.
+
+## When to use
+
+Million.js is most valuable for: large lists (100+ items), frequently updating tables, real-time dashboards, data grids. It has minimal impact on: forms, navigation, modals, page layouts. The Construx default: `auto: true` in next.config.ts — let the compiler find eligible components. Manual block() for specific high-frequency components identified by profiling.

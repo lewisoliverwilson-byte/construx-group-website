@@ -1,0 +1,153 @@
+---
+title: "Pino: the fastest structured logger for Node.js"
+date: "2031-04-14"
+excerpt: "Pino is a Node.js logger that serializes JSON 5x faster than Winston by offloading formatting to a separate worker thread. Your application writes minimal JSON to stdout; a pino-pretty process or log aggregator handles formatting separately. This architecture means the logging never blocks the main thread. Pino integrates with Fastify natively and works with Next.js, Hono, and any Node.js runtime."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Logging that doesn't slow down your application. JSON to stdout, formatting elsewhere.
+
+## Install
+
+```bash
+npm install pino
+npm install --save-dev pino-pretty  # dev formatting only
+```
+
+## Basic setup
+
+```ts
+// src/lib/logger.ts
+import pino from 'pino';
+
+export const logger = pino({
+  level: process.env.LOG_LEVEL ?? 'info',
+
+  // In production: plain JSON to stdout
+  // In development: pretty-printed via pino-pretty
+  transport: process.env.NODE_ENV === 'development'
+    ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss' } }
+    : undefined,
+});
+```
+
+## Log with context
+
+```ts
+// Child loggers inherit and extend context — no global mutable state
+const reqLogger = logger.child({
+  requestId: req.headers['x-request-id'],
+  userId:    session.userId,
+  route:     '/api/v1/workspaces',
+});
+
+reqLogger.info('Request received');
+reqLogger.info({ count: workspaces.length }, 'Fetched workspaces');
+reqLogger.error({ err: error, workspaceId }, 'Failed to fetch workspace');
+```
+
+## Next.js integration
+
+```ts
+// src/lib/logger.ts
+import pino from 'pino';
+
+export const logger = pino({
+  level: process.env.LOG_LEVEL ?? 'info',
+  browser: {
+    // Pino works in both Node.js and browser contexts
+    asObject: true,
+  },
+});
+
+// Route handler
+export async function GET(request: Request) {
+  const log = logger.child({ requestId: crypto.randomUUID() });
+  log.info('GET /api/workspaces');
+
+  try {
+    const data = await fetchWorkspaces();
+    log.info({ count: data.length }, 'Workspaces fetched');
+    return Response.json(data);
+  } catch (err) {
+    log.error({ err }, 'Failed to fetch workspaces');
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+```
+
+## Serializers — control what gets logged
+
+```ts
+import pino from 'pino';
+
+export const logger = pino({
+  serializers: {
+    // Redact sensitive fields from request objects
+    req: pino.stdSerializers.req,
+    res: pino.stdSerializers.res,
+    err: pino.stdSerializers.err,
+
+    // Custom serializer — strip PII from user objects
+    user: (user: { id: string; email: string; name: string }) => ({
+      id:    user.id,
+      // email: omitted from logs
+    }),
+  },
+});
+```
+
+## Ship to Loki
+
+```ts
+// src/lib/logger.ts
+import pino      from 'pino';
+import pinoLoki  from 'pino-loki';
+
+export const logger = pino(
+  {
+    level: process.env.LOG_LEVEL ?? 'info',
+    serializers: { err: pino.stdSerializers.err },
+  },
+  pino.multistream([
+    // Stdout — always
+    { stream: process.stdout },
+    // Loki — in production
+    ...(process.env.NODE_ENV === 'production'
+      ? [{
+          stream: pinoLoki({
+            host:     process.env.LOKI_HOST!,
+            labels:  { env: 'prod', service: 'construx-api' },
+            batching: true,
+            interval: 5,
+          }),
+        }]
+      : []),
+  ]),
+);
+```
+
+## Log levels
+
+```ts
+logger.trace({ detail }, 'Only in trace level');   // 10
+logger.debug({ data },  'Debug information');       // 20
+logger.info({ event },  'Normal operations');       // 30
+logger.warn({ issue },  'Degraded but running');    // 40
+logger.error({ err },   'Error occurred');          // 50
+logger.fatal({ err },   'Unrecoverable — process will exit'); // 60
+```
+
+Set `LOG_LEVEL=trace` in development for verbose output.
+
+## Benchmark — logs per second
+
+| Logger    | Logs/second |
+|-----------|-------------|
+| Pino      | 3,200,000   |
+| Bunyan    | 870,000     |
+| Winston   | 690,000     |
+| console   | 430,000     |
+
+Pino vs Winston: Pino is 4-5x faster, produces structured JSON by default, and doesn't try to be a sink — it writes to stdout and lets log aggregators handle the rest. Winston is more configurable out of the box. The Construx default: Pino everywhere. Winston is not installed in any new project.

@@ -1,0 +1,126 @@
+---
+title: "oha: HTTP load testing from the terminal"
+date: "2031-04-17"
+excerpt: "oha is a Rust-based HTTP load testing tool that renders a real-time TUI while running. It outputs latency histograms, status code distributions, requests per second, and connection timing breakdowns in a single terminal view. For quick load tests during development or CI performance gates, oha gives you more information than wrk and faster startup than k6, with no configuration files required."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Load testing that fits in a one-liner and shows results as they arrive.
+
+## Install
+
+```bash
+# macOS
+brew install oha
+
+# Linux
+cargo install oha
+
+# Pre-built binary
+curl -L https://github.com/hatoo/oha/releases/latest/download/oha-linux-amd64 -o oha && chmod +x oha
+```
+
+## Basic load test
+
+```bash
+# 200 concurrent connections, 10 seconds
+oha -c 200 -z 10s https://construxgroup.io/api/v1/workspaces
+
+# 10,000 total requests
+oha -n 10000 https://construxgroup.io/
+
+# With custom headers and body (POST)
+oha -c 50 -n 1000 \
+  -m POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"test","slug":"test-123"}' \
+  https://construxgroup.io/api/v1/workspaces
+```
+
+## Example output
+
+```
+Summary:
+  Success rate: 100.00%
+  Total:        10.0012 secs
+  Slowest:      0.4892 secs
+  Fastest:      0.0124 secs
+  Average:      0.0487 secs
+  Requests/sec: 2049.18
+
+  Total data:   14.82 MiB
+  Size/request: 756 B
+
+Response time histogram:
+  0.012 [1]    |
+  0.061 [8821] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.110 [911]  |■■■
+  0.159 [182]  |
+  0.208 [51]   |
+  0.257 [19]   |
+  0.306 [8]    |
+  0.355 [4]    |
+  0.404 [2]    |
+  0.453 [0]    |
+  0.489 [1]    |
+
+Latency distribution:
+  10%   in 0.0312 secs
+  25%   in 0.0401 secs
+  50%   in 0.0462 secs
+  75%   in 0.0534 secs
+  90%   in 0.0641 secs
+  95%   in 0.0734 secs
+  99%   in 0.1182 secs
+
+Status code distribution:
+  [200] 20000 responses
+```
+
+## Ramp up concurrency
+
+```bash
+# Start low, see where latency degrades
+oha -c 10   -z 30s https://api.construxgroup.io/health &
+oha -c 50   -z 30s https://api.construxgroup.io/health &
+oha -c 200  -z 30s https://api.construxgroup.io/health &
+oha -c 1000 -z 30s https://api.construxgroup.io/health
+```
+
+## Use in CI as a performance gate
+
+```bash
+# scripts/load-test.sh
+set -euo pipefail
+
+ENDPOINT="https://staging.construxgroup.io/api/v1/workspaces"
+CONCURRENCY=100
+REQUESTS=5000
+P99_MAX_MS=200
+
+echo "Running load test: $CONCURRENCY concurrent, $REQUESTS requests"
+
+# Run and capture JSON output
+RESULT=$(oha -c "$CONCURRENCY" -n "$REQUESTS" --json "$ENDPOINT")
+
+P99=$(echo "$RESULT" | jq '.latencyPercentiles."p99" * 1000 | round')
+RPS=$(echo "$RESULT" | jq '.rps | round')
+ERRORS=$(echo "$RESULT" | jq '.totalRequests - .statusCodeDistribution."200"')
+
+echo "p99: ${P99}ms (limit: ${P99_MAX_MS}ms)"
+echo "Requests/sec: $RPS"
+echo "Errors: $ERRORS"
+
+if [ "$P99" -gt "$P99_MAX_MS" ]; then
+  echo "FAIL: p99 ${P99}ms exceeds ${P99_MAX_MS}ms threshold"
+  exit 1
+fi
+
+echo "PASS"
+```
+
+## oha vs wrk vs k6 vs autocannon
+
+oha: real-time TUI, Rust speed, JSON output, single binary. wrk: Lua scripting, no TUI, very fast, requires C build. k6: JavaScript scripting, complex scenarios, browser testing, CI integration. autocannon: Node.js, good for Node services, HTTP/2 support. The Construx default: oha for quick one-liner tests during development; k6 for scripted load test scenarios in CI.

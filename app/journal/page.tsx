@@ -17,6 +17,7 @@ import GitBlamePanel from '@/components/GitBlamePanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import TrivyScanPanel from '@/components/TrivyScanPanel';
+import DbMigrationPanel from '@/components/DbMigrationPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -221,6 +222,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* Trivy container vulnerability scan */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <TrivyScanPanel />
+      </section>
+
+      {/* Drizzle migration status */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DbMigrationPanel />
       </section>
 
       {/* Posts */}
