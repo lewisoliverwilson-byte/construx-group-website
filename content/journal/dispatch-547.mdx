@@ -1,0 +1,154 @@
+---
+title: "Turso and libSQL: SQLite at the edge without the compromise"
+date: "2029-06-11"
+excerpt: "Turso is a distributed SQLite database that runs at the edge. libSQL is its open-source fork of SQLite with replication support. Together they give you SQLite's simplicity with production-grade durability and sub-millisecond query latency in the region where your users are. Here's how to use it in a Next.js project."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SQLite's reputation in production is: "use it for local dev, replace it with Postgres when you're serious." Turso changes that. Turso runs libSQL (a fork of SQLite with a replication protocol) distributed across 35+ edge locations. Your primary database lives in one region; read replicas are automatically distributed globally. Queries go to the nearest replica.
+
+## Why this matters for edge deployments
+
+A Next.js app deployed to Vercel Edge or Cloudflare Workers runs globally. A traditional Postgres instance in `us-east-1` means a European user's request goes: browser → London edge → Virginia Postgres → back. That's 200ms of latency just from geography.
+
+With Turso, the database is in London too. Browser → London edge → London Turso replica. 2ms.
+
+## Setting up Turso
+
+```bash
+# Install the CLI
+npm install -g @turso/cli
+
+# Login
+turso auth login
+
+# Create a database
+turso db create construxdb
+
+# Get the connection URL
+turso db show construxdb --url
+# libsql://construxdb-construx.turso.io
+
+# Create an auth token
+turso db tokens create construxdb
+```
+
+## Connecting with the libSQL client
+
+```bash
+npm install @libsql/client
+```
+
+```ts
+// lib/db.ts
+import { createClient } from '@libsql/client';
+
+export const db = createClient({
+  url:       process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN!,
+});
+```
+
+The client automatically routes reads to the nearest replica and writes to the primary.
+
+## With Drizzle ORM
+
+Drizzle supports libSQL natively:
+
+```ts
+// lib/db.ts
+import { drizzle } from 'drizzle-orm/libsql';
+import { createClient } from '@libsql/client';
+
+const client = createClient({
+  url:       process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN!,
+});
+
+export const db = drizzle(client);
+```
+
+```ts
+// db/schema.ts
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+
+export const posts = sqliteTable('posts', {
+  id:        text('id').primaryKey(),
+  title:     text('title').notNull(),
+  body:      text('body').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+```
+
+```ts
+// Queries work the same as any Drizzle setup
+const allPosts = await db.select().from(posts).orderBy(desc(posts.createdAt));
+```
+
+## Embedded replicas for Cloudflare Workers
+
+For truly zero-latency reads, libSQL supports embedded replicas — a copy of the database that lives inside the Worker's runtime. Reads are local (no network); writes sync to the primary.
+
+```ts
+// Cloudflare Worker with embedded replica
+import { createClient } from '@libsql/client';
+
+const client = createClient({
+  url:           'file:/tmp/construxdb.sqlite',  // local replica
+  syncUrl:       process.env.TURSO_DATABASE_URL!,
+  authToken:     process.env.TURSO_AUTH_TOKEN!,
+  syncInterval:  60,  // sync with primary every 60 seconds
+});
+
+// Reads are instant (local file)
+// Writes go to primary, replica syncs asynchronously
+```
+
+## Migrations with Drizzle
+
+```ts
+// drizzle.config.ts
+import { defineConfig } from 'drizzle-kit';
+
+export default defineConfig({
+  schema:    './db/schema.ts',
+  out:       './drizzle',
+  dialect:   'sqlite',
+  driver:    'turso',
+  dbCredentials: {
+    url:       process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.TURSO_AUTH_TOKEN!,
+  },
+});
+```
+
+```bash
+# Generate migrations
+npx drizzle-kit generate
+
+# Apply to Turso
+npx drizzle-kit migrate
+```
+
+## When to use Turso vs Postgres
+
+**Use Turso when:**
+- You're deploying to edge environments (Vercel Edge, Cloudflare Workers, Deno Deploy)
+- Your read:write ratio is high (content sites, product catalogs, documentation)
+- Global read latency matters
+- You want operational simplicity — no Postgres to manage
+
+**Use Postgres when:**
+- You need complex queries, window functions, or full-text search (`tsvector`)
+- You have multi-row transactions with strict consistency requirements
+- Your write volume is high
+- You're already running Postgres for other services
+
+Turso's free tier: 500 databases, 9GB storage, 1 billion row reads per month. It covers a small product comfortably.
+
+## The Scoutr case
+
+Scoutr's product catalog (tool definitions, category metadata, static reference data) is a good candidate for Turso — high read volume, infrequent writes, globally distributed users. User-specific data (scan history, watchlists) stays in Postgres where we need ACID transactions and complex joins.
+
+The split: reference data in Turso at the edge, user data in Postgres in the primary region. Edge functions serving the catalog answer in ~3ms. Requests that need user data route to the Postgres region — still fast, just not edge-fast.

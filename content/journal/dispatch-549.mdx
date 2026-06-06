@@ -1,0 +1,229 @@
+---
+title: "React Query patterns that keep your server quiet"
+date: "2029-06-17"
+excerpt: "React Query (TanStack Query) manages server state in React applications. Used naively, it makes more requests than you expect. Used well, it makes far fewer than you'd write by hand. The patterns that matter: stale time configuration, query key structure, prefetching, and avoiding waterfall requests."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React Query solves the problem of synchronising server state to your UI. Its defaults are conservative — it refetches aggressively to keep data fresh. In production, you often want to dial this back while keeping the UX responsive.
+
+## staleTime: the most important config knob
+
+`staleTime` controls how long data is considered fresh before React Query will refetch it in the background.
+
+Default: `staleTime: 0` — data is immediately stale. Every component mount triggers a background refetch.
+
+For most data, this is too aggressive:
+
+```ts
+// Good defaults for most apps
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime:    60 * 1000,  // 1 minute — data stays fresh for 1 min
+      gcTime:       5 * 60 * 1000, // 5 minutes — keep unused data in cache
+      retry:        2,
+      refetchOnWindowFocus: false, // disable unless you need it
+    },
+  },
+});
+```
+
+`refetchOnWindowFocus: false` alone can cut your request volume by 30-50% on apps where users switch tabs frequently.
+
+Override per-query for data with different freshness requirements:
+
+```ts
+// Real-time data — short stale time
+const { data: prices } = useQuery({
+  queryKey: ['prices'],
+  queryFn:  fetchPrices,
+  staleTime: 5 * 1000,           // stale after 5 seconds
+  refetchInterval: 10 * 1000,    // poll every 10 seconds
+});
+
+// Static reference data — long stale time
+const { data: categories } = useQuery({
+  queryKey: ['categories'],
+  queryFn:  fetchCategories,
+  staleTime: 30 * 60 * 1000,    // stale after 30 minutes
+});
+```
+
+## Query key structure: cache sharing across components
+
+Query keys are the cache key. If two components use the same key, they share cache — one fetch, two consumers.
+
+```ts
+// Bad: different keys for the same data
+// ComponentA
+const { data } = useQuery({ queryKey: ['user'], queryFn: getUser });
+// ComponentB
+const { data } = useQuery({ queryKey: ['currentUser'], queryFn: getUser });
+// → two fetches
+
+// Good: same key
+// Both components
+const { data } = useQuery({ queryKey: ['user'], queryFn: getUser });
+// → one fetch, shared
+```
+
+Structure keys as arrays for granular invalidation:
+
+```ts
+// Keys as arrays — enables partial invalidation
+['posts']                  // all posts
+['posts', { tag: 'build' }] // posts filtered by tag
+['posts', postId]          // single post
+['posts', postId, 'comments'] // comments for a post
+```
+
+```ts
+// Invalidate all posts queries (hits all of the above)
+queryClient.invalidateQueries({ queryKey: ['posts'] });
+
+// Invalidate only a specific post
+queryClient.invalidateQueries({ queryKey: ['posts', postId] });
+```
+
+## Prefetching: load before the user asks
+
+Prefetch data that the user is likely to need next:
+
+```ts
+// On link hover — prefetch before click
+function PostLink({ post }: { post: Post }) {
+  const queryClient = useQueryClient();
+
+  return (
+    <Link
+      href={`/posts/${post.id}`}
+      onMouseEnter={() => {
+        queryClient.prefetchQuery({
+          queryKey: ['posts', post.id],
+          queryFn:  () => fetchPost(post.id),
+          staleTime: 60 * 1000,
+        });
+      }}
+    >
+      {post.title}
+    </Link>
+  );
+}
+```
+
+When the user clicks, the data is already in cache. Zero-latency navigation.
+
+In Next.js App Router, prefetch on the server using `HydrationBoundary`:
+
+```ts
+// app/posts/page.tsx (Server Component)
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
+
+export default async function PostsPage() {
+  const queryClient = new QueryClient();
+  await queryClient.prefetchQuery({
+    queryKey: ['posts'],
+    queryFn:  fetchPosts,
+  });
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <PostList />
+    </HydrationBoundary>
+  );
+}
+```
+
+```ts
+// components/PostList.tsx ('use client')
+export function PostList() {
+  // Data is pre-populated from the server — no loading state, no fetch
+  const { data } = useQuery({ queryKey: ['posts'], queryFn: fetchPosts });
+  return <ul>{data?.map(p => <li key={p.id}>{p.title}</li>)}</ul>;
+}
+```
+
+The server pre-populates the cache; the client picks it up without a fetch.
+
+## Avoiding waterfall requests
+
+Waterfalls happen when requests depend on each other. Component A fetches, renders, then Component B fetches, renders, etc. Each waits for the previous.
+
+```ts
+// Waterfall — bad
+function UserProfile({ userId }: { userId: string }) {
+  const { data: user } = useQuery({ queryKey: ['user', userId], queryFn: () => fetchUser(userId) });
+  // Renders → triggers:
+  return user ? <UserPosts userId={user.id} /> : null;
+}
+
+function UserPosts({ userId }: { userId: string }) {
+  // Doesn't start until UserProfile resolves
+  const { data: posts } = useQuery({ queryKey: ['posts', userId], queryFn: () => fetchPosts(userId) });
+}
+```
+
+```ts
+// Parallel — good
+function UserProfile({ userId }: { userId: string }) {
+  const { data: user }  = useQuery({ queryKey: ['user', userId], queryFn: () => fetchUser(userId) });
+  const { data: posts } = useQuery({ queryKey: ['posts', userId], queryFn: () => fetchPosts(userId) });
+  // Both requests fire simultaneously
+}
+```
+
+Or use `useQueries` for dynamic parallel queries:
+
+```ts
+const results = useQueries({
+  queries: userIds.map(id => ({
+    queryKey: ['user', id],
+    queryFn:  () => fetchUser(id),
+  })),
+});
+```
+
+## Mutation with cache invalidation
+
+```ts
+const mutation = useMutation({
+  mutationFn: createPost,
+  onSuccess: () => {
+    // Invalidate the posts list so it refetches
+    queryClient.invalidateQueries({ queryKey: ['posts'] });
+  },
+  onMutate: async (newPost) => {
+    // Optimistic update — add the post immediately
+    await queryClient.cancelQueries({ queryKey: ['posts'] });
+    const previous = queryClient.getQueryData(['posts']);
+    queryClient.setQueryData(['posts'], (old: Post[]) => [...old, newPost]);
+    return { previous };
+  },
+  onError: (err, newPost, context) => {
+    // Rollback on failure
+    queryClient.setQueryData(['posts'], context?.previous);
+  },
+});
+```
+
+Optimistic mutations make the UI feel instant. The speculative update shows immediately; if the server rejects, it rolls back. For most create/update operations, the server succeeds — users see the result without waiting.
+
+## React Query DevTools
+
+```bash
+npm install @tanstack/react-query-devtools
+```
+
+```ts
+// app/providers.tsx
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+<QueryClientProvider client={queryClient}>
+  {children}
+  <ReactQueryDevtools initialIsOpen={false} />
+</QueryClientProvider>
+```
+
+The devtools show every query, its status, cache state, and refetch count. Use them to spot unnecessary fetches before they reach production.

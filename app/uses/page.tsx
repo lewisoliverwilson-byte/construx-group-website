@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import VscodeExtensionsPanel from '@/components/VscodeExtensionsPanel';
+import LshwPanel from '@/components/LshwPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -328,6 +329,11 @@ export default function UsesPage() {
         {/* VS Code extensions */}
         <div className="mt-6">
           <VscodeExtensionsPanel />
+        </div>
+
+        {/* Server hardware info */}
+        <div className="mt-6">
+          <LshwPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
