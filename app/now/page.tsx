@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 };
 
 const LAST_UPDATED = 'March 2027';
+const BUILD_STAMP = '2027-03-19T09:00:00Z';
 
 const nowItems = [
   {
@@ -17,17 +18,17 @@ const nowItems = [
       {
         title: 'Scoutr: professional user optimisation',
         body: 'Iterating on the batch output view based on usage from professional arbitrage traders. Working on better sorting controls and a faster scan mechanism for multi-page retailers.',
-        status: 'IN PROGRESS',
+        status: 'IN_PROGRESS',
       },
       {
         title: 'The Marqet: taxonomy refinement',
         body: 'Reviewing the four-category browse structure against real usage data. Some professional roles are underrepresented; expanding those verticals.',
-        status: 'IN PROGRESS',
+        status: 'IN_PROGRESS',
       },
       {
         title: 'The Hyve: AI context improvements',
         body: 'Improving the context pipeline for the AI agent — better retrieval of relevant past decisions, smarter truncation for long channel histories.',
-        status: 'IN PROGRESS',
+        status: 'IN_PROGRESS',
       },
     ],
   },
@@ -50,8 +51,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '270 dispatches and continuing',
-        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover webhook ingestion, background job patterns, multi-tenancy with Row Level Security, connection pooling, environment variable structure, pagination strategies, and AI-powered semantic search. The journal compounds.',
+        title: '276 dispatches and continuing',
+        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover Zod API contracts, zero-downtime database migrations, error boundaries, logging strategy, file uploads with presigned URLs, and feature discovery patterns. The journal compounds.',
         status: 'ONGOING',
       },
     ],
@@ -68,14 +69,38 @@ const nowItems = [
   },
 ];
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  'IN PROGRESS': { bg: 'rgba(249,115,22,0.1)', text: '#F97316' },
-  'PENDING': { bg: 'rgba(234,179,8,0.1)', text: 'rgba(234,179,8,0.8)' },
-  'ONGOING': { bg: 'rgba(34,197,94,0.1)', text: 'rgba(34,197,94,0.8)' },
-  'RESEARCH': { bg: 'rgba(168,85,247,0.1)', text: 'rgba(168,85,247,0.8)' },
+const STATUS_META: Record<string, { color: string; bg: string; indicator: string }> = {
+  'IN_PROGRESS': { color: '#F97316', bg: 'rgba(249,115,22,0.08)', indicator: '▶' },
+  'PENDING':     { color: 'rgba(234,179,8,0.85)',   bg: 'rgba(234,179,8,0.07)',   indicator: '◌' },
+  'ONGOING':     { color: 'rgba(74,222,128,0.85)',  bg: 'rgba(74,222,128,0.07)',  indicator: '●' },
+  'RESEARCH':    { color: 'rgba(168,85,247,0.85)',  bg: 'rgba(168,85,247,0.07)',  indicator: '◈' },
 };
 
+const CATEGORY_ACCENT: Record<string, string> = {
+  PRODUCTS:       '#F97316',
+  INFRASTRUCTURE: '#67e8f9',
+  JOURNAL:        '#a78bfa',
+  EXPLORING:      '#4ade80',
+};
+
+function StatusChip({ status }: { status: string }) {
+  const meta = STATUS_META[status] ?? { color: 'rgba(240,239,255,0.45)', bg: 'rgba(255,255,255,0.04)', indicator: '○' };
+  return (
+    <span
+      className="font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 flex-shrink-0 flex items-center gap-1.5"
+      style={{ background: meta.bg, color: meta.color, borderRadius: '2px' }}
+    >
+      <span>{meta.indicator}</span>
+      {status.replace('_', ' ')}
+    </span>
+  );
+}
+
 export default function NowPage() {
+  const totalItems = nowItems.reduce((s, c) => s + c.items.length, 0);
+  const inProgress = nowItems.flatMap((c) => c.items).filter((i) => i.status === 'IN_PROGRESS').length;
+  const pending    = nowItems.flatMap((c) => c.items).filter((i) => i.status === 'PENDING').length;
+
   return (
     <div className="min-h-screen">
       {/* Hero */}
@@ -104,57 +129,172 @@ export default function NowPage() {
             </a>
             .
           </p>
-          <p className="font-mono text-[10px] text-text-dim mt-3 uppercase tracking-widest">
-            Last updated: {LAST_UPDATED}
-          </p>
+
+          {/* Inline meta strip */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-5">
+            <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              Updated: <span className="text-text-muted">{LAST_UPDATED}</span>
+            </span>
+            <span className="w-px h-3 bg-border flex-shrink-0" />
+            <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              Items: <span className="text-construx">{String(totalItems).padStart(2, '0')}</span>
+            </span>
+            <span className="w-px h-3 bg-border flex-shrink-0" />
+            <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              Active: <span style={{ color: '#F97316' }}>{inProgress}</span>
+            </span>
+            <span className="w-px h-3 bg-border flex-shrink-0" />
+            <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">
+              Pending: <span style={{ color: 'rgba(234,179,8,0.8)' }}>{pending}</span>
+            </span>
+          </div>
         </div>
       </section>
 
-      {/* Content */}
-      <div className="px-5 py-16 mx-auto max-w-3xl">
-        <div className="space-y-12">
-          {nowItems.map((section) => (
-            <section key={section.category}>
-              <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.25em] text-construx/70 mb-5 flex items-center gap-3">
-                <span>// {section.category}</span>
-                <span className="flex-1 h-px" style={{ background: 'rgba(249,115,22,0.12)' }} />
-              </h2>
-              <div className="space-y-3">
-                {section.items.map((item) => {
-                  const colors = STATUS_COLORS[item.status] ?? { bg: 'rgba(255,255,255,0.05)', text: 'rgba(240,239,255,0.5)' };
-                  return (
-                    <div
-                      key={item.title}
-                      className="px-5 py-4"
-                      style={{
-                        background: 'rgba(5,5,18,0.5)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: '3px',
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <h3 className="text-sm font-semibold text-text-base leading-snug">{item.title}</h3>
-                        <span
-                          className="font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 flex-shrink-0"
-                          style={{
-                            background: colors.bg,
-                            color: colors.text,
-                            borderRadius: '2px',
-                          }}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-                      <p className="text-sm text-text-muted leading-relaxed">{item.body}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+      {/* Terminal window */}
+      <div className="px-5 py-12 mx-auto max-w-3xl">
+        <div
+          style={{
+            background: 'rgba(1,1,10,0.97)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: '6px',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.5), 0 32px 80px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Title bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 14px',
+              background: 'rgba(255,255,255,0.02)',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.35)' }} />
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.35)' }} />
+            </div>
+            <span className="font-mono text-[9px] text-text-dim tracking-wide flex-1 text-center">
+              construx@sys — construx-now — bash
+            </span>
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(255,255,255,0.12)' }}>80×35</span>
+          </div>
+
+          {/* Terminal body */}
+          <div
+            className="font-mono overflow-x-auto"
+            style={{ padding: '20px 24px 24px', fontSize: '12px', lineHeight: '1.75', color: 'rgba(240,239,255,0.65)' }}
+          >
+            {/* Shell prompt */}
+            <div style={{ marginBottom: '14px' }}>
+              <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@sys</span>
+              <span style={{ color: 'rgba(255,255,255,0.25)' }}>:~$ </span>
+              <span style={{ color: 'rgba(240,239,255,0.35)' }}>cat /var/construx/now.json | jq .</span>
+            </div>
+
+            {/* Header comment */}
+            <div style={{ marginBottom: '18px' }}>
+              <p style={{ color: 'rgba(249,115,22,0.9)' }}>{'// CONSTRUX.NOW — CURRENT.WORK'}</p>
+              <p style={{ color: 'rgba(240,239,255,0.2)' }}>{'// AS_OF: ' + BUILD_STAMP}</p>
+              <p style={{ color: 'rgba(240,239,255,0.2)' }}>{'// SCOPE: active · pending · ongoing · research'}</p>
+            </div>
+
+            {/* Sections */}
+            {nowItems.map((section) => {
+              const accent = CATEGORY_ACCENT[section.category] ?? '#F97316';
+              return (
+                <div key={section.category} style={{ marginBottom: '20px' }}>
+                  <p style={{ color: `${accent}90`, marginBottom: '6px' }}>
+                    {section.category} {'{'}
+                  </p>
+                  <div style={{ paddingLeft: '20px', borderLeft: `1px solid ${accent}18` }}>
+                    {section.items.map((item, idx) => {
+                      const meta = STATUS_META[item.status] ?? { color: 'rgba(240,239,255,0.45)', bg: 'rgba(255,255,255,0.04)', indicator: '○' };
+                      return (
+                        <div key={item.title} style={{ marginBottom: idx < section.items.length - 1 ? '14px' : '0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3px' }}>
+                            <span style={{ color: meta.color, fontWeight: 600 }}>{meta.indicator}</span>
+                            <span style={{ color: 'rgba(240,239,255,0.85)', fontWeight: 600 }}>{item.title}</span>
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                fontWeight: 500,
+                                letterSpacing: '0.12em',
+                                textTransform: 'uppercase',
+                                padding: '1px 6px',
+                                background: meta.bg,
+                                color: meta.color,
+                                borderRadius: '2px',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {item.status.replace('_', '.')}
+                            </span>
+                          </div>
+                          <p style={{ color: 'rgba(240,239,255,0.4)', paddingLeft: '18px', fontSize: '11px', lineHeight: '1.65' }}>
+                            {item.body}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p style={{ color: `${accent}90` }}>{'}'}</p>
+                </div>
+              );
+            })}
+
+            {/* EOF prompt */}
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              <p style={{ color: 'rgba(240,239,255,0.15)' }}>{'// EOF'}</p>
+              <p style={{ marginTop: '10px' }}>
+                <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@sys</span>
+                <span style={{ color: 'rgba(255,255,255,0.25)' }}>:~$ </span>
+                <Link
+                  href="/journal"
+                  style={{ color: 'rgba(249,115,22,0.6)' }}
+                  className="hover:text-construx transition-colors"
+                >
+                  {'→ READ THE JOURNAL'}
+                </Link>
+              </p>
+            </div>
+          </div>
+
+          {/* Status bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '5px 14px',
+              background: 'rgba(249,115,22,0.06)',
+              borderTop: '1px solid rgba(249,115,22,0.1)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <span className="font-mono" style={{ fontSize: '8px', color: 'rgba(74,222,128,0.7)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span className="status-blink w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#4ade80' }} />
+                LIVE
+              </span>
+              <span className="font-mono" style={{ fontSize: '8px', color: 'rgba(255,255,255,0.2)' }}>
+                {totalItems} ITEMS
+              </span>
+              <span className="font-mono" style={{ fontSize: '8px', color: 'rgba(255,255,255,0.2)' }}>
+                {inProgress} ACTIVE
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <span className="font-mono" style={{ fontSize: '8px', color: 'rgba(255,255,255,0.15)' }}>UTF-8</span>
+              <span className="font-mono" style={{ fontSize: '8px', color: 'rgba(249,115,22,0.45)' }}>construx@sys</span>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-16 pt-8 border-t border-border">
+        <div className="mt-10 pt-8 border-t border-border">
           <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">
             Want to know more?{' '}
             <Link href="/journal" className="text-construx hover:text-orange-400 transition-colors">
