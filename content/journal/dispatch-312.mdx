@@ -1,0 +1,171 @@
+---
+title: "TypeScript utility types: the ones that actually matter"
+date: "2027-07-05"
+excerpt: "TypeScript ships with 30+ utility types. Most are used rarely. A small set — Partial, Required, Pick, Omit, Record, Exclude, Extract, ReturnType, Awaited — come up constantly and are worth deeply understanding."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript's built-in utility types transform existing types into new ones. The ones that appear in almost every codebase:
+
+## `Partial<T>` and `Required<T>`
+
+`Partial<T>` makes every property of `T` optional. Useful for update payloads and patch operations:
+
+```ts
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+}
+
+type UserUpdate = Partial<User>;
+// { id?: string; name?: string; email?: string; role?: 'admin' | 'user' }
+
+async function updateUser(id: string, updates: Partial<Omit<User, 'id'>>) {
+  await db.users.update({ where: { id }, data: updates });
+}
+```
+
+`Required<T>` is the inverse — makes all optional properties required. Useful after validation, when you know all fields are present:
+
+```ts
+type UserDraft = Partial<User>;
+type UserFull = Required<UserDraft>; // identical to User
+```
+
+## `Pick<T, K>` and `Omit<T, K>`
+
+`Pick` creates a type with only the specified keys. `Omit` creates a type without them:
+
+```ts
+// Only the fields needed for a user card component
+type UserCardProps = Pick<User, 'name' | 'email'>;
+
+// Everything except the internal ID — for create payloads
+type CreateUserInput = Omit<User, 'id'>;
+
+// Omit multiple internal fields before sending to client
+type PublicUser = Omit<User, 'passwordHash' | 'internalNotes' | 'stripeCustomerId'>;
+```
+
+`Omit` is safer than `Pick` when your base type grows — new fields automatically appear in the `Omit`'d type without updating the derived type.
+
+## `Record<K, V>`
+
+Creates an object type with keys of type `K` and values of type `V`:
+
+```ts
+type StatusColors = Record<'pending' | 'active' | 'cancelled', string>;
+
+const STATUS_COLORS: StatusColors = {
+  pending: '#FFBD2E',
+  active: '#4ade80',
+  cancelled: '#FF5F57',
+};
+
+// Dynamic key — safer than index signatures for known unions
+type FeatureFlags = Record<string, boolean>;
+```
+
+When the key is a union type, TypeScript enforces exhaustiveness — you can't forget a case.
+
+## `Exclude<T, U>` and `Extract<T, U>`
+
+Both work on union types. `Exclude` removes members, `Extract` keeps only matching members:
+
+```ts
+type Status = 'pending' | 'active' | 'cancelled' | 'deleted';
+
+type LiveStatus = Exclude<Status, 'deleted'>;
+// 'pending' | 'active' | 'cancelled'
+
+type ArchivedStatus = Extract<Status, 'cancelled' | 'deleted'>;
+// 'cancelled' | 'deleted'
+```
+
+Practical use: when you have a large union and a function that only handles a subset:
+
+```ts
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+type MutationMethod = Extract<HttpMethod, 'POST' | 'PUT' | 'PATCH' | 'DELETE'>;
+
+function handleMutation(method: MutationMethod, ...) { ... }
+```
+
+## `ReturnType<T>` and `Awaited<T>`
+
+`ReturnType<T>` extracts the return type of a function type. Useful for typing the output of factory functions without duplicating the definition:
+
+```ts
+function createConfig() {
+  return {
+    apiKey: process.env.API_KEY!,
+    baseUrl: process.env.BASE_URL!,
+    timeout: 5000,
+  };
+}
+
+type Config = ReturnType<typeof createConfig>;
+// { apiKey: string; baseUrl: string; timeout: number }
+```
+
+`Awaited<T>` unwraps promises, including nested ones:
+
+```ts
+type A = Awaited<Promise<string>>;          // string
+type B = Awaited<Promise<Promise<number>>>; // number
+
+// Useful when you have async function returns
+async function getUser(id: string) {
+  return db.users.findUnique({ where: { id } });
+}
+
+type UserResult = Awaited<ReturnType<typeof getUser>>;
+// The resolved type of what getUser returns
+```
+
+## `NonNullable<T>`
+
+Removes `null` and `undefined` from a type. Often needed after null-checks:
+
+```ts
+type MaybeUser = User | null | undefined;
+type DefiniteUser = NonNullable<MaybeUser>; // User
+
+// In practice, TypeScript narrows automatically after if-checks,
+// but the type is useful in generics
+function process<T>(value: T): NonNullable<T> {
+  if (value == null) throw new Error('Expected non-null value');
+  return value as NonNullable<T>;
+}
+```
+
+## Composing utility types
+
+The utility types compose:
+
+```ts
+// A form state type — all fields optional except 'id', which is excluded
+type ProductFormState = Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>;
+
+// API response envelope
+type ApiResponse<T> = {
+  data: T;
+  meta: Pick<PaginationMeta, 'total' | 'page' | 'hasMore'>;
+  error: null;
+} | {
+  data: null;
+  meta: null;
+  error: { code: string; message: string };
+};
+
+// Typed event map for an event emitter
+type AppEvents = Record<
+  'user:created' | 'user:updated' | 'order:placed',
+  (payload: unknown) => void
+>;
+```
+
+The goal is always the same: make the type express the actual contract, not just describe the shape.

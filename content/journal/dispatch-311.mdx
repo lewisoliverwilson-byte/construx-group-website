@@ -1,0 +1,161 @@
+---
+title: "Rate limiting: patterns and implementation"
+date: "2027-07-02"
+excerpt: "Rate limiting protects your API from abuse and keeps costs predictable. The implementation challenge is picking the right algorithm — fixed window, sliding window, or token bucket — and where to apply it. Here's the complete pattern with Redis."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Rate limiting sits at the boundary between your API and the outside world. Without it, a single client can exhaust your database connections, run up your AI API bill, or knock the service offline for everyone else. With it, each client gets a fair share and bad actors get blocked before they cause damage.
+
+## The algorithms
+
+**Fixed window**: count requests per time window. Simple, but has a burst problem at window boundaries — a client can make 100 requests at 11:59 PM and 100 more at 12:00 AM.
+
+**Sliding window**: count requests in a rolling window ending at now. Eliminates the burst problem. More accurate but slightly more complex to implement.
+
+**Token bucket**: clients accumulate tokens at a steady rate, up to a bucket maximum. Each request costs a token. Clients can burst up to the bucket size but are limited to the fill rate over time. The most flexible — allows short bursts while controlling sustained throughput.
+
+For most API rate limiting, sliding window with Redis is the right default.
+
+## Sliding window with Redis
+
+```ts
+// lib/rate-limit.ts
+import { redis } from './redis';
+
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number; // unix ms
+  limit: number;
+}
+
+export async function checkRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<RateLimitResult> {
+  const now = Date.now();
+  const windowStart = now - windowMs;
+  const redisKey = `rl:${key}`;
+
+  const pipeline = redis.pipeline();
+  // Remove entries older than the window
+  pipeline.zremrangebyscore(redisKey, '-inf', windowStart);
+  // Add current request
+  pipeline.zadd(redisKey, now, `${now}-${Math.random()}`);
+  // Count requests in window
+  pipeline.zcard(redisKey);
+  // Set TTL so stale keys clean up automatically
+  pipeline.pexpire(redisKey, windowMs);
+
+  const results = await pipeline.exec();
+  const count = results![2][1] as number;
+
+  const allowed = count <= limit;
+  const resetAt = now + windowMs;
+
+  return {
+    allowed,
+    remaining: Math.max(0, limit - count),
+    resetAt,
+    limit,
+  };
+}
+```
+
+The sorted set stores each request timestamp as the score. `ZREMRANGEBYSCORE` clears old entries on every check, so the count always reflects the rolling window.
+
+## Next.js middleware
+
+Apply rate limiting at the middleware layer to intercept requests before they hit route handlers:
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rate-limit';
+
+const LIMITS: Record<string, { limit: number; windowMs: number }> = {
+  '/api/scan':    { limit: 10,  windowMs: 60_000 },  // 10/min
+  '/api/chat':    { limit: 30,  windowMs: 60_000 },  // 30/min
+  '/api/contact': { limit: 3,   windowMs: 600_000 }, // 3/10min
+};
+
+export async function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+  const config = Object.entries(LIMITS).find(([path]) => pathname.startsWith(path))?.[1];
+
+  if (!config) return NextResponse.next();
+
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    ?? req.headers.get('x-real-ip')
+    ?? '127.0.0.1';
+
+  const result = await checkRateLimit(`${ip}:${pathname}`, config.limit, config.windowMs);
+
+  const headers = new Headers({
+    'X-RateLimit-Limit': String(result.limit),
+    'X-RateLimit-Remaining': String(result.remaining),
+    'X-RateLimit-Reset': String(result.resetAt),
+  });
+
+  if (!result.allowed) {
+    return new NextResponse('Too Many Requests', { status: 429, headers });
+  }
+
+  const res = NextResponse.next();
+  headers.forEach((v, k) => res.headers.set(k, v));
+  return res;
+}
+
+export const config = {
+  matcher: ['/api/:path*'],
+};
+```
+
+## User-level limits
+
+IP-based limits are a blunt instrument — they break behind NAT and don't differentiate between plans. For authenticated APIs, key on user ID instead:
+
+```ts
+export async function checkUserRateLimit(userId: string, tier: 'free' | 'pro' | 'enterprise') {
+  const TIER_LIMITS = {
+    free:       { limit: 100,   windowMs: 86_400_000 }, // 100/day
+    pro:        { limit: 2000,  windowMs: 86_400_000 }, // 2000/day
+    enterprise: { limit: 50000, windowMs: 86_400_000 }, // 50k/day
+  };
+
+  const config = TIER_LIMITS[tier];
+  return checkRateLimit(`user:${userId}`, config.limit, config.windowMs);
+}
+```
+
+Combine IP limits (anti-abuse) with user limits (metering). A free-tier user gets 100 calls/day regardless of IP changes.
+
+## Returning useful errors
+
+A 429 with no body is a bad developer experience. Return context:
+
+```ts
+if (!result.allowed) {
+  return Response.json(
+    {
+      error: 'rate_limit_exceeded',
+      message: `Rate limit of ${result.limit} requests per ${windowMs / 1000}s exceeded.`,
+      retryAfter: Math.ceil((result.resetAt - Date.now()) / 1000),
+    },
+    {
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.ceil((result.resetAt - Date.now()) / 1000)),
+        'X-RateLimit-Limit': String(result.limit),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(result.resetAt),
+      },
+    },
+  );
+}
+```
+
+The `Retry-After` header tells the client exactly how long to wait. Well-behaved clients (and most HTTP libraries) respect it automatically.
