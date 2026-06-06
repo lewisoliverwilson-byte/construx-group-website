@@ -316,6 +316,11 @@ export default function HomePage() {
                   </span>
                   <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.4)' }}>◈ 4</span>
                 </div>
+                {/* Shell prompt */}
+                <div className="px-4 py-1 select-none" style={{ borderBottom: '1px solid rgba(168,85,247,0.08)', background: 'rgba(168,85,247,0.02)' }}>
+                  <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                  <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}> ls /asteroid-belt/ --classified --count=4</span>
+                </div>
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div className="flex -space-x-1.5">
                     {[0.35, 0.22, 0.12].map((o, i) => (
@@ -356,6 +361,11 @@ export default function HomePage() {
             <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.45)' }}>
               ● LIVE
             </span>
+          </div>
+          {/* Shell prompt */}
+          <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>construx metrics --portfolio --format=table</span>
           </div>
           {/* Stats grid */}
           <div className="grid grid-cols-2 md:grid-cols-4">
@@ -418,6 +428,11 @@ export default function HomePage() {
                 journal.latest — {recentPosts[0].tag.toLowerCase()}
               </span>
               <span className="font-mono text-[9px] text-text-dim">{recentPosts[0].readingTime} min</span>
+            </div>
+            {/* Shell prompt */}
+            <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(249,115,22,0.08)', background: 'rgba(249,115,22,0.02)' }}>
+              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`dispatch --read ${recentPosts[0].slug} --preview`}</span>
             </div>
             <div className="px-6 py-6">
               <div className="flex items-center gap-3 mb-3">
