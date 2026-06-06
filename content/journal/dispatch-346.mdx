@@ -1,0 +1,252 @@
+---
+title: "Stripe integration in Next.js: payments, webhooks, and the subscription lifecycle"
+date: "2027-10-15"
+excerpt: "Adding Stripe to a Next.js app involves three distinct problems: collecting payment details safely, handling the subscription lifecycle, and processing webhooks reliably. Each one has a pattern worth knowing."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Stripe is the right choice for payments in almost every SaaS scenario. The SDK is excellent, the documentation is comprehensive, and the test mode is genuinely useful. The complexity isn't in the API — it's in handling the state correctly.
+
+## Setup
+
+```bash
+npm install stripe @stripe/stripe-js
+```
+
+```ts
+// lib/stripe.ts
+import Stripe from 'stripe';
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-06-20',
+  typescript: true,
+});
+```
+
+```ts
+// lib/stripe-client.ts (browser only)
+import { loadStripe } from '@stripe/stripe-js';
+
+export const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+```
+
+Never import `lib/stripe.ts` in client components — it exposes the secret key.
+
+## Checkout Session (the simple path)
+
+For most products, Stripe Checkout handles the entire payment UI. Your app creates a session, redirects the user, Stripe handles card entry and 3D Secure, then redirects back.
+
+```ts
+// app/api/checkout/route.ts
+import { stripe } from '@/lib/stripe';
+import { auth } from '@/auth';
+
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { priceId } = await req.json();
+
+  const checkoutSession = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    customer_email: session.user.email ?? undefined,
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${process.env.NEXT_PUBLIC_URL}/dashboard?upgraded=true`,
+    cancel_url: `${process.env.NEXT_PUBLIC_URL}/pricing`,
+    metadata: { userId: session.user.id },  // passed through to webhook
+    subscription_data: {
+      metadata: { userId: session.user.id },
+    },
+  });
+
+  return Response.json({ url: checkoutSession.url });
+}
+```
+
+```tsx
+'use client';
+
+async function handleSubscribe(priceId: string) {
+  const res = await fetch('/api/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ priceId }),
+  });
+  const { url } = await res.json();
+  window.location.href = url;  // redirect to Stripe Checkout
+}
+```
+
+## Webhooks: where the real work happens
+
+The Checkout Session redirect is not a reliable signal of payment success — users close the window, browsers crash, network cuts out. Webhooks are the authoritative source of truth.
+
+```ts
+// app/api/webhooks/stripe/route.ts
+import { stripe } from '@/lib/stripe';
+import { db } from '@/lib/db';
+import { headers } from 'next/headers';
+import type Stripe from 'stripe';
+
+export async function POST(req: Request) {
+  const body = await req.text();
+  const sig = (await headers()).get('stripe-signature')!;
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!,
+    );
+  } catch (err) {
+    return Response.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session;
+      await handleCheckoutComplete(session);
+      break;
+    }
+    case 'customer.subscription.updated': {
+      const sub = event.data.object as Stripe.Subscription;
+      await handleSubscriptionUpdate(sub);
+      break;
+    }
+    case 'customer.subscription.deleted': {
+      const sub = event.data.object as Stripe.Subscription;
+      await handleSubscriptionDelete(sub);
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      await handlePaymentFailed(invoice);
+      break;
+    }
+  }
+
+  return Response.json({ received: true });
+}
+```
+
+The `constructEvent` call verifies the webhook signature — never skip this. Without it, anyone can POST fabricated events to your endpoint.
+
+## Subscription lifecycle handlers
+
+```ts
+async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+  const userId = session.metadata?.userId;
+  if (!userId) return;
+
+  await db.update(users)
+    .set({ plan: 'pro', stripeCustomerId: session.customer as string })
+    .where(eq(users.id, userId));
+}
+
+async function handleSubscriptionUpdate(sub: Stripe.Subscription) {
+  const userId = sub.metadata?.userId;
+  if (!userId) return;
+
+  const isActive = sub.status === 'active' || sub.status === 'trialing';
+  await db.update(users)
+    .set({
+      plan: isActive ? 'pro' : 'free',
+      subscriptionStatus: sub.status,
+      currentPeriodEnd: new Date(sub.current_period_end * 1000),
+    })
+    .where(eq(users.id, userId));
+}
+
+async function handleSubscriptionDelete(sub: Stripe.Subscription) {
+  const userId = sub.metadata?.userId;
+  if (!userId) return;
+
+  await db.update(users)
+    .set({ plan: 'free', subscriptionStatus: 'canceled' })
+    .where(eq(users.id, userId));
+}
+```
+
+## Customer portal
+
+Let users manage their own subscription — cancel, upgrade, update payment method — without you building any UI:
+
+```ts
+// app/api/portal/route.ts
+import { stripe } from '@/lib/stripe';
+import { auth } from '@/auth';
+import { db } from '@/lib/db';
+
+export async function POST() {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, session.user.id),
+  });
+
+  if (!user?.stripeCustomerId) {
+    return Response.json({ error: 'No subscription found' }, { status: 400 });
+  }
+
+  const portal = await stripe.billingPortal.sessions.create({
+    customer: user.stripeCustomerId,
+    return_url: `${process.env.NEXT_PUBLIC_URL}/dashboard`,
+  });
+
+  return Response.json({ url: portal.url });
+}
+```
+
+## Testing webhooks locally
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+The Stripe CLI forwards webhook events to your local server and prints the webhook signing secret. Set it as `STRIPE_WEBHOOK_SECRET` in `.env.local`.
+
+Trigger specific events without clicking through UI:
+
+```bash
+stripe trigger checkout.session.completed
+stripe trigger customer.subscription.updated
+stripe trigger invoice.payment_failed
+```
+
+## Idempotency
+
+Stripe delivers each webhook at least once. Your handlers must be idempotent — running them twice shouldn't create duplicate records or double-charge users. Use the event ID to deduplicate:
+
+```ts
+async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+  const existing = await db.query.stripeEvents.findFirst({
+    where: eq(stripeEvents.eventId, session.id),
+  });
+
+  if (existing) return;  // already processed
+
+  await db.transaction(async (tx) => {
+    await tx.insert(stripeEvents).values({ eventId: session.id });
+    await tx.update(users).set({ plan: 'pro' }).where(/* ... */);
+  });
+}
+```
+
+## Price IDs
+
+Never hardcode price IDs in client-side code — they change between environments. Store them in environment variables:
+
+```bash
+# .env
+STRIPE_PRICE_PRO_MONTHLY=price_xxx
+STRIPE_PRICE_PRO_ANNUAL=price_yyy
+
+# .env.local (test mode)
+STRIPE_PRICE_PRO_MONTHLY=price_test_xxx
+STRIPE_PRICE_PRO_ANNUAL=price_test_yyy
+```
+
+Use Stripe's test card `4242 4242 4242 4242` with any future expiry and any CVC in development.
