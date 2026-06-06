@@ -1,0 +1,217 @@
+---
+title: "Next.js middleware: request interception, auth guards, and A/B routing"
+date: "2027-11-02"
+excerpt: "Middleware runs before every request hits your routes. That makes it the right place for auth redirects, feature flag routing, locale detection, and bot blocking — without touching your page components."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Middleware in Next.js sits at the edge of your application — between the incoming request and your route handlers. It runs before rendering, before server components, before anything. That position makes it powerful for cross-cutting concerns.
+
+## What middleware is good for
+
+- Auth guards: redirect unauthenticated users before the page loads
+- A/B test routing: split traffic to different variants deterministically
+- Locale detection and redirect
+- Bot blocking and rate limiting
+- Request header injection (add trace IDs, user context)
+
+What it's not good for: database queries, anything that needs Node.js APIs, heavy computation. Middleware runs on the Edge Runtime — no `fs`, no native modules.
+
+## Basic setup
+
+```ts
+// middleware.ts (root of project)
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Check auth for protected routes
+  if (pathname.startsWith('/dashboard')) {
+    const token = request.cookies.get('session')?.value;
+
+    if (!token) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('from', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  // Only run middleware on these paths
+  matcher: ['/dashboard/:path*', '/api/protected/:path*'],
+};
+```
+
+The `matcher` config is critical for performance. Without it, middleware runs on every request including static assets.
+
+## JWT validation at the edge
+
+```ts
+import { jwtVerify, importSPKI } from 'jose';
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
+
+async function validateToken(token: string): Promise<boolean> {
+  try {
+    await jwtVerify(token, JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    const token = request.cookies.get('session')?.value;
+
+    if (!token || !(await validateToken(token))) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    // Optionally forward decoded user info via header
+    const response = NextResponse.next();
+    response.headers.set('x-user-verified', 'true');
+    return response;
+  }
+
+  return NextResponse.next();
+}
+```
+
+`jose` is the standard JWT library for edge environments — it uses Web Crypto APIs instead of Node's `crypto` module.
+
+## A/B testing with stable bucketing
+
+```ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+function getBucket(userId: string, experiment: string): 'a' | 'b' {
+  // Hash userId + experiment name to get a deterministic, stable bucket
+  let hash = 0;
+  const str = `${userId}:${experiment}`;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 2 === 0 ? 'a' : 'b';
+}
+
+export function middleware(request: NextRequest) {
+  const userId = request.cookies.get('uid')?.value ?? crypto.randomUUID();
+  const bucket = getBucket(userId, 'checkout-redesign');
+
+  const response = NextResponse.next();
+
+  // Persist the bucket assignment
+  if (!request.cookies.get('uid')) {
+    response.cookies.set('uid', userId, { maxAge: 60 * 60 * 24 * 365 });
+  }
+
+  // Tell the page component which variant to render
+  response.headers.set('x-ab-bucket', bucket);
+  response.cookies.set('ab-checkout', bucket, { maxAge: 60 * 60 * 24 * 7 });
+
+  return response;
+}
+```
+
+The bucket assignment is deterministic on `userId + experimentName` — the same user always gets the same variant. No database needed.
+
+## Reading experiment bucket in a page
+
+```tsx
+// app/checkout/page.tsx
+import { headers } from 'next/headers';
+import { CheckoutA } from '@/components/CheckoutA';
+import { CheckoutB } from '@/components/CheckoutB';
+
+export default async function CheckoutPage() {
+  const bucket = (await headers()).get('x-ab-bucket');
+  return bucket === 'b' ? <CheckoutB /> : <CheckoutA />;
+}
+```
+
+The middleware sets the header; the page reads it. No client-side flicker, no layout shift.
+
+## Locale detection
+
+```ts
+import { match } from '@formatjs/intl-localematcher';
+import Negotiator from 'negotiator';
+
+const locales = ['en', 'fr', 'de', 'es'];
+const defaultLocale = 'en';
+
+function getLocale(request: NextRequest): string {
+  const negotiatorHeaders: Record<string, string> = {};
+  request.headers.forEach((value, key) => {
+    negotiatorHeaders[key] = value;
+  });
+
+  const languages = new Negotiator({ headers: negotiatorHeaders }).languages();
+  return match(languages, locales, defaultLocale);
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  const pathnameHasLocale = locales.some(
+    (locale) => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`,
+  );
+
+  if (!pathnameHasLocale) {
+    const locale = getLocale(request);
+    return NextResponse.redirect(new URL(`/${locale}${pathname}`, request.url));
+  }
+}
+```
+
+## Bot detection
+
+```ts
+const BOT_PATTERNS = [
+  /googlebot/i, /bingbot/i, /slurp/i, /duckduckbot/i,
+  /baiduspider/i, /yandexbot/i, /facebot/i, /ia_archiver/i,
+];
+
+function isBot(ua: string): boolean {
+  return BOT_PATTERNS.some((pattern) => pattern.test(ua));
+}
+
+export function middleware(request: NextRequest) {
+  const ua = request.headers.get('user-agent') ?? '';
+
+  if (isBot(ua)) {
+    // Serve a simplified response to bots — no A/B, no personalization
+    const response = NextResponse.next();
+    response.headers.set('x-is-bot', 'true');
+    return response;
+  }
+
+  return NextResponse.next();
+}
+```
+
+## Combining matchers
+
+```ts
+export const config = {
+  matcher: [
+    // Protected routes
+    '/dashboard/:path*',
+    // API routes that need auth
+    '/api/protected/:path*',
+    // Skip static files and Next.js internals
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt).*)',
+  ],
+};
+```
+
+Middleware is stateless and runs at the edge — every optimization here compounds. Keep it fast, keep it focused.

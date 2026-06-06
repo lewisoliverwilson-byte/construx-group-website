@@ -1,0 +1,146 @@
+---
+title: "Database connection pooling: why it matters and how to configure it"
+date: "2027-11-08"
+excerpt: "Every serverless function that opens a database connection and closes it on exit is burning latency and potentially exhausting your database's connection limit. Connection pooling fixes this — here's how."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+PostgreSQL has a hard limit on concurrent connections — typically 100 on the smallest RDS instances, a few hundred on larger ones. A serverless architecture that spins up 200 concurrent functions, each opening a connection, hits that wall immediately. The database rejects connections and your app falls over.
+
+Connection pooling sits between your application and the database. Functions connect to the pool, the pool maintains a small set of long-lived connections to the database. Functions don't open connections — they borrow them.
+
+## PgBouncer
+
+PgBouncer is the standard PostgreSQL connection pooler. It runs as a separate process and proxies database connections.
+
+Three pooling modes:
+- **Session mode**: a connection is assigned to a client for the entire session (equivalent to no pooling for serverless)
+- **Transaction mode**: a connection is assigned for a single transaction (best for serverless — functions return connections between requests)
+- **Statement mode**: a connection is reassigned after each statement (fastest, but incompatible with prepared statements and multi-statement transactions)
+
+For serverless Next.js, use **transaction mode**.
+
+```ini
+# pgbouncer.ini
+[databases]
+app_db = host=your-postgres-host port=5432 dbname=construx
+
+[pgbouncer]
+listen_port = 6432
+listen_addr = 0.0.0.0
+auth_type = md5
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+max_client_conn = 1000
+default_pool_size = 25
+min_pool_size = 5
+reserve_pool_size = 5
+reserve_pool_timeout = 3
+server_idle_timeout = 600
+client_idle_timeout = 0
+```
+
+`max_client_conn = 1000` is the number of connections PgBouncer accepts from your application. `default_pool_size = 25` is the number of real database connections PgBouncer maintains. 1000 application connections share 25 database connections.
+
+## Neon's serverless driver
+
+Neon is a serverless PostgreSQL provider with a driver designed specifically for edge and serverless environments. It uses HTTP instead of TCP for connections — no connection overhead at all.
+
+```bash
+npm install @neondatabase/serverless
+```
+
+```ts
+// db/index.ts
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import * as schema from './schema';
+
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql, { schema });
+```
+
+Each query is a fresh HTTP request. There's no connection to pool or close. This is the right approach for edge functions and Vercel's serverless runtime where connection lifecycle is unpredictable.
+
+## Supabase's Supavisor
+
+Supavisor is Supabase's cloud-native connection pooler. It replaces PgBouncer and runs managed in their infrastructure. If you're on Supabase, you get a pooler URL automatically:
+
+```
+postgresql://user:password@db.project.supabase.co:6543/postgres?pgbouncer=true
+```
+
+Port 6543 is the pooler (transaction mode). Port 5432 is direct. Use 6543 for application connections, 5432 for migrations (migrations don't work well with transaction mode pooling because they use advisory locks).
+
+```ts
+// db/index.ts
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+
+// Pooled connection for app queries
+const pooledClient = postgres(process.env.DATABASE_POOLER_URL!, {
+  max: 1,  // serverless: each function instance needs max 1 connection
+  prepare: false,  // prepared statements don't work with PgBouncer transaction mode
+});
+
+// Direct connection for migrations
+const directClient = postgres(process.env.DATABASE_DIRECT_URL!);
+
+export const db = drizzle(pooledClient, { schema });
+export const migrationDb = drizzle(directClient, { schema });
+```
+
+`prepare: false` is critical with PgBouncer in transaction mode — prepared statements are scoped to a session, which transaction mode doesn't guarantee.
+
+## The `max: 1` pattern for serverless
+
+In a serverless function, each invocation is an isolated process. Setting `max: 10` doesn't create a pool of 10 shared connections — it creates the potential for 10 connections per invocation. With 100 concurrent invocations, that's 1000 connections.
+
+Set `max: 1` for serverless. One connection per invocation. The pooler handles multiplexing on the other side.
+
+```ts
+const client = postgres(process.env.DATABASE_URL!, {
+  max: 1,             // one connection per serverless function invocation
+  idle_timeout: 20,   // release after 20s idle
+  connect_timeout: 10, // fail fast if can't connect
+  prepare: false,     // required for PgBouncer transaction mode
+});
+```
+
+## Diagnosing connection exhaustion
+
+```sql
+-- See current connections
+SELECT count(*) FROM pg_stat_activity;
+
+-- See connections by state
+SELECT state, count(*)
+FROM pg_stat_activity
+GROUP BY state;
+
+-- See connections by application
+SELECT application_name, count(*)
+FROM pg_stat_activity
+GROUP BY application_name
+ORDER BY count DESC;
+
+-- Kill idle connections older than 10 minutes
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE state = 'idle'
+  AND query_start < now() - interval '10 minutes';
+```
+
+If you're seeing `too many connections` errors, start here. Common causes: application code that opens connections without closing them, ORM misconfiguration, no pooler in front of the database.
+
+## Summary
+
+| Approach | Use case |
+|---|---|
+| PgBouncer (self-hosted) | Full control, any cloud |
+| Neon serverless driver | Edge runtime, Neon only |
+| Supavisor | Supabase projects |
+| `max: 1` in serverless | Any pooled setup |
+
+The rule: never let application code manage more connections than the database can handle. The pooler's job is to make that limit invisible.

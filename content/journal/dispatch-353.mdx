@@ -1,0 +1,216 @@
+---
+title: "Feature flags in production: LaunchDarkly, Unleash, and the roll-your-own approach"
+date: "2027-11-05"
+excerpt: "Feature flags decouple deployment from release. You ship code dark, then turn features on for 1%, 10%, 100% of users without touching the codebase. Here's the infrastructure and the patterns."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+The deploy/release conflation is one of the oldest sources of risk in software. When deployment means release, every deploy is a gamble. Feature flags break that link: you deploy code that's dark, then release by flipping a flag, with the ability to roll back instantly without a rollback.
+
+## What feature flags enable
+
+- **Gradual rollouts**: 1% → 10% → 50% → 100%, watch metrics at each stage
+- **Kill switches**: turn off broken features in seconds without a deploy
+- **Canary releases**: test on internal users or a specific cohort before GA
+- **A/B tests**: route users to variants by flag assignment
+- **Ops flags**: temporary behavior changes (maintenance mode, degraded mode, dark launch of a new backend)
+
+## LaunchDarkly
+
+LaunchDarkly is the standard for teams that need sophisticated targeting, audit trails, and SDKs across multiple platforms.
+
+```bash
+npm install @launchdarkly/node-server-sdk @launchdarkly/js-client-sdk
+```
+
+```ts
+// lib/launchdarkly.ts (server-side)
+import * as ld from '@launchdarkly/node-server-sdk';
+
+let client: ld.LDClient | null = null;
+
+export async function getLDClient(): Promise<ld.LDClient> {
+  if (!client) {
+    client = ld.init(process.env.LAUNCHDARKLY_SDK_KEY!);
+    await client.waitForInitialization();
+  }
+  return client;
+}
+
+export async function isEnabled(
+  flagKey: string,
+  userId: string,
+  defaultValue = false,
+): Promise<boolean> {
+  const ldClient = await getLDClient();
+  return ldClient.variation(flagKey, { key: userId }, defaultValue);
+}
+```
+
+```ts
+// Usage in a server component or API route
+import { isEnabled } from '@/lib/launchdarkly';
+
+export default async function DashboardPage() {
+  const userId = await getCurrentUserId();
+  const showNewAnalytics = await isEnabled('new-analytics-dashboard', userId);
+
+  return showNewAnalytics ? <NewAnalytics /> : <LegacyAnalytics />;
+}
+```
+
+LaunchDarkly handles the targeting rules, percentage rollouts, and user cohorts in their dashboard. Your code is clean.
+
+## Unleash (self-hosted)
+
+For teams that want control over their flag data:
+
+```bash
+npm install unleash-client
+```
+
+```ts
+// lib/unleash.ts
+import { initialize, isEnabled } from 'unleash-client';
+
+const unleash = initialize({
+  url: process.env.UNLEASH_URL!,
+  appName: 'construx-platform',
+  customHeaders: { Authorization: process.env.UNLEASH_API_TOKEN! },
+});
+
+export { unleash, isEnabled };
+```
+
+```ts
+// In route handler or server component
+import { isEnabled } from '@/lib/unleash';
+
+const showBeta = isEnabled('beta-dashboard', { userId });
+```
+
+Unleash supports gradual rollouts, user whitelists, and custom activation strategies (by region, plan tier, etc.) — all self-hosted, all your data.
+
+## Roll your own with a database
+
+For many projects, a managed service is overkill. A simple flags table gets you 90% of the value:
+
+```ts
+// db/schema.ts
+import { pgTable, text, boolean, jsonb } from 'drizzle-orm/pg-core';
+
+export const featureFlags = pgTable('feature_flags', {
+  key: text('key').primaryKey(),
+  enabled: boolean('enabled').notNull().default(false),
+  rolloutPercent: text('rollout_percent').notNull().default('100'),
+  allowlist: jsonb('allowlist').$type<string[]>().notNull().default([]),
+  description: text('description').notNull().default(''),
+});
+```
+
+```ts
+// lib/flags.ts
+import { db } from '@/db';
+import { featureFlags } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+
+type FlagResult = { enabled: boolean };
+
+async function getFlag(key: string): Promise<FlagResult> {
+  const flag = await db.query.featureFlags.findFirst({
+    where: eq(featureFlags.key, key),
+  });
+
+  if (!flag || !flag.enabled) return { enabled: false };
+  return { enabled: true };
+}
+
+export async function isEnabled(key: string, userId?: string): Promise<boolean> {
+  const flag = await db.query.featureFlags.findFirst({
+    where: eq(featureFlags.key, key),
+  });
+
+  if (!flag || !flag.enabled) return false;
+
+  // Allowlist check
+  if (userId && (flag.allowlist as string[]).includes(userId)) return true;
+
+  // Percentage rollout
+  const percent = parseInt(flag.rolloutPercent, 10);
+  if (percent >= 100) return true;
+  if (percent <= 0) return false;
+
+  // Stable hash for consistent bucketing
+  let hash = 0;
+  const str = `${userId ?? 'anon'}:${key}`;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 100 < percent;
+}
+```
+
+## Caching flag evaluations
+
+Database round-trips per request add up. Cache flags aggressively:
+
+```ts
+import { kv } from '@vercel/kv';
+
+const FLAG_TTL = 30; // 30 seconds — fast enough for a kill switch
+
+export async function isEnabledCached(key: string, userId?: string): Promise<boolean> {
+  const cacheKey = `flag:${key}:${userId ?? 'anon'}`;
+  const cached = await kv.get<boolean>(cacheKey);
+  if (cached !== null) return cached;
+
+  const result = await isEnabled(key, userId);
+  await kv.setex(cacheKey, FLAG_TTL, result);
+  return result;
+}
+```
+
+30 seconds is short enough that a kill switch takes effect quickly. For ops flags (maintenance mode), use 5 seconds.
+
+## Middleware-level flags
+
+Route users to variants before the page renders:
+
+```ts
+// middleware.ts
+import { isEnabledCached } from '@/lib/flags';
+
+export async function middleware(request: NextRequest) {
+  const userId = request.cookies.get('uid')?.value;
+  const showV2 = await isEnabledCached('checkout-v2', userId);
+
+  const response = NextResponse.next();
+  response.headers.set('x-flag-checkout-v2', showV2 ? '1' : '0');
+  return response;
+}
+```
+
+## The flag lifecycle
+
+Flags accumulate technical debt fast. Every flag needs an owner and a cleanup date:
+
+```ts
+const flags = {
+  'checkout-v2': {
+    description: 'New checkout flow',
+    owner: 'payments-team',
+    removeAfter: '2028-02-01',  // remove flag and old code path after full rollout
+  },
+  'maintenance-mode': {
+    description: 'Ops kill switch for the API',
+    owner: 'platform',
+    removeAfter: null,  // permanent ops flag, no removal planned
+  },
+} as const;
+```
+
+Temporary flags (A/B tests, gradual rollouts) should have a deadline and a ticket to remove the old code path. Stale flags are a maintenance burden and a source of confusion.
+
+Pick LaunchDarkly for enterprise-grade targeting and audit logs. Pick Unleash for self-hosted control. Roll your own when flags are simple and your team is small.
