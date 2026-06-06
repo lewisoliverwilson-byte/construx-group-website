@@ -1,0 +1,131 @@
+---
+title: "Next.js App Router patterns we've settled on after a year"
+date: "2026-11-09"
+excerpt: "A year of production App Router experience across three products. Here are the patterns that have stuck — and the ones we've moved away from after learning they didn't work well at scale."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js App Router is the production framework for all three Construx products. After a year of real usage, some patterns have solidified as right and some initial patterns have been discarded.
+
+Here's what we've settled on.
+
+## Server Components as the default
+
+Every component starts as a Server Component unless it has a specific reason to be a Client Component. The reasons a component needs `'use client'`:
+
+- Uses browser APIs (`window`, `document`, `localStorage`)
+- Uses React state or effects (`useState`, `useEffect`, `useRef`)
+- Uses event handlers on client events (`onClick`, `onSubmit`)
+- Uses hooks from third-party libraries that require a client context
+
+Everything else is a Server Component. Server Components are zero-bundle-cost — they render on the server and send HTML, with no JavaScript payload. This matters for the journal (150+ static posts) and the marketing pages.
+
+The shift in thinking: Client Components are the exception that requires justification, not the default.
+
+## The data-fetching pattern
+
+Server Components can fetch data directly:
+
+```tsx
+// app/ventures/page.tsx — no useEffect, no loading state
+export default async function VenturesPage() {
+  const ventures = await getVentures(); // Direct async call, no hook
+  return <VentureGrid ventures={ventures} />;
+}
+```
+
+We don't use `useEffect` for initial data loading. All data fetching that can happen on the server, does. The client fetches only for user-triggered events (search, filtering, form submission).
+
+## Route Group organisation
+
+We use route groups to organise routes without affecting the URL:
+
+```
+app/
+  (marketing)/
+    page.tsx          → /
+    ventures/page.tsx → /ventures
+    journal/page.tsx  → /journal
+  (auth)/
+    login/page.tsx    → /login
+    signup/page.tsx   → /signup
+  api/
+    health/route.ts
+    ai-respond/route.ts
+```
+
+The `(marketing)` and `(auth)` groups share their own layouts. The auth pages have a minimal layout (no nav, centered); the marketing pages have the full nav and footer.
+
+## Parallel Routes for modals
+
+For modal overlays that should be deep-linkable (the venture detail panel on the homepage, the listing enquiry form on The Marqet), we use Parallel Routes:
+
+```
+app/
+  @modal/
+    default.tsx           → null (no modal)
+    listing/[id]/page.tsx → Listing enquiry modal
+  layout.tsx              → Renders children + modal in parallel
+  page.tsx                → Main page content
+```
+
+The modal has its own URL (`/listing/abc123`), is shareable, and maintains the underlying page content behind it. Navigating back closes the modal.
+
+This is the pattern that makes "click on a card, open a detail view" feel native without the complexity of a custom modal state manager.
+
+## generateStaticParams for journal posts
+
+Journal posts are statically generated:
+
+```ts
+export async function generateStaticParams() {
+  return getAllPostMeta().map((p) => ({ slug: p.slug }));
+}
+```
+
+At build time, Next.js calls this function, gets all slugs, and generates a static HTML file for each. Post pages load instantly — there's no server-side rendering at request time, no database query, just serving a file.
+
+The tradeoff: adding a new post requires a rebuild. For us, this is fine — we commit posts to the repo and let Amplify rebuild. For a CMS-driven blog with editorial workflows, this would require ISR (Incremental Static Regeneration).
+
+## The error boundary pattern
+
+Each route segment has its own `error.tsx`:
+
+```tsx
+// app/journal/[slug]/error.tsx
+'use client';
+
+export default function JournalPostError({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-5">
+      <div className="text-center">
+        <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-4">
+          // POST.LOAD.ERROR
+        </p>
+        <h1 className="text-2xl font-bold text-text-base mb-4">Dispatch unavailable</h1>
+        <p className="text-text-muted mb-6">{error.message}</p>
+        <button onClick={reset} className="font-mono text-sm text-construx hover:text-orange-400">
+          Retry →
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+Error boundaries are co-located with their routes. A crash in the journal post rendering doesn't break the entire site — just that post.
+
+## What we've moved away from
+
+**SWR/React Query for everything.** We initially used SWR for data fetching across the products. With App Router, Server Components handle most data fetching without client-side state. We use SWR only for data that must be client-side: user-specific data that can't be server-rendered, real-time data, and mutation-heavy flows.
+
+**`use client` at the top of every file.** Early in the project, we cargo-culted `'use client'` onto components that didn't need it. This produces unnecessary client bundles. We audit for unnecessary `'use client'` directives in code review.
+
+**Wrapping everything in Suspense.** `Suspense` is useful for loading states, but wrapping every async component in a Suspense boundary produces a waterfall of loading states. We use Suspense at the route level and for genuinely independent data dependencies, not as a reflexive wrapper.
+
+## The lesson
+
+App Router patterns become clear through production usage, not through reading documentation. The documentation describes what's possible; production shows what works.
+
+The settled patterns above aren't theoretical preferences — they're the output of a year of building real products, making wrong choices, observing the consequences, and correcting.
