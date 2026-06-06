@@ -1,0 +1,139 @@
+---
+title: "Deno: secure JavaScript runtime with built-in tooling"
+date: "2030-07-18"
+excerpt: "Deno is a JavaScript and TypeScript runtime built by Ryan Dahl — the same person who created Node.js — with lessons from Node applied from scratch. It's secure by default (explicit permissions for file, network, and environment access), TypeScript-native, and ships with a full standard library, formatter, linter, test runner, and bundler. Deno 2 added npm compatibility, making it a viable Node.js drop-in."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Node.js was designed in 2009. It accumulated design decisions that Dahl later identified as mistakes: `node_modules`, implicit permissions, no TypeScript support, and a fragmented toolchain requiring separate tools for testing, formatting, and linting. Deno addresses all of these from the start.
+
+## Setup
+
+```bash
+# Install Deno
+curl -fsSL https://deno.land/install.sh | sh
+
+# Run a script
+deno run main.ts
+
+# TypeScript native — no compilation needed
+deno run https://deno.land/x/oak/mod.ts
+```
+
+## Permissions model
+
+```bash
+# Explicit permissions — Deno denies everything by default
+deno run --allow-net main.ts          # allow outbound network
+deno run --allow-net=api.github.com main.ts  # allow specific host only
+deno run --allow-read=./data main.ts  # allow read from ./data only
+deno run --allow-env=DATABASE_URL main.ts  # allow specific env var only
+deno run --allow-all main.ts          # allow everything (equivalent to Node)
+```
+
+A compromised dependency can't read your SSH keys or phone home without explicit permission.
+
+## Standard library
+
+```ts
+// No npm install needed for common operations
+import { join, dirname }   from 'jsr:@std/path';
+import { ensureDir }       from 'jsr:@std/fs';
+import { encodeBase64 }    from 'jsr:@std/encoding/base64';
+import { assertEquals }    from 'jsr:@std/assert';
+import { delay }           from 'jsr:@std/async';
+
+// HTTP server (built in)
+Deno.serve({ port: 3000 }, (req) => {
+  const url = new URL(req.url);
+  if (url.pathname === '/health') return Response.json({ ok: true });
+  return new Response('Not Found', { status: 404 });
+});
+```
+
+## File system
+
+```ts
+// Deno uses web-standard APIs
+const data   = await Deno.readTextFile('./config.json');
+const config = JSON.parse(data);
+
+await Deno.writeTextFile('./output.json', JSON.stringify(result, null, 2));
+
+// Read directory
+for await (const entry of Deno.readDir('./src')) {
+  console.log(entry.name, entry.isFile ? 'file' : 'dir');
+}
+
+// Watch for changes
+const watcher = Deno.watchFs('./src');
+for await (const event of watcher) {
+  console.log(event.kind, event.paths);
+}
+```
+
+## npm compatibility (Deno 2)
+
+```ts
+// Import from npm directly with npm: specifier
+import { z }      from 'npm:zod';
+import  express   from 'npm:express';
+import { Resend } from 'npm:resend';
+
+// Or use a package.json with Deno as the runtime
+// deno run --node-modules-dir npm:typescript tsc --version
+```
+
+## Built-in test runner
+
+```ts
+// Tests run with `deno test`
+import { assertEquals, assertRejects } from 'jsr:@std/assert';
+
+Deno.test('formatCurrency GBP', () => {
+  assertEquals(formatCurrency(4900, 'gbp'), '£49.00');
+});
+
+Deno.test('throws on negative amount', async () => {
+  await assertRejects(
+    () => processPayment(-100),
+    Error,
+    'Amount must be positive',
+  );
+});
+
+// Subtests
+Deno.test('slugify', async (t) => {
+  await t.step('lowercases', () => assertEquals(slugify('Hello'), 'hello'));
+  await t.step('replaces spaces', () => assertEquals(slugify('hello world'), 'hello-world'));
+});
+```
+
+```bash
+deno test                     # run all tests
+deno test --allow-net src/    # run with network permission
+deno test --coverage=cov/     # collect coverage
+deno coverage cov/            # display coverage report
+```
+
+## Deno Deploy
+
+```ts
+// Deploy serverless Deno functions in 35+ regions
+// No configuration — just push TypeScript to GitHub
+
+Deno.serve((req) => {
+  const url = new URL(req.url);
+  if (url.pathname === '/api/hello') {
+    return Response.json({ message: 'Hello from Deno Deploy' });
+  }
+  return new Response('Not Found', { status: 404 });
+});
+```
+
+`deployctl deploy main.ts` — running globally in under a minute.
+
+## Deno vs Node.js vs Bun
+
+Deno: secure by default, TypeScript native, standard library, web-standard APIs. Best for new projects where security guarantees matter. Node.js: largest ecosystem, most deployment targets, required for many existing projects. Bun: fastest, drop-in Node compatible, but less focus on security. For new services where you control the stack, Deno's security model and TypeScript-first experience are compelling. For compatibility with existing Node.js packages and tooling, Bun or Node.js are more practical today.
