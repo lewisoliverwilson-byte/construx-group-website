@@ -1,0 +1,207 @@
+---
+title: "Headless CMS patterns: Sanity vs MDX files for a Next.js blog"
+date: "2029-02-20"
+excerpt: "A headless CMS handles editorial workflows, rich media, and non-technical editors. MDX files in a Git repo handle developer-authored content with full component control. Here's when each is right and how to migrate between them if your needs change."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The journal started as MDX files in the Git repo because developers are the authors. Every post is a file, commits are the version history, and components can be embedded directly in prose. A headless CMS like Sanity would add a UI layer that's unnecessary overhead when the authors are already comfortable with Git.
+
+## MDX files in Git (current approach)
+
+```
+content/
+└── journal/
+    ├── dispatch-001.mdx
+    ├── dispatch-002.mdx
+    └── dispatch-510.mdx
+```
+
+```ts
+// lib/posts.ts
+import { readFileSync, readdirSync } from 'fs';
+import { join }                      from 'path';
+import matter                        from 'gray-matter';
+
+const CONTENT_DIR = join(process.cwd(), 'content/journal');
+
+export interface PostMeta {
+  slug:        string;
+  title:       string;
+  date:        string;
+  excerpt:     string;
+  author:      string;
+  tag:         string;
+  readingTime: number;
+}
+
+export function getAllPostMeta(): PostMeta[] {
+  const files = readdirSync(CONTENT_DIR).filter((f) => f.endsWith('.mdx'));
+
+  return files
+    .map((file) => {
+      const raw  = readFileSync(join(CONTENT_DIR, file), 'utf-8');
+      const { data } = matter(raw);
+      const wordCount = raw.split(/\s+/).length;
+
+      return {
+        slug:        file.replace('.mdx', ''),
+        title:       data.title,
+        date:        data.date,
+        excerpt:     data.excerpt,
+        author:      data.author,
+        tag:         data.tag,
+        readingTime: Math.ceil(wordCount / 200),
+      };
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+```
+
+**Advantages:** zero CMS dependency, posts are code-reviewable, components can be embedded in prose, free, offline-capable, Git history is the audit log.
+
+**Limitations:** non-technical authors can't contribute, no rich media management, no scheduled publishing, no content preview for non-devs.
+
+## Sanity CMS
+
+Sanity is the right choice when:
+- Non-developers write and edit content
+- You need a media library (image upload, crop, focal points)
+- You need content previews before publish
+- Content is shared across multiple frontends
+- You need structured content validation (required fields, type checking)
+
+```bash
+npm create sanity@latest
+npm install next-sanity @sanity/image-url
+```
+
+```ts
+// sanity/schemaTypes/post.ts
+import { defineField, defineType } from 'sanity';
+
+export const postSchema = defineType({
+  name:  'post',
+  title: 'Post',
+  type:  'document',
+  fields: [
+    defineField({
+      name:       'title',
+      type:       'string',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name:       'slug',
+      type:       'slug',
+      options:    { source: 'title' },
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name:  'publishedAt',
+      type:  'datetime',
+    }),
+    defineField({
+      name:   'excerpt',
+      type:   'text',
+      rows:   3,
+    }),
+    defineField({
+      name:  'mainImage',
+      type:  'image',
+      options: { hotspot: true },
+    }),
+    defineField({
+      name:  'body',
+      type:  'array',
+      of:    [{ type: 'block' }, { type: 'image' }, { type: 'code' }],
+    }),
+    defineField({
+      name:  'tags',
+      type:  'array',
+      of:    [{ type: 'string' }],
+    }),
+  ],
+  preview: {
+    select: {
+      title:  'title',
+      media:  'mainImage',
+    },
+  },
+});
+```
+
+```ts
+// lib/sanity.ts
+import { createClient }  from 'next-sanity';
+import imageUrlBuilder   from '@sanity/image-url';
+
+export const sanityClient = createClient({
+  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
+  dataset:   'production',
+  apiVersion: '2024-01-01',
+  useCdn:    process.env.NODE_ENV === 'production',
+});
+
+const builder = imageUrlBuilder(sanityClient);
+
+export function urlFor(source: SanityImage) {
+  return builder.image(source);
+}
+```
+
+```ts
+// Fetch posts from Sanity
+export async function getAllPosts() {
+  return sanityClient.fetch(`
+    *[_type == "post" && publishedAt < now()] | order(publishedAt desc) {
+      _id,
+      title,
+      "slug": slug.current,
+      publishedAt,
+      excerpt,
+      mainImage,
+      tags,
+    }
+  `);
+}
+```
+
+## Live previews with Sanity
+
+```tsx
+// app/journal/[slug]/page.tsx — with draft preview support
+import { draftMode }   from 'next/headers';
+import { loadQuery }   from '@/sanity/lib/store';
+import PostPreview     from '@/components/PostPreview';
+import PostContent     from '@/components/PostContent';
+
+export default async function PostPage({ params }: { params: { slug: string } }) {
+  const { isEnabled } = draftMode();
+
+  const initial = await loadQuery(POST_QUERY, { slug: params.slug });
+
+  return isEnabled ? (
+    <PostPreview initial={initial} params={params} />
+  ) : (
+    <PostContent data={initial.data} />
+  );
+}
+```
+
+## Migrating from MDX to Sanity
+
+If you start with MDX and later need a CMS:
+
+1. Export MDX frontmatter to Sanity documents via the Sanity CLI
+2. Convert Markdown body to Portable Text (Sanity's rich text format) with `@portabletext/to-portable-text`
+3. Upload images to Sanity's asset store
+4. Update the fetch functions to hit the Sanity API instead of the filesystem
+
+The migration is mechanical. The tricky part is portable text — Sanity's rich text format is structured JSON, not Markdown strings, and component embeds need to be replaced with Sanity's `object` type definitions.
+
+## The rule
+
+Start with MDX if developers write the content. Switch to Sanity when non-technical authors need to contribute, or when content complexity (media management, multiple content types, structured data) exceeds what MDX handles cleanly.
+
+The journal stays MDX. It's developer-authored, version-controlled, and needs full component embedding. The product marketing pages (pricing, landing page copy) could move to Sanity in future if we want to give marketing control over them without code deployments.

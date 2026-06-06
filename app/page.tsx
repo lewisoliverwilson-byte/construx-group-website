@@ -11,6 +11,7 @@ import SystemLog from '@/components/SystemLog';
 import SysBootSequence from '@/components/SysBootSequence';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import UptimePanel from '@/components/UptimePanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -148,8 +149,13 @@ export default function HomePage() {
       </div>
 
       {/* dmesg kernel log */}
-      <div className="pb-10">
+      <div className="pb-6">
         <DmesgPanel />
+      </div>
+
+      {/* Uptime monitor */}
+      <div className="pb-10">
+        <UptimePanel />
       </div>
 
       {/* Below-fold: What is Construx */}

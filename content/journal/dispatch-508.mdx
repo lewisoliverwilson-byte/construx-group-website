@@ -1,0 +1,271 @@
+---
+title: "Vitest: fast unit testing for TypeScript"
+date: "2029-02-14"
+excerpt: "Vitest is a Vite-native test runner that shares Vite's transform pipeline — no separate TypeScript transpilation step, no Jest config complexity. Here's the setup for testing utility functions, custom hooks, and server-side logic in a Next.js project."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Vitest is Jest-compatible (same API, same matchers) but significantly faster — it uses Vite's transform pipeline so TypeScript and ESM work without configuration. For unit and integration tests that don't need a browser, Vitest is the faster default over Jest in a modern TypeScript project.
+
+## Setup
+
+```bash
+npm install -D vitest @vitest/coverage-v8 happy-dom
+```
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import { resolve }      from 'path';
+
+export default defineConfig({
+  test: {
+    environment: 'happy-dom',  // DOM-like env for React hooks
+    globals:     true,          // No need to import describe/it/expect
+    setupFiles:  ['./src/__tests__/setup.ts'],
+    coverage: {
+      provider:  'v8',
+      reporter:  ['text', 'json', 'html'],
+      thresholds: {
+        lines:      80,
+        functions:  80,
+        branches:   70,
+      },
+    },
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+    },
+  },
+});
+```
+
+```ts
+// src/__tests__/setup.ts
+import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
+
+afterEach(cleanup);
+
+// Mock Next.js router
+vi.mock('next/navigation', () => ({
+  useRouter:   () => ({ push: vi.fn(), back: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/',
+  useParams:   () => ({}),
+}));
+```
+
+## Testing utility functions
+
+```ts
+// src/lib/format.ts
+export function formatPrice(pence: number, currency = 'GBP'): string {
+  return new Intl.NumberFormat('en-GB', {
+    style:    'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(pence / 100);
+}
+
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 3) + '...';
+}
+```
+
+```ts
+// src/lib/__tests__/format.test.ts
+import { describe, it, expect } from 'vitest';
+import { formatPrice, slugify, truncate } from '../format';
+
+describe('formatPrice', () => {
+  it('formats pence to pounds', () => {
+    expect(formatPrice(1999)).toBe('£19.99');
+  });
+
+  it('handles zero', () => {
+    expect(formatPrice(0)).toBe('£0.00');
+  });
+
+  it('formats USD', () => {
+    expect(formatPrice(999, 'USD')).toBe('US$9.99');
+  });
+});
+
+describe('slugify', () => {
+  it('lowercases and replaces spaces', () => {
+    expect(slugify('Hello World')).toBe('hello-world');
+  });
+
+  it('removes special characters', () => {
+    expect(slugify("It's a test!")).toBe('its-a-test');
+  });
+
+  it('trims leading and trailing hyphens', () => {
+    expect(slugify('  hello  ')).toBe('hello');
+  });
+});
+
+describe('truncate', () => {
+  it('returns original if shorter than max', () => {
+    expect(truncate('short', 10)).toBe('short');
+  });
+
+  it('truncates with ellipsis', () => {
+    expect(truncate('Hello, World!', 8)).toBe('Hello...');
+  });
+
+  it('returns exact length if equal to max', () => {
+    expect(truncate('twelve chars', 12)).toBe('twelve chars');
+  });
+});
+```
+
+## Testing custom React hooks
+
+```ts
+// src/hooks/useDebounce.ts
+import { useState, useEffect } from 'react';
+
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+
+  return debounced;
+}
+```
+
+```ts
+// src/hooks/__tests__/useDebounce.test.ts
+import { renderHook, act } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { useDebounce } from '../useDebounce';
+
+describe('useDebounce', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('returns initial value immediately', () => {
+    const { result } = renderHook(() => useDebounce('initial', 300));
+    expect(result.current).toBe('initial');
+  });
+
+  it('does not update before delay', () => {
+    const { result, rerender } = renderHook(
+      ({ value }) => useDebounce(value, 300),
+      { initialProps: { value: 'initial' } }
+    );
+
+    rerender({ value: 'updated' });
+    expect(result.current).toBe('initial');
+  });
+
+  it('updates after delay', () => {
+    const { result, rerender } = renderHook(
+      ({ value }) => useDebounce(value, 300),
+      { initialProps: { value: 'initial' } }
+    );
+
+    rerender({ value: 'updated' });
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(result.current).toBe('updated');
+  });
+});
+```
+
+## Mocking modules
+
+```ts
+// Mock an entire module
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn().mockReturnValue({
+      from:  vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ id: '1', name: 'Test' }]),
+      }),
+    }),
+    insert: vi.fn().mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: '1' }]),
+      }),
+    }),
+  },
+}));
+
+// Mock a specific function
+vi.mock('@/lib/embeddings', () => ({
+  embedText: vi.fn().mockResolvedValue(Array(1536).fill(0.1)),
+}));
+```
+
+## Testing async functions
+
+```ts
+describe('semanticSearch', () => {
+  it('returns results sorted by similarity', async () => {
+    vi.mocked(embedText).mockResolvedValue(Array(1536).fill(0.1));
+
+    const results = await semanticSearch('laptop stand', 5);
+
+    expect(results).toHaveLength(5);
+    expect(results[0].similarity).toBeGreaterThan(results[1].similarity);
+  });
+
+  it('throws when embedding fails', async () => {
+    vi.mocked(embedText).mockRejectedValue(new Error('API error'));
+
+    await expect(semanticSearch('test')).rejects.toThrow('API error');
+  });
+});
+```
+
+## Running tests
+
+```bash
+# Run once
+npx vitest run
+
+# Watch mode (re-runs on file change)
+npx vitest
+
+# With coverage
+npx vitest run --coverage
+
+# Run specific file
+npx vitest run src/lib/__tests__/format.test.ts
+
+# UI mode (browser-based test explorer)
+npx vitest --ui
+```
+
+## package.json scripts
+
+```json
+{
+  "scripts": {
+    "test":       "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui":    "vitest --ui"
+  }
+}
+```
+
+Vitest's watch mode uses Vite's module graph to determine which tests to re-run when a file changes — only tests that import the changed file re-run, not the full suite. For large codebases, this makes the feedback loop noticeably faster than Jest's equivalent.

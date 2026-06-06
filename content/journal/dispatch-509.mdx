@@ -1,0 +1,197 @@
+---
+title: "Clerk vs NextAuth: authentication in Next.js App Router"
+date: "2029-02-17"
+excerpt: "Authentication is the one infrastructure piece you don't want to build yourself. Clerk is the fastest path to shipping — hosted UI, magic links, OAuth, passkeys, and user management out of the box. NextAuth is the flexible open-source option for when you need control. Here's when to use each."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Authentication has a spectrum from 'fully managed' to 'fully custom'. Clerk sits at the managed end: hosted sign-in pages, user management dashboard, webhooks for user events, multi-factor auth, passkeys — all without writing authentication logic. NextAuth (now Auth.js v5) sits in the middle: open-source, flexible, but you manage your own database, sessions, and OAuth providers.
+
+## Clerk: the fast path
+
+```bash
+npm install @clerk/nextjs
+```
+
+```ts
+// middleware.ts
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/journal(.*)',
+  '/api/webhooks(.*)',
+]);
+
+export default clerkMiddleware((auth, req) => {
+  if (!isPublicRoute(req)) {
+    auth().protect();  // Redirect to sign-in if not authenticated
+  }
+});
+
+export const config = {
+  matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
+};
+```
+
+```tsx
+// app/layout.tsx
+import { ClerkProvider } from '@clerk/nextjs';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ClerkProvider>
+      <html>
+        <body>{children}</body>
+      </html>
+    </ClerkProvider>
+  );
+}
+```
+
+```tsx
+// app/dashboard/page.tsx — Server Component
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { redirect }          from 'next/navigation';
+
+export default async function DashboardPage() {
+  const { userId } = await auth();
+  if (!userId) redirect('/sign-in');
+
+  const user = await currentUser();
+
+  return <div>Welcome, {user?.firstName}</div>;
+}
+```
+
+```tsx
+// Client Component
+'use client';
+
+import { useAuth, useUser, SignOutButton } from '@clerk/nextjs';
+
+export function NavBar() {
+  const { isSignedIn } = useAuth();
+  const { user }       = useUser();
+
+  return (
+    <nav>
+      {isSignedIn ? (
+        <>
+          <span>{user?.emailAddresses[0].emailAddress}</span>
+          <SignOutButton />
+        </>
+      ) : (
+        <a href="/sign-in">Sign in</a>
+      )}
+    </nav>
+  );
+}
+```
+
+Clerk handles: hosted sign-in/sign-up UI, magic links, OAuth (Google, GitHub, etc.), passkeys, MFA, user management, organisation support, and JWT sessions that work with Edge Middleware. The free tier is 10,000 monthly active users.
+
+## NextAuth v5 (Auth.js)
+
+```bash
+npm install next-auth@beta
+```
+
+```ts
+// auth.ts
+import NextAuth               from 'next-auth';
+import GitHub                 from 'next-auth/providers/github';
+import Google                 from 'next-auth/providers/google';
+import Credentials            from 'next-auth/providers/credentials';
+import { DrizzleAdapter }     from '@auth/drizzle-adapter';
+import { db }                 from '@/lib/db';
+import { verifyPassword }     from '@/lib/auth/password';
+import { getUserByEmail }     from '@/lib/db/users';
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  adapter:  DrizzleAdapter(db),
+  providers: [
+    GitHub({
+      clientId:     process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    }),
+    Google({
+      clientId:     process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    Credentials({
+      credentials: {
+        email:    { label: 'Email',    type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const user = await getUserByEmail(credentials.email as string);
+        if (!user) return null;
+
+        const valid = await verifyPassword(
+          credentials.password as string,
+          user.passwordHash,
+        );
+
+        return valid ? user : null;
+      },
+    }),
+  ],
+  session: { strategy: 'jwt' },
+  callbacks: {
+    jwt({ token, user }) {
+      if (user) token.role = user.role;
+      return token;
+    },
+    session({ session, token }) {
+      session.user.id   = token.sub!;
+      session.user.role = token.role as string;
+      return session;
+    },
+  },
+});
+```
+
+```ts
+// app/api/auth/[...nextauth]/route.ts
+import { handlers } from '@/auth';
+export const { GET, POST } = handlers;
+```
+
+```ts
+// middleware.ts
+import { auth } from '@/auth';
+
+export default auth((req) => {
+  if (!req.auth && req.nextUrl.pathname !== '/') {
+    return Response.redirect(new URL('/api/auth/signin', req.url));
+  }
+});
+
+export const config = { matcher: ['/dashboard/:path*', '/api/user/:path*'] };
+```
+
+## When to use each
+
+**Clerk:**
+- Fastest time to ship — hosted UI, no session management code
+- Need passkeys, MFA, or organisation support without building it
+- Multi-tenancy with Clerk organisations
+- User management dashboard (suspend, delete, impersonate users)
+- Budget exists for the SaaS fee
+
+**NextAuth:**
+- Need full control over the database schema (auth tables in your own Postgres)
+- Custom sign-in UI that matches your design system exactly
+- Credentials-based auth (username/password) with your own password hashing
+- Open-source / self-hosted requirement
+- Already using Drizzle with an existing user table
+
+**Don't build from scratch.** Both options give you session handling, CSRF protection, secure cookie management, and OAuth flow handling. Rolling these yourself is where security vulnerabilities live.
+
+The Construx products use Clerk for Scoutr and The Hyve (fast iteration, hosted management), and custom JWT sessions for The Marqet's partner API (full control over token shape and expiry).
