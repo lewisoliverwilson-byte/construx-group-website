@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://construxgroup.io/now' },
 };
 
-const LAST_UPDATED = 'July 2026';
+const LAST_UPDATED = 'November 2026';
 
 const nowItems = [
   {
@@ -50,8 +50,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '143 dispatches and continuing',
-        body: 'Writing consistently about what we build and why. Build logs, methodology posts, product thinking, and strategy. The journal compounds — early posts still drive discovery months after publication.',
+        title: '176 dispatches and continuing',
+        body: 'Writing consistently about what we build and why. Build logs, methodology posts, product thinking, and strategy. The journal compounds — early posts still drive discovery months after publication. Aiming for 200.',
         status: 'ONGOING',
       },
     ],
@@ -60,8 +60,8 @@ const nowItems = [
     category: 'EXPLORING',
     items: [
       {
-        title: 'A fourth venture',
-        body: "Running the 48-hour validation process on a few ideas. Nothing ready to announce. The signals we're watching: where professional workflows are still manual, where AI can replace calculation rather than just assist it.",
+        title: 'The Lattice: AI practitioner network',
+        body: "Running a 60-day demand test: a landing page for a professional network for AI practitioners. Targeting 500 email signups before committing to the build. At day 30 we have 180 — on track but not confirmed.",
         status: 'RESEARCH',
       },
     ],
