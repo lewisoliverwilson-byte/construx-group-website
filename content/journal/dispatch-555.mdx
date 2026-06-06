@@ -1,0 +1,164 @@
+---
+title: "CSS animation performance: what the browser actually does"
+date: "2029-07-05"
+excerpt: "Not all CSS animations are equal. Animating `opacity` and `transform` runs on the GPU and doesn't cause layout recalculations. Animating `width`, `height`, `margin`, or `top` triggers layout and paint on every frame, causing jank. Understanding the browser's rendering pipeline tells you which animations will be smooth and which won't."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+CSS animations feel the same to write but behave very differently at runtime. An animation that looks smooth at 60 FPS in development can drop frames in production. The difference is which CSS properties you animate.
+
+## The browser rendering pipeline
+
+Every frame, the browser does some or all of these steps:
+
+```
+JavaScript → Style → Layout → Paint → Composite
+```
+
+**JavaScript**: runs your code, updates the DOM.
+**Style**: calculates which CSS rules apply to each element.
+**Layout**: calculates the position and size of every element.
+**Paint**: fills in pixels — colours, text, images, shadows.
+**Composite**: assembles layers and sends to the GPU.
+
+The expensive steps are Layout and Paint. If your animation triggers them on every frame, you're doing the full pipeline 60 times per second.
+
+## Properties that only trigger Composite
+
+These animations run entirely on the GPU — no Layout, no Paint:
+
+```css
+/* Only composite — fast */
+.animate-opacity   { transition: opacity 300ms ease; }
+.animate-transform { transition: transform 300ms ease; }
+.animate-filter    { transition: filter 300ms ease; }    /* some cases */
+```
+
+```css
+/* Animation examples */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+```
+
+`transform` and `opacity` are compositor-only properties. The browser moves the element's layer without recalculating the rest of the page.
+
+## Properties that trigger Layout
+
+These cause the browser to recalculate every element's position and size on every frame:
+
+```css
+/* These trigger Layout on every frame — avoid animating */
+.bad-animation {
+  transition: width 300ms ease;        /* triggers layout */
+  transition: height 300ms ease;       /* triggers layout */
+  transition: margin 300ms ease;       /* triggers layout */
+  transition: padding 300ms ease;      /* triggers layout */
+  transition: top 300ms ease;          /* triggers layout (if positioned) */
+  transition: left 300ms ease;         /* triggers layout (if positioned) */
+  transition: font-size 300ms ease;    /* triggers layout */
+}
+```
+
+If you need to animate size, use `transform: scale()` instead of `width`/`height`. If you need to animate position, use `transform: translate()` instead of `top`/`left`.
+
+```css
+/* Bad: animates width */
+.panel { transition: width 300ms ease; }
+.panel:hover { width: 300px; }
+
+/* Good: animates transform */
+.panel { 
+  width: 300px; 
+  transform: scaleX(0.5); 
+  transform-origin: left center;
+  transition: transform 300ms ease; 
+}
+.panel:hover { transform: scaleX(1); }
+```
+
+## Properties that trigger Paint
+
+These don't move things around (no Layout) but do redraw pixels:
+
+```css
+/* These trigger Paint on every frame */
+.bad-paint {
+  transition: color 300ms ease;            /* triggers paint */
+  transition: background-color 300ms ease; /* triggers paint */
+  transition: border-color 300ms ease;     /* triggers paint */
+  transition: box-shadow 300ms ease;       /* triggers paint */
+  transition: border-radius 300ms ease;    /* triggers paint (some cases) */
+}
+```
+
+Box-shadow is one of the most commonly over-used paint triggers. A hover effect that changes box-shadow on every frame repaints the element 60 times per second.
+
+```css
+/* Bad: animated box-shadow triggers paint */
+.card {
+  transition: box-shadow 300ms ease;
+}
+.card:hover {
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+}
+
+/* Good: use opacity on a pseudo-element, animate that */
+.card { position: relative; }
+.card::after {
+  content: '';
+  position: absolute; inset: 0;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  opacity: 0;
+  transition: opacity 300ms ease;  /* opacity = compositor only */
+}
+.card:hover::after { opacity: 1; }
+```
+
+The `::after` approach renders the shadow statically and fades it in with an opacity transition — compositor-only.
+
+## will-change
+
+`will-change` hints to the browser that an element will be animated, so it can promote it to its own GPU layer ahead of time:
+
+```css
+.animated-element {
+  will-change: transform, opacity;
+}
+```
+
+Use it sparingly. Every `will-change` creates a new GPU layer, consuming GPU memory. On lower-powered devices, too many layers can actually hurt performance. Apply it to elements you know will animate, not as a blanket optimisation.
+
+## Measuring in practice
+
+Open DevTools → Performance → record a few seconds while your animation runs. Look at the FPS counter and the frame breakdown. A frame that's red has dropped below 60fps. Click on it to see which step took the longest.
+
+In Chrome DevTools, enable "Rendering" → "Show paint flashing" — any area being repainted gets highlighted in green. If you see your entire page flash green on every animation frame, you have a paint problem.
+
+## Tailwind and Next.js
+
+Tailwind's animation utilities are safe:
+
+```tsx
+// Tailwind — these are all compositor-only
+<div className="animate-fade-in">   /* opacity */
+<div className="animate-slide-up">  /* transform + opacity */
+<div className="transition-opacity duration-300"> /* opacity */
+<div className="transition-transform duration-300"> /* transform */
+```
+
+`transition-colors` and `transition-shadow` in Tailwind trigger Paint — acceptable for hover states but don't use them in loop animations.
+
+For the Construx site, all decorative animations use `opacity` and `transform` exclusively. The terminal panel reveal effects, the status dot pulses, the live chart updates — all compositor-only. No layout or paint on any animation frame.
