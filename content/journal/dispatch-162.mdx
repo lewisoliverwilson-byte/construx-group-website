@@ -1,0 +1,108 @@
+---
+title: "Multi-tenancy patterns: how we isolate data between workspaces in The Hyve"
+date: "2026-10-24"
+excerpt: "The Hyve serves multiple workspaces from a single application. Here's how we handle data isolation — the pattern choices, the tradeoffs, and what we'd do differently at greater scale."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Multi-tenancy is the property of a system that serves multiple customers (tenants) from a shared infrastructure. The Hyve serves multiple workspaces from a single application and database. The architectural choice is how to isolate their data.
+
+## The isolation spectrum
+
+There are three standard approaches to multi-tenant data isolation:
+
+**Separate databases (per-tenant):** Each customer gets their own database. Complete isolation — a bug in one tenant's data can't touch another's. Expensive at low tenant counts; manageable at scale with database-per-tenant provisioning.
+
+**Schema-per-tenant (PostgreSQL):** Each tenant gets their own schema within a shared database. Logical isolation, shared storage. Moderate cost, good isolation, but more complex migrations.
+
+**Row-level isolation (shared schema):** All tenants share the same tables, distinguished by a `workspace_id` or `tenant_id` column. Simpler schema, complex security model, cheapest infrastructure.
+
+We chose row-level isolation with PostgreSQL Row Level Security (RLS).
+
+## Row Level Security
+
+PostgreSQL RLS allows you to define policies that restrict which rows a database session can see or modify. Applied to a tenant-isolated system, every query automatically filters to the current workspace's rows — the application doesn't need to include `WHERE workspace_id = ?` on every query; the database handles it.
+
+```sql
+-- Enable RLS on all workspace-scoped tables
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE channels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspace_members ENABLE ROW LEVEL SECURITY;
+
+-- Policy: users can only see messages in their workspace
+CREATE POLICY workspace_isolation ON messages
+  USING (workspace_id = current_setting('app.current_workspace_id')::uuid);
+
+CREATE POLICY workspace_isolation ON channels
+  USING (workspace_id = current_setting('app.current_workspace_id')::uuid);
+```
+
+Before each database operation, we set the current workspace context:
+
+```ts
+async function withWorkspace<T>(workspaceId: string, fn: () => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('app.current_workspace_id', ${workspaceId}, true)`
+    );
+    return fn();
+  });
+}
+```
+
+The `true` parameter to `set_config` means the setting is local to the transaction — it resets when the transaction completes. This prevents workspace context from leaking between requests.
+
+## The bypass role
+
+RLS can be bypassed with the `BYPASSRLS` privilege. We use two database roles:
+
+- `app_user`: The role used by the application. RLS policies apply. Every query is workspace-scoped.
+- `admin_user`: Used for migrations and administrative queries. `BYPASSRLS`. Used only in deployment scripts, never in the application.
+
+```sql
+-- Application queries run as app_user
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+
+-- Admin queries can bypass RLS
+CREATE ROLE admin_user WITH BYPASSRLS;
+```
+
+This ensures that even if a bug in application code tries to access another workspace's data, the database will refuse — the app_user cannot bypass the isolation policy.
+
+## The `workspace_id` FK requirement
+
+Every workspace-scoped table must have a `workspace_id` foreign key. We enforce this in code review and with a custom Drizzle schema validator:
+
+```ts
+function requiresWorkspaceId(table: AnyTable): boolean {
+  return 'workspace_id' in table;
+}
+
+// Called during schema validation in CI
+for (const table of WORKSPACE_SCOPED_TABLES) {
+  if (!requiresWorkspaceId(schema[table])) {
+    throw new Error(`Table ${table} is missing workspace_id`);
+  }
+}
+```
+
+Tables without `workspace_id` are explicitly listed as system-level tables (users, workspaces themselves, billing records) — this is a conscious exception, not an accident.
+
+## Embedding isolation
+
+The Hyve uses pgvector for semantic search over workspace messages. Embeddings stored in the `message_embeddings` table also have a `workspace_id` column and an RLS policy.
+
+This is important: if embeddings weren't workspace-isolated, a semantic query for workspace A could theoretically surface results from workspace B. The vector similarity search respects RLS because the index scan happens after the RLS filter applies.
+
+## What we'd do at greater scale
+
+Row-level isolation with RLS is appropriate for our current scale. At much greater scale (thousands of workspaces, millions of rows per table), the shared schema starts to create problems:
+
+**Noisy neighbour:** A large workspace with high query volume can affect query performance for all workspaces. With separate databases, this is isolated.
+
+**Schema migrations:** A migration that adds a column to a large shared table locks the table. With per-tenant schemas, you can migrate tenants progressively.
+
+**Data residency:** If a workspace needs data residency (EU-only data storage), per-tenant databases make this straightforward; shared schema makes it complex.
+
+At our scale, RLS is the right tradeoff: simpler operations, cheaper infrastructure, adequate isolation. The migration path to schema-per-tenant or database-per-tenant exists if we need it — the core data model is already structured around workspace isolation.

@@ -1,0 +1,216 @@
+---
+title: "Webhooks: reliable delivery, idempotency, and the retry problem"
+date: "2026-10-26"
+excerpt: "The Marqet and Scoutr both consume and produce webhooks. Here's the implementation — from signature verification to idempotent processing to the exponential backoff retry system that makes delivery reliable."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Webhooks are the standard mechanism for event-driven integration between services. They're conceptually simple — an HTTP POST to a URL when something happens — but reliable implementation requires handling delivery failure, idempotency, and signature verification.
+
+Here's how we handle both consuming (incoming) and producing (outgoing) webhooks.
+
+## Consuming webhooks: Stripe
+
+The most critical webhook consumer we have is Stripe's payment events. A `payment_intent.succeeded` event triggers fund release on The Marqet; getting this wrong means sellers don't get paid.
+
+**Signature verification:**
+
+Every Stripe webhook includes a `Stripe-Signature` header. We verify it against our webhook secret before processing:
+
+```ts
+import Stripe from 'stripe';
+
+export async function POST(req: Request) {
+  // Raw body is required for signature verification
+  const rawBody = await req.text();
+  const signature = req.headers.get('stripe-signature') ?? '';
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!,
+    );
+  } catch (err) {
+    return Response.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  await processStripeEvent(event);
+  return Response.json({ received: true });
+}
+```
+
+The `rawBody = await req.text()` is critical — the signature is computed over the raw body bytes. Reading the body through Next.js's JSON parsing first will produce a different byte sequence and the signature check fails.
+
+**Idempotent processing:**
+
+Stripe may deliver the same event multiple times (their guarantee is at-least-once delivery). We process each event idempotently by recording the event ID before processing:
+
+```ts
+async function processStripeEvent(event: Stripe.Event) {
+  // Check if we've already processed this event
+  const existing = await db.query.stripeEvents.findFirst({
+    where: eq(stripeEvents.stripeEventId, event.id),
+  });
+  
+  if (existing) {
+    // Already processed — return without re-processing
+    return;
+  }
+
+  // Record the event as seen (before processing, to prevent double-processing
+  // if the processing step fails partway through)
+  await db.insert(stripeEvents).values({
+    stripeEventId: event.id,
+    type: event.type,
+    processedAt: new Date(),
+  });
+
+  switch (event.type) {
+    case 'payment_intent.succeeded':
+      await handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent);
+      break;
+    case 'payment_intent.payment_failed':
+      await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
+      break;
+    // ... other event types
+  }
+}
+```
+
+Recording the event ID _before_ processing (rather than after) prevents a race condition: if processing fails halfway through, a retry will see the event as "already processed" and not re-attempt the partial operation. This is safe because our handlers are idempotent — running them on a completed event produces the same result as not running them.
+
+## Producing webhooks: outgoing event delivery
+
+The Marqet sends webhooks to sellers who want event notifications (new enquiry, payment released, dispute opened). Reliable delivery requires a queue and retry system.
+
+**The delivery architecture:**
+
+```
+Application Event → webhook_deliveries table → delivery worker → HTTP POST → success/retry
+```
+
+When an event occurs, we insert a delivery record:
+
+```ts
+async function scheduleWebhookDelivery(
+  endpoint: string,
+  eventType: string,
+  payload: object,
+) {
+  await db.insert(webhookDeliveries).values({
+    endpoint,
+    eventType,
+    payload: JSON.stringify(payload),
+    status: 'pending',
+    nextRetryAt: new Date(),
+    attempts: 0,
+  });
+}
+```
+
+**The delivery worker:**
+
+```ts
+async function processWebhookDeliveries() {
+  const pending = await db.query.webhookDeliveries.findMany({
+    where: and(
+      eq(webhookDeliveries.status, 'pending'),
+      lte(webhookDeliveries.nextRetryAt, new Date()),
+    ),
+    limit: 50,
+    for: 'update skip locked',
+  });
+
+  await Promise.allSettled(pending.map(deliverWebhook));
+}
+
+async function deliverWebhook(delivery: WebhookDelivery) {
+  const secret = await getEndpointSecret(delivery.endpoint);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const payload = `${timestamp}.${delivery.payload}`;
+  const signature = createHmac('sha256', secret).update(payload).digest('hex');
+
+  try {
+    const response = await fetch(delivery.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Marqet-Signature': `t=${timestamp},v1=${signature}`,
+        'X-Marqet-Event': delivery.eventType,
+      },
+      body: delivery.payload,
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (response.ok) {
+      await db.update(webhookDeliveries)
+        .set({ status: 'delivered', deliveredAt: new Date() })
+        .where(eq(webhookDeliveries.id, delivery.id));
+    } else {
+      await scheduleRetry(delivery, `HTTP ${response.status}`);
+    }
+  } catch (err) {
+    await scheduleRetry(delivery, err instanceof Error ? err.message : 'Unknown error');
+  }
+}
+
+async function scheduleRetry(delivery: WebhookDelivery, error: string) {
+  const newAttempts = delivery.attempts + 1;
+  
+  if (newAttempts >= 10) {
+    // Give up after 10 attempts
+    await db.update(webhookDeliveries)
+      .set({ status: 'failed', lastError: error, attempts: newAttempts })
+      .where(eq(webhookDeliveries.id, delivery.id));
+    return;
+  }
+
+  // Exponential backoff: 30s, 60s, 120s, 5m, 10m, 30m, 1h, 2h, 4h
+  const backoffSeconds = Math.min(30 * Math.pow(2, newAttempts - 1), 14400);
+  const nextRetry = new Date(Date.now() + backoffSeconds * 1000);
+
+  await db.update(webhookDeliveries)
+    .set({
+      attempts: newAttempts,
+      lastError: error,
+      nextRetryAt: nextRetry,
+    })
+    .where(eq(webhookDeliveries.id, delivery.id));
+}
+```
+
+**Signature format:**
+
+We use a signature format similar to Stripe's: `t={timestamp},v1={signature}`. The timestamp prevents replay attacks — integrations should reject deliveries where the timestamp is more than 5 minutes old. The `v1` prefix allows us to rotate to a new signing algorithm in the future.
+
+## The `for update skip locked` pattern
+
+Both the Stripe consumer and the outgoing delivery worker use `FOR UPDATE SKIP LOCKED` when selecting work items. This pattern prevents multiple workers from processing the same item concurrently:
+
+- `FOR UPDATE` locks the selected row
+- `SKIP LOCKED` skips rows that are already locked by another worker
+
+Without this, two workers could both select the same pending delivery, both succeed in sending, and the endpoint would receive the event twice.
+
+## Monitoring delivery health
+
+We track delivery success rates per endpoint and alert when an endpoint's failure rate exceeds 50% over the last 24 hours. A consistently failing endpoint usually means the seller's server is down or their endpoint URL changed — we notify them before we give up on delivery.
+
+```sql
+-- Delivery success rate per endpoint, last 24h
+SELECT 
+  endpoint,
+  COUNT(*) FILTER (WHERE status = 'delivered') AS delivered,
+  COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+  COUNT(*) AS total,
+  ROUND(COUNT(*) FILTER (WHERE status = 'delivered')::numeric / COUNT(*) * 100, 1) AS success_rate
+FROM webhook_deliveries
+WHERE created_at > now() - INTERVAL '24 hours'
+GROUP BY endpoint
+ORDER BY success_rate ASC;
+```
+
+Reliable webhook delivery is the difference between an integration that works and one that works most of the time. The retry system and idempotency handling are the unglamorous parts that make the difference.
