@@ -205,31 +205,55 @@ export default async function JournalPostPage({ params }: Props) {
               {prevPost ? (
                 <Link
                   href={`/journal/${prevPost.slug}`}
-                  className="group flex flex-col gap-1.5 px-5 py-4 transition-all hover:bg-subtle"
+                  className="group flex flex-col overflow-hidden transition-all hover:border-construx/20"
                   style={{ background: 'rgba(5,5,18,0.5)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
                 >
-                  <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest flex items-center gap-1.5">
-                    <ArrowLeft size={10} className="group-hover:-translate-x-0.5 transition-transform" />
-                    Previous
-                  </span>
-                  <span className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
-                    {prevPost.title}
-                  </span>
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 select-none"
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                    </div>
+                    <span className="font-mono text-[8px] text-text-dim/40 uppercase tracking-widest flex items-center gap-1.5 flex-1">
+                      <ArrowLeft size={9} className="group-hover:-translate-x-0.5 transition-transform" />
+                      journal.prev
+                    </span>
+                  </div>
+                  <div className="px-4 py-3">
+                    <span className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
+                      {prevPost.title}
+                    </span>
+                  </div>
                 </Link>
               ) : <div />}
               {nextPost ? (
                 <Link
                   href={`/journal/${nextPost.slug}`}
-                  className="group flex flex-col gap-1.5 px-5 py-4 transition-all hover:bg-subtle text-right sm:items-end"
+                  className="group flex flex-col overflow-hidden transition-all hover:border-construx/20 text-right sm:items-end"
                   style={{ background: 'rgba(5,5,18,0.5)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
                 >
-                  <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest flex items-center gap-1.5 justify-end">
-                    Next
-                    <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
-                  </span>
-                  <span className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
-                    {nextPost.title}
-                  </span>
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 select-none w-full"
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                    </div>
+                    <span className="font-mono text-[8px] text-text-dim/40 uppercase tracking-widest flex items-center gap-1.5 flex-1 justify-end">
+                      journal.next
+                      <ArrowRight size={9} className="group-hover:translate-x-0.5 transition-transform" />
+                    </span>
+                  </div>
+                  <div className="px-4 py-3 w-full">
+                    <span className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
+                      {nextPost.title}
+                    </span>
+                  </div>
                 </Link>
               ) : <div />}
             </div>
@@ -293,35 +317,55 @@ export default async function JournalPostPage({ params }: Props) {
       </div>
 
       {relatedByTag.length > 0 && (
-        <section className="px-5 pb-20 mx-auto max-w-3xl border-t border-border">
-          <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-text-dim pt-10 mb-6">
-            // MORE LIKE THIS
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {relatedByTag.map((related) => (
-              <Link
-                key={related.slug}
-                href={`/journal/${related.slug}`}
-                className="group flex flex-col gap-2 px-5 py-4 transition-all hover:bg-subtle border border-transparent hover:border-construx/15"
-                style={{ borderRadius: '3px', background: 'rgba(5,5,18,0.5)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
-                    style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '2px' }}
-                  >
-                    {related.tag}
-                  </span>
-                  <span className="font-mono text-[10px] text-text-dim">{related.readingTime} min read</span>
-                </div>
-                <p className="text-sm font-semibold text-text-base group-hover:text-text-base transition-colors leading-snug line-clamp-2">
-                  {related.title}
-                </p>
-                <p className="text-xs text-text-muted leading-relaxed line-clamp-2 opacity-70">
-                  {related.excerpt}
-                </p>
-              </Link>
-            ))}
+        <section className="px-5 pb-20 mx-auto max-w-3xl">
+          <div
+            className="overflow-hidden"
+            style={{
+              background: 'rgba(3,3,14,0.7)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '3px',
+            }}
+          >
+            {/* Terminal title bar */}
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 select-none"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.015)' }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim/50 flex-1">
+                journal.related — {post.tag.toLowerCase()} · {relatedByTag.length} dispatches
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: '1px', background: 'rgba(255,255,255,0.04)' }}>
+              {relatedByTag.map((related) => (
+                <Link
+                  key={related.slug}
+                  href={`/journal/${related.slug}`}
+                  className="group flex flex-col gap-2 px-5 py-5 transition-all hover:bg-subtle"
+                  style={{ background: 'rgba(3,3,14,0.7)' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+                      style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.18)', borderRadius: '2px' }}
+                    >
+                      {related.tag}
+                    </span>
+                    <span className="font-mono text-[10px] text-text-dim">{related.readingTime} min</span>
+                  </div>
+                  <p className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
+                    {related.title}
+                  </p>
+                  <p className="text-xs text-text-muted leading-relaxed line-clamp-2 opacity-60">
+                    {related.excerpt}
+                  </p>
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
       )}
