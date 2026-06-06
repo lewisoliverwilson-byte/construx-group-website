@@ -1,0 +1,240 @@
+---
+title: "Lucia Auth: session-based authentication in TypeScript"
+date: "2030-03-11"
+excerpt: "Lucia is a TypeScript authentication library that handles session management, not user creation. You bring your own database adapter and decide how users are stored. Lucia manages the session lifecycle: create sessions, validate them on each request, and invalidate them on logout. It works with any framework and any database that has an adapter."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Lucia's scope is deliberately narrow: session tokens, not identity. You handle user creation, password hashing, and OAuth flows — Lucia gives you a session store that works correctly. The narrower the scope, the less there is to misunderstand.
+
+## Setup
+
+```bash
+npm install lucia @lucia-auth/adapter-drizzle
+```
+
+## Database schema (Drizzle + PostgreSQL)
+
+```ts
+// db/schema.ts
+import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id:           text('id').primaryKey(),
+  email:        text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+});
+
+export const sessions = pgTable('sessions', {
+  id:        text('id').primaryKey(),
+  userId:    text('user_id').notNull().references(() => users.id),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+});
+```
+
+## Lucia instance
+
+```ts
+// lib/auth.ts
+import { Lucia }            from 'lucia';
+import { DrizzlePostgreSQLAdapter } from '@lucia-auth/adapter-drizzle';
+import { db }               from '@/db';
+import { sessions, users }  from '@/db/schema';
+
+const adapter = new DrizzlePostgreSQLAdapter(db, sessions, users);
+
+export const lucia = new Lucia(adapter, {
+  sessionCookie: {
+    attributes: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
+  },
+  getUserAttributes: (attributes) => ({
+    email:         attributes.email,
+    emailVerified: attributes.email_verified,
+  }),
+});
+
+// Type augmentation
+declare module 'lucia' {
+  interface Register {
+    Lucia:         typeof lucia;
+    DatabaseUserAttributes: { email: string; email_verified: boolean };
+  }
+}
+```
+
+## Registration
+
+```ts
+// app/api/auth/register/route.ts
+import { hash }   from '@node-rs/argon2';
+import { generateId } from 'lucia';
+import { lucia }  from '@/lib/auth';
+import { db }     from '@/db';
+import { users }  from '@/db/schema';
+
+export async function POST(req: Request) {
+  const { email, password } = await req.json();
+
+  if (!email || !password || password.length < 12) {
+    return Response.json({ error: 'Invalid input' }, { status: 400 });
+  }
+
+  const passwordHash = await hash(password, {
+    memoryCost: 19456,
+    timeCost:   2,
+    outputLen:  32,
+    parallelism: 1,
+  });
+
+  const userId = generateId(15);
+
+  await db.insert(users).values({ id: userId, email, passwordHash });
+
+  const session      = await lucia.createSession(userId, {});
+  const sessionCookie = lucia.createSessionCookie(session.id);
+
+  return new Response(null, {
+    status:  302,
+    headers: {
+      Location:   '/dashboard',
+      'Set-Cookie': sessionCookie.serialize(),
+    },
+  });
+}
+```
+
+## Login
+
+```ts
+// app/api/auth/login/route.ts
+import { verify } from '@node-rs/argon2';
+import { lucia }  from '@/lib/auth';
+import { db }     from '@/db';
+import { users }  from '@/db/schema';
+import { eq }     from 'drizzle-orm';
+
+export async function POST(req: Request) {
+  const { email, password } = await req.json();
+
+  const [user] = await db.select().from(users).where(eq(users.email, email));
+
+  if (!user) {
+    // Same response as wrong password — don't reveal whether email exists
+    return Response.json({ error: 'Invalid credentials' }, { status: 401 });
+  }
+
+  const valid = await verify(user.passwordHash, password);
+  if (!valid) {
+    return Response.json({ error: 'Invalid credentials' }, { status: 401 });
+  }
+
+  const session       = await lucia.createSession(user.id, {});
+  const sessionCookie  = lucia.createSessionCookie(session.id);
+
+  return new Response(null, {
+    status:  302,
+    headers: {
+      Location:    '/dashboard',
+      'Set-Cookie': sessionCookie.serialize(),
+    },
+  });
+}
+```
+
+## Validating sessions (middleware)
+
+```ts
+// middleware.ts
+import { NextResponse }  from 'next/server';
+import type { NextRequest } from 'next/server';
+import { lucia }         from '@/lib/auth';
+import { cookies }       from 'next/headers';
+
+export async function middleware(request: NextRequest) {
+  const sessionId = cookies().get(lucia.sessionCookieName)?.value ?? null;
+
+  if (!sessionId) {
+    if (request.nextUrl.pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    return NextResponse.next();
+  }
+
+  const { session, user } = await lucia.validateSession(sessionId);
+
+  if (!session) {
+    const blankCookie = lucia.createBlankSessionCookie();
+    const response = NextResponse.redirect(new URL('/login', request.url));
+    response.headers.set('Set-Cookie', blankCookie.serialize());
+    return response;
+  }
+
+  if (session.fresh) {
+    // Rolling session: extend expiry on each valid request
+    const refreshed = lucia.createSessionCookie(session.id);
+    const response  = NextResponse.next();
+    response.headers.set('Set-Cookie', refreshed.serialize());
+    return response;
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/api/protected/:path*'],
+};
+```
+
+## Reading session in Server Components
+
+```ts
+// lib/getSession.ts
+import { lucia } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { cache }   from 'react';
+
+export const getSession = cache(async () => {
+  const sessionId = cookies().get(lucia.sessionCookieName)?.value ?? null;
+  if (!sessionId) return { user: null, session: null };
+  return lucia.validateSession(sessionId);
+});
+```
+
+```tsx
+// app/dashboard/page.tsx
+import { getSession } from '@/lib/getSession';
+import { redirect }   from 'next/navigation';
+
+export default async function Dashboard() {
+  const { user } = await getSession();
+  if (!user) redirect('/login');
+
+  return <h1>Welcome, {user.email}</h1>;
+}
+```
+
+`cache()` memoises the result per request — `getSession()` can be called in multiple Server Components without hitting the database multiple times.
+
+## Logout
+
+```ts
+// app/api/auth/logout/route.ts
+import { lucia }   from '@/lib/auth';
+import { cookies } from 'next/headers';
+
+export async function POST() {
+  const sessionId = cookies().get(lucia.sessionCookieName)?.value;
+  if (sessionId) await lucia.invalidateSession(sessionId);
+
+  const blankCookie = lucia.createBlankSessionCookie();
+  return new Response(null, {
+    status:  302,
+    headers: { Location: '/login', 'Set-Cookie': blankCookie.serialize() },
+  });
+}
+```

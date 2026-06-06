@@ -1,0 +1,180 @@
+---
+title: "Zustand: minimal global state for React"
+date: "2030-03-08"
+excerpt: "Zustand is a 1kB state manager for React. You create a store — a plain JavaScript object with state and actions — and subscribe to it from any component. No Provider, no reducer, no boilerplate. Updates trigger re-renders only in components that read the changed slice. It's the right tool when useState is too local and Redux is too much."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The mental model: a Zustand store is like a module-level singleton that React knows how to subscribe to. Any component can read from it and any function can write to it. The store doesn't care about the component tree.
+
+## Creating a store
+
+```ts
+// store/cart.ts
+import { create } from 'zustand';
+
+interface CartItem {
+  id:       string;
+  name:     string;
+  price:    number;
+  quantity: number;
+}
+
+interface CartStore {
+  items:     CartItem[];
+  total:     number;
+  addItem:   (item: Omit<CartItem, 'quantity'>) => void;
+  removeItem:(id: string) => void;
+  clear:     () => void;
+}
+
+export const useCartStore = create<CartStore>((set, get) => ({
+  items: [],
+  total: 0,
+
+  addItem: (item) => {
+    set((state) => {
+      const existing = state.items.find((i) => i.id === item.id);
+      const items = existing
+        ? state.items.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...state.items, { ...item, quantity: 1 }];
+      const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+      return { items, total };
+    });
+  },
+
+  removeItem: (id) => {
+    set((state) => {
+      const items = state.items.filter((i) => i.id !== id);
+      const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+      return { items, total };
+    });
+  },
+
+  clear: () => set({ items: [], total: 0 }),
+}));
+```
+
+## Using the store
+
+```tsx
+// components/CartCount.tsx
+import { useCartStore } from '@/store/cart';
+
+export function CartCount() {
+  // Only re-renders when items.length changes — not on price changes
+  const count = useCartStore((state) => state.items.length);
+  return <span>{count} items</span>;
+}
+```
+
+```tsx
+// components/AddToCart.tsx
+import { useCartStore } from '@/store/cart';
+
+export function AddToCart({ product }: { product: Product }) {
+  const addItem = useCartStore((state) => state.addItem);
+
+  return (
+    <button onClick={() => addItem({ id: product.id, name: product.name, price: product.price })}>
+      Add to cart
+    </button>
+  );
+}
+```
+
+The selector `(state) => state.items.length` means: re-render only when `items.length` changes. `CartCount` won't re-render when prices change, even though the store changed.
+
+## Subscribing outside React
+
+```ts
+// Call store methods from anywhere — no hooks required
+import { useCartStore } from '@/store/cart';
+
+// Direct state read
+const { items } = useCartStore.getState();
+
+// Subscribe to changes (returns unsubscribe function)
+const unsub = useCartStore.subscribe(
+  (state) => state.total,  // selector
+  (total) => console.log('Cart total changed:', total),
+);
+
+// Write without hooks
+useCartStore.setState({ items: [] });
+```
+
+## Middleware: persist, devtools, immer
+
+```ts
+import { create }   from 'zustand';
+import { persist }  from 'zustand/middleware';
+import { devtools } from 'zustand/middleware';
+import { immer }    from 'zustand/middleware/immer';
+
+export const useCartStore = create<CartStore>()(
+  devtools(
+    persist(
+      immer((set) => ({
+        items: [],
+        total: 0,
+
+        addItem: (item) => set((state) => {
+          // With immer, mutate directly — no spread required
+          const existing = state.items.find((i) => i.id === item.id);
+          if (existing) {
+            existing.quantity++;
+          } else {
+            state.items.push({ ...item, quantity: 1 });
+          }
+          state.total = state.items.reduce((s, i) => s + i.price * i.quantity, 0);
+        }),
+      })),
+      { name: 'cart-storage' },  // persisted to localStorage
+    ),
+    { name: 'CartStore' },       // shown in Redux DevTools
+  ),
+);
+```
+
+- `persist`: saves store to localStorage (or any storage) and rehydrates on load
+- `devtools`: connects to the Redux DevTools browser extension
+- `immer`: lets you write mutations directly instead of spreading
+
+## Slices pattern for large stores
+
+```ts
+// store/slices/auth.ts
+export const createAuthSlice = (set: any, get: any) => ({
+  user:   null as User | null,
+  token:  null as string | null,
+  login:  async (email: string, password: string) => {
+    const { user, token } = await signIn(email, password);
+    set({ user, token });
+  },
+  logout: () => set({ user: null, token: null }),
+});
+
+// store/slices/ui.ts
+export const createUiSlice = (set: any) => ({
+  sidebarOpen: false,
+  toggleSidebar: () => set((s: any) => ({ sidebarOpen: !s.sidebarOpen })),
+});
+
+// store/index.ts
+import { create } from 'zustand';
+
+export const useStore = create((set, get) => ({
+  ...createAuthSlice(set, get),
+  ...createUiSlice(set),
+}));
+```
+
+Split one large store into slices by domain — each slice manages its own state and actions, merged at the root.
+
+## Zustand vs Context API vs Redux
+
+Zustand wins over Context API when: updates are frequent (Context re-renders the whole subtree), the state is shared across distant parts of the tree, or you need to write to state from outside React. Zustand wins over Redux when: you want less boilerplate, don't need time-travel debugging, or find the Redux mental model heavy for the problem.
+
+Use Context for: theme, locale, auth session — things that change rarely and the full-tree re-render cost is acceptable. Use Zustand for: cart state, UI state, anything that changes often or needs to be accessed from many places.

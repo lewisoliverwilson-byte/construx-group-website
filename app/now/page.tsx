@@ -8,6 +8,7 @@ import DiskUsagePanel from '@/components/DiskUsagePanel';
 import IostatPanel from '@/components/IostatPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import WhoPanel from '@/components/WhoPanel';
+import TimezoneClockPanel from '@/components/TimezoneClockPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -334,6 +335,11 @@ export default function NowPage() {
         {/* Active sessions */}
         <div className="mt-6">
           <WhoPanel />
+        </div>
+
+        {/* World clocks */}
+        <div className="mt-6">
+          <TimezoneClockPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
