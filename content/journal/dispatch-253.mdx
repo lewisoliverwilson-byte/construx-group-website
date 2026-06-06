@@ -1,0 +1,172 @@
+---
+title: "React Server Components: what moves to the server and what stays on the client"
+date: "2027-01-24"
+excerpt: "The RSC model is the biggest architectural shift in React in years. Here's how we think about the client/server boundary in practice, which components belong where, and the patterns that make composition work."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React Server Components (RSC) changes the default. In the Pages Router, everything was client-side by default. In the App Router, everything is a Server Component by default — you add `'use client'` to opt in to the client.
+
+This sounds backwards if you've been writing React for years. It's actually more coherent once the mental model clicks.
+
+## What Server Components can do
+
+Server Components run on the server (or at build time for static pages) and never run in the browser. That means:
+
+- Direct database access — no API route needed
+- File system access — read config, markdown, or static data
+- Secret environment variables — `process.env.SECRET_KEY` is safe; it never reaches the client
+- Large dependencies — if you import a 500KB markdown parser, it doesn't ship to the browser
+
+What they can't do:
+
+- useState, useEffect, or any React hooks
+- Browser APIs (`window`, `document`, `localStorage`)
+- Event handlers (`onClick`, `onChange`)
+
+## What Client Components can do
+
+Client Components (`'use client'`) are the traditional React component model. They can use hooks, respond to events, and access browser APIs.
+
+They cannot do what Server Components can. They can't directly query the database.
+
+## The composition pattern
+
+The real power is nesting. A Server Component can render a Client Component. The Client Component receives props from the server:
+
+```tsx
+// app/dashboard/page.tsx — Server Component
+import { db } from '@/lib/db';
+import { auth } from '@clerk/nextjs/server';
+import ActivityFeed from '@/components/ActivityFeed';
+
+export default async function DashboardPage() {
+  const { userId } = await auth();
+  
+  // Server: direct DB query, no API route
+  const activities = await db.query.activityLog.findMany({
+    where: eq(activityLog.userId, userId),
+    orderBy: [desc(activityLog.createdAt)],
+    limit: 50,
+  });
+
+  return (
+    <main>
+      <h1>Dashboard</h1>
+      {/* Client Component receives already-fetched data */}
+      <ActivityFeed activities={activities} />
+    </main>
+  );
+}
+```
+
+```tsx
+// components/ActivityFeed.tsx — Client Component
+'use client';
+
+import { useState } from 'react';
+
+interface Props {
+  activities: Activity[];
+}
+
+export default function ActivityFeed({ activities }: Props) {
+  const [filter, setFilter] = useState<string | null>(null);
+  
+  const filtered = filter 
+    ? activities.filter(a => a.type === filter) 
+    : activities;
+
+  return (
+    <div>
+      <FilterControls onFilter={setFilter} activeFilter={filter} />
+      {filtered.map(a => <ActivityItem key={a.id} activity={a} />)}
+    </div>
+  );
+}
+```
+
+The Server Component fetches data. The Client Component handles interactivity. Neither does the other's job.
+
+## What we learned the hard way
+
+**Importing a Client Component doesn't make the importer a Client Component.** A Server Component can import and render a Client Component. The Server Component stays on the server; only the Client Component runs in the browser. The boundary is explicit: you need `'use client'` to opt in.
+
+**You can't import a Server Component from a Client Component.** Once you're in `'use client'` territory, all components you import must also be Client Components (or have no special requirements). If you try to import a Server Component from a Client Component, Next.js will throw a build error.
+
+The workaround is `children` props. Pass Server Component output as `children` to a Client Component:
+
+```tsx
+// Layout.tsx — Server Component
+import Sidebar from '@/components/Sidebar'; // Server Component
+import InteractiveShell from '@/components/InteractiveShell'; // Client Component
+
+export default function Layout({ children }) {
+  return (
+    <InteractiveShell sidebar={<Sidebar />}>
+      {children}
+    </InteractiveShell>
+  );
+}
+```
+
+```tsx
+// InteractiveShell.tsx — Client Component
+'use client';
+
+export default function InteractiveShell({ children, sidebar }) {
+  const [open, setOpen] = useState(false);
+  // sidebar and children are RSC output — they pass through unchanged
+  return (
+    <div>
+      {open && sidebar}
+      <main>{children}</main>
+    </div>
+  );
+}
+```
+
+`sidebar` and `children` are serialised RSC output — they're already rendered by the server and passed as props. The Client Component can hold, show, or hide them without re-rendering them.
+
+## Where we draw the line
+
+For each component we ask: does this need interactivity?
+
+**Server by default:**
+- Page layouts and wrappers
+- Data fetching (venture stats, journal posts, user profile)
+- Static content (manifesto text, founder bios)
+- Anything that reads from the database or external APIs
+
+**Client when needed:**
+- The CommandPalette — keyboard events, state, transitions
+- The solar system — canvas/WebGL, animation frames, drag
+- Form components — controlled inputs, validation, submission state
+- The notification bell — SSE connection, unread count state
+- Any component with `useState`, `useEffect`, or event handlers
+
+The ratio across our codebase is roughly 80/20. Most components are on the server.
+
+## The data-fetching win
+
+Before RSC, the standard pattern was: Server sends HTML → browser downloads JavaScript → React mounts → `useEffect` fires → API request goes out → data arrives → component re-renders with data.
+
+This is the "waterfall" that gives SPA-heavy apps their characteristic loading spinners.
+
+With RSC: Server runs the component, fetches data, renders HTML with data baked in → browser receives finished HTML.
+
+No client-side waterfall. No loading spinner for the initial page content. The data is there when the page loads.
+
+For journal posts, venture stats, and the now page, this is the entire story. Server Component, database query, rendered HTML. No JavaScript executes on the client to show that content.
+
+## The serialisation constraint
+
+Props passed from Server Components to Client Components must be serialisable — they're transmitted over the network as JSON. This means:
+
+- Strings, numbers, booleans, arrays, plain objects: fine
+- Dates: coerce to `string` or `number` before passing
+- Class instances: not serialisable — use plain objects
+- Functions: not serialisable — event handlers must live in the Client Component
+
+If you try to pass a non-serialisable value, Next.js gives a build error that names the prop and the type. Catch it at build time, not runtime.
