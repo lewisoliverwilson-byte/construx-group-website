@@ -12,6 +12,7 @@ import SpfDkimPanel from '@/components/SpfDkimPanel';
 import TlsHandshakePanel from '@/components/TlsHandshakePanel';
 import MtrPanel from '@/components/MtrPanel';
 import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
+import TsharkPacketPanel from '@/components/TsharkPacketPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -371,8 +372,13 @@ export default function ContactPage() {
       </section>
 
       {/* Security headers audit */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <SecurityHeadersPanel />
+      </section>
+
+      {/* Packet capture */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TsharkPacketPanel />
       </section>
     </div>
   );

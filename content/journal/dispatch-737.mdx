@@ -1,0 +1,148 @@
+---
+title: "GraphQL with Pothos: type-safe schema building in TypeScript"
+date: "2031-01-02"
+excerpt: "Pothos is a TypeScript-first GraphQL schema builder where your TypeScript types and your GraphQL schema are the same definition. No code generation, no type drift, no SDL-first round trips. You define resolvers in TypeScript and Pothos infers the GraphQL types. The Drizzle plugin and Prisma plugin can generate resolvers from your database schema automatically."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+GraphQL's type system and TypeScript's type system solve the same problem. Pothos makes them the same thing.
+
+## Install
+
+```bash
+npm install @pothos/core graphql graphql-yoga
+npm install @pothos/plugin-drizzle  # if using Drizzle ORM
+```
+
+## Schema definition
+
+```ts
+// src/schema/index.ts
+import SchemaBuilder from '@pothos/core';
+
+const builder = new SchemaBuilder<{
+  Context: {
+    userId: string | null;
+    db:     typeof db;
+  };
+}>({});
+
+// Types
+const PostRef = builder.objectRef<{
+  id:        string;
+  title:     string;
+  content:   string;
+  published: boolean;
+  createdAt: Date;
+}>('Post');
+
+PostRef.implement({
+  fields: (t) => ({
+    id:        t.exposeString('id'),
+    title:     t.exposeString('title'),
+    content:   t.exposeString('content'),
+    published: t.exposeBoolean('published'),
+    createdAt: t.expose('createdAt', { type: 'DateTime' }),
+  }),
+});
+
+// Queries
+builder.queryType({
+  fields: (t) => ({
+    posts: t.field({
+      type:    [PostRef],
+      resolve: async (_, __, ctx) => {
+        return ctx.db.query.posts.findMany({
+          where: eq(posts.published, true),
+          orderBy: desc(posts.createdAt),
+        });
+      },
+    }),
+
+    post: t.field({
+      type:      PostRef,
+      nullable:  true,
+      args: {
+        id: t.arg.string({ required: true }),
+      },
+      resolve: async (_, { id }, ctx) => {
+        return ctx.db.query.posts.findFirst({
+          where: eq(posts.id, id),
+        });
+      },
+    }),
+  }),
+});
+
+// Mutations
+builder.mutationType({
+  fields: (t) => ({
+    createPost: t.field({
+      type: PostRef,
+      args: {
+        title:   t.arg.string({ required: true }),
+        content: t.arg.string({ required: true }),
+      },
+      authScopes: { user: true },  // requires authenticated user
+      resolve: async (_, { title, content }, ctx) => {
+        const [post] = await ctx.db
+          .insert(posts)
+          .values({ title, content, authorId: ctx.userId! })
+          .returning();
+        return post;
+      },
+    }),
+  }),
+});
+
+export const schema = builder.toSchema();
+```
+
+## Server with GraphQL Yoga
+
+```ts
+// src/app/api/graphql/route.ts
+import { createYoga } from 'graphql-yoga';
+import { schema }     from '@/schema';
+import { db }         from '@/lib/db';
+import { getUser }    from '@/lib/auth';
+
+const { handleRequest } = createYoga({
+  schema,
+  context: async ({ request }) => {
+    const user = await getUser(request);
+    return { userId: user?.id ?? null, db };
+  },
+  graphqlEndpoint: '/api/graphql',
+  fetchAPI: { Response, Request },
+});
+
+export { handleRequest as GET, handleRequest as POST };
+```
+
+## Input objects and validation
+
+```ts
+const CreatePostInput = builder.inputType('CreatePostInput', {
+  fields: (t) => ({
+    title:   t.string({ required: true, validate: { minLength: 1, maxLength: 200 } }),
+    content: t.string({ required: true, validate: { minLength: 10 } }),
+    tags:    t.stringList(),
+  }),
+});
+
+builder.mutationType({
+  fields: (t) => ({
+    createPost: t.field({
+      type: PostRef,
+      args: { input: t.arg({ type: CreatePostInput, required: true }) },
+      resolve: (_, { input }, ctx) => createPost(input, ctx),
+    }),
+  }),
+});
+```
+
+## Pothos vs Nexus vs SDL-first
+
+Pothos: TypeScript-native, no code gen, fastest iteration, best DX. Nexus: similar approach but less maintained. SDL-first (Apollo, gql-tag): write SDL, generate types — more boilerplate, type drift risk. Pothos is the right choice for a TypeScript project starting GraphQL in 2031. SDL-first makes sense when you want the schema as the source of truth shared across teams.
