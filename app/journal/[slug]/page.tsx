@@ -8,6 +8,7 @@ import { getAllPostMeta, getPostBySlug } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import ReadingProgress from '@/components/journal/ReadingProgress';
 import CopyLink from '@/components/journal/CopyLink';
+import SharePost from '@/components/journal/SharePost';
 import TableOfContents from '@/components/journal/TableOfContents';
 import BackToTop from '@/components/journal/BackToTop';
 import CodeBlock from '@/components/journal/CodeBlock';
@@ -178,6 +179,7 @@ export default async function JournalPostPage({ params }: Props) {
               <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest mt-0.5">Construx Group</p>
             </div>
             <div className="flex items-center gap-3">
+              <SharePost title={post.title} />
               <CopyLink />
               <Link
                 href="/journal"
