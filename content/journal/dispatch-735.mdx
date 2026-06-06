@@ -1,0 +1,155 @@
+---
+title: "Continuous deployment with GitHub Actions"
+date: "2030-12-27"
+excerpt: "GitHub Actions runs CI/CD pipelines on every push. A workflow file in `.github/workflows/` defines the trigger (push to master, pull request), the jobs (build, test, deploy), and the steps within each job. For the Construx stack: lint and type-check on every PR, deploy to Amplify on every merge to master. The whole pipeline runs in under 3 minutes."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every merge to master should automatically deploy to production. GitHub Actions makes this a single file.
+
+## Basic CI workflow
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+
+jobs:
+  quality:
+    name: Type check + lint + test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run:  npm ci
+
+      - name: Type check
+        run:  npx tsc --noEmit
+
+      - name: Lint
+        run:  npx biome ci src/
+
+      - name: Test
+        run:  npm test -- --run
+
+      - name: Build
+        run:  npm run build
+        env:
+          # Dummy values for build — real secrets only in deploy
+          DATABASE_URL:          postgresql://dummy:dummy@localhost/dummy
+          NEXT_PUBLIC_APP_URL:   https://construxgroup.io
+```
+
+## Deploy workflow
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    name: Deploy to Amplify
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-west-2
+
+      - name: Trigger Amplify build
+        run: |
+          aws amplify start-job \
+            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
+            --branch-name master \
+            --job-type RELEASE
+
+      - name: Wait for deployment
+        run: |
+          while true; do
+            STATUS=$(aws amplify list-jobs \
+              --app-id ${{ secrets.AMPLIFY_APP_ID }} \
+              --branch-name master \
+              --max-results 1 \
+              --query 'jobSummaries[0].status' \
+              --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" = "SUCCEED" ]; then break; fi
+            if [ "$STATUS" = "FAILED" ]; then exit 1; fi
+            sleep 30
+          done
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            { "text": "Deploy failed on master — ${{ github.sha }}" }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+```
+
+## Caching dependencies
+
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    node-version: 22
+    cache: npm  # Caches ~/.npm between runs
+
+# Or for pnpm
+- uses: pnpm/action-setup@v3
+  with:
+    version: 9
+
+- uses: actions/setup-node@v4
+  with:
+    node-version: 22
+    cache: pnpm
+
+- run: pnpm install --frozen-lockfile
+```
+
+## Storing secrets
+
+In GitHub repository settings → Secrets and variables → Actions:
+
+```
+DATABASE_URL              — production database URL
+AWS_ACCESS_KEY_ID         — deploy-only IAM user
+AWS_SECRET_ACCESS_KEY     — deploy-only IAM user
+AMPLIFY_APP_ID            — d3dpr3doar5fjy
+SLACK_WEBHOOK_URL         — #deployments channel
+STRIPE_SECRET_KEY         — production stripe key
+```
+
+Secrets are encrypted and never appear in logs. Reference them as `${{ secrets.NAME }}`.
+
+## Concurrency — cancel outdated runs
+
+```yaml
+concurrency:
+  group:             ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+If you push twice quickly, the first run is cancelled when the second starts. No wasted runner time on stale commits.

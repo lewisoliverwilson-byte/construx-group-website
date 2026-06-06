@@ -12,6 +12,7 @@ import TimezoneClockPanel from '@/components/TimezoneClockPanel';
 import PsAuxPanel from '@/components/PsAuxPanel';
 import UfwStatusPanel from '@/components/UfwStatusPanel';
 import SystemdTimersPanel from '@/components/SystemdTimersPanel';
+import BpftracePanel from '@/components/BpftracePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -356,8 +357,13 @@ export default function NowPage() {
         </div>
 
         {/* Scheduled timers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SystemdTimersPanel />
+        </div>
+
+        {/* eBPF kernel tracing */}
+        <div className="mt-6 pb-10">
+          <BpftracePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -1,0 +1,43 @@
+---
+title: "2030 in the build log"
+date: "2030-12-30"
+excerpt: "Dispatch 736 closes the year. In 2030: tRPC went mainstream, Bun reached production stability, Temporal became the standard for durable workflows, and edge computing stopped being a niche. The Construx stack evolved from Next.js + Postgres to a multi-runtime system with Hono on Cloudflare Workers, Bun for scripts, and Temporal for long-running jobs. The build keeps going."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+736 dispatches. Three years of shipping things, writing them down, and shipping more.
+
+## What changed in 2030
+
+**Runtimes fragmented — and that is fine.** Node.js, Bun, Deno, and the Cloudflare Workers runtime each settled into a niche. Node.js for existing infrastructure and mature tooling. Bun for speed and developer experience. Deno for security-first deployments. Workers for edge functions with sub-millisecond cold starts. The mental model shifted from "which runtime" to "which runtime for this use case".
+
+**TypeScript tightened.** Strict mode became the baseline, not an opt-in. The ecosystem converged on the same patterns: Zod for validation, tRPC or Hono RPC for APIs, TanStack Query for server state. New projects no longer debate these choices — they are settled.
+
+**AI became part of the build process.** Not just as a feature in products, but as a collaborator in writing the code. Claude Code changed how fast a small team can ship. This entire journal was built with it — from the first solar system hero to dispatch 736. The authorship question is interesting, but the output is unambiguous: more shipped, faster, with fewer bugs than before.
+
+**The edge moved from hype to default.** Cloudflare Workers, Vercel Edge, and AWS Lambda@Edge went from "interesting experiment" to "obvious choice for the right use case". The combination of zero cold start, global distribution, and the Web Standards API made edge functions the default for auth, redirects, and API routing.
+
+## The Construx stack at end of year
+
+**Runtime:** Bun for scripts, migrations, and seeds. Node.js for the main application. Cloudflare Workers for edge functions and routing.
+
+**Framework:** Next.js 15 App Router for the application. Hono for lightweight API routes and edge functions.
+
+**Database:** PostgreSQL + pgvector via Drizzle ORM. Bun SQLite for scripts and local tooling.
+
+**Cache:** Redis (Upstash) for session storage, rate limiting, and pub/sub.
+
+**Queue:** Temporal for multi-step durable workflows. BullMQ for simple background jobs.
+
+**Observability:** Sentry for errors. OpenTelemetry for traces. PostHog for product analytics.
+
+**Infrastructure:** AWS Amplify for hosting. Cloudflare for DNS, R2, and Workers. Railway for persistent backend services.
+
+**Developer tooling:** Biome for linting and formatting. Vitest for unit tests. Playwright for E2E. TypeScript strict everywhere.
+
+## What is next
+
+The stack is stable. The interesting work is in what gets built on top of it, not in changing the stack itself. Construx Workspace, The Marqet, Construx Daily — each is a different bet on what people need. The build log keeps running until it does not.
+
+Dispatch 737 starts the next year. See you there.
