@@ -78,6 +78,11 @@ export default function Footer() {
               </span>
               <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.35)' }}>● live</span>
             </div>
+            {/* Shell prompt */}
+            <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(249,115,22,0.05)', background: 'rgba(249,115,22,0.02)' }}>
+              <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}> cat /etc/construx/identity.conf</span>
+            </div>
             {/* Content */}
             <div className="p-4">
               <div className="flex items-center gap-2.5 mb-4">
@@ -134,6 +139,11 @@ export default function Footer() {
                 construx.nav
               </span>
             </div>
+            {/* Shell prompt */}
+            <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+              <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{` ls /routes/ --count=${navLinks.length}`}</span>
+            </div>
             <ul className="flex flex-col p-3 gap-0.5">
               {navLinks.map(({ href, label }) => (
                 <li key={href}>
@@ -146,6 +156,11 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+            {/* Status footer */}
+            <div className="flex items-center justify-between px-3 py-1 select-none" style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.2)' }}>
+              <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.1)' }}>{navLinks.length} routes</span>
+              <span className="font-mono text-[7px]" style={{ color: 'rgba(255,255,255,0.08)' }}>exit: 0</span>
+            </div>
           </div>
 
           {/* Ventures */}
@@ -166,6 +181,11 @@ export default function Footer() {
                 construx.ventures
               </span>
               <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.35)' }}>● live</span>
+            </div>
+            {/* Shell prompt */}
+            <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+              <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{` construx ventures --list --status=all`}</span>
             </div>
             <ul className="flex flex-col p-3 gap-0.5">
               {ventures.map((v) => (
@@ -191,6 +211,14 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+            {/* Status footer */}
+            <div className="flex items-center justify-between px-3 py-1 select-none" style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.2)' }}>
+              <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.35)' }}>
+                <span className="inline-block w-1 h-1 rounded-full mr-1" style={{ background: 'rgba(74,222,128,0.5)' }} />
+                orbital
+              </span>
+              <span className="font-mono text-[7px]" style={{ color: 'rgba(255,255,255,0.08)' }}>exit: 0</span>
+            </div>
           </div>
 
           {/* Journal */}
@@ -211,6 +239,11 @@ export default function Footer() {
                 construx.journal
               </span>
               <span className="font-mono text-[7px] tabular-nums" style={{ color: 'rgba(249,115,22,0.35)' }}>{postCount}</span>
+            </div>
+            {/* Shell prompt */}
+            <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+              <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+              <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{` journal --recent --limit=4 --sort=date`}</span>
             </div>
             <ul className="flex flex-col p-3 gap-0.5">
               {recentPosts.map((post, i) => {
@@ -240,6 +273,11 @@ export default function Footer() {
                 </li>
               )}
             </ul>
+            {/* Status footer */}
+            <div className="flex items-center justify-between px-3 py-1 select-none" style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.2)' }}>
+              <span className="font-mono text-[7px] tabular-nums" style={{ color: 'rgba(249,115,22,0.3)' }}>{postCount} dispatches</span>
+              <span className="font-mono text-[7px]" style={{ color: 'rgba(255,255,255,0.08)' }}>signal: live</span>
+            </div>
           </div>
         </div>
 
