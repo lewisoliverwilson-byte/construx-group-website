@@ -1,0 +1,154 @@
+---
+title: "OpenTelemetry: vendor-neutral observability instrumentation"
+date: "2030-05-19"
+excerpt: "OpenTelemetry is the open standard for collecting traces, metrics, and logs from your application. Instrument once, send to any backend — Grafana Tempo, Jaeger, Datadog, Honeycomb, or any OTLP-compatible collector. No vendor lock-in at the instrumentation layer. The OTel SDK handles context propagation, sampling, and export automatically."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Before OpenTelemetry, every observability vendor had a proprietary SDK. Switching from Datadog to Honeycomb meant re-instrumenting your entire codebase. OTel standardises the instrumentation layer — you write it once, the exporter is swappable configuration.
+
+## Setup (Node.js)
+
+```bash
+npm install @opentelemetry/sdk-node \
+            @opentelemetry/auto-instrumentations-node \
+            @opentelemetry/exporter-trace-otlp-http \
+            @opentelemetry/exporter-metrics-otlp-http
+```
+
+```ts
+// instrumentation.ts — load before everything else
+import { NodeSDK }                    from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter }          from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter }         from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { Resource }                   from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+
+const sdk = new NodeSDK({
+  resource: new Resource({
+    [ATTR_SERVICE_NAME]:    'construx-api',
+    [ATTR_SERVICE_VERSION]: process.env.npm_package_version ?? '0.0.0',
+    'deployment.environment': process.env.NODE_ENV,
+  }),
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT + '/v1/traces',
+  }),
+  metricReader: new PeriodicExportingMetricReader({
+    exporter:      new OTLPMetricExporter({ url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT + '/v1/metrics' }),
+    exportIntervalMillis: 10_000,
+  }),
+  instrumentations: [getNodeAutoInstrumentations()],
+});
+
+sdk.start();
+
+process.on('SIGTERM', () => sdk.shutdown());
+```
+
+`getNodeAutoInstrumentations()` automatically patches: `http`, `express`, `pg`, `redis`, `@aws-sdk`, `fetch`, and dozens more.
+
+## Manual spans
+
+```ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('construx-api');
+
+async function processOrder(orderId: string) {
+  return tracer.startActiveSpan('processOrder', async (span) => {
+    span.setAttribute('order.id', orderId);
+
+    try {
+      const order = await db.orders.findUnique({ where: { id: orderId } });
+      span.setAttribute('order.userId', order.userId);
+      span.setAttribute('order.amount', order.amount);
+
+      await fulfillOrder(order);
+
+      span.setStatus({ code: SpanStatusCode.OK });
+      return order;
+    } catch (err) {
+      span.recordException(err as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+## Custom metrics
+
+```ts
+import { metrics } from '@opentelemetry/api';
+
+const meter = metrics.getMeter('construx-api');
+
+// Counter: events that only go up
+const requestCounter = meter.createCounter('http.requests.total', {
+  description: 'Total HTTP requests',
+});
+
+// Histogram: distribution of values (latency, sizes)
+const requestDuration = meter.createHistogram('http.request.duration.ms', {
+  description: 'HTTP request duration in milliseconds',
+  unit:        'ms',
+});
+
+// Gauge: snapshot value at a point in time
+const activeConnections = meter.createObservableGauge('db.connections.active', {
+  description: 'Active database connections',
+});
+activeConnections.addCallback((result) => {
+  result.observe(pool.totalCount - pool.idleCount, { 'db.name': 'postgres' });
+});
+
+// In request handler:
+requestCounter.add(1, { 'http.method': req.method, 'http.route': route });
+requestDuration.record(Date.now() - startTime, { 'http.status_code': String(res.statusCode) });
+```
+
+## Context propagation
+
+```ts
+// OTel propagates trace context across service boundaries automatically
+// via W3C Trace Context headers (traceparent, tracestate)
+
+// Manual propagation if you need it:
+import { propagation, context } from '@opentelemetry/api';
+
+// Inject into outgoing request headers
+const headers: Record<string, string> = {};
+propagation.inject(context.active(), headers);
+// headers = { 'traceparent': '00-abc123...-def456...-01' }
+
+// Extract from incoming request headers
+const ctx = propagation.extract(context.active(), req.headers);
+// All spans created in this context inherit the trace ID
+```
+
+## Next.js integration
+
+```ts
+// next.config.ts
+const nextConfig = {
+  experimental: {
+    instrumentationHook: true,  // enables instrumentation.ts
+  },
+};
+
+// instrumentation.ts at project root — Next.js loads it automatically
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('./instrumentation.node');
+  }
+}
+```
+
+## OTel vs proprietary SDKs
+
+The OTel SDK is more verbose than a Datadog or Honeycomb SDK — by design. The abstraction buys you portability. You can run Jaeger locally, Grafana Tempo in staging, and Honeycomb in production — the same instrumentation code hits all three with only exporter config changes. For new projects, OTel is the default instrumentation choice.

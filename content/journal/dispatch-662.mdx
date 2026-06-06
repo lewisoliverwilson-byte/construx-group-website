@@ -1,0 +1,139 @@
+---
+title: "Biome: fast formatter and linter in a single binary"
+date: "2030-05-22"
+excerpt: "Biome is a Rust-based toolchain for JavaScript and TypeScript: formatter, linter, and import organiser in a single binary. It replaces ESLint + Prettier in most setups. Formatting is 35x faster than Prettier; linting has 200+ rules compatible with ESLint's most-used plugins. One config file, no plugins to install, no dependency conflicts."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+ESLint + Prettier is the industry standard, but it comes with friction: plugin compatibility conflicts, slow cold starts, two config files that fight each other on formatting decisions. Biome is a single binary that handles both — written in Rust, sub-100ms on large codebases.
+
+## Setup
+
+```bash
+npm install -D @biomejs/biome
+
+# Initialise config
+npx @biomejs/biome init
+```
+
+```json
+// biome.json
+{
+  "$schema": "https://biomejs.dev/schemas/1.8.3/schema.json",
+  "organizeImports": {
+    "enabled": true
+  },
+  "linter": {
+    "enabled":  true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedVariables":     "error",
+        "noUnusedImports":       "error",
+        "useExhaustiveDependencies": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "warn",
+        "useConst":           "error"
+      },
+      "suspicious": {
+        "noExplicitAny":     "warn",
+        "noConsoleLog":      "warn"
+      }
+    }
+  },
+  "formatter": {
+    "enabled":        true,
+    "indentStyle":    "space",
+    "indentWidth":    2,
+    "lineWidth":      100,
+    "lineEnding":     "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle":           "single",
+      "trailingCommas":       "all",
+      "semicolons":           "always",
+      "arrowParentheses":     "always",
+      "bracketSpacing":       true
+    }
+  },
+  "files": {
+    "ignore": ["node_modules", ".next", "dist", "coverage"]
+  }
+}
+```
+
+## CLI commands
+
+```bash
+# Format all files
+npx biome format --write .
+
+# Lint all files
+npx biome lint .
+
+# Lint and format together (the main command)
+npx biome check --write .
+
+# Check only (no writes — for CI)
+npx biome check .
+
+# Format a specific file
+npx biome format --write src/components/Button.tsx
+
+# Show detailed diagnostics
+npx biome check --reporter=github .  # GitHub Actions annotations
+```
+
+## package.json scripts
+
+```json
+{
+  "scripts": {
+    "check":      "biome check .",
+    "check:fix":  "biome check --write .",
+    "format":     "biome format --write .",
+    "lint":       "biome lint .",
+    "ci":         "biome ci ."
+  }
+}
+```
+
+`biome ci` is strict mode: exits non-zero on any lint or format violation. It applies no fixes — safe for CI pipelines.
+
+## Migrating from ESLint + Prettier
+
+```bash
+# Biome provides a migration command
+npx @biomejs/biome migrate eslint --write
+npx @biomejs/biome migrate prettier --write
+
+# This imports your existing ESLint and Prettier config
+# into biome.json as faithfully as possible
+```
+
+Rules that have no Biome equivalent are listed in the migration output — you can decide whether to keep them with an ESLint plugin or drop them.
+
+## VS Code integration
+
+```json
+// .vscode/settings.json
+{
+  "[javascript][typescript][typescriptreact][json]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.formatOnSave":     true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.biome":       "explicit",
+      "source.organizeImports.biome": "explicit"
+    }
+  }
+}
+```
+
+Install the Biome VS Code extension (`biomejs.biome`). Format-on-save and lint-on-type work out of the box.
+
+## Biome vs ESLint + Prettier
+
+Biome: one binary, one config, 35x faster. Fewer rules (200+ vs ESLint's 600+ with plugins), but the most useful ones are there. No plugin ecosystem — breaking change compatibility for plugins is the main thing Biome doesn't inherit from ESLint. Use Biome for new projects or when your ESLint config is simple. Keep ESLint when you rely on specific plugins (eslint-plugin-testing-library, eslint-plugin-react-hooks advanced config, or custom rules unique to your domain).

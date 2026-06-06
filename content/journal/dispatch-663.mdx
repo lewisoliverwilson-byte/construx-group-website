@@ -1,0 +1,146 @@
+---
+title: "pglite: Postgres in the browser with WASM"
+date: "2030-05-25"
+excerpt: "PGlite is PostgreSQL compiled to WebAssembly — it runs in Node.js, Deno, Bun, and the browser with no server required. You get a full Postgres instance (with extensions) that persists to IndexedDB in the browser or to a file on disk in Node. Use it for local-first apps, testing without a running database, or embedding a query engine directly in the browser."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SQLite in the browser is well-established. PGlite does the same for PostgreSQL — compile the actual Postgres source to WASM, ship it to the browser, query it with SQL. The result is a full relational database with Postgres semantics running client-side with no network.
+
+## Setup
+
+```bash
+npm install @electric-sql/pglite
+```
+
+```ts
+// In-memory database (no persistence)
+import { PGlite } from '@electric-sql/pglite';
+
+const db = new PGlite();
+
+// Persist to IndexedDB in the browser
+const db = new PGlite('idb://my-app');
+
+// Persist to a file in Node.js
+const db = new PGlite('./data/local.db');
+```
+
+## Basic queries
+
+```ts
+// Execute SQL
+await db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id         SERIAL PRIMARY KEY,
+    email      TEXT UNIQUE NOT NULL,
+    name       TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`);
+
+// Parameterised query
+const result = await db.query<{ id: number; email: string; name: string }>(
+  'INSERT INTO users (email, name) VALUES ($1, $2) RETURNING *',
+  ['lewis@construxgroup.io', 'Lewis Wilson'],
+);
+
+console.log(result.rows[0]);
+// { id: 1, email: 'lewis@construxgroup.io', name: 'Lewis Wilson', created_at: ... }
+
+// Select with WHERE
+const users = await db.query<{ id: number; name: string }>(
+  'SELECT id, name FROM users WHERE created_at > $1 ORDER BY id DESC',
+  [new Date('2030-01-01')],
+);
+```
+
+## Transactions
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.query('UPDATE accounts SET balance = balance - $1 WHERE id = $2', [100, fromId]);
+  await tx.query('UPDATE accounts SET balance = balance + $1 WHERE id = $2', [100, toId]);
+  // Rolls back automatically if either query throws
+});
+```
+
+## Extensions
+
+```ts
+// pgvector: vector similarity search
+import { PGlite }   from '@electric-sql/pglite';
+import { vector }   from '@electric-sql/pglite/vector';
+
+const db = new PGlite({ extensions: { vector } });
+
+await db.exec('CREATE EXTENSION IF NOT EXISTS vector');
+await db.exec('CREATE TABLE embeddings (id SERIAL, vec vector(1536))');
+await db.query(
+  'INSERT INTO embeddings (vec) VALUES ($1)',
+  ['[0.1, 0.2, 0.3, ...]'],  // 1536-dimensional vector
+);
+
+const nearest = await db.query(
+  'SELECT id, vec <=> $1 AS distance FROM embeddings ORDER BY distance LIMIT 5',
+  ['[0.1, 0.2, 0.3, ...]'],
+);
+```
+
+## Live queries (reactive)
+
+```ts
+import { PGlite } from '@electric-sql/pglite';
+import { live }   from '@electric-sql/pglite/live';
+
+const db = new PGlite({ extensions: { live } });
+
+// Subscribe to a query — callback fires on every change
+const unsubscribe = await db.live.query<{ count: number }>(
+  'SELECT COUNT(*) AS count FROM todos WHERE done = false',
+  [],
+  (result) => {
+    console.log('Pending todos:', result.rows[0].count);
+  },
+);
+
+// Later:
+unsubscribe();
+```
+
+Live queries use Postgres `LISTEN/NOTIFY` internally — no polling.
+
+## React integration
+
+```tsx
+import { useLiveQuery } from '@electric-sql/pglite-react';
+
+function TodoList({ db }: { db: PGlite }) {
+  const todos = useLiveQuery<{ id: number; text: string; done: boolean }>(
+    'SELECT * FROM todos ORDER BY id DESC',
+    [],
+    db,
+  );
+
+  if (!todos) return <div>Loading…</div>;
+
+  return (
+    <ul>
+      {todos.rows.map((todo) => (
+        <li key={todo.id} style={{ textDecoration: todo.done ? 'line-through' : 'none' }}>
+          {todo.text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Use cases
+
+Local-first apps: all writes go to PGlite first, sync to a remote Postgres when online. Testing: spin up a real Postgres schema in a test file with no Docker or external process. Data exploration tools: ship a full query engine in the browser without a server. Offline mode: your app keeps working when the network drops.
+
+## PGlite vs better-sqlite3 vs sql.js
+
+PGlite: full Postgres (joins, CTEs, window functions, extensions), browser + Node. better-sqlite3: SQLite, Node-only, synchronous API, the fastest SQLite option for server-side use. sql.js: SQLite compiled to WASM, browser-compatible but no persistence by default. Use PGlite when you need Postgres semantics or pgvector. Use better-sqlite3 for server-side SQLite where synchronous APIs are fine.
