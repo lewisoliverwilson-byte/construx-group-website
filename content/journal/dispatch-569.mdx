@@ -1,0 +1,147 @@
+---
+title: "TypeScript generics: where they're actually useful"
+date: "2029-08-16"
+excerpt: "Generics let you write code that works with multiple types without losing type information. The common explanations focus on the syntax — T, U, K, V. The useful explanation focuses on the problem: you need to write a function where the return type depends on what you pass in. That's where generics earn their complexity."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript generics exist to solve one core problem: how do you write code that works with multiple types while preserving the relationship between inputs and outputs?
+
+Without generics, you have two options: make everything `any` (loses type safety) or write separate functions for each type (doesn't scale). Generics give you a third option: parameterise over the type.
+
+## The simplest case
+
+```ts
+function identity(x: any): any {
+  return x;
+}
+
+const result = identity(42); // type: any — TypeScript has forgotten it's a number
+```
+
+With generics:
+
+```ts
+function identity<T>(x: T): T {
+  return x;
+}
+
+const result = identity(42);      // type: 42 (inferred)
+const result2 = identity('hello'); // type: "hello" (inferred)
+```
+
+TypeScript infers `T` from what you pass in. The return type is the same as the input type. You don't need to annotate anything — inference does it.
+
+## Where it matters: functions that transform arrays
+
+```ts
+// Without generics — loses type info
+function first(arr: any[]): any {
+  return arr[0];
+}
+const f = first([1, 2, 3]); // type: any
+
+// With generics — preserves element type
+function first<T>(arr: T[]): T | undefined {
+  return arr[0];
+}
+const f = first([1, 2, 3]); // type: number | undefined
+const s = first(['a', 'b']); // type: string | undefined
+```
+
+## Constraints: narrowing what T can be
+
+Generic `T` without constraints is too broad — it accepts anything, which means you can't call methods on it. Constraints narrow the allowed types:
+
+```ts
+function getLength<T extends { length: number }>(x: T): number {
+  return x.length;
+}
+
+getLength([1, 2, 3]); // OK — arrays have length
+getLength('hello');   // OK — strings have length
+getLength(42);        // Error — numbers don't have length
+```
+
+`extends` here means "must be assignable to" — not class inheritance. `T extends { length: number }` means T must have a `length` property that's a number.
+
+## Key constraints
+
+```ts
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+
+const user = { name: 'Lewis', age: 30 };
+const name = getProperty(user, 'name'); // type: string
+const age  = getProperty(user, 'age');  // type: number
+getProperty(user, 'email');             // Error — 'email' is not a key of user
+```
+
+`K extends keyof T` constrains K to be a key of T. `T[K]` is the indexed access type — the type of the value at that key. This is how you write fully type-safe property access.
+
+## Generic interfaces and types
+
+```ts
+interface ApiResponse<T> {
+  data:    T;
+  status:  number;
+  message: string;
+}
+
+interface User {
+  id:    string;
+  name:  string;
+  email: string;
+}
+
+async function fetchUser(id: string): Promise<ApiResponse<User>> {
+  const res = await fetch(`/api/users/${id}`);
+  return res.json();
+}
+
+const response = await fetchUser('123');
+response.data.name; // type: string — fully typed
+```
+
+The response wrapper is generic. `ApiResponse<User>` gives you a typed `data` field without duplicating the wrapper type for every entity.
+
+## Generic React components
+
+```tsx
+interface ListProps<T> {
+  items:    T[];
+  renderItem: (item: T, index: number) => React.ReactNode;
+  keyExtractor: (item: T) => string;
+}
+
+function List<T>({ items, renderItem, keyExtractor }: ListProps<T>) {
+  return (
+    <ul>
+      {items.map((item, i) => (
+        <li key={keyExtractor(item)}>{renderItem(item, i)}</li>
+      ))}
+    </ul>
+  );
+}
+
+// Usage — T is inferred from items
+<List
+  items={users}
+  keyExtractor={(u) => u.id}
+  renderItem={(u) => <span>{u.name}</span>}
+/>
+```
+
+`u` in `renderItem` and `keyExtractor` is typed as `User` — inferred from the `items` prop. The component works for any item type without any type assertions.
+
+## When not to use generics
+
+**When `unknown` works**: if you don't need to preserve the relationship between input and output types, `unknown` is simpler than a generic.
+
+**When a union works**: `function process(x: string | number)` is clearer than `function process<T extends string | number>(x: T)` if the return type doesn't depend on T.
+
+**When overloads work**: multiple distinct signatures are sometimes clearer than a single generic signature with complex constraints.
+
+The signal that you need generics: the return type depends on the input type in a way that can't be expressed with a union or `unknown`. If you find yourself writing `as SomeType` to work around the type system, a generic is usually the right tool.

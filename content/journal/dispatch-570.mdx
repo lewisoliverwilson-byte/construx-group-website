@@ -1,0 +1,169 @@
+---
+title: "Zod: runtime type validation that TypeScript can't do"
+date: "2029-08-19"
+excerpt: "TypeScript types exist only at compile time. At runtime, data from external sources — API responses, form inputs, environment variables — has no guaranteed type. Zod validates that runtime data matches the shape you expect, and gives you the TypeScript types from the schema automatically. It replaces both manual validation logic and duplicated type definitions."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript's type system is erased at compile time. When your Next.js API handler receives a request body, TypeScript has no idea what's in it — the types you added were removed during compilation. The data is `unknown` at runtime.
+
+Zod validates data at the point where it enters your system, and infers TypeScript types from the schema. One schema definition; both runtime validation and static types.
+
+## The basic pattern
+
+```ts
+import { z } from 'zod';
+
+const UserSchema = z.object({
+  id:    z.string().uuid(),
+  name:  z.string().min(1).max(100),
+  email: z.string().email(),
+  age:   z.number().int().min(0).max(150).optional(),
+  role:  z.enum(['admin', 'user', 'viewer']),
+});
+
+type User = z.infer<typeof UserSchema>;
+// Equivalent to:
+// type User = {
+//   id: string;
+//   name: string;
+//   email: string;
+//   age?: number | undefined;
+//   role: 'admin' | 'user' | 'viewer';
+// }
+```
+
+`z.infer<typeof UserSchema>` extracts the TypeScript type from the schema. You define the schema once; the type comes from it automatically.
+
+## Parsing vs safeParsing
+
+`schema.parse(data)` throws if validation fails:
+
+```ts
+try {
+  const user = UserSchema.parse(requestBody);
+  // user is fully typed here
+} catch (err) {
+  if (err instanceof z.ZodError) {
+    console.error(err.errors); // Array of validation errors
+  }
+}
+```
+
+`schema.safeParse(data)` returns a result object, never throws:
+
+```ts
+const result = UserSchema.safeParse(requestBody);
+
+if (!result.success) {
+  return Response.json({ errors: result.error.flatten() }, { status: 400 });
+}
+
+const user = result.data; // fully typed
+```
+
+`safeParse` is better for API handlers — you control the error response format rather than catching a thrown exception.
+
+## In a Next.js Route Handler
+
+```ts
+// app/api/users/route.ts
+import { z } from 'zod';
+import { NextRequest } from 'next/server';
+
+const CreateUserSchema = z.object({
+  name:  z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+});
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+
+  const result = CreateUserSchema.safeParse(body);
+  if (!result.success) {
+    return Response.json(
+      { errors: result.error.flatten().fieldErrors },
+      { status: 400 }
+    );
+  }
+
+  const { name, email } = result.data; // typed as { name: string; email: string }
+  const user = await db.user.create({ data: { name, email } });
+  return Response.json(user, { status: 201 });
+}
+```
+
+The validation runs before any database access. Invalid input never reaches your business logic.
+
+## Environment variables
+
+One of the best uses of Zod: validating `process.env` at startup.
+
+```ts
+// env.ts
+import { z } from 'zod';
+
+const EnvSchema = z.object({
+  DATABASE_URL:        z.string().url(),
+  RESEND_API_KEY:      z.string().startsWith('re_'),
+  NEXTAUTH_SECRET:     z.string().min(32),
+  NEXTAUTH_URL:        z.string().url(),
+  NODE_ENV:            z.enum(['development', 'test', 'production']),
+  PORT:                z.coerce.number().default(3000),
+});
+
+export const env = EnvSchema.parse(process.env);
+```
+
+If a required env var is missing or malformed, the app throws at startup with a clear error message — not a cryptic runtime failure 10 layers deep when the code first tries to use the value. `z.coerce.number()` handles `PORT` being a string in `process.env`.
+
+## Transformations
+
+Zod can transform data during parsing:
+
+```ts
+const DateSchema = z.string().transform((s) => new Date(s));
+type ParsedDate = z.infer<typeof DateSchema>; // Date
+
+const result = DateSchema.parse('2029-08-19');
+// result is a Date object, not a string
+```
+
+The inferred type reflects the output of the transform, not the input. Useful for coercing strings from form data into proper types.
+
+## Composing schemas
+
+```ts
+const AddressSchema = z.object({
+  street: z.string(),
+  city:   z.string(),
+  zip:    z.string().regex(/^\d{5}$/),
+});
+
+const PersonSchema = z.object({
+  name:    z.string(),
+  address: AddressSchema,
+  tags:    z.array(z.string()).default([]),
+});
+
+// Partial — all fields optional
+const PartialPersonSchema = PersonSchema.partial();
+
+// Pick/omit
+const PersonSummarySchema = PersonSchema.pick({ name: true });
+const PersonWithoutTags   = PersonSchema.omit({ tags: true });
+```
+
+Schemas compose like TypeScript utility types. `partial()`, `pick()`, `omit()` all produce new schemas. This prevents schema duplication — the detail schema builds on the summary schema.
+
+## Where Zod fits in the stack
+
+Zod validates data at trust boundaries:
+- API request bodies (before processing)
+- External API responses (before using the data)
+- Environment variables (at startup)
+- Form submissions (on the server-side handler, not just client-side)
+- Database query results if using a raw query (not needed with Prisma, which handles this)
+
+Inside your own code, between functions you control, you don't need runtime validation — TypeScript's compile-time checking is sufficient. Zod is for the edges of your system where data comes from outside.
