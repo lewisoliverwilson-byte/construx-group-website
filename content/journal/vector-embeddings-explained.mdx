@@ -1,0 +1,92 @@
+---
+title: "Vector embeddings: what they are and why they matter for AI products"
+date: "2026-08-14"
+excerpt: "Embeddings underpin AI features across all three Construx products. Here's an explanation aimed at product builders who know they need to understand embeddings but haven't found a clear entry point."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+Vector embeddings appear in every serious AI application. They're how The Marqet's semantic search works, how The Hyve's AI agent remembers past decisions, and how Scoutr classifies products. If you're building AI products, you'll encounter them constantly.
+
+Here's an explanation that starts with the intuition and builds toward practical implementation.
+
+## The core idea
+
+An embedding is a way of representing an item — a word, a sentence, a document, an image — as a list of numbers (a vector). The numbers are chosen so that similar items have similar numbers.
+
+This is the key property: **semantic similarity maps to numerical proximity**. Two sentences that mean similar things will have embeddings that are numerically close. Two sentences that mean different things will have embeddings that are numerically far apart.
+
+Concretely: "best practices for Python" and "Python coding standards" are semantically similar. Their embeddings, as 1536-dimensional vectors, will be close to each other in 1536-dimensional space. "best practices for Python" and "recipe for chocolate cake" are semantically different. Their embeddings will be far apart.
+
+This mathematical representation of meaning is what makes semantic search, semantic similarity, and vector memory possible.
+
+## How embeddings are generated
+
+An embedding model takes text as input and produces a vector as output. The model was trained to produce vectors where semantic similarity corresponds to spatial proximity.
+
+You call an embedding API the same way you call any other API:
+
+```typescript
+const response = await anthropic.embeddings.create({
+  model: 'claude-embedding-v1',
+  input: 'best practices for Python code review',
+});
+const embedding: number[] = response.embedding;
+// embedding is an array of 1536 numbers
+```
+
+The 1536 numbers don't individually mean anything interpretable — you can't look at the 500th number and say "this dimension represents formality" (or at least, it's not straightforward to do so). The meaning is in the relationship between vectors, not in individual dimensions.
+
+## The nearest-neighbour operation
+
+The practical operation on embeddings: given a query vector, find the stored vectors that are closest to it.
+
+Closeness is measured by distance metrics. The most common for text embeddings is cosine similarity — the cosine of the angle between two vectors. Vectors pointing in the same direction (angle close to 0°) have cosine similarity close to 1; vectors pointing in opposite directions have cosine similarity close to -1. For text embeddings, higher cosine similarity means more semantic similarity.
+
+Cosine distance is `1 - cosine_similarity`. Lower cosine distance = more similar.
+
+The nearest-neighbour search: embed the query, then find the stored embeddings with the lowest cosine distance to the query embedding. Return those items.
+
+```sql
+-- pgvector cosine distance query
+SELECT id, title, description
+FROM listings
+ORDER BY embedding <=> $1  -- $1 is the query embedding
+LIMIT 10;
+```
+
+The `<=>` operator in pgvector is cosine distance. Ordering by `<=>` ascending returns the most similar items first.
+
+## Three uses in the Construx products
+
+**The Marqet semantic search**: each listing is embedded (title + description + use cases). User queries are embedded at search time. The nearest-neighbour query finds the most semantically similar listings regardless of keyword overlap.
+
+**The Hyve agent memory**: past decisions, messages, and project context are embedded and stored in pgvector. When the AI agent responds to a new message, it queries the vector store for relevant past context ("what's semantically similar to the current topic?") and includes that context in the prompt. This is how the agent "remembers" past decisions — it retrieves relevant past content via semantic search, not keyword search.
+
+**Scoutr product classification**: new product pages are embedded and compared to prototype embeddings for known product categories. The category with the closest embedding to the new product determines the classification. This is called embedding-based classification (or a lightweight k-nearest-neighbour classifier).
+
+## When to use embeddings
+
+Use embeddings when:
+- **Semantic search**: you need to find content by meaning, not by keyword
+- **Similarity/recommendation**: "find items similar to this one"
+- **Classification**: categorise items into predefined classes
+- **Agent memory**: give an AI agent access to a large knowledge base it couldn't fit in a single context window
+
+Don't use embeddings when:
+- **Exact match lookups**: if you need to find `user_id = 12345`, that's a database index, not a vector search
+- **Keyword search**: if the search terms will match the document vocabulary directly, traditional full-text search (Postgres `tsvector`) is faster and more controllable
+
+The mental model: embeddings solve the vocabulary mismatch problem. When the query vocabulary and the document vocabulary don't overlap (but the meaning does), embeddings bridge the gap. When they do overlap, traditional search is simpler.
+
+## The practical stack
+
+For production use:
+- **Embedding generation**: Claude Embeddings API (or OpenAI's `text-embedding-3-small`)
+- **Storage**: pgvector column in Postgres
+- **Index**: `ivfflat` or `hnsw` index for approximate nearest-neighbour search at scale
+- **Query**: `ORDER BY embedding <=> $1 LIMIT N`
+
+For small datasets (under ~50k vectors), the index isn't necessary — a sequential scan of the vector column is fast enough. For larger datasets, the `hnsw` index dramatically improves query performance at a small accuracy trade-off.
+
+The stack is simple enough for a two-person team to run in production. We do.

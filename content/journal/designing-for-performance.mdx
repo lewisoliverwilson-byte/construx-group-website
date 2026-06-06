@@ -1,0 +1,77 @@
+---
+title: "Performance as design: how speed shapes product perception"
+date: "2026-08-16"
+excerpt: "Fast products feel different from slow ones — not just quantitatively but qualitatively. Performance isn't purely an engineering concern; it's a design concern with direct effects on product perception and user trust."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+A product that responds in 100ms feels different from one that responds in 800ms. Not just faster — qualitatively different. The fast product feels competent, precise, in control. The slow product feels uncertain, laborious, unreliable.
+
+This difference in perception persists even when both products produce identical results. Performance isn't just about efficiency; it's about the emotional quality of the experience.
+
+## The 100ms threshold
+
+Research in human-computer interaction has established a few threshold latencies that matter:
+
+**100ms**: responses within 100ms feel instantaneous. The user perceives no delay between action and response. This is the target for UI interactions — button presses, form submissions, hover effects.
+
+**300ms**: still perceptible but within the range of "fast". Most users don't find this frustrating, but they don't feel the snappiness of sub-100ms responses either.
+
+**1000ms**: at this threshold, the user's attention starts to drift. They've noticed a delay. Showing a loading indicator is appropriate; without it, the user may assume the action failed.
+
+**3000ms+**: extended waits require communication. A loading indicator with a message ("scanning product...") maintains engagement and trust. Silently loading for 3 seconds is friction that erodes confidence.
+
+For AI features — where the response inherently takes longer than a database query — managing these thresholds requires explicit design. A scan that takes 4 seconds shouldn't feel like a dead interface for 4 seconds.
+
+## How we handle latency in Scoutr
+
+Scoutr's product scan typically takes 3-6 seconds. This is not instant; it's not suppressible with better engineering alone (the time includes external API calls and fee calculations). So we design around it.
+
+The moment a scan starts:
+1. The button state changes immediately — the user knows the action registered
+2. A progress indicator appears with a product-specific message: "Scanning [retailer name]..."
+3. Three animated "pulse" indicators show phase progress: Fetching → Analysing → Calculating
+4. When results arrive, they fade in immediately
+
+This sequence turns a 4-second wait into a 4-second process with visible progress. The user understands what's happening and has evidence that the product is working. The latency hasn't changed; the experience of the latency has.
+
+The alternative — spinning indicator with no information — leaves the user uncertain about whether the action registered, whether the product is stuck, and whether they should retry. Uncertainty is worse than wait time.
+
+## Optimistic updates
+
+The fastest UI is one that doesn't wait. For operations where we're confident of success, we update the UI immediately and confirm in the background.
+
+The Hyve's message sending uses optimistic updates: when a user sends a message, it appears in the channel immediately (with a subtle "sending" visual state). The server-side persistence happens asynchronously. If it fails, the message transitions to an error state with a retry option.
+
+The user experience: instant feedback, no visible latency, rare error states that are clearly communicated when they occur.
+
+This is the right model for any operation that's highly likely to succeed and where the optimistic state can be shown without misleading the user about the actual state.
+
+## Static generation for content
+
+Next.js App Router static generation pre-renders pages at build time. The result: the first byte time for a static page is the CDN response time (typically 5-15ms globally), not the time to run the server-side logic.
+
+Every journal post is statically generated. Every venture page is statically generated. The homepage is statically generated (the Three.js solar system loads client-side after the initial HTML). These pages are fast by default.
+
+The pattern: use static generation for everything that can be static. Only dynamic render when you need user-specific or real-time content. This isn't just about performance — it's about simplicity. Static pages don't require server infrastructure, don't have failure modes from server-side rendering, and are trivially cacheable.
+
+## Measuring performance
+
+We measure Core Web Vitals for the Construx Group website using Google Search Console and PageSpeed Insights. The three metrics that matter most:
+
+**Largest Contentful Paint (LCP)**: how long until the main content is visible. Target: under 2.5 seconds.
+
+**First Input Delay (FID) / Interaction to Next Paint (INP)**: how long until the page responds to the first user interaction. Target: under 100ms / 200ms.
+
+**Cumulative Layout Shift (CLS)**: how much the page layout shifts while loading (this is jarring for users). Target: below 0.1.
+
+The Three.js solar system is the main performance risk on the homepage — a large JavaScript bundle that loads after initial render. We mitigate this with the `ssr: false` dynamic import and a loading placeholder that prevents layout shift. Current LCP is around 1.8 seconds; we're satisfied with that.
+
+## The performance/feature trade-off
+
+Every feature has a performance cost. Features that require additional data loading, JavaScript parsing, or rendering work make the product slower.
+
+The correct frame: performance is a feature. When evaluating a new feature addition, "does this make the product slower?" is a legitimate question that can determine whether the feature is added, modified, or rejected.
+
+For AI products specifically — where latency is already elevated by the AI response time — the non-AI parts of the product must be fast. If the AI response takes 3 seconds and the rest of the interface takes 2 seconds, the total wait is 5 seconds. The non-AI parts should be as close to instant as possible, so the only wait the user experiences is the one that's genuinely unavoidable.
