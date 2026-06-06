@@ -13,6 +13,7 @@ import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import VaultSecretsPanel from '@/components/VaultSecretsPanel';
 import FluxCdPanel from '@/components/FluxCdPanel';
+import TailnetStatusPanel from '@/components/TailnetStatusPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -608,8 +609,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* Flux CD GitOps reconciliation */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <FluxCdPanel />
+      </section>
+
+      {/* Tailscale tailnet device status */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <TailnetStatusPanel />
       </section>
 
       {/* CTA */}
