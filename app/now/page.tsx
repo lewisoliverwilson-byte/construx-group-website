@@ -10,6 +10,7 @@ import JournalctlPanel from '@/components/JournalctlPanel';
 import WhoPanel from '@/components/WhoPanel';
 import TimezoneClockPanel from '@/components/TimezoneClockPanel';
 import PsAuxPanel from '@/components/PsAuxPanel';
+import UfwStatusPanel from '@/components/UfwStatusPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -344,8 +345,13 @@ export default function NowPage() {
         </div>
 
         {/* Process table */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PsAuxPanel />
+        </div>
+
+        {/* Firewall rules */}
+        <div className="mt-6 pb-10">
+          <UfwStatusPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
