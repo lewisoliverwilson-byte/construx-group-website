@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://construxgroup.io/now' },
 };
 
-const LAST_UPDATED = 'November 2026';
+const LAST_UPDATED = 'December 2026';
 
 const nowItems = [
   {
@@ -50,8 +50,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '176 dispatches and continuing',
-        body: 'Writing consistently about what we build and why. Build logs, methodology posts, product thinking, and strategy. The journal compounds — early posts still drive discovery months after publication. Aiming for 200.',
+        title: '200 dispatches and continuing',
+        body: 'Hit the 200-dispatch milestone in December 2026. Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. The journal compounds: early posts still drive discovery months after publication. Continuing past 200.',
         status: 'ONGOING',
       },
     ],
