@@ -1,0 +1,71 @@
+---
+title: "Monorepo vs. polyrepo: why we chose separate repos for three products"
+date: "2026-10-09"
+excerpt: "We have three products and three separate Git repositories. Here's why we chose polyrepo over monorepo and what the tradeoffs have been in practice."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+The monorepo vs. polyrepo decision is one of the first architectural choices in a multi-product organisation. We chose polyrepo. Here's why, and what we've paid for it.
+
+## What we're managing
+
+Three separate Next.js products:
+- **Scoutr** — resell intelligence platform
+- **The Marqet** — professional services marketplace
+- **The Hyve** — AI-first team workspace
+
+Each is a distinct application with different routing, different API patterns, different database schemas, different Stripe configurations. They share no production infrastructure.
+
+## The case for monorepo
+
+The standard argument: shared code (utilities, types, UI components) can be imported directly. No versioning, no publishing, no coordination overhead for internal package changes.
+
+In a monorepo:
+- A shared `ui` package contains common components.
+- Changes to `ui` are immediately available in all products.
+- Type definitions for shared data shapes are defined once.
+- CI runs tests for all affected products when any file changes.
+
+Large companies (Vercel, Expo, Google) run monorepos for these reasons. The tooling (Turborepo, Nx) has matured significantly.
+
+## Why we chose polyrepo
+
+**Deployment independence.** Each product has different deployment schedules, different release cadences, and different risk tolerances. A deployment of Scoutr shouldn't be blocked by a failing test in The Marqet. In a monorepo, CI failure anywhere can block deployment everywhere.
+
+**Context isolation.** When working on Scoutr, I want to see only Scoutr code. A monorepo with three large products creates a large mental surface area. Polyrepo creates natural boundaries.
+
+**Team size.** Monorepos provide the most value when multiple engineers work across the same products regularly. At two people, the coordination benefits of monorepo are lower than at ten. The shared-code benefit is real but we can capture most of it through package publishing (npm private packages) rather than monorepo structure.
+
+**Initial simplicity.** Starting three products simultaneously, monorepo setup would have been overhead before we validated that any of the products was worth building. We started fast with three independent projects.
+
+## What we've paid
+
+**Duplication.** We have duplicate utility functions across all three repos. The `formatDate`, `formatCurrency`, and `readingTime` functions exist in all three products. When we find a bug in one, we fix it three times.
+
+**Shared configuration drift.** ESLint config, TypeScript config, Tailwind base configuration — these started identical and have diverged over time as each product's requirements evolved. This is partly intentional (different products have different needs) and partly accidental (one-off changes that weren't replicated).
+
+**No shared type definitions.** The type definitions for common patterns (user objects, payment records, pagination shapes) are defined independently in each product. They're consistent in intent but aren't the same TypeScript type — a `User` in Scoutr and a `User` in The Marqet are structurally similar but not structurally identical.
+
+**Cross-product learnings take manual effort.** When we solve a problem in one product (the rate limiting implementation, the Zod env validation pattern), applying it to another product requires manually copying and adapting the solution.
+
+## The hybrid we've arrived at
+
+We haven't moved to a full monorepo. We have moved to a private npm package (`@construx/utils`) that contains genuinely shared utilities:
+
+- String formatting functions
+- Date utilities
+- Type guards and Zod helpers
+- Common types for shared patterns
+
+The package is published to a private GitHub Packages registry. Changes require a version bump and a package update in each consuming product. This is more overhead than a monorepo but less than full duplication.
+
+For UI components: each product has its own component library. The design language is consistent (same Tailwind config, same font choices, same color tokens) but the components are not shared. The products serve different purposes and have evolved their UI patterns independently.
+
+## What we'd do differently
+
+Starting a new set of products today, we'd evaluate Turborepo. The tooling has improved significantly since we made the initial decision, and the deployment independence concern (our primary reason for polyrepo) is better handled by modern monorepo CI patterns.
+
+That said, retrofitting three live products into a monorepo is significant work for uncertain benefit. We'll keep the polyrepo with the shared package approach until there's a clear catalyst for a full migration.
+
+The lesson: polyrepo is fine for a small team with independent products. Monorepo becomes more valuable as the team grows and the amount of genuinely shared code increases. At our stage, the practical difference is smaller than the debate suggests.

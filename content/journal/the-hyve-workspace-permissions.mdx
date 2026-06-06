@@ -1,0 +1,167 @@
+---
+title: "The Hyve permission model: from flat teams to role-based access"
+date: "2026-10-11"
+excerpt: "We launched The Hyve with a flat permission model where every member had identical access. Three months in, workspace admins needed more control. Here's what we built and why we waited."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Hyve launched with one permission level: member. Every user in a workspace could do everything: create channels, invite members, read all messages, use the AI agent. Simple to build, simple to understand, simple to maintain.
+
+Three months later, we had a workspace with 18 members where the admin sent us a support message: "I need to prevent junior team members from archiving channels."
+
+The permission model needed to grow up.
+
+## The requirements
+
+Before building, we gathered requirements from workspace admins via user interviews. The patterns that emerged:
+
+**Role differentiation.** Admins need capabilities that regular members don't: inviting/removing members, managing workspace settings, archiving channels, viewing billing.
+
+**Channel-level privacy.** Some channels should be invite-only — not visible or accessible to all members.
+
+**Guest access.** Some workspaces wanted to give limited access to contractors or clients — access to specific channels only, no ability to create new channels.
+
+The requirements pointed to three distinct permission levels: admin, member, and guest.
+
+## The permission model
+
+We designed a two-layer permission model: workspace-level roles and channel-level membership.
+
+**Workspace roles:**
+- `owner` — the workspace creator; full access, can't be removed
+- `admin` — can manage members, channels, and workspace settings
+- `member` — the default role; can use all workspace features within their channel access
+- `guest` — limited to explicitly granted channels; cannot create channels or invite members
+
+```sql
+CREATE TYPE workspace_role AS ENUM ('owner', 'admin', 'member', 'guest');
+
+ALTER TABLE workspace_members ADD COLUMN role workspace_role NOT NULL DEFAULT 'member';
+```
+
+**Channel types:**
+- `public` — all workspace members (excluding guests) have implicit access
+- `private` — only users in the `channel_members` junction table have access
+
+```sql
+CREATE TYPE channel_type AS ENUM ('public', 'private');
+
+ALTER TABLE channels ADD COLUMN channel_type channel_type NOT NULL DEFAULT 'public';
+
+CREATE TABLE channel_members (
+  channel_id  uuid REFERENCES channels(id) ON DELETE CASCADE,
+  user_id     uuid REFERENCES users(id) ON DELETE CASCADE,
+  added_by    uuid REFERENCES users(id),
+  added_at    timestamptz DEFAULT now(),
+  PRIMARY KEY (channel_id, user_id)
+);
+```
+
+## The permission check function
+
+Rather than scattering permission logic across route handlers, we centralised it:
+
+```ts
+type Permission =
+  | 'workspace:invite_member'
+  | 'workspace:remove_member'
+  | 'workspace:manage_settings'
+  | 'workspace:view_billing'
+  | 'channel:create'
+  | 'channel:archive'
+  | 'channel:add_member'
+  | 'channel:read'
+  | 'channel:send_message';
+
+const ROLE_PERMISSIONS: Record<WorkspaceRole, Permission[]> = {
+  owner: [
+    'workspace:invite_member', 'workspace:remove_member', 'workspace:manage_settings',
+    'workspace:view_billing', 'channel:create', 'channel:archive',
+    'channel:add_member', 'channel:read', 'channel:send_message',
+  ],
+  admin: [
+    'workspace:invite_member', 'workspace:remove_member', 'workspace:manage_settings',
+    'channel:create', 'channel:archive', 'channel:add_member',
+    'channel:read', 'channel:send_message',
+  ],
+  member: ['channel:create', 'channel:add_member', 'channel:read', 'channel:send_message'],
+  guest: ['channel:read', 'channel:send_message'],
+};
+
+async function can(
+  userId: string,
+  workspaceId: string,
+  permission: Permission,
+  channelId?: string,
+): Promise<boolean> {
+  const membership = await getWorkspaceMembership(userId, workspaceId);
+  if (!membership) return false;
+
+  const hasPermission = ROLE_PERMISSIONS[membership.role].includes(permission);
+  if (!hasPermission) return false;
+
+  // For channel operations, also check channel access
+  if (channelId && (permission === 'channel:read' || permission === 'channel:send_message')) {
+    return canAccessChannel(userId, channelId, membership.role);
+  }
+
+  return true;
+}
+```
+
+Route handlers use this function:
+
+```ts
+export async function POST(req: Request, { params }: { params: { workspaceId: string } }) {
+  const userId = await getAuthenticatedUserId(req);
+  
+  if (!(await can(userId, params.workspaceId, 'workspace:invite_member'))) {
+    return Response.json({ error: 'Insufficient permissions' }, { status: 403 });
+  }
+  
+  // ... invite logic
+}
+```
+
+## The migration
+
+The migration ran on live data: all existing workspace members were assigned the `member` role; workspace creators were upgraded to `owner`.
+
+```sql
+-- Assign owner role to workspace creators
+UPDATE workspace_members wm
+SET role = 'owner'
+FROM workspaces w
+WHERE wm.user_id = w.created_by AND wm.workspace_id = w.id;
+
+-- All existing channels become public (maintaining existing behaviour)
+UPDATE channels SET channel_type = 'public' WHERE channel_type IS NULL;
+```
+
+We deployed the application code before the migration (with backward-compatible permission checks that treated every member as having the previous flat access) and ran the migration after. This allowed a zero-downtime deployment without a maintenance window.
+
+## The UI changes
+
+The admin panel (visible only to admins and owners) now shows:
+- Member list with roles, editable by admins
+- Invite by email with role selection
+- Remove member functionality
+
+The channel creation flow now includes a type selector (public/private). Private channel creators are added to `channel_members` automatically; they then invite others.
+
+Guest access is granted via a separate invite flow that creates a workspace_member record with `role: 'guest'` and populates `channel_members` for the specific channels the guest should access.
+
+## What we waited for
+
+We waited three months to build the permission system, despite having some intuition that we'd need it. The reason: we wanted to learn from actual usage before designing the model.
+
+If we'd built permissions on day one based on our assumptions, we might have built something that didn't match how workspaces actually formed. The three-month wait gave us the data:
+
+- Workspaces averaged 11 members (more than we expected)
+- The most common admin request was channel privacy, not member management
+- Guest access was requested more than we anticipated (contractor use cases)
+
+The permission model we built reflects these actual usage patterns. A model built on day-one assumptions would have been correct in principle but wrong in detail.
+
+The lesson: permission models are expensive to design correctly and expensive to change. Wait for data, but don't wait indefinitely — the data will never be perfect, and at some point the absence of permissions becomes a product liability.
