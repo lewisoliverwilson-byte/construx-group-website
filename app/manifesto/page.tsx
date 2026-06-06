@@ -13,6 +13,7 @@ import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
+import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -261,8 +262,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ESLint output */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <EslintOutputPanel />
+        </div>
+
+        {/* k6 load test */}
+        <div className="mt-4 pb-6">
+          <K6LoadTestPanel />
         </div>
 
         {/* Sign-off */}

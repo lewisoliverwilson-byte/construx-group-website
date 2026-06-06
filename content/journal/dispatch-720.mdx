@@ -1,0 +1,158 @@
+---
+title: "Hono: ultrafast web framework for the edge"
+date: "2030-11-12"
+excerpt: "Hono is a web framework that runs anywhere: Cloudflare Workers, Bun, Deno, Node.js, AWS Lambda. It is fast, tiny (under 20KB), and has zero dependencies. The API is Express-like — routing, middleware, context — but built on the Web Standards API (Request, Response, Headers) so it runs natively at the edge without adapters."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The web framework for when you care about cold start time, bundle size, or running at the edge. Hono covers it all with one API.
+
+## Install
+
+```bash
+# Cloudflare Workers
+npm create cloudflare@latest my-app -- --template hono
+
+# Bun
+bun create hono my-app
+
+# Node.js
+npm install hono @hono/node-server
+```
+
+## Basic routing
+
+```ts
+import { Hono } from 'hono';
+
+const app = new Hono();
+
+app.get('/', (c) => c.text('Hello Hono'));
+app.get('/json', (c) => c.json({ message: 'Hello', ts: Date.now() }));
+
+app.get('/users/:id', (c) => {
+  const id = c.req.param('id');
+  return c.json({ id, name: 'Lewis Wilson' });
+});
+
+app.post('/users', async (c) => {
+  const body = await c.req.json();
+  return c.json({ created: body }, 201);
+});
+
+export default app;
+```
+
+## Middleware
+
+```ts
+import { Hono }         from 'hono';
+import { cors }         from 'hono/cors';
+import { logger }       from 'hono/logger';
+import { jwt }          from 'hono/jwt';
+import { rateLimiter }  from 'hono-rate-limiter';
+
+const app = new Hono();
+
+// Built-in middleware
+app.use('*', logger());
+app.use('/api/*', cors({ origin: 'https://construxgroup.io' }));
+
+// JWT auth
+app.use('/protected/*', jwt({ secret: process.env.JWT_SECRET! }));
+
+app.get('/protected/me', (c) => {
+  const payload = c.get('jwtPayload');
+  return c.json({ user: payload });
+});
+```
+
+## Zod validation
+
+```ts
+import { zValidator } from '@hono/zod-validator';
+import { z }          from 'zod';
+
+const createPost = z.object({
+  title:   z.string().min(1).max(200),
+  content: z.string().min(10),
+  tags:    z.array(z.string()).optional(),
+});
+
+app.post(
+  '/posts',
+  zValidator('json', createPost),
+  async (c) => {
+    const { title, content, tags } = c.req.valid('json');
+    // title and content are fully typed
+    return c.json({ title, content, tags }, 201);
+  },
+);
+```
+
+## RPC — type-safe client
+
+```ts
+// server.ts
+import { Hono } from 'hono';
+
+const routes = new Hono()
+  .get('/posts',      (c) => c.json([{ id: '1', title: 'First post' }]))
+  .post('/posts',     async (c) => c.json(await c.req.json(), 201))
+  .get('/posts/:id',  (c) => c.json({ id: c.req.param('id') }));
+
+export type AppType = typeof routes;
+
+// client.ts
+import { hc } from 'hono/client';
+import type { AppType } from './server';
+
+const client = hc<AppType>('https://api.construxgroup.io');
+
+// Fully typed — IDE autocomplete, no openapi needed
+const res   = await client.posts.$get();
+const posts = await res.json(); // typed as { id: string; title: string }[]
+```
+
+## Cloudflare Workers deployment
+
+```ts
+// src/index.ts
+import { Hono } from 'hono';
+
+type Bindings = {
+  DB:  D1Database;
+  KV:  KVNamespace;
+  JWT: string;
+};
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.get('/data', async (c) => {
+  const result = await c.env.DB.prepare('SELECT * FROM posts LIMIT 10').all();
+  return c.json(result.results);
+});
+
+app.get('/cache/:key', async (c) => {
+  const value = await c.env.KV.get(c.req.param('key'));
+  return value ? c.text(value) : c.notFound();
+});
+
+export default app;
+```
+
+```toml
+# wrangler.toml
+name       = "construx-api"
+main       = "src/index.ts"
+compatibility_date = "2030-01-01"
+
+[[d1_databases]]
+binding      = "DB"
+database_id  = "your-d1-id"
+```
+
+## Hono vs Express vs Fastify
+
+Hono: edge-native, tiny, fastest cold start, Web Standards API, runs everywhere. Express: mature ecosystem, most middleware available, Node.js only, older API. Fastify: fast on Node.js, JSON schema validation, plugin system. Use Hono for edge functions, lightweight APIs, and projects that need to run on Cloudflare Workers or Bun. Use Fastify for Node.js servers where you want validation and plugin architecture.
