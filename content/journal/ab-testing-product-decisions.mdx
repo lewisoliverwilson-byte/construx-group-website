@@ -1,0 +1,64 @@
+---
+title: "When A/B testing helps and when it doesn't"
+date: "2026-08-25"
+excerpt: "A/B testing is presented as the objective answer to product decisions. It's actually a tool with specific use cases where it works well and many where it doesn't. Here's the honest framework."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+A/B testing has a particular authority in product circles — it's presented as the way to remove opinion from product decisions and replace it with data. The appeal is obvious. The reality is more complicated.
+
+Here's when A/B testing is the right tool and when something else is better.
+
+## What A/B testing actually requires
+
+Before running an A/B test, three conditions need to be true:
+
+**Sufficient traffic.** Statistical significance requires enough events to distinguish a real difference from random variation. To detect a 5% improvement in conversion with 80% statistical power, you need thousands of conversion events per variant. This takes time — at low traffic volumes, tests take months to reach significance.
+
+**A clear, measurable metric.** A/B testing answers the question "which variant produces more of metric X?" This requires knowing which metric matters. Conversion to paid? Trial activation? Time spent in the product? The metric choice determines what you optimise for and may not capture unintended side effects.
+
+**A stable user population.** If the user base changes significantly during the test period (new acquisition channel, seasonal effects, a viral moment), the results are confounded. The test measures the interaction of the change and the population shift, not the change alone.
+
+For our three products at current scale, condition one (sufficient traffic) is often not met. A test that would take 3 months to reach significance is not useful when the product is evolving over that same 3 months.
+
+## When we A/B test
+
+We run A/B tests when:
+
+1. **The decision has material impact and is genuinely unclear.** Scoutr's scan results layout — we genuinely didn't know whether the card layout or the tabular layout would perform better, and the difference mattered. We ran the test.
+
+2. **We have enough events to detect the difference we care about.** The scan results page gets enough scans per week to run a meaningful test. A test on the contact form would take years.
+
+3. **Both variants are implemented.** We don't test hypothetical variants — we build both, deploy both behind a flag, and run the test.
+
+## When something else is better
+
+**Qualitative research over A/B testing** when: we don't know why users behave a certain way, the metric we'd test doesn't capture the full picture, or the sample size is too small. A conversation with 5 users about why they're not converting gives us more actionable insight than a test that takes 3 months and tells us one variant converted slightly better but not why.
+
+**Preference-based decisions over A/B testing** when: one variant is clearly better by aesthetic or product quality standards and the test would just be validating taste. If a button design is objectively more polished, we don't need statistical confirmation.
+
+**The founder's call over A/B testing** when: the decision is about product direction, not parameter optimisation. "Should Scoutr support eBay in addition to Amazon?" is a product strategy decision. A/B testing can tell you whether the feature increases some metric — it can't tell you whether it's the right product direction.
+
+## The metric choice problem
+
+A/B tests optimise for the metric you choose, and that metric may not be the right one. A common failure mode: testing for conversion to trial, when the real metric of interest is conversion to paid. A variant that produces more trial signups but fewer paid conversions is losing, but the test says it's winning.
+
+We try to test for the metric closest to the outcome we actually care about (revenue, retention) rather than proxy metrics (clicks, time on page). Proxy metrics are noisier and more likely to be optimised in ways that don't produce the underlying outcome you want.
+
+## The false precision problem
+
+A/B test results come with confidence intervals and p-values that create an impression of precision. "Variant B improved conversion by 7.2% (p=0.03)" sounds definitive. But:
+
+- The confidence interval might be wide (the true effect could be anywhere from 0.5% to 14%)
+- The effect might not generalise beyond the test population
+- The effect might decay as users adapt to the new variant
+- The test might have been stopped at a convenient time (p-hacking)
+
+A/B testing produces probabilistic evidence, not certainty. Treating a single test result as definitive is a mistake. Multiple tests that consistently point in the same direction are more convincing than a single test with a low p-value.
+
+## Our actual approach
+
+We run A/B tests on high-traffic interactions where we have genuine uncertainty and the test can reach significance in a reasonable timeframe (2-4 weeks maximum). For everything else, we make the call based on qualitative research, product intuition, or the founder's judgment.
+
+We don't pretend that our A/B tests are rigorous experiments — they're directional signals that inform decisions. The decisions remain judgments.
