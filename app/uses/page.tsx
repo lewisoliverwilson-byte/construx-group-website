@@ -10,6 +10,7 @@ import SshConfigPanel from '@/components/SshConfigPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import EnvPanel from '@/components/EnvPanel';
+import LsofPanel from '@/components/LsofPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -362,8 +363,13 @@ export default function UsesPage() {
         </div>
 
         {/* Environment variables */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EnvPanel />
+        </div>
+
+        {/* Open network file descriptors */}
+        <div className="mt-6 pb-10">
+          <LsofPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

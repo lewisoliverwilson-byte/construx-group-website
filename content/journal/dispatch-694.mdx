@@ -1,0 +1,142 @@
+---
+title: "pnpm: fast, disk-efficient package management for JavaScript"
+date: "2030-08-26"
+excerpt: "pnpm stores every version of every package once in a global content-addressable store, then links it into node_modules with hard links. Install a package across 10 projects and it exists once on disk. Dependencies are installed 2-3x faster than npm because download and linking are separate phases that run concurrently. Strict mode prevents phantom dependencies — if a package is not in your package.json, your code cannot import it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+npm and Yarn install packages by copying them into each project's `node_modules`. pnpm installs them once, globally, and links them. The structure enforces correctness while dramatically reducing disk usage and install times.
+
+## Setup
+
+```bash
+# Install pnpm globally
+npm install -g pnpm
+
+# Or via corepack (Node.js built-in)
+corepack enable
+corepack prepare pnpm@latest --activate
+
+# Verify
+pnpm --version
+```
+
+## Daily commands
+
+```bash
+# Install dependencies
+pnpm install
+
+# Add a package
+pnpm add react react-dom
+pnpm add -D typescript @types/react
+
+# Add globally
+pnpm add -g turbo
+
+# Run a script
+pnpm build
+pnpm dev
+
+# Execute a binary from node_modules/.bin
+pnpm exec tsc --noEmit
+
+# Run without installing (like npx)
+pnpm dlx create-next-app@latest my-app
+
+# Update packages interactively
+pnpm update --interactive --latest
+
+# Remove a package
+pnpm remove lodash
+```
+
+## Workspace monorepo
+
+```yaml
+# pnpm-workspace.yaml
+packages:
+  - 'apps/*'
+  - 'packages/*'
+```
+
+```bash
+# Run build in all packages
+pnpm -r build
+
+# Run build in specific filter
+pnpm --filter web build
+pnpm --filter './packages/*' build
+
+# Add a package to a specific workspace
+pnpm --filter api add hono
+
+# Add a workspace package as a dependency
+pnpm --filter web add @construx/ui --workspace
+
+# Run with concurrency
+pnpm -r --parallel dev
+```
+
+## .npmrc options
+
+```ini
+# .npmrc
+# Hoist nothing — strict isolation (recommended)
+shamefully-hoist=false
+strict-peer-dependencies=false
+
+# Hoist to top-level for tools that expect flat node_modules
+public-hoist-pattern[]=*eslint*
+public-hoist-pattern[]=*prettier*
+
+# Save exact versions (no ^ prefix)
+save-exact=true
+
+# Store path (default: ~/.pnpm-store)
+store-dir=~/.pnpm-store
+```
+
+## Why strict by default
+
+npm hoists everything to the top-level `node_modules`, which means your code can import a package that is a transitive dependency even if it is not in your `package.json`. This is a phantom dependency. When the package that required it upgrades or removes it, your code breaks without your package.json changing. pnpm's non-flat structure prevents this by only linking packages explicitly listed as dependencies.
+
+## CI caching
+
+```yaml
+# GitHub Actions
+- name: Install pnpm
+  uses: pnpm/action-setup@v4
+  with:
+    version: 9
+
+- name: Get pnpm store directory
+  id: pnpm-cache
+  run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+- name: Setup cache
+  uses: actions/cache@v4
+  with:
+    path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+    key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+    restore-keys: ${{ runner.os }}-pnpm-
+
+- name: Install dependencies
+  run: pnpm install --frozen-lockfile
+```
+
+## Performance comparison
+
+| Operation              | npm    | Yarn   | pnpm  |
+|------------------------|--------|--------|-------|
+| Install (cold)         | 41.2s  | 31.6s  | 14.8s |
+| Install (warm cache)   | 28.7s  | 16.1s   | 4.3s  |
+| Install (lockfile)     | 22.4s  | 14.8s  | 3.1s  |
+| Disk (10 projects)     | 3.8 GB | 2.1 GB | 0.9 GB|
+
+Numbers from a Next.js + monorepo benchmark; pnpm's global store deduplication drives the disk number down as the number of projects grows.
+
+## pnpm vs npm vs Yarn vs Bun
+
+pnpm: fastest cold install, strictest isolation, best for monorepos, identical lockfile semantics to npm. npm: universal default, slowest, loose isolation. Yarn: Berry has PnP mode (zero installs), complex mental model. Bun: built-in runtime + package manager, fastest installs, not yet production-stable for all ecosystems. For a TypeScript monorepo on Node.js, pnpm is the clear choice. Only reach for Bun if you are also migrating your runtime.
