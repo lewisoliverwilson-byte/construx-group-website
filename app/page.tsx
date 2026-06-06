@@ -254,21 +254,38 @@ export default function HomePage() {
                 </Link>
               ))}
               <div
-                className="flex items-center gap-4 px-5 py-4"
-                style={{ background: 'rgba(5,5,18,0.35)', border: '1px dashed rgba(255,255,255,0.07)', borderRadius: '3px' }}
+                className="overflow-hidden"
+                style={{ background: 'rgba(2,2,12,0.9)', border: '1px solid rgba(168,85,247,0.18)', borderRadius: '3px' }}
               >
-                <div className="flex -space-x-1.5">
-                  {[0.3, 0.2, 0.12].map((o, i) => (
-                    <div
-                      key={i}
-                      className="h-6 w-6 rounded-full border border-border"
-                      style={{ background: `rgba(255,255,255,${o})` }}
-                    />
-                  ))}
+                {/* Title bar */}
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 select-none"
+                  style={{ borderBottom: '1px solid rgba(168,85,247,0.1)', background: 'rgba(168,85,247,0.04)' }}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                  </div>
+                  <span className="font-mono text-[7px] uppercase tracking-[0.2em] flex-1 text-center truncate" style={{ color: 'rgba(168,85,247,0.45)' }}>
+                    asteroid.belt — classified.tx
+                  </span>
+                  <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.4)' }}>◈ 4</span>
                 </div>
-                <div>
-                  <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">More ventures in incubation</p>
-                  <p className="font-mono text-[9px] text-text-dim uppercase tracking-widest opacity-60">Entering orbit soon</p>
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex -space-x-1.5">
+                    {[0.35, 0.22, 0.12].map((o, i) => (
+                      <div
+                        key={i}
+                        className="h-5 w-5 rounded-full"
+                        style={{ background: `rgba(168,85,247,${o})`, border: '1px solid rgba(168,85,247,0.2)' }}
+                      />
+                    ))}
+                  </div>
+                  <div>
+                    <p className="font-mono text-[9px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.7)' }}>4 ventures in incubation</p>
+                    <p className="font-mono text-[8px] uppercase tracking-widest opacity-60" style={{ color: 'rgba(240,239,255,0.3)' }}>Entering orbit when ready</p>
+                  </div>
                 </div>
               </div>
             </div>
