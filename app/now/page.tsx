@@ -50,8 +50,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '200 dispatches and continuing',
-        body: 'Hit the 200-dispatch milestone in December 2026. Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. The journal compounds: early posts still drive discovery months after publication. Continuing past 200.',
+        title: '224 dispatches and continuing',
+        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover caching architecture, TypeScript strict mode, webhook design, row-level security, and prompt caching economics. The journal compounds.',
         status: 'ONGOING',
       },
     ],

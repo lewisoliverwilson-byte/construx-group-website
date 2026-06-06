@@ -1,0 +1,154 @@
+---
+title: "Scoutr's batch scan: how we extended from single products to portfolios"
+date: "2026-12-28"
+excerpt: "Scoutr started as a single-URL scanner. Professional users quickly wanted to scan 20, 50, 100 products at once. Here's how we built batch scanning — the queue design, the UI pattern, and the eBay API considerations that shaped the implementation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Scoutr's original value proposition was simple: paste a product URL, get margin data in under 5 seconds. One URL, one scan, immediate result.
+
+Professional arbitrage traders don't work that way. They're scanning 20-50 products at a time, building portfolios of products to source, and looking for patterns across a category rather than evaluating individual items. Single-URL scanning was a bottleneck.
+
+Batch scanning was the obvious extension. How we built it is the interesting part.
+
+## The problem with naive batch scanning
+
+The naive implementation: user provides 20 URLs, we kick off 20 concurrent eBay API calls, return results as they complete.
+
+This breaks in several ways:
+
+**eBay API rate limits.** The eBay Finding API has per-second and per-day call limits. 20 concurrent calls from a single user can exhaust the per-second limit, triggering rate limit errors for all calls after the first few.
+
+**Browser memory.** 20 concurrent in-flight requests plus their response data plus the UI rendering all of it simultaneously is heavy for a browser tab. Users with modest hardware see stuttering.
+
+**Poor UX on failure.** If 3 of 20 calls fail due to rate limits, the user gets a partially complete result with no clear indication of which products succeeded and which failed.
+
+**No progress indication.** All 20 results arrive at different times. The UI jumps from "scanning" to "partially complete" to "complete" in a non-linear way that feels broken.
+
+## The queue-based solution
+
+We replaced concurrent scanning with a client-side queue:
+
+```ts
+class ScanQueue {
+  private queue: string[] = [];
+  private results = new Map<string, ScanResult | ScanError>();
+  private concurrency = 3; // 3 concurrent scans maximum
+  private active = 0;
+
+  enqueue(urls: string[]) {
+    this.queue.push(...urls);
+    this.drain();
+  }
+
+  private async drain() {
+    while (this.active < this.concurrency && this.queue.length > 0) {
+      const url = this.queue.shift()!;
+      this.active++;
+      this.scanUrl(url).finally(() => {
+        this.active--;
+        this.drain(); // start next item when this one finishes
+      });
+    }
+  }
+
+  private async scanUrl(url: string) {
+    try {
+      const result = await api.scan(url);
+      this.results.set(url, result);
+    } catch (error) {
+      this.results.set(url, { type: 'error', url, message: String(error) });
+    }
+    this.onProgress?.(this.results);
+  }
+
+  onProgress?: (results: Map<string, ScanResult | ScanError>) => void;
+}
+```
+
+Three concurrent scans at a time. As each scan completes, the next item from the queue starts. The UI receives progress updates after each scan.
+
+The concurrency of 3 is a deliberate choice — enough to saturate the eBay API without hitting rate limits. We tested with 5 and saw occasional rate limit errors; 3 is reliably clean.
+
+## The UI pattern
+
+Batch scans needed a different UI from single scans. We built a "scan portfolio" view:
+
+1. **Input phase:** User pastes a list of URLs (one per line, up to 50) or imports a CSV
+2. **Queue phase:** URLs are displayed in a list with "pending" status
+3. **Scanning phase:** Items transition to "scanning" → "complete" or "failed" as they're processed
+4. **Results phase:** All items show results simultaneously; sortable by margin, confidence score, or product category
+
+The queue UI lets the user see progress in real-time. They don't wait for all 50 to complete before seeing any results — each completed scan renders immediately.
+
+```tsx
+function ScanQueueItem({ url, status, result }: QueueItemProps) {
+  return (
+    <div className={`scan-item scan-item--${status}`}>
+      <ProductThumbnail url={url} />
+      {status === 'pending' && <span>In queue</span>}
+      {status === 'scanning' && <ScanningIndicator />}
+      {status === 'complete' && result && <ScanResultMini result={result} />}
+      {status === 'failed' && <RetryButton url={url} />}
+    </div>
+  );
+}
+```
+
+The `status` drives the visual state. Items transition through pending → scanning → complete in sequence as the queue processes them.
+
+## eBay API considerations
+
+The eBay Finding API allows searching by keywords or category. For batch scans, the key optimisation is: if multiple URLs in the batch are from the same eBay category, we can make a single eBay API call to get sold history for that category and reuse it for all products in that category.
+
+```ts
+async function batchScanWithCaching(urls: string[]): Promise<ScanResult[]> {
+  // Group URLs by eBay category
+  const byCategory = groupBy(urls, (url) => extractCategory(url));
+  
+  const categoryData = new Map<string, CategoryData>();
+  
+  // Fetch category data once per category (cached in Redis for 4 hours)
+  await Promise.all(
+    Object.keys(byCategory).map(async (category) => {
+      const cached = await redis.get(`category:${category}`);
+      if (cached) {
+        categoryData.set(category, JSON.parse(cached));
+      } else {
+        const data = await eBayAPI.findCompletedItems({ category });
+        await redis.setex(`category:${category}`, 14400, JSON.stringify(data));
+        categoryData.set(category, data);
+      }
+    })
+  );
+  
+  // Scan each product using cached category data
+  return Promise.all(
+    urls.map((url) => {
+      const category = extractCategory(url);
+      return computeMargin(url, categoryData.get(category));
+    })
+  );
+}
+```
+
+This reduces eBay API calls from O(n) per batch to O(unique categories) per batch. A batch of 30 products across 4 categories makes 4 eBay API calls instead of 30.
+
+## The 50-URL limit
+
+We cap batch scans at 50 URLs. This is a product decision, not a technical limit.
+
+50 products is enough for a professional sourcing session. Beyond 50, the results become unwieldy — the user can't act on 100 scan results in a single session. The cap also manages eBay API usage and keeps the per-user processing time reasonable (50 products at 3 concurrent = roughly 3-4 minutes at typical scan speed).
+
+## What professional users wanted beyond batch
+
+After launching batch scanning, two recurring requests:
+
+**Saved portfolios:** Save a set of URLs as a "portfolio" to rescan regularly. A trader monitoring 30 products they're considering sourcing wants to rescan them daily without re-entering the URLs.
+
+**Threshold alerts:** "Alert me when any of these products hits confidence score 75+."
+
+Both are on the product roadmap. Saved portfolios required a database model change (portfolios table) and a simple CRUD interface. Threshold alerts require a background job that rescans portfolios on a schedule and sends an email on threshold breach.
+
+Neither is built yet. The batch scanning launched; the features that build on it are next.
