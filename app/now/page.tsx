@@ -13,6 +13,7 @@ import PsAuxPanel from '@/components/PsAuxPanel';
 import UfwStatusPanel from '@/components/UfwStatusPanel';
 import SystemdTimersPanel from '@/components/SystemdTimersPanel';
 import BpftracePanel from '@/components/BpftracePanel';
+import OtelTracesPanel from '@/components/OtelTracesPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -362,8 +363,13 @@ export default function NowPage() {
         </div>
 
         {/* eBPF kernel tracing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BpftracePanel />
+        </div>
+
+        {/* OpenTelemetry distributed trace waterfall */}
+        <div className="mt-6 pb-10">
+          <OtelTracesPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

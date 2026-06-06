@@ -1,0 +1,191 @@
+---
+title: "tRPC v11: end-to-end type safety without a schema file"
+date: "2031-02-13"
+excerpt: "tRPC v11 gives you fully typed API calls between your Next.js server and client — with no schema file, no code generation, and no runtime overhead. You define procedures in TypeScript on the server; the client infers every input and output type automatically. The result is an API layer where TypeScript is the contract, and the compiler catches every mismatch before it ships."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+API types that are always correct, maintained by the compiler rather than a schema file.
+
+## Install
+
+```bash
+npm install @trpc/server @trpc/client @trpc/react-query @tanstack/react-query zod
+```
+
+## Server setup
+
+```ts
+// src/server/trpc.ts
+import { initTRPC, TRPCError } from '@trpc/server';
+import { getServerSession }   from 'next-auth';
+import superjson              from 'superjson';
+import { z }                  from 'zod';
+
+const t = initTRPC.context<{ session: Session | null }>().create({
+  transformer: superjson,
+});
+
+export const router     = t.router;
+export const publicProc = t.procedure;
+export const authedProc = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.session?.user) throw new TRPCError({ code: 'UNAUTHORIZED' });
+  return next({ ctx: { ...ctx, user: ctx.session.user } });
+});
+```
+
+## Define procedures
+
+```ts
+// src/server/routers/workspace.ts
+import { router, authedProc } from '../trpc';
+import { db }                 from '@/lib/db';
+import { workspaces }         from '@/lib/schema';
+import { z }                  from 'zod';
+import { eq }                 from 'drizzle-orm';
+
+export const workspaceRouter = router({
+  list: authedProc.query(async ({ ctx }) => {
+    return db.select().from(workspaces).where(eq(workspaces.ownerId, ctx.user.id));
+  }),
+
+  create: authedProc
+    .input(z.object({ name: z.string().min(1).max(64), slug: z.string().regex(/^[a-z0-9-]+$/) }))
+    .mutation(async ({ input, ctx }) => {
+      const [workspace] = await db.insert(workspaces).values({
+        ownerId: ctx.user.id,
+        name:    input.name,
+        slug:    input.slug,
+      }).returning();
+      return workspace;
+    }),
+
+  delete: authedProc
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ input, ctx }) => {
+      await db.delete(workspaces)
+        .where(eq(workspaces.id, input.id));
+      return { deleted: true };
+    }),
+});
+```
+
+## Root router and type export
+
+```ts
+// src/server/routers/_app.ts
+import { router }          from '../trpc';
+import { workspaceRouter } from './workspace';
+import { userRouter }      from './user';
+
+export const appRouter = router({
+  workspace: workspaceRouter,
+  user:      userRouter,
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+## Next.js App Router handler
+
+```ts
+// src/app/api/trpc/[trpc]/route.ts
+import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import { appRouter }           from '@/server/routers/_app';
+import { createContext }       from '@/server/context';
+
+const handler = (req: Request) =>
+  fetchRequestHandler({
+    endpoint: '/api/trpc',
+    req,
+    router:   appRouter,
+    createContext,
+  });
+
+export { handler as GET, handler as POST };
+```
+
+## Client usage in a Server Component
+
+```ts
+// src/server/caller.ts — direct server-side calls, no HTTP round trip
+import { appRouter }   from './routers/_app';
+import { createContext } from './context';
+
+export async function createCaller(req: Request) {
+  const ctx = await createContext({ req } as any);
+  return appRouter.createCaller(ctx);
+}
+```
+
+```tsx
+// app/dashboard/page.tsx
+import { createCaller } from '@/server/caller';
+import { cookies }      from 'next/headers';
+
+export default async function DashboardPage() {
+  const caller     = await createCaller();
+  const workspaces = await caller.workspace.list();
+
+  return (
+    <ul>
+      {workspaces.map((w) => <li key={w.id}>{w.name}</li>)}
+    </ul>
+  );
+}
+```
+
+## Client usage with React Query
+
+```tsx
+// app/providers.tsx
+'use client';
+import { QueryClient, QueryClientProvider }  from '@tanstack/react-query';
+import { httpBatchLink }                     from '@trpc/client';
+import { createTRPCReact }                   from '@trpc/react-query';
+import type { AppRouter }                    from '@/server/routers/_app';
+import superjson                             from 'superjson';
+
+export const trpc = createTRPCReact<AppRouter>();
+const queryClient = new QueryClient();
+const trpcClient  = trpc.createClient({
+  links: [httpBatchLink({ url: '/api/trpc', transformer: superjson })],
+});
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+```
+
+```tsx
+// In a Client Component
+'use client';
+import { trpc } from '@/app/providers';
+
+export function WorkspaceList() {
+  const { data, isLoading } = trpc.workspace.list.useQuery();
+  const create = trpc.workspace.create.useMutation({
+    onSuccess: () => trpc.useUtils().workspace.list.invalidate(),
+  });
+
+  if (isLoading) return <p>Loading…</p>;
+
+  return (
+    <>
+      <ul>{data?.map((w) => <li key={w.id}>{w.name}</li>)}</ul>
+      <button onClick={() => create.mutate({ name: 'New', slug: 'new' })}>
+        Create workspace
+      </button>
+    </>
+  );
+}
+```
+
+## tRPC vs REST vs GraphQL
+
+tRPC: zero-schema, compiler-enforced types, best for TypeScript monorepos and Next.js. REST: universal, any client, best when non-TypeScript clients exist. GraphQL: best for complex querying needs or public APIs. The Construx default: tRPC for internal Next.js apps; REST for anything that needs a public API contract.
