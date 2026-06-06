@@ -1,0 +1,218 @@
+---
+title: "Multi-tenancy in Next.js: one codebase, many customers"
+date: "2027-09-12"
+excerpt: "Multi-tenancy means one deployment serves multiple independent customers, each isolated from the others. The architecture choice — shared database, separate schemas, or separate databases — determines everything downstream. Here's how to implement it correctly in Next.js with subdomain routing."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Multi-tenancy is the pattern where one application instance serves multiple customers (tenants), each with their own isolated data, branding, and users. The right approach depends on your isolation requirements and scale.
+
+## Tenant isolation models
+
+**Shared schema**: all tenants in one table, every row has a `tenant_id` column. Simplest to build, hardest to guarantee isolation. A missing `WHERE tenant_id = ?` leaks data.
+
+**Separate schemas**: one PostgreSQL schema per tenant (`CREATE SCHEMA tenant_abc`). Stronger isolation — a query against the wrong schema fails at the database level. Slightly more complex migrations.
+
+**Separate databases**: full isolation, maximum cost. Only warranted for enterprise SLAs or compliance requirements (HIPAA, SOC2 with strict tenant boundaries).
+
+For most SaaS, start with shared schema and move to separate schemas if isolation requirements demand it.
+
+## Subdomain routing in middleware
+
+Each tenant gets a subdomain — `acme.yourapp.com`, `widget.yourapp.com`. Middleware resolves the subdomain to a tenant record before any page renders:
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+const ROOT_DOMAINS = ['yourapp.com', 'localhost'];
+
+export function middleware(req: NextRequest) {
+  const url = req.nextUrl;
+  const hostname = req.headers.get('host') ?? '';
+
+  // Strip port for localhost dev
+  const host = hostname.replace(':3000', '');
+
+  // Check if this is a tenant subdomain
+  const isRootDomain = ROOT_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`) === false);
+  const subdomain = ROOT_DOMAINS.reduce((acc, d) => {
+    const sub = host.replace(`.${d}`, '');
+    return sub !== host ? sub : acc;
+  }, '');
+
+  if (subdomain && subdomain !== 'www') {
+    // Rewrite to tenant-specific path so layout can resolve tenant
+    url.pathname = `/tenant/${subdomain}${url.pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};
+```
+
+## Tenant resolution
+
+```ts
+// lib/tenant.ts
+import { cache } from 'react';
+import { db } from '@/db';
+
+export const getTenant = cache(async (subdomain: string) => {
+  const tenant = await db.query.tenants.findFirst({
+    where: (t, { eq }) => eq(t.subdomain, subdomain),
+  });
+  return tenant ?? null;
+});
+```
+
+`cache()` from React memoises the result per request — the same tenant record is fetched only once regardless of how many components call `getTenant()`.
+
+## Tenant layout
+
+```tsx
+// app/tenant/[subdomain]/layout.tsx
+import { notFound } from 'next/navigation';
+import { getTenant } from '@/lib/tenant';
+
+export default async function TenantLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ subdomain: string }>;
+}) {
+  const { subdomain } = await params;
+  const tenant = await getTenant(subdomain);
+  if (!tenant) notFound();
+
+  return (
+    <div
+      style={{
+        '--tenant-primary': tenant.primaryColor,
+        '--tenant-secondary': tenant.secondaryColor,
+      } as React.CSSProperties}
+    >
+      <TenantNav tenant={tenant} />
+      {children}
+    </div>
+  );
+}
+```
+
+## Data isolation with shared schema
+
+Every query must include the tenant ID. The safest pattern is a tenant-scoped database client that enforces this at the query layer:
+
+```ts
+// lib/db-tenant.ts
+import { db } from '@/db';
+import { eq, and } from 'drizzle-orm';
+
+export function tenantDb(tenantId: string) {
+  return {
+    users: {
+      findMany: (opts?: { where?: any }) =>
+        db.query.users.findMany({
+          where: opts?.where
+            ? and(eq(schema.users.tenantId, tenantId), opts.where)
+            : eq(schema.users.tenantId, tenantId),
+        }),
+      findFirst: (opts: { where: any }) =>
+        db.query.users.findFirst({
+          where: and(eq(schema.users.tenantId, tenantId), opts.where),
+        }),
+    },
+    // Add more tables as needed
+  };
+}
+```
+
+Usage:
+
+```ts
+// In a Server Component
+const tenant = await getTenant(subdomain);
+const tdb = tenantDb(tenant.id);
+
+// This query can never return another tenant's users
+const users = await tdb.users.findMany();
+```
+
+## Row-level security (belt and suspenders)
+
+PostgreSQL RLS enforces tenant isolation at the database level, even if application code has a bug:
+
+```sql
+-- Enable RLS on all tenant tables
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- Policy: users can only see rows for their tenant
+CREATE POLICY tenant_isolation ON users
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+```
+
+Set the tenant context at the start of each transaction:
+
+```ts
+// Set tenant context before any queries
+await db.execute(sql`SET LOCAL app.current_tenant_id = ${tenantId}`);
+```
+
+This is defense-in-depth: even if the application forgets to filter by `tenant_id`, the database rejects cross-tenant queries.
+
+## Custom domains
+
+Beyond subdomains, enterprise tenants often want their own domain (`app.acme.com` pointing to your app). The setup:
+
+1. Tenant adds `CNAME app.acme.com → proxy.yourapp.com` in their DNS
+2. You provision a TLS certificate for `app.acme.com` (Vercel/Cloudflare handle this automatically)
+3. Middleware resolves by checking `custom_domain` on the tenant record
+
+```ts
+// middleware.ts — extend to check custom domains
+const tenant = await db.query.tenants.findFirst({
+  where: (t, { or, eq }) => or(
+    eq(t.subdomain, subdomain),
+    eq(t.customDomain, host),
+  ),
+});
+```
+
+Vercel's `vercel-domains` API automates certificate provisioning. On AWS, use Certificate Manager with Route 53 Hosted Zone delegation.
+
+## Onboarding flow
+
+New tenant signup should provision the tenant record and set defaults atomically:
+
+```ts
+// app/api/tenants/route.ts
+export async function POST(req: Request) {
+  const { name, subdomain, ownerEmail } = await req.json();
+
+  const tenant = await db.transaction(async (tx) => {
+    const [t] = await tx.insert(schema.tenants).values({
+      name,
+      subdomain,
+      primaryColor: '#000000',
+    }).returning();
+
+    await tx.insert(schema.users).values({
+      tenantId: t.id,
+      email: ownerEmail,
+      role: 'owner',
+    });
+
+    return t;
+  });
+
+  return Response.json({ subdomain: tenant.subdomain });
+}
+```
+
+The transaction ensures no orphaned tenants without owners and no orphaned users without tenants.
