@@ -43,6 +43,19 @@ export default function ActivityHistogram({ bars, total }: { bars: Bar[]; total:
         </span>
       </div>
 
+      {/* Shell prompt */}
+      <div
+        className="px-3 py-1.5 select-none"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
+      >
+        <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
+          construx@sys:~$
+        </span>
+        <span className="font-mono text-[9px]" style={{ color: 'rgba(240,239,255,0.22)' }}>
+          {' '}dispatch --hist --group=month
+        </span>
+      </div>
+
       <div className="px-4 pt-4 pb-3">
       {/* Peak label */}
       <div className="flex items-center justify-end mb-2">
