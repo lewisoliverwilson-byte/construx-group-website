@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import ManifestoNav from '@/components/manifesto/ManifestoNav';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -87,8 +88,28 @@ export default function ManifestoPage() {
             style={{ animationDelay: '220ms' }}>
             Five principles. One model. Everything Construx builds follows from these.
           </p>
+          <div
+            className="inline-flex items-center gap-4 mt-8 px-4 py-2 animate-fade-up"
+            style={{
+              animationDelay: '340ms',
+              background: 'rgba(249,115,22,0.05)',
+              border: '1px solid rgba(249,115,22,0.12)',
+              borderRadius: '3px',
+            }}
+          >
+            <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">principles</span>
+            <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(249,115,22,0.7)' }}>5</span>
+            <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <span className="font-mono text-[9px] text-text-dim uppercase tracking-widest">read</span>
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(249,115,22,0.7)' }}>~4 min</span>
+            <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <span className="font-mono text-[9px] text-text-dim">construx/manifesto</span>
+          </div>
         </div>
       </section>
+
+      <ManifestoNav />
 
       {/* Manifesto body */}
       <section className="relative px-5 py-20 mx-auto max-w-3xl">
@@ -142,32 +163,75 @@ export default function ManifestoPage() {
 
         {/* Sign-off */}
         <div
-          className="px-8 py-8 mt-4"
+          className="mt-4 overflow-hidden"
           style={{
             background: 'rgba(5,5,18,0.8)',
             border: '1px solid rgba(249,115,22,0.18)',
             borderRadius: '3px',
           }}
         >
-          <p className="text-text-muted leading-relaxed mb-4">
-            If this resonates — as a user, a collaborator, or someone who wants to build with us —
-            the next step is the same.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] uppercase tracking-wider"
-              style={{ borderRadius: '3px' }}
-            >
-              Get in touch <ArrowRight size={14} />
-            </Link>
-            <Link
-              href="/founders"
-              className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all uppercase tracking-wider"
-              style={{ borderRadius: '3px' }}
-            >
-              Meet the founders
-            </Link>
+          {/* Terminal title bar */}
+          <div
+            className="flex items-center gap-3 px-4 py-2.5 border-b select-none"
+            style={{
+              borderColor: 'rgba(249,115,22,0.12)',
+              background: 'rgba(249,115,22,0.03)',
+            }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+            </div>
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
+              construx.next_step
+            </span>
+          </div>
+
+          <div className="px-8 py-8">
+            <p className="text-text-muted leading-relaxed mb-4">
+              If this resonates — as a user, a collaborator, or someone who wants to build with us —
+              the next step is the same.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] uppercase tracking-wider"
+                style={{ borderRadius: '3px' }}
+              >
+                Get in touch <ArrowRight size={14} />
+              </Link>
+              <Link
+                href="/founders"
+                className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all uppercase tracking-wider"
+                style={{ borderRadius: '3px' }}
+              >
+                Meet the founders
+              </Link>
+            </div>
+          </div>
+
+          {/* Status bar */}
+          <div
+            className="flex items-center justify-between px-4 py-1.5 border-t"
+            style={{
+              borderColor: 'rgba(249,115,22,0.1)',
+              background: 'rgba(0,0,0,0.2)',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className="flex items-center gap-1.5 font-mono text-[8px] uppercase tracking-widest"
+                style={{ color: 'rgba(40,200,64,0.7)' }}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#28C840' }}
+                />
+                SYS:ONLINE
+              </span>
+            </div>
+            <span className="font-mono text-[8px] text-text-dim">construx.io/manifesto</span>
           </div>
         </div>
       </section>
