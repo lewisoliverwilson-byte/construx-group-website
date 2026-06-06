@@ -1,0 +1,135 @@
+---
+title: "Prisma vs Drizzle: choosing an ORM for a Next.js project in 2029"
+date: "2029-03-22"
+excerpt: "Prisma was the obvious choice in 2022. Drizzle has changed that. Drizzle is smaller, faster, generates no client bundle overhead, and works cleanly with Edge runtimes. Here's the comparison after building products with both."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Prisma and Drizzle are both TypeScript ORMs for SQL databases. They solve the same core problem — type-safe database queries — but with different philosophies and different trade-offs in a Next.js App Router project.
+
+## Prisma
+
+```prisma
+// schema.prisma
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(MEMBER)
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+```
+
+```ts
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Typed query with include
+const user = await prisma.user.findUnique({
+  where:   { id: userId },
+  include: { posts: { take: 5, orderBy: { createdAt: 'desc' } } },
+});
+```
+
+Prisma generates a TypeScript client from the schema. The client is excellent — autocomplete for relations, type-safe where clauses, nested creates and updates.
+
+**Advantages:**
+- Prisma Studio (visual database browser)
+- Excellent autocomplete for relations and nested queries
+- `prisma migrate dev` for schema migrations
+- Battle-tested, huge community
+
+**Disadvantages:**
+- Requires Prisma Client — a code-generated binary that adds ~30KB to the bundle
+- Doesn't work in Edge runtimes (Prisma Client uses Node.js APIs)
+- The query API doesn't map to SQL — `where: { posts: { some: { ... } } }` can generate surprising JOIN queries
+- Schema is a separate `.prisma` file (not TypeScript) — one more thing to learn
+
+## Drizzle
+
+```ts
+// db/schema.ts — TypeScript, not a DSL
+import { pgTable, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+
+export const roleEnum = pgEnum('role', ['admin', 'member']);
+
+export const users = pgTable('users', {
+  id:        text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email:     text('email').notNull().unique(),
+  name:      text('name'),
+  role:      roleEnum('role').notNull().default('member'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const posts = pgTable('posts', {
+  id:        text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  title:     text('title').notNull(),
+  body:      text('body').notNull(),
+  authorId:  text('author_id').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+```
+
+```ts
+// Queries — closer to SQL
+const user = await db
+  .select()
+  .from(users)
+  .where(eq(users.id, userId))
+  .get();
+
+// Join
+const usersWithPosts = await db
+  .select({ user: users, post: posts })
+  .from(users)
+  .leftJoin(posts, eq(posts.authorId, users.id))
+  .where(eq(users.id, userId));
+```
+
+Drizzle's query builder generates SQL you can predict. The schema is TypeScript — you get full type inference on queries without a code generation step.
+
+**Advantages:**
+- No runtime binary — ~7KB bundle impact
+- Works in Edge runtimes (middleware, Cloudflare Workers, Vercel Edge)
+- SQL-like query API — the generated SQL matches what you wrote
+- Schema is TypeScript — one language throughout
+- `drizzle-kit` for migrations
+
+**Disadvantages:**
+- No visual schema browser (Drizzle Studio is beta)
+- Relational queries are verbose compared to Prisma's nested `include`
+- Smaller community (though growing fast)
+- Less magic — you write more, but you know what you're getting
+
+## The migration we made
+
+All new Construx products use Drizzle. The tipping point: Next.js middleware and Edge functions. Prisma Client doesn't run in the Edge runtime — you need the Prisma Accelerate proxy, which adds latency and another dependency. Drizzle with Neon's HTTP driver or Turso's libSQL client just works at the edge.
+
+For projects with complex relational data and a team comfortable with Prisma's DSL, Prisma is still solid. For greenfield Next.js App Router projects: Drizzle.
+
+```ts
+// lib/db.ts — Drizzle + Neon (works in edge + server)
+import { drizzle }  from 'drizzle-orm/neon-http';
+import { neon }     from '@neondatabase/serverless';
+import * as schema  from '@/db/schema';
+
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql, { schema });
+```

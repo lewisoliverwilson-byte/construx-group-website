@@ -1,0 +1,45 @@
+---
+title: "AI-assisted development: what actually changes when Claude is in the loop"
+date: "2029-03-28"
+excerpt: "Working with Claude Code and Cursor has changed the cost curve for shipping software. The multiplier is real but uneven — some tasks compress dramatically, others don't. Here's what's changed in practice after building five products with AI in the loop."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The claim about AI multiplying developer productivity sounds like marketing until you've shipped a few products with it in the loop. Then the question changes from "is it useful" to "which tasks does it actually compress, and what stays the same."
+
+## What compresses
+
+**Boilerplate and scaffolding.** Any time you're writing a pattern you've written before — a Zod schema matching a Drizzle table, a route handler with auth middleware, a React component following an established pattern — the AI produces it faster than typing. Not slightly faster. Dramatically faster: you describe the shape, it writes the code, you review and adjust.
+
+**Documentation lookup.** "How does `unstable_cache` handle the `revalidate` and `tags` options?" used to require scanning the Next.js docs, finding the right page, reading the examples. Now it's answered in context, while staying in the file you're working on.
+
+**Test generation.** Given an existing utility function, generating a test suite covering the obvious cases is something Claude does well. You still write the edge cases you care about, but the happy-path scaffolding is automatic.
+
+**Error diagnosis.** Paste a TypeScript error with context. Get a specific fix. The time between seeing an error and understanding the fix has collapsed.
+
+**Refactoring with guardrails.** "Rename this function and update all callers" or "extract this logic into a separate module" are operations the AI can drive through a codebase with the right tools attached.
+
+## What doesn't compress
+
+**Product decisions.** What should this feature do? Who is it for? What should we build next? AI has opinions but they're averaged over training data, not grounded in your specific users, your specific metrics, your specific constraints. The product thinking stays human.
+
+**Architecture.** The choice between a monolith and services, the schema design for a new domain, where to put the caching layer — these require understanding trade-offs specific to your context. AI can describe the trade-offs. You make the call.
+
+**Code review.** AI is good at spotting obvious bugs and style issues. It's less good at catching subtle design problems: the abstraction that seems clean but will be painful to extend, the API shape that looks fine now but will create coupling later. That review still requires someone who understands the system's trajectory.
+
+**Judgment calls about what to ship.** When something is "good enough" vs when it needs more work. When a hack is acceptable vs when it will cause problems later. AI doesn't know your technical debt tolerance or your deadline pressure.
+
+## How the workflow changed
+
+The day-to-day loop now looks like: write a description of what I want, review the generated code, adjust, review again, ship. The review is the job. The generation is fast.
+
+This shifts the skill mix. Knowing how to describe what you want precisely is now as important as knowing how to write it. Reading generated code critically — understanding it deeply enough to own it, not just accept it — is a distinct skill that matters more.
+
+The biggest productivity gains come from staying in flow. Context switches (switching to a browser to look something up, switching to Stack Overflow, switching to docs) are expensive. When Claude is in the editor, those switches mostly disappear.
+
+## The honest accounting
+
+Five products built in roughly the time four used to take. The time savings are front-loaded in the scaffolding and plumbing phases. The later phases — the nuanced UX decisions, the performance debugging, the edge cases — compress less. Overall: meaningful multiplier, higher ceiling on what a small team can ship, but the high-quality decisions still take the time they take.
+
+The AI writes the code. The engineer decides what to build and whether the code is right. That division of labour feels like it'll hold for a while.
