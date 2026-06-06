@@ -1,0 +1,126 @@
+---
+title: "Zod v4: faster, smaller, and schema composition"
+date: "2031-02-28"
+excerpt: "Zod v4 is a complete rewrite. Parse performance is 5-14x faster than v3. Bundle size dropped from 57kB to 20kB. The API is mostly backward-compatible with a migration guide for breaking changes. New features include first-class recursive schemas, metadata attachment for OpenAPI generation, and a new ZodMiniParser for the subset of apps that need the smallest possible bundle."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Zod was already the default schema library. v4 makes it faster and smaller with no API rethink.
+
+## Install
+
+```bash
+npm install zod@^4
+```
+
+## What changed
+
+```ts
+// v3 — still works in v4 (backward compatible)
+const UserSchema = z.object({
+  id:    z.string().uuid(),
+  email: z.string().email(),
+  age:   z.number().int().min(0),
+});
+
+// v4 — same API, just faster
+```
+
+## Performance
+
+v4 parse benchmarks vs v3:
+
+| Schema type        | v3        | v4        | Speedup |
+|--------------------|-----------|-----------|---------|
+| Simple object      | 840 ns    | 61 ns     | 14x     |
+| Nested object      | 2.1 μs    | 340 ns    | 6x      |
+| Array of objects   | 4.4 μs    | 820 ns    | 5x      |
+| Union (large)      | 3.2 μs    | 280 ns    | 11x     |
+
+## Recursive schemas
+
+```ts
+// v4 — recursive types with z.lazy
+type Category = {
+  name:       string;
+  children:   Category[];
+};
+
+const CategorySchema: z.ZodType<Category> = z.object({
+  name:     z.string(),
+  children: z.lazy(() => z.array(CategorySchema)),
+});
+
+CategorySchema.parse({
+  name: 'Frontend',
+  children: [
+    { name: 'React',  children: [] },
+    { name: 'Vue',    children: [] },
+  ],
+});
+```
+
+## Schema metadata for OpenAPI
+
+```ts
+// Attach metadata that OpenAPI generators can read
+const WorkspaceSchema = z.object({
+  id:   z.string().uuid().meta({ description: 'Workspace UUID', example: 'wsp_abc123' }),
+  slug: z.string().regex(/^[a-z0-9-]+$/).meta({ description: 'URL-safe identifier' }),
+  plan: z.enum(['free', 'pro', 'enterprise']).meta({ default: 'free' }),
+}).meta({
+  title:       'Workspace',
+  description: 'A Construx workspace',
+});
+
+// Works with @anatine/zod-openapi or zod-to-openapi
+```
+
+## Error formatting
+
+```ts
+// v4 — structured error access
+const result = UserSchema.safeParse({ email: 'not-an-email', age: -1 });
+
+if (!result.success) {
+  // Flat errors — good for form validation
+  const flat = result.error.flatten();
+  // { fieldErrors: { email: ['Invalid email'], age: ['Must be >= 0'] } }
+
+  // Format for a specific field
+  const emailErrors = result.error.format().email?._errors;
+}
+```
+
+## ZodMiniParser — minimal bundle
+
+```ts
+// For edge functions where 20kB is still too much
+import { z } from 'zod/mini';
+
+// ZodMiniParser includes: string, number, boolean, object, array
+// Excludes: coerce, refine, transform, pipe, union, discriminatedUnion
+// Bundle: ~8kB gzipped
+
+const IdSchema = z.object({ id: z.string() });
+IdSchema.parse({ id: '123' });  // works
+```
+
+## Migration from v3
+
+Most v3 code works unchanged. Key breaking changes:
+
+```ts
+// v3 — z.string().nonempty()
+// v4 — z.string().min(1)
+const name = z.string().min(1);
+
+// v3 — z.object().strip() is the default
+// v4 — same, no change
+
+// v3 — ZodError.format() returns nested structure
+// v4 — same, but ZodError.flatten() is improved
+```
+
+The Zod v4 migration guide covers everything in one page. For most apps the upgrade is `npm install zod@^4` and done.

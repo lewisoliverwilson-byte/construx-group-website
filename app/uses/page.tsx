@@ -12,6 +12,7 @@ import GitConfigPanel from '@/components/GitConfigPanel';
 import EnvPanel from '@/components/EnvPanel';
 import LsofPanel from '@/components/LsofPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
+import LokiQueryPanel from '@/components/LokiQueryPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -374,8 +375,13 @@ export default function UsesPage() {
         </div>
 
         {/* npm outdated — dependency freshness */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NpmOutdatedPanel />
+        </div>
+
+        {/* Grafana Loki log query */}
+        <div className="mt-6 pb-10">
+          <LokiQueryPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
