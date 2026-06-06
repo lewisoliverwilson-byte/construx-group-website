@@ -1,0 +1,73 @@
+---
+title: "Accessibility as a quality signal: what building WCAG-compliant tools taught us"
+date: "2026-11-26"
+excerpt: "Accessibility isn't a compliance checkbox for small product teams — it's a proxy for overall product quality. The discipline of building accessible UIs produces better products for everyone. Here's what we learned building three products to WCAG 2.1 AA."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Every product team knows accessibility matters. Most product teams don't prioritise it because it doesn't show up in growth metrics, it's harder than it sounds, and the user research showing its importance doesn't apply to their specific user base (so the logic goes).
+
+We built three products to WCAG 2.1 AA. Not because our users skew toward screen reader users — they don't — but because the discipline of building accessible products produces better products for everyone.
+
+## Accessibility as a quality proxy
+
+The qualities required to build an accessible product are the same qualities that make a good product:
+
+**Clear visual hierarchy:** Screen readers rely on semantic HTML to convey document structure. When you build for screen readers, you're forced to establish a clear heading hierarchy (`h1 → h2 → h3`) and meaningful landmark regions. These structural decisions improve readability for sighted users too.
+
+**Colour contrast ratios:** WCAG requires a 4.5:1 contrast ratio for normal text. When you enforce contrast ratios systematically, you discover that many "design-y" low-contrast text choices are actually hard to read even for users with normal vision — especially in bright ambient light.
+
+**Keyboard navigation:** Every interactive element must be reachable by keyboard. Building this exposes issues in focus order and interaction logic that mouse-only testing misses. Keyboard navigation also makes power-user workflows possible — see the keyboard shortcuts we've built across all Construx products.
+
+**Focus states:** WCAG requires visible focus indicators. The default browser focus ring is ugly but functional. Building custom focus states that are both attractive and highly visible forces careful thinking about every interactive element.
+
+**Error handling:** Screen reader users need error messages associated with form fields. The accessible pattern (`aria-describedby` linking input to error) is also the right pattern for clarity — every user benefits from seeing exactly which field has which error.
+
+## What we actually implemented
+
+**Semantic HTML:** Every layout uses semantic elements — `<nav>`, `<main>`, `<article>`, `<section>`, `<footer>`, `<header>`. Landmark regions are correctly labeled. Lists use `<ul>`/`<ol>` not `<div>` stacks. Tables use proper `<thead>` and scope attributes.
+
+**Skip link:** A visually hidden "skip to main content" link at the top of every page, visible on focus. Screen reader users skip directly to content without tabbing through the navigation on every page. Keyboard users benefit too.
+
+**Focus management:** When modal dialogs open (command palette, keyboard shortcuts overlay, share dropdown), focus moves to the dialog. When the dialog closes, focus returns to the triggering element. This is complex to implement correctly and almost always done wrong by teams that don't prioritise accessibility.
+
+**Icon buttons:** Every icon-only button has `aria-label`. The `<Menu>`, `<X>`, `<Share2>`, `<Copy>`, `<Check>` icons all have associated labels. Without these, screen readers announce "button" with no context.
+
+**`aria-live` regions:** Async state changes (copy confirmation, form submission, search results loading) are announced via `aria-live` regions. Screen reader users know when something changed.
+
+**Colour contrast:** We target 7:1 for body text (WCAG AAA, not just AA) and 4.5:1 for UI components. Our muted text at `rgba(240,239,255,0.45)` on our dark background achieves 4.8:1 — just above the AA threshold.
+
+## The tricky parts
+
+**Animation and motion:** The hero animation, the solar system, the boot sequence — all of these can cause problems for users with vestibular disorders. The CSS `@media (prefers-reduced-motion: reduce)` preference must disable non-essential animations:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-float,
+  .orbit-ring {
+    animation: none;
+  }
+}
+```
+
+**Custom interactive widgets:** The command palette, the DispatchHUD, the BackToTop component — none of these are native HTML elements. They need ARIA roles, properties, and states to be comprehensible to screen readers. The command palette needs `role="combobox"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`. Getting this right is genuinely hard.
+
+**Colour-only information:** The tag colours in the journal listing (Build Log in blue, Strategy in purple) convey information by colour alone. To meet WCAG Success Criterion 1.4.1, colour cannot be the only visual differentiator. We supplement colour with text (the tag name is always visible) and shape (each tag is a rectangular chip, not just a colour dot).
+
+## The ROI argument
+
+Accessibility work doesn't show up in conversion rates or retention metrics (unless your users specifically include people with disabilities). The ROI argument for small teams has to be honest: accessibility makes you build better products, it reduces legal risk in some markets, and it produces keyboard shortcuts and reduced-motion support that power users appreciate.
+
+The clearest payoff we've seen: the discipline of writing semantic HTML and thinking about keyboard navigation has caught interaction bugs and UX issues that visual-only testing would have missed. The accessibility audit is also a quality audit.
+
+## What we still need to fix
+
+**SVG accessibility:** The solar system's planet SVGs need accessible labels for screen readers. Currently they're visually clear but semantically opaque.
+
+**Dark mode only:** All Construx products are dark-mode only. Users who need high contrast or prefer light mode can't override this. A `prefers-color-scheme: light` stylesheet is on the backlog.
+
+**Mobile accessibility:** We've tested thoroughly on desktop screen readers (VoiceOver on macOS) but less thoroughly on iOS VoiceOver and Android TalkBack. The mobile experience likely has gaps.
+
+Accessibility is an ongoing practice, not a project with a done state. The products are better because we take it seriously — not perfect, but better.
