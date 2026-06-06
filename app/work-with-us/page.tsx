@@ -5,6 +5,7 @@ import CIPipelinePanel from '@/components/CIPipelinePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import TerraformPlanPanel from '@/components/TerraformPlanPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
+import NmapScanPanel from '@/components/NmapScanPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -562,6 +563,11 @@ export default function WorkWithUsPage() {
       {/* Kubernetes pods */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <KubectlPodsPanel />
+      </section>
+
+      {/* Nmap port scan */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NmapScanPanel />
       </section>
 
       {/* CTA */}

@@ -1,0 +1,184 @@
+---
+title: "Redis data structures: beyond get/set"
+date: "2029-07-23"
+excerpt: "Redis is often used as a key-value cache, but it has six data structures that enable more sophisticated patterns without a separate service: sorted sets for leaderboards and rate limiting, hashes for session storage, streams for event queues, HyperLogLog for cardinality estimation, and pub/sub for real-time messaging."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Using Redis as only a key-value store leaves most of its value unused. Each data structure enables a specific pattern that would otherwise require a separate service or complex application logic.
+
+## Strings: cache and distributed locks
+
+The basic use case everyone knows:
+
+```ts
+// Cache with TTL
+await redis.set('user:42', JSON.stringify(user), 'EX', 3600); // expires in 1 hour
+const user = JSON.parse(await redis.get('user:42') ?? 'null');
+
+// Distributed lock (SET NX = set if not exists)
+const lock = await redis.set('lock:job:42', '1', 'EX', 30, 'NX');
+if (!lock) {
+  // Lock is held by another instance — skip this job
+  return;
+}
+// Do the work
+await redis.del('lock:job:42'); // release
+```
+
+The distributed lock pattern prevents multiple server instances from running the same job simultaneously — critical for scheduled tasks in a multi-instance deployment.
+
+## Hashes: structured objects without JSON overhead
+
+Hashes store field-value pairs under a single key. More efficient than storing a JSON blob when you need to update individual fields:
+
+```ts
+// Store session data as a hash
+await redis.hset(`session:${sessionId}`, {
+  userId:    user.id,
+  email:     user.email,
+  plan:      user.plan,
+  createdAt: Date.now().toString(),
+});
+
+// Read individual fields
+const plan = await redis.hget(`session:${sessionId}`, 'plan');
+
+// Read all fields
+const session = await redis.hgetall(`session:${sessionId}`);
+
+// Expire the entire hash
+await redis.expire(`session:${sessionId}`, 86400); // 24 hours
+```
+
+## Sorted sets: leaderboards, rate limiting, sliding windows
+
+Sorted sets store members with a score, automatically sorted by score. This is the data structure behind the sliding window rate limiter:
+
+```ts
+// Leaderboard
+await redis.zadd('leaderboard', { score: 1842, member: 'user:42' });
+await redis.zadd('leaderboard', { score: 2104, member: 'user:17' });
+
+// Top 10
+const top10 = await redis.zrevrange('leaderboard', 0, 9, 'WITHSCORES');
+
+// User's rank
+const rank = await redis.zrevrank('leaderboard', 'user:42');
+
+// Sliding window rate limit
+const now = Date.now();
+const windowMs = 60 * 1000;
+await redis.zremrangebyscore(`rl:${ip}`, 0, now - windowMs); // remove old entries
+await redis.zadd(`rl:${ip}`, { score: now, member: `${now}:${Math.random()}` });
+const count = await redis.zcard(`rl:${ip}`);
+// count = number of requests in the last minute
+```
+
+## Lists: simple queues
+
+Lists support push and pop operations, making them simple FIFO or LIFO queues:
+
+```ts
+// Enqueue jobs
+await redis.lpush('jobs:email', JSON.stringify({ to: 'user@example.com', template: 'welcome' }));
+
+// Worker: dequeue and process
+async function worker() {
+  while (true) {
+    // BLPOP blocks until an item is available (timeout 5s)
+    const item = await redis.blpop('jobs:email', 5);
+    if (!item) continue;
+    const job = JSON.parse(item[1]);
+    await sendEmail(job);
+  }
+}
+```
+
+For production job queues, prefer BullMQ (which uses Redis sorted sets for delayed jobs and has retry semantics built in) over raw Redis lists. But for simple sequential processing, lists work well.
+
+## Sets: unique collections, memberships
+
+Sets store unique members with no order:
+
+```ts
+// Track which users have seen a feature announcement
+await redis.sadd('announcement:v2.0:seen', userId);
+const hasSeen = await redis.sismember('announcement:v2.0:seen', userId);
+
+// Online users (add on connect, remove on disconnect)
+await redis.sadd('online:users', userId);
+await redis.srem('online:users', userId);
+const onlineCount = await redis.scard('online:users');
+
+// Find users who follow both Lewis and Dan (intersection)
+const mutualFollowers = await redis.sinter('followers:lewis', 'followers:dan');
+```
+
+## Streams: append-only event log
+
+Redis Streams are an append-only log — each entry has an auto-generated ID and a set of fields. Consumer groups allow parallel processing:
+
+```ts
+// Append an event
+await redis.xadd('events:user_activity', '*', {
+  userId: '42',
+  action: 'viewed_product',
+  productId: '123',
+});
+
+// Read events from a consumer group
+const entries = await redis.xreadgroup(
+  'GROUP', 'analytics-workers', 'worker-1',
+  'COUNT', 10,
+  'STREAMS', 'events:user_activity', '>',
+);
+
+// Acknowledge processed events
+await redis.xack('events:user_activity', 'analytics-workers', entryId);
+```
+
+Streams are the Redis equivalent of Kafka topics for smaller scale — durable, replayable, with consumer group semantics. Appropriate when you need guaranteed delivery across multiple workers.
+
+## HyperLogLog: cardinality at scale
+
+HyperLogLog estimates the number of unique items in a set using O(1) memory (12KB regardless of the set size). Accuracy is ~0.81%:
+
+```ts
+// Count unique page views (exact would require storing all user IDs)
+await redis.pfadd(`pageviews:${today}:${pageId}`, userId);
+const uniqueViewers = await redis.pfcount(`pageviews:${today}:${pageId}`);
+
+// Merge multiple HyperLogLogs
+const weeklyUniques = await redis.pfcount(
+  ...days.map(day => `pageviews:${day}:${pageId}`)
+);
+```
+
+For Scoutr's analytics, we use HyperLogLog for unique visitor counts — storing exact user IDs would require gigabytes; HyperLogLog gives us accurate-enough numbers in kilobytes.
+
+## Pub/Sub: real-time messaging
+
+Redis Pub/Sub delivers messages to all subscribed clients. Not durable (if no one is subscribed, the message is lost), but fast:
+
+```ts
+// Publisher
+await redis.publish(`notification:${userId}`, JSON.stringify(notification));
+
+// Subscriber (in a long-running process)
+const subscriber = redis.duplicate(); // separate connection
+await subscriber.subscribe(`notification:${userId}`, (message) => {
+  const notif = JSON.parse(message);
+  // send to SSE/WebSocket connection
+  eventEmitter.emit(`notification:${userId}`, notif);
+});
+```
+
+This is the Redis-based notification fanout pattern — publish to a channel, SSE connections subscribed to that channel forward to the browser. Works across multiple server instances, unlike in-process EventEmitter.
+
+## What we use
+
+Scoutr uses Redis for: session caching (hashes), rate limiting (sorted sets), background job queue (BullMQ on sorted sets), and feature flag evaluation cache (strings). The Hyve uses Pub/Sub for real-time notification fanout. The Marqet uses HyperLogLog for product view cardinality.
+
+Running Redis is trivial with Docker or Railway. The overhead of maintaining it is low; the value is high.

@@ -1,0 +1,140 @@
+---
+title: "Server Actions in Next.js: when to use them and when not to"
+date: "2029-07-17"
+excerpt: "Server Actions are async functions that run on the server and can be called directly from client components. They simplify form handling and mutations, but come with trade-offs: they're not suitable for all cases, and the mental model requires care. Here's when they genuinely help and when a regular API route is the better choice."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Server Actions are one of the more polarising additions to Next.js. They remove boilerplate for simple mutations. They also introduce new footguns if you're not careful about security. Here's the honest picture.
+
+## What Server Actions are
+
+A Server Action is an async function that runs on the server, marked with `'use server'`. Client components can call it directly — the framework handles the serialisation.
+
+```ts
+// app/actions/posts.ts
+'use server';
+
+import { db } from '@/lib/db';
+import { revalidatePath } from 'next/cache';
+
+export async function createPost(formData: FormData) {
+  const title = formData.get('title') as string;
+  const body  = formData.get('body') as string;
+
+  await db.insert(posts).values({ title, body });
+  revalidatePath('/blog');
+}
+```
+
+```tsx
+// components/NewPostForm.tsx ('use client')
+import { createPost } from '@/app/actions/posts';
+
+export function NewPostForm() {
+  return (
+    <form action={createPost}>
+      <input name="title" placeholder="Title" />
+      <textarea name="body" placeholder="Body" />
+      <button type="submit">Create</button>
+    </form>
+  );
+}
+```
+
+The `<form action={createPost}>` wires the Server Action directly to the form. On submit, the form data is serialised and sent to the server action without writing a fetch call or an API route.
+
+## Where they genuinely help
+
+**Simple CRUD mutations with forms**: The form example above is the ideal use case. No `useState` for form state, no `handleSubmit`, no fetch call, no API route. The action handles validation, database write, and cache invalidation.
+
+**Progressive enhancement**: If JavaScript is disabled, the form still submits to the server and the action runs. Not critical for most apps, but useful for forms that need to work in all environments.
+
+**Colocated mutation logic**: The action lives next to the component that uses it, not in a separate API route file.
+
+## Where they don't help (use API routes instead)
+
+**When the caller is not a Next.js client**: Mobile apps, third-party integrations, CLI tools — anything outside your Next.js frontend must call an API route. Server Actions are not public APIs.
+
+**When you need fine-grained HTTP control**: Custom status codes, response headers, streaming. Server Actions always return `200` or throw. API routes give you full control over the response.
+
+**Complex validation with structured errors**: Server Actions can return values from `useActionState`, but the pattern is more awkward than a typed API response with error codes.
+
+**High-frequency mutations**: API routes can be rate limited more granularly. Server Action endpoints are less ergonomic to rate limit.
+
+## Security: the critical caveat
+
+Server Actions are public HTTP endpoints. Every `'use server'` function is accessible via POST request — including functions you think are "internal" or "admin-only."
+
+```ts
+// 'use server'
+export async function deleteAllUsers() {
+  // This is a public POST endpoint
+  // Anyone can call it if they know the function signature
+  await db.delete(users);
+}
+```
+
+**Always authenticate in Server Actions**:
+
+```ts
+'use server';
+
+import { getSession } from '@/lib/auth';
+
+export async function deletePost(postId: string) {
+  const session = await getSession();
+  if (!session?.user) throw new Error('Unauthorized');
+  if (session.user.role !== 'admin') throw new Error('Forbidden');
+
+  await db.delete(posts).where(eq(posts.id, postId));
+}
+```
+
+Never trust that a Server Action is "protected" by being internal to your codebase. If it's marked `'use server'`, it's exposed.
+
+## useActionState for form errors
+
+```tsx
+'use client';
+
+import { useActionState } from 'react';
+import { createPost } from '@/app/actions/posts';
+
+export function NewPostForm() {
+  const [state, action, pending] = useActionState(createPost, null);
+
+  return (
+    <form action={action}>
+      {state?.error && <p className="text-red-500">{state.error}</p>}
+      <input name="title" />
+      <button type="submit" disabled={pending}>
+        {pending ? 'Creating…' : 'Create'}
+      </button>
+    </form>
+  );
+}
+```
+
+```ts
+// app/actions/posts.ts
+'use server';
+
+export async function createPost(prevState: unknown, formData: FormData) {
+  const title = formData.get('title') as string;
+  if (!title) return { error: 'Title is required' };
+
+  await db.insert(posts).values({ title });
+  revalidatePath('/blog');
+  return { success: true };
+}
+```
+
+`useActionState` threads the previous state through the action, allowing incremental feedback without client-side state management.
+
+## Our approach
+
+At Construx, Server Actions handle simple form submissions (contact forms, user settings, preference toggles). Anything that needs authentication headers, rate limiting, or is accessed from outside Next.js goes through an API route.
+
+The rule of thumb: if it's a form that lives inside a single Next.js app, Server Actions are fine. If it's anything more complex or needs to be called from another client, use a typed API route.
