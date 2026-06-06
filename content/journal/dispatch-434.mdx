@@ -1,0 +1,168 @@
+---
+title: "CSS Container Queries: component-driven responsive design"
+date: "2028-07-07"
+excerpt: "Media queries respond to the viewport. Container queries respond to the component's own container. This unlocks truly portable components that adapt to where they're placed, not the screen size — a fundamental shift in how responsive design works."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Media queries have one problem: they know the viewport, not the context. A sidebar card at 300px wide and a full-width card at 300px wide look the same to a media query. Container queries solve this by letting components respond to their own containing element.
+
+## The container model
+
+```css
+/* Mark an element as a container */
+.card-wrapper {
+  container-type: inline-size;
+  container-name: card;
+}
+
+/* Query the container, not the viewport */
+@container card (min-width: 400px) {
+  .card {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+  }
+}
+
+@container card (min-width: 600px) {
+  .card-title {
+    font-size: 1.5rem;
+  }
+}
+```
+
+The component adapts to where it lives, not the screen width.
+
+## In Tailwind CSS 3.2+
+
+Tailwind supports container queries via the `@tailwindcss/container-queries` plugin:
+
+```bash
+npm install @tailwindcss/container-queries
+```
+
+```ts
+// tailwind.config.ts
+export default {
+  plugins: [require('@tailwindcss/container-queries')],
+};
+```
+
+```tsx
+// The container needs @container
+<div className="@container">
+  <div className="flex flex-col @md:flex-row @lg:gap-8">
+    <img className="w-full @md:w-48 @lg:w-64" src={src} alt={alt} />
+    <div className="@sm:text-lg @lg:text-xl">{title}</div>
+  </div>
+</div>
+```
+
+Breakpoints: `@sm` (320px), `@md` (448px), `@lg` (576px), `@xl` (704px), `@2xl` (832px).
+
+## Named containers
+
+```tsx
+<div className="@container/sidebar">
+  <div className="hidden @[250px]/sidebar:block">
+    {/* Only shows when the sidebar container is 250px+ */}
+    <p>Full navigation</p>
+  </div>
+</div>
+
+<div className="@container/main">
+  <div className="grid grid-cols-1 @[500px]/main:grid-cols-2 @[800px]/main:grid-cols-3">
+    {items.map(item => <Card key={item.id} {...item} />)}
+  </div>
+</div>
+```
+
+Named containers let you target a specific ancestor when components are nested.
+
+## A real example: adaptive card
+
+```tsx
+interface ProductCardProps {
+  product: Product;
+}
+
+export function ProductCard({ product }: ProductCardProps) {
+  return (
+    <div className="@container">
+      <div className="
+        flex flex-col gap-3
+        @sm:flex-row @sm:gap-4
+        @md:gap-6
+        rounded-lg border border-white/10 p-4 @sm:p-5
+      ">
+        <img
+          src={product.image}
+          alt={product.name}
+          className="
+            w-full aspect-video object-cover rounded
+            @sm:w-32 @sm:h-32 @sm:aspect-square
+            @md:w-40 @md:h-40
+          "
+        />
+        <div className="flex flex-col gap-1 @sm:gap-2">
+          <h3 className="font-semibold @md:text-lg">{product.name}</h3>
+          <p className="text-sm text-white/50 hidden @sm:block @md:text-base">
+            {product.description}
+          </p>
+          <div className="flex items-center justify-between @sm:mt-auto">
+            <span className="font-mono @md:text-lg">${product.price}</span>
+            <button className="px-3 py-1.5 @md:px-4 @md:py-2 text-sm rounded bg-orange-500">
+              Add to cart
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+This card works correctly whether it's in a 300px sidebar, a 500px main panel, or a 900px full-width grid — without any media queries.
+
+## Container query units
+
+```css
+/* cqw = 1% of container width */
+.card-title {
+  font-size: clamp(1rem, 4cqw, 1.75rem);
+}
+
+/* cqi = 1% of inline-size container */
+.responsive-text {
+  font-size: 3cqi;
+}
+```
+
+## Combining with media queries
+
+Container queries and media queries complement each other:
+
+```css
+/* Layout grid responds to viewport */
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: 300px 1fr;
+  }
+}
+
+/* Card adapts to its container (sidebar or main) */
+@container (min-width: 400px) {
+  .card {
+    flex-direction: row;
+  }
+}
+```
+
+Media queries own the macro layout. Container queries own the component's internal structure.
+
+## Browser support
+
+Container queries are supported in all modern browsers (Chrome 105+, Firefox 110+, Safari 16+). If you're targeting these, you can use them today without a polyfill.
+
+The shift: instead of designing components for viewport breakpoints, design them for container sizes. The component becomes a black box that works correctly wherever it's placed.
