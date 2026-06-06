@@ -7,6 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { getAllPostMeta, getPostBySlug } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import ReadingProgress from '@/components/journal/ReadingProgress';
+import DispatchHUD from '@/components/journal/DispatchHUD';
 import CopyLink from '@/components/journal/CopyLink';
 import SharePost from '@/components/journal/SharePost';
 import TableOfContents from '@/components/journal/TableOfContents';
@@ -106,6 +107,7 @@ export default async function JournalPostPage({ params }: Props) {
   return (
     <div className="min-h-screen">
       <ReadingProgress />
+      <DispatchHUD dispatchNum={dispatchNumber} readingTime={post.readingTime} tag={post.tag} />
       <BackToTop />
       <script
         type="application/ld+json"
