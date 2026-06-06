@@ -1,0 +1,160 @@
+---
+title: "The Hyve's AI agent: streaming responses with the Vercel AI SDK"
+date: "2027-01-20"
+excerpt: "The Hyve's AI agent responds in a streaming interface — tokens appear as they're generated, not all at once. Here's the implementation using the Vercel AI SDK, how we handle context window management, and the edge cases in streaming UX."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Hyve's AI agent participates in channel conversations. When a user mentions `@agent`, the agent processes the conversation context and responds. The response streams token by token — the same way ChatGPT works.
+
+Here's the implementation.
+
+## Why streaming matters
+
+A non-streaming implementation: user sends a message, waits 3-8 seconds, sees the full response appear. This works but feels slow and unresponsive.
+
+A streaming implementation: user sends a message, sees the first tokens within ~300ms, watches the response build token by token. The total time to "complete response" is the same; the perceived latency is dramatically lower.
+
+Streaming is standard for LLM interfaces. Users expect it.
+
+## The Vercel AI SDK
+
+The Vercel AI SDK (`ai` package) provides `streamText` for streaming Claude responses, along with helpers for streaming to the browser and managing the client-side state.
+
+```ts
+// app/api/agent/route.ts
+import { streamText } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { auth } from '@clerk/nextjs/server';
+import { getWorkspaceContext } from '@/lib/context';
+
+export async function POST(req: Request) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { channelId, messages } = await req.json();
+
+  // Build system prompt with workspace context
+  const workspaceContext = await getWorkspaceContext(channelId, userId);
+  const systemPrompt = buildSystemPrompt(workspaceContext);
+
+  const result = streamText({
+    model: anthropic('claude-sonnet-4-6'),
+    system: systemPrompt,
+    messages, // Conversation history in { role, content } format
+    maxTokens: 2048,
+    onFinish: async ({ text }) => {
+      // Persist the full response once streaming is complete
+      await saveAgentMessage(channelId, text);
+      // Broadcast to other connected clients via SSE
+      await broadcastMessage(channelId, { role: 'agent', content: text });
+    },
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+`result.toDataStreamResponse()` returns a `Response` with the Vercel AI SDK's streaming format — a text stream that the client-side SDK can consume.
+
+## The client side
+
+```tsx
+'use client';
+import { useChat } from 'ai/react';
+
+function AgentChat({ channelId }: { channelId: string }) {
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    api: '/api/agent',
+    body: { channelId },
+    onFinish: (message) => {
+      // The agent's final message is handled by the server's onFinish hook
+    },
+  });
+
+  return (
+    <div>
+      <div className="messages">
+        {messages.map((m) => (
+          <div key={m.id} className={m.role === 'user' ? 'user-message' : 'agent-message'}>
+            {m.content}
+            {/* isLoading shows a typing indicator for the agent's in-progress message */}
+            {m.role === 'assistant' && isLoading && <span className="cursor-blink" />}
+          </div>
+        ))}
+      </div>
+      <form onSubmit={handleSubmit}>
+        <input value={input} onChange={handleInputChange} placeholder="Ask the agent..." />
+        <button type="submit" disabled={isLoading}>Send</button>
+      </form>
+    </div>
+  );
+}
+```
+
+`useChat` manages the message state, streaming display, and loading state. The streaming content appears in `messages[last].content` as tokens arrive.
+
+## Context window management
+
+The Claude API has a context window limit. A busy workspace channel might have thousands of messages — far too many to include in the context.
+
+We use a sliding window: the most recent 50 messages in the channel are included in the context. Older messages are excluded unless they match a semantic search query (the pgvector retrieval system planned for Q1).
+
+```ts
+async function buildMessagesContext(
+  channelId: string,
+  userMessage: string
+): Promise<Message[]> {
+  // Get last 50 messages (descending, then reverse)
+  const recent = await db.query.messages.findMany({
+    where: eq(messages.channelId, channelId),
+    orderBy: [desc(messages.createdAt)],
+    limit: 50,
+  });
+  recent.reverse();
+
+  // Format for Claude API
+  const context: Message[] = recent.map((m) => ({
+    role: m.senderId === 'agent' ? 'assistant' : 'user',
+    content: m.content,
+  }));
+
+  // Add the current user message
+  context.push({ role: 'user', content: userMessage });
+
+  return context;
+}
+```
+
+The 50-message limit is the main known limitation of the current agent. A conversation from six weeks ago isn't in context. The pgvector RAG implementation (dispatch #231) will address this.
+
+## Token counting
+
+Before sending to Claude, we count tokens to ensure we're within the context window:
+
+```ts
+async function countTokens(messages: Message[]): Promise<number> {
+  // Approximate: 4 chars ≈ 1 token
+  const totalChars = messages.reduce((sum, m) => sum + m.content.length, 0);
+  return Math.ceil(totalChars / 4);
+}
+```
+
+If the estimated token count is too high, we truncate the oldest messages from the context until we're within budget. The 50-message limit is generous enough that this rarely triggers, but it's a safety net.
+
+## Streaming edge cases
+
+**Network interruption:** if the user's connection drops mid-stream, the `useChat` hook shows the partial response. When reconnected, the channel's SSE stream delivers the complete persisted response (the `onFinish` callback saved it to the database). The user sees both the partial and the complete version briefly, then the state reconciles.
+
+**Concurrent agent invocations:** two users in the same channel could both mention `@agent` within seconds. Both requests hit the API simultaneously. Both stream their responses. Both call `onFinish` and save to the database and broadcast via SSE. This produces two agent responses in quick succession, which is intentional — the agent responds to each mention.
+
+**Error during streaming:** if the Claude API returns an error mid-stream (rate limit, timeout), the stream terminates. The `useChat` hook shows an error state. The partial response is not persisted (the `onFinish` callback isn't called on error). The user can retry.
+
+## Cost management
+
+The AI agent is the most expensive feature in The Hyve. Each invocation calls the Claude API with up to 50 messages of context plus a system prompt.
+
+Rate limiting (see dispatch #236): 10 agent invocations per minute per workspace. This is more than enough for legitimate use and prevents a runaway loop or a compromised account from burning budget.
+
+Prompt caching (see dispatch #220): the static portion of the system prompt (workspace description, agent instructions) is cached between invocations. This reduces the cost of the context by ~70% for the cached tokens.

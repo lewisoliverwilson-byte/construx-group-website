@@ -1,0 +1,130 @@
+---
+title: "Server-side search filtering in Next.js App Router: searchParams done right"
+date: "2027-01-22"
+excerpt: "The journal page filters by tag using URL searchParams. This sounds simple but involves some App Router-specific nuances: how searchParams flow to Server Components, how to preserve filter state across navigations, and the right pattern for client-side tag chip interactions."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The journal at `/journal?tag=Strategy` shows only Strategy posts. The filter is a URL parameter — shareable, bookmarkable, and works without JavaScript.
+
+The implementation has a few App Router-specific patterns worth documenting.
+
+## SearchParams in Server Components
+
+In Next.js App Router, `searchParams` is available as a prop on page components (but not layouts):
+
+```ts
+// app/journal/page.tsx
+interface Props {
+  searchParams: Promise<{ tag?: string }>;
+}
+
+export default async function JournalPage({ searchParams }: Props) {
+  const { tag: activeTag } = await searchParams;
+  // ...
+}
+```
+
+In Next.js 15, `searchParams` became a Promise. You must `await` it before accessing the values. This is a breaking change from Next.js 14 — if you see `searchParams.tag` without `await` in App Router code, it's a 14-era pattern that needs updating.
+
+The advantage of searchParams as a Server Component prop: the filtering happens on the server, before the page renders. The client receives already-filtered data, not the full dataset with client-side filtering applied.
+
+```ts
+const allPosts = getAllPostMeta();
+const posts = activeTag ? allPosts.filter((p) => p.tag === activeTag) : allPosts;
+```
+
+`getAllPostMeta()` runs at build time (SSG) — it reads the MDX files. The `posts` array passed to the rendering is already filtered. No client-side JavaScript needed for the core filtering behaviour.
+
+## The tag filter chips
+
+Tag filter chips are interactive — clicking one updates the URL. They use `Link` components pointing to the filtered URL:
+
+```tsx
+{tags.map((tag) => {
+  const isActive = activeTag === tag;
+  return (
+    <Link
+      key={tag}
+      href={isActive ? '/journal' : `/journal?tag=${encodeURIComponent(tag)}`}
+      className={...}
+    >
+      {tag}
+      {isActive ? <X size={9} /> : <span>{count}</span>}
+    </Link>
+  );
+})}
+```
+
+Clicking an inactive tag navigates to `/journal?tag=Strategy`. Clicking the active tag navigates to `/journal` (clears the filter). Both are regular navigations — the URL changes, the page re-renders with the new filter.
+
+`encodeURIComponent` is required for tag names that contain spaces ("Build Log" → "Build%20Log"). Without it, the URL would be `/journal?tag=Build Log` which some servers and proxies mishandle.
+
+## Why not client-side filtering?
+
+Alternative approach: ship all posts to the client, filter with JavaScript on interaction.
+
+Disadvantages:
+- Payload size: 250 posts × ~500 chars of metadata = ~125KB of JSON before compression. Not huge, but unnecessary for most page loads where the user isn't filtering.
+- Not shareable: the URL doesn't reflect the filter state.
+- Not indexable: search engines can't discover the filtered URL variants.
+
+Server-side URL-based filtering is better in almost every dimension. The main advantage of client-side filtering is instant visual response (no network round-trip). In practice, Next.js App Router's client-side navigation is fast enough that this isn't a meaningful disadvantage.
+
+## The static export problem
+
+`searchParams` in a Server Component makes the page **dynamic** — it can't be statically exported, because the filtered content depends on the URL at request time. `next export` or static site generation without a server won't work for this page.
+
+This isn't an issue for our deployment (AWS Amplify supports server-rendered Next.js), but it's worth knowing. If you need static export and URL-based filtering, the options are:
+1. Client-side filtering with all data shipped upfront
+2. Generate static pages for each filter combination: `app/journal/tag/[tag]/page.tsx`
+
+We use option 1 on this site for performance reasons... actually no, we use server rendering. The Amplify deployment handles dynamic routes. We don't need the static workarounds.
+
+## Preserving scroll position
+
+When a user clicks a tag filter, the page re-renders with the filtered list. By default, Next.js scrolls to the top of the page on navigation.
+
+The tag chips are in the hero section at the top of the page, so scroll-to-top is the correct behaviour here. But if your filter controls are mid-page, you'd want to suppress the scroll reset:
+
+```tsx
+// Preserve scroll on filter change
+<Link href={...} scroll={false}>
+```
+
+`scroll={false}` prevents Next.js from scrolling to the top after navigation. The user stays in place. This is the right choice when the filter controls are visible without scrolling.
+
+## Dynamic metadata
+
+The page title and description change based on the active filter. Server Components make this straightforward:
+
+```ts
+// app/journal/page.tsx
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const { tag } = await searchParams;
+  
+  if (tag) {
+    return {
+      title: `Journal — ${tag}`,
+      description: `Construx Group journal posts tagged with "${tag}".`,
+    };
+  }
+  
+  return {
+    title: 'Journal',
+    description: 'Build-in-public posts and insight pieces from Construx Group.',
+  };
+}
+```
+
+The filtered page has its own title and description, which means the Google result for `/journal?tag=Strategy` says "Journal — Strategy" rather than just "Journal." This isn't a major SEO win (the filter pages are dynamic and may not all be indexed), but it's the correct behaviour.
+
+## When not to use URL params
+
+URL params are right for filter state that should be shareable and bookmarkable. They're wrong for:
+- Short-lived UI state (which dropdown is open, hover state)
+- Sensitive data (never put auth tokens or user IDs in URLs)
+- State that changes frequently (a search input that updates on every keystroke should filter on the client, not the URL)
+
+The journal tag filter updates on click, not on keystroke. URL params are the right choice.
