@@ -1,0 +1,93 @@
+---
+title: "Accessibility in a dark-only interface: what we check and what we've missed"
+date: "2026-10-02"
+excerpt: "Dark interfaces have unique accessibility considerations. Here's our approach to accessibility across the Construx products — what we prioritise, what we check, and two things we've shipped that we've since fixed."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Accessibility is not an optional compliance exercise. It's designing for humans who use your product in ways you didn't anticipate — people using screen readers, keyboard navigation, reduced motion preferences, or high-contrast modes.
+
+We build dark-only interfaces with dense information design. The accessibility challenges are specific to this aesthetic.
+
+## What we prioritise
+
+**Keyboard navigation.** Every interactive element on every Construx product should be reachable and operable by keyboard alone. Tab to navigate, Enter/Space to activate, Escape to close modals. This is table stakes.
+
+We test keyboard navigation manually during development and before any significant UI change. The test: close your mouse, open the page, complete the core user journey using only keyboard. If you get stuck, there's a bug.
+
+**Focus indicators.** When an element is focused (via keyboard navigation), it must have a visible focus ring. The default browser focus ring is often invisible against dark backgrounds. We set explicit focus styles:
+
+```css
+:focus-visible {
+  outline: 2px solid #F97316;
+  outline-offset: 2px;
+}
+
+/* Remove focus ring for mouse users, keep for keyboard */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+```
+
+The `:focus-visible` pseudo-class applies focus styles only when the element was focused via keyboard or other non-pointer input. Mouse users don't see a focus ring; keyboard users do. This is the right behaviour.
+
+**Screen reader support.** We use semantic HTML: `<nav>`, `<main>`, `<article>`, `<section>`, `<button>`, `<a>`. We add `aria-label` to interactive elements whose purpose isn't clear from their text content. We add `aria-hidden` to decorative elements that should be ignored by screen readers.
+
+Our Three.js solar system component on the home page is entirely decorative and entirely `aria-hidden`. The page has a visually hidden skip-to-content link that becomes visible on focus for screen reader users.
+
+**`prefers-reduced-motion`.** We disable all CSS animations for users who've requested reduced motion at the OS level. This is accessibility-critical for users with vestibular disorders. Our CSS:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+This disables the solar system, all scroll-triggered animations, the boot sequence, the histogram bars — everything. The site is functional and readable without animation.
+
+## The contrast challenge
+
+WCAG 2.2 requires a minimum 4.5:1 contrast ratio for normal text (below 18pt) and 3:1 for large text and graphics.
+
+On a dark background, light text generally has high contrast — white on black is 21:1. The challenge is the secondary and tertiary text in our interfaces: the dimmed labels, the metadata text, the UI chrome text that's intentionally subtle.
+
+Our secondary text is typically `rgba(240,239,255,0.35)` on a `#000008` background. The contrast ratio for this combination is approximately 2.9:1 — below the WCAG AA minimum for body text.
+
+This is a deliberate design choice with a known trade-off. The dimmed text conveys visual hierarchy: it recedes relative to primary content, communicating that it's supporting information. Bringing it to full WCAG contrast would flatten the hierarchy.
+
+Our mitigation: the dimmed text is never used for content the user needs to read to complete a task. It's metadata (reading time, author, date), UI labels (tag names, category names), and ambient information (the terminal chrome on the SystemLog). Primary content — titles, body text, buttons, interactive elements — all pass WCAG AA.
+
+We apply the APCA (Advanced Perceptual Contrast Algorithm) standard for contrast evaluation, which is more nuanced than the older WCAG 2.x luminance formula. Under APCA, our secondary text achieves Lc 45+ (readable for non-body text), while our primary text is consistently Lc 75+ (well-readable).
+
+## Two things we've shipped and fixed
+
+**Missing button labels.** In an early version of Scoutr's scan interface, the copy button for scan results was an icon-only button with no accessible label. Screen readers announced it as "button" with no indication of what it did. We added `aria-label="Copy results"`. Simple fix; would have been simpler to get right the first time.
+
+**Form errors not announced.** In The Marqet's listing creation form, validation errors were displayed visually but not announced to screen readers when they appeared. A screen reader user would submit the form, it would fail, and they'd receive no feedback. We added `aria-live="polite"` to the error container:
+
+```tsx
+<div aria-live="polite" aria-atomic="true">
+  {errors.map(error => (
+    <p key={error.field} role="alert" className="text-red-400 text-sm">
+      {error.message}
+    </p>
+  ))}
+</div>
+```
+
+`aria-live="polite"` announces content changes to screen readers when the user is idle. `role="alert"` announces immediately. We use `alert` for time-sensitive information (form errors, payment failures) and `polite` for lower-priority updates.
+
+Both of these were caught via a screen reader test using VoiceOver. We run a manual screen reader test on all major flows quarterly. Each pass catches something we should have gotten right earlier.
+
+## The ongoing work
+
+Accessibility is not a project with a completion date. Every new feature is a new opportunity to introduce an accessibility regression.
+
+Our minimum bar: keyboard navigable, visible focus indicators, semantic HTML, `aria-label` on icon-only interactive elements, `prefers-reduced-motion` respected. This is checked before every significant UI deployment.
+
+The higher bar we're working toward: comprehensive APCA compliance for all text, full screen reader testing on all flows, and documented accessibility decisions for the design choices we've made that deliberately trade off WCAG compliance for design goals.

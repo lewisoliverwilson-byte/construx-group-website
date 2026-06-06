@@ -1,0 +1,191 @@
+---
+title: "Next.js App Router patterns we actually use in production"
+date: "2026-09-30"
+excerpt: "The App Router changed how Next.js applications are built. After running three production products on it for months, here's the patterns that work, the ones that don't, and the ones we use every day."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Next.js App Router (introduced in Next.js 13, matured in 14 and 15) is a significant departure from the Pages Router. The mental model shift from Pages to App Router is real, and it takes time to develop correct intuitions about server vs. client components, data fetching, and caching.
+
+After running three products on App Router in production, here's what we've actually found useful.
+
+## Server components by default
+
+The fundamental shift in App Router: components are server components by default. This means they can be async, can access databases and file systems directly, and their code never ships to the client.
+
+In practice, this means our data fetching looks like this:
+
+```tsx
+// app/ventures/[venture]/page.tsx — server component
+export default async function VenturePage({ params }: Props) {
+  const { venture: slug } = await params;
+  const venture = getVentureBySlug(slug); // direct function call, no fetch
+  if (!venture) notFound();
+
+  const posts = await db.query.posts.findMany({
+    where: eq(posts.ventureId, venture.id),
+    orderBy: [desc(posts.createdAt)],
+    limit: 5,
+  });
+
+  return (
+    <div>
+      <h1>{venture.name}</h1>
+      {/* posts is already available — no loading state needed */}
+      {posts.map(p => <PostCard key={p.id} post={p} />)}
+    </div>
+  );
+}
+```
+
+No `useEffect`, no `useState` for loading, no `fetch`. The component awaits the data and renders. By the time the HTML reaches the browser, the data is already embedded.
+
+The performance benefit: server components eliminate client-server roundtrips for data fetching. The initial page load includes the data; there's no "loading..." state for data that was always available on the server.
+
+## The `'use client'` boundary
+
+Client components (those with interactivity, browser APIs, or React hooks) need `'use client'` at the top of the file. This marks the boundary between server and client rendering.
+
+The pattern we use: push `'use client'` as far down the component tree as possible. If only the interactive part of a page needs to be a client component, isolate that part:
+
+```tsx
+// This whole page doesn't need to be a client component
+export default async function JournalPage() {
+  const posts = getAllPostMeta(); // server-side
+
+  return (
+    <div>
+      <h1>Journal</h1>
+      {/* Only the filter needs to be interactive */}
+      <TagFilter tags={tags} activeTag={searchParams.tag} />
+      <PostList posts={posts} />
+    </div>
+  );
+}
+
+// components/journal/TagFilter.tsx
+'use client'; // only this component is a client component
+
+export default function TagFilter({ tags, activeTag }: Props) {
+  // router.push, useState, etc.
+}
+```
+
+`PostList` is a server component rendering static HTML. `TagFilter` is a client component handling user interaction. The server component renders most of the page; the client component is a small interactive island.
+
+## Parallel routes and intercepting routes
+
+We use parallel routes for the Command Palette — it renders on top of the current page without navigating away. The pattern:
+
+```
+app/
+  @commandPalette/
+    default.tsx  — renders null (palette is closed by default)
+    page.tsx     — renders the command palette overlay
+  layout.tsx     — accepts @commandPalette slot
+  page.tsx       — renders the home page
+```
+
+The layout receives both the main content and the command palette slot:
+
+```tsx
+export default function Layout({
+  children,
+  commandPalette,
+}: {
+  children: React.ReactNode;
+  commandPalette: React.ReactNode;
+}) {
+  return (
+    <>
+      {children}
+      {commandPalette}
+    </>
+  );
+}
+```
+
+In practice, we found the parallel route approach more complex than the alternative (a global modal rendered in the root layout as a client component). We use the simpler client component approach for the command palette.
+
+## Route handlers for API endpoints
+
+Route handlers (`app/api/route.ts`) are the App Router equivalent of Pages Router API routes. The syntax changed:
+
+```ts
+// app/api/scans/route.ts
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { productUrl } = scanSchema.parse(body);
+
+  const userId = await getAuthenticatedUserId(request);
+  if (!userId) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const result = await performScan(userId, productUrl);
+  return Response.json(result);
+}
+```
+
+The `Response.json()` constructor is now standard — no need to `new Response(JSON.stringify(...))`.
+
+## The `generateStaticParams` pattern
+
+For statically-generated routes (journal posts, venture pages), `generateStaticParams` tells Next.js which paths to pre-generate at build time:
+
+```ts
+// app/journal/[slug]/page.tsx
+export async function generateStaticParams() {
+  return getAllPostMeta().map((p) => ({ slug: p.slug }));
+}
+```
+
+At build time, Next.js calls `generateStaticParams`, gets the list of slugs, and pre-renders each one as static HTML. At runtime, every journal post request is served from a pre-rendered HTML file — zero database queries, zero server processing.
+
+This is one of the biggest performance wins for content-heavy sites. Our journal has 137+ posts, all pre-rendered as static HTML, all served from CloudFront edge locations.
+
+## The Suspense pattern
+
+For pages that mix fast content with slower async data, React Suspense allows streaming the fast content first:
+
+```tsx
+export default async function DashboardPage() {
+  return (
+    <div>
+      {/* Renders immediately */}
+      <DashboardHeader />
+
+      {/* Streams in when the async data is ready */}
+      <Suspense fallback={<AnalyticsSkeleton />}>
+        <AnalyticsPanel />
+      </Suspense>
+
+      {/* Also streams, independently */}
+      <Suspense fallback={<RecentScansSkeleton />}>
+        <RecentScans />
+      </Suspense>
+    </div>
+  );
+}
+
+// This is an async server component
+async function AnalyticsPanel() {
+  const analytics = await fetchAnalytics(); // slow query
+  return <div>{/* analytics UI */}</div>;
+}
+```
+
+With streaming, the user sees the header immediately. The analytics panel and recent scans stream in as their data becomes available, independently of each other. Skeleton states are shown while data loads.
+
+We use this pattern on dashboard pages where different data sources have different latency characteristics.
+
+## What we wish existed
+
+**Better dev tools for server component boundaries.** It's not always obvious which components are rendered on the server and which on the client during development. The React DevTools in client mode don't show the full server component tree.
+
+**Simpler metadata generation.** The `generateMetadata` function is powerful but verbose. For simple cases (title, description, OG image), there's more boilerplate than necessary.
+
+**More predictable caching.** The `fetch` cache in App Router is powerful but the default behaviour (caching fetch results) has changed between Next.js versions. We've had unexpected cache behaviour after upgrading. Explicit cache control (`cache: 'no-store'` or `revalidate: 3600`) is more predictable than relying on the default.
+
+Overall: the App Router is a significant improvement for our use cases. The performance benefits of server components and static generation are concrete. The mental model takes time to internalise, but once it clicks, the development experience is better than Pages Router for most patterns.
