@@ -145,45 +145,89 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
         <div className="relative mx-auto max-w-5xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
-                // WHAT WE ARE
-              </p>
-              <h2 id="what-construx" className="text-display-sm text-text-base mb-6 leading-tight">
-                Not an agency.<br />
-                Not a fund.<br />
-                <span className="text-gradient-orange">A builder.</span>
-              </h2>
-              <p className="text-text-muted leading-relaxed mb-5">
-                Construx Group is the parent of a growing portfolio of AI-first software ventures.
-                We don't consult from the sideline — we build and own the products we ship.
-              </p>
-              <p className="text-text-muted leading-relaxed mb-8">
-                Claude and Anthropic's tooling are our primary instrument. The result is a small team
-                with the output of a much larger one — and products that simply weren't possible to
-                build before now.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/manifesto"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)] uppercase tracking-wider"
-                  style={{ borderRadius: '3px' }}
-                >
-                  Read the manifesto <ArrowRight size={15} />
-                </Link>
-                <Link
-                  href="/work-with-us"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all uppercase tracking-wider"
-                  style={{ borderRadius: '3px' }}
-                >
-                  Work with us
-                </Link>
-                <Link
-                  href="/journal"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium text-text-dim hover:text-construx transition-all uppercase tracking-wider"
-                >
-                  Journal <ArrowRight size={13} />
-                </Link>
+            {/* What we are — terminal panel */}
+            <div
+              className="overflow-hidden"
+              style={{
+                background: 'rgba(3,3,14,0.88)',
+                border: '1px solid rgba(249,115,22,0.13)',
+                borderRadius: '4px',
+                boxShadow: '0 0 40px rgba(249,115,22,0.04)',
+              }}
+            >
+              {/* Title bar */}
+              <div
+                className="flex items-center gap-3 px-4 py-2.5 select-none"
+                style={{ borderBottom: '1px solid rgba(249,115,22,0.09)', background: 'rgba(249,115,22,0.025)' }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block' }} />
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block' }} />
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: 'rgba(249,115,22,0.4)' }}>
+                  construx.about — what.we.are
+                </span>
+                <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.4)' }}>
+                  ● live
+                </span>
+              </div>
+              {/* Shell prompt */}
+              <div className="flex items-center gap-2 px-4 py-2.5 font-mono text-[10px]" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)' }}>
+                <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@sys</span>
+                <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+                <span style={{ color: 'rgba(240,239,255,0.28)' }}>cat /etc/construx/about.md</span>
+              </div>
+              {/* Content */}
+              <div className="px-7 pt-7 pb-6">
+                <h2 id="what-construx" className="text-display-sm text-text-base mb-6 leading-tight">
+                  Not an agency.<br />
+                  Not a fund.<br />
+                  <span className="text-gradient-orange">A builder.</span>
+                </h2>
+                <p className="text-text-muted leading-relaxed mb-5">
+                  Construx Group is the parent of a growing portfolio of AI-first software ventures.
+                  We don't consult from the sideline — we build and own the products we ship.
+                </p>
+                <p className="text-text-muted leading-relaxed mb-8">
+                  Claude and Anthropic's tooling are our primary instrument. The result is a small team
+                  with the output of a much larger one — and products that simply weren't possible to
+                  build before now.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href="/manifesto"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)] uppercase tracking-wider"
+                    style={{ borderRadius: '3px' }}
+                  >
+                    Read the manifesto <ArrowRight size={15} />
+                  </Link>
+                  <Link
+                    href="/work-with-us"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium border border-border-bright text-text-muted hover:text-text-base hover:border-construx transition-all uppercase tracking-wider"
+                    style={{ borderRadius: '3px' }}
+                  >
+                    Work with us
+                  </Link>
+                  <Link
+                    href="/journal"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-medium text-text-dim hover:text-construx transition-all uppercase tracking-wider"
+                  >
+                    Journal <ArrowRight size={13} />
+                  </Link>
+                </div>
+              </div>
+              {/* Status footer */}
+              <div
+                className="flex items-center justify-between px-4 py-1.5"
+                style={{ borderTop: '1px solid rgba(249,115,22,0.07)', background: 'rgba(0,0,0,0.25)' }}
+              >
+                <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.25)' }}>
+                  construx.about
+                </span>
+                <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>
+                  exit: 0
+                </span>
               </div>
             </div>
 
