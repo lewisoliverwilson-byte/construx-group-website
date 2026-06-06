@@ -1,0 +1,147 @@
+---
+title: "Monorepo setup with Turborepo: managing multiple products from one repo"
+date: "2027-04-06"
+excerpt: "Running three separate product repos means three CI pipelines, three sets of shared utilities diverging, and three places to update a common dependency. A monorepo with Turborepo collapses this without collapsing the team autonomy."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The decision to merge separate product repos into a monorepo is easy to get wrong in both directions. Merging too eagerly creates entanglement — one product's change triggers another product's build. Staying in separate repos creates drift — shared utilities diverge, dependency versions differ, duplicate fixes are applied in three places.
+
+The right answer is a monorepo with strong tooling. Turborepo's task graph handles the entanglement problem: changes to package A only trigger rebuilds of packages that depend on A. Independent packages build in parallel and cache independently.
+
+## The structure
+
+```
+construx/
+├── apps/
+│   ├── scoutr/           # Next.js 15 — resell intelligence
+│   ├── the-marqet/       # Next.js 15 — AI marketplace
+│   ├── the-hyve/         # Next.js 15 — AI workspace
+│   └── construx-website/ # Next.js 15 — this site
+├── packages/
+│   ├── ui/               # Shared component library
+│   ├── db/               # Drizzle ORM schemas + client
+│   ├── auth/             # Session management, getSession()
+│   ├── ai/               # Claude API client + prompt templates
+│   └── config/           # Shared TypeScript, Tailwind, ESLint configs
+├── turbo.json
+└── package.json
+```
+
+Each app is an independent Next.js project. Each package is an internal library. Apps import packages; packages don't import from apps.
+
+## The turbo.json pipeline
+
+```json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "outputs": []
+    },
+    "type-check": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    }
+  }
+}
+```
+
+The `^` prefix in `dependsOn` means "first build all packages this depends on." When `scoutr` builds, it first builds `@construx/ui`, `@construx/db`, and `@construx/auth` — in dependency order, in parallel where possible.
+
+## Shared packages
+
+The `packages/ui` library contains components used across multiple apps:
+
+```ts
+// packages/ui/src/Button.tsx
+export interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
+export function Button({ variant = 'primary', size = 'md', children, onClick, disabled }: ButtonProps) {
+  // shared implementation
+}
+```
+
+```json
+// packages/ui/package.json
+{
+  "name": "@construx/ui",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
+```
+
+In each app's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@construx/ui": "*",
+    "@construx/db": "*",
+    "@construx/auth": "*"
+  }
+}
+```
+
+The `*` version means "always use the workspace version." No versioning required for internal packages.
+
+## The database package
+
+The `packages/db` package exports Drizzle schemas and the database client:
+
+```ts
+// packages/db/src/index.ts
+export { db } from './client';
+export * from './schema/users';
+export * from './schema/workspaces';
+export * from './schema/scans';
+```
+
+Each app gets the same database client, the same type-safe schema, and the same migration history. When the schema changes, all apps see the change immediately — no syncing between repos.
+
+## CI parallelisation
+
+Turborepo's remote caching means CI doesn't rebuild what hasn't changed:
+
+```yaml
+# .github/workflows/ci.yml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm install
+      - run: npx turbo build --filter=[HEAD^1]
+```
+
+`--filter=[HEAD^1]` tells Turborepo to only process packages affected by changes since the previous commit. On a change to `apps/scoutr/`, only `scoutr` and `@construx/ui` (if it's a dependency of scoutr) rebuild. `the-marqet` and `the-hyve` are skipped.
+
+## What doesn't go in the monorepo
+
+Services with completely different infrastructure requirements live outside the monorepo. The Hyve's WebSocket server runs on Railway, uses different build tooling, and has no shared code with the Next.js apps — it lives in its own repo. The monorepo is for products that share a stack; infrastructure services that don't share code are better kept separate.
+
+The signal for whether something belongs in the monorepo: if a change to one package should trigger a rebuild or test in another, they belong together. If they're genuinely independent with no shared code, a separate repo has less overhead.

@@ -1,0 +1,154 @@
+---
+title: "Testing strategy: what to test, what not to, and why the ratio matters"
+date: "2027-04-03"
+excerpt: "Most testing advice focuses on tools and coverage metrics. The harder problem is deciding what to test. Testing the wrong things gives you confidence you haven't earned. Here's how we think about the testing portfolio."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The goal of tests is confidence, not coverage. A codebase with 90% line coverage and tests that mock every dependency gives you a number, not confidence. The question isn't "how many tests do we have?" — it's "would these tests catch a production bug before it ships?"
+
+The testing portfolio we use across Construx products is shaped by this question.
+
+## What we test heavily
+
+**Business logic with no external dependencies.** Pure functions that compute outputs from inputs are the easiest and most valuable things to test. They're fast, deterministic, and failures are unambiguous:
+
+```ts
+// lib/margin.ts
+export function calculateMargin(
+  salePrice: number,
+  buyPrice: number,
+  fees: { referral: number; shipping: number; storage: number },
+): { margin: number; margin_pct: number; net: number } {
+  const totalFees = fees.referral + fees.shipping + fees.storage;
+  const net = salePrice - buyPrice - totalFees;
+  const margin_pct = (net / salePrice) * 100;
+  return { margin: net, margin_pct, net };
+}
+```
+
+```ts
+// lib/margin.test.ts
+import { describe, it, expect } from 'vitest';
+import { calculateMargin } from './margin';
+
+describe('calculateMargin', () => {
+  it('calculates positive margin correctly', () => {
+    const result = calculateMargin(25.00, 10.00, {
+      referral: 2.50,
+      shipping: 3.00,
+      storage: 0.50,
+    });
+    expect(result.net).toBeCloseTo(9.00);
+    expect(result.margin_pct).toBeCloseTo(36);
+  });
+
+  it('returns negative margin when costs exceed revenue', () => {
+    const result = calculateMargin(10.00, 8.00, {
+      referral: 1.50,
+      shipping: 2.00,
+      storage: 0.50,
+    });
+    expect(result.net).toBeLessThan(0);
+  });
+
+  it('handles zero sale price without dividing by zero', () => {
+    const result = calculateMargin(0, 5.00, { referral: 0, shipping: 0, storage: 0 });
+    expect(isFinite(result.margin_pct)).toBe(false);
+  });
+});
+```
+
+These tests are worth writing because they're testing decisions — the logic of how margin is calculated — not implementation details.
+
+**API routes with a real database.** Integration tests that run against a real test database catch the class of bugs that mocking hides: incorrect query construction, missing transactions, RLS policy violations, index assumptions that break under real data:
+
+```ts
+// app/api/scan/route.test.ts
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createTestDb, seedTestUser, cleanupTestDb } from '@/test/helpers';
+
+let testDb: Awaited<ReturnType<typeof createTestDb>>;
+let testUser: { id: string; token: string };
+
+beforeAll(async () => {
+  testDb = await createTestDb();
+  testUser = await seedTestUser(testDb);
+});
+
+afterAll(async () => {
+  await cleanupTestDb(testDb);
+});
+
+describe('POST /api/scan', () => {
+  it('creates a scan and returns margin data', async () => {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `session=${testUser.token}`,
+      },
+      body: JSON.stringify({ asin: 'B08N5WRWNW' }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toMatchObject({
+      asin: 'B08N5WRWNW',
+      margin: expect.any(Number),
+      confidence: expect.stringMatching(/^(HIGH|MEDIUM|LOW)$/),
+    });
+  });
+
+  it('returns 401 when session is missing', async () => {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      body: JSON.stringify({ asin: 'B08N5WRWNW' }),
+    });
+    expect(res.status).toBe(401);
+  });
+});
+```
+
+**Schema validation.** Zod schema tests ensure the contract stays correct as schemas evolve:
+
+```ts
+import { ScanResultSchema } from '@/lib/schemas/scan';
+
+it('rejects invalid confidence values', () => {
+  const result = ScanResultSchema.safeParse({
+    asin: 'B08N5WRWNW',
+    margin: 12.5,
+    confidence: 'MAYBE',  // not in enum
+    scannedAt: new Date().toISOString(),
+  });
+  expect(result.success).toBe(false);
+});
+```
+
+## What we don't test
+
+**UI rendering.** We don't test that a React component renders the correct HTML. The component is the source of truth for what it renders — testing it against itself adds no information. Snapshot tests amplify this problem by making every cosmetic change a test failure.
+
+**Third-party library internals.** If you write tests that verify that Stripe's webhook parsing works or that Next.js routes requests correctly, you're testing the library, not your code.
+
+**Implementation details.** Tests tied to function names, variable names, or internal structure break when you refactor — even when the observable behaviour stays the same. Test what the thing does, not how it does it.
+
+**Code that's tested end-to-end.** If a function is called as part of an integration test that already catches failures, a separate unit test for that function is redundant overhead.
+
+## The ratio
+
+Our typical testing breakdown:
+
+- **Integration tests** (60%): API routes against real databases, background job execution, auth flows end-to-end
+- **Unit tests** (35%): business logic functions, schema validation, data transformation pipelines
+- **E2E tests** (5%): critical user paths (sign up, scan a product, view results) run in a headless browser
+
+The 5% E2E is low on purpose. E2E tests are slow, brittle, and expensive to maintain. A few tests on the critical paths are worth it. Full coverage via E2E is not.
+
+## The test that matters most
+
+The question that determines whether a test is worth writing: "would this test have caught the last production bug we shipped?"
+
+If the answer is frequently "no" — your tests are testing the wrong things. The production bugs are in the untested layer.
