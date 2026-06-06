@@ -224,6 +224,11 @@ export default async function VenturePage({ params }: Props) {
                   {venture.slug}.overview — what it is
                 </span>
               </div>
+              {/* Shell prompt */}
+              <div className="px-4 py-1.5 select-none" style={{ borderBottom: `1px solid ${venture.accent}08`, background: `${venture.accent}03` }}>
+                <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`cat /var/construx/ventures/${venture.slug}/overview.md`}</span>
+              </div>
               <div className="p-6">
                 <p className="text-text-muted leading-relaxed text-base">{venture.what}</p>
               </div>
@@ -251,6 +256,11 @@ export default async function VenturePage({ params }: Props) {
                   {venture.slug}.pitch — why it exists
                 </span>
               </div>
+              {/* Shell prompt */}
+              <div className="px-4 py-1.5 select-none" style={{ borderBottom: `1px solid ${venture.accent}08`, background: `${venture.accent}03` }}>
+                <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`cat /var/construx/ventures/${venture.slug}/pitch.md`}</span>
+              </div>
               <div className="p-6">
                 <p className="text-text-muted leading-relaxed text-base">{venture.pitch}</p>
               </div>
@@ -277,6 +287,11 @@ export default async function VenturePage({ params }: Props) {
                 <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: `${venture.accent}60` }}>
                   {venture.slug}.capabilities — {venture.features.length} modules
                 </span>
+              </div>
+              {/* Shell prompt */}
+              <div className="px-4 py-1.5 select-none" style={{ borderBottom: `1px solid ${venture.accent}08`, background: `${venture.accent}03` }}>
+                <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`ls /var/construx/ventures/${venture.slug}/modules/ --count=${venture.features.length}`}</span>
               </div>
               <div className="p-6">
                 <ul className="space-y-3">
@@ -313,6 +328,11 @@ export default async function VenturePage({ params }: Props) {
                 <span className="font-mono text-[8px] uppercase tracking-[0.18em] flex-1 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
                   sys.info
                 </span>
+              </div>
+              {/* Shell prompt */}
+              <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+                <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`construx sys --info --venture=${venture.slug}`}</span>
               </div>
               <div className="p-4">
               <div className="space-y-2.5">
@@ -366,6 +386,11 @@ export default async function VenturePage({ params }: Props) {
                   net.latency
                 </span>
               </div>
+              {/* Shell prompt */}
+              <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+                <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`ping construx.${venture.slug} --benchmark --p50`}</span>
+              </div>
               <div className="p-4">
                 <div className="flex items-end gap-0.5 mb-2">
                   {venture.latencyBars.split('').map((bar, i) => (
@@ -406,6 +431,11 @@ export default async function VenturePage({ params }: Props) {
                 <span className="font-mono text-[8px] uppercase tracking-[0.18em] flex-1 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
                   tech.stack — {venture.techStack.length} layers
                 </span>
+              </div>
+              {/* Shell prompt */}
+              <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+                <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>{`construx stack --list --venture=${venture.slug} --count=${venture.techStack.length}`}</span>
               </div>
               <div className="p-4">
                 <div className="flex flex-wrap gap-1.5">
