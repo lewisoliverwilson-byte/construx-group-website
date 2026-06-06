@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import ManifestoNav from '@/components/manifesto/ManifestoNav';
+import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -203,6 +204,11 @@ export default function ManifestoPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Methodology diff panel */}
+        <div className="mt-4">
+          <MethodologyDiffPanel />
         </div>
 
         {/* Sign-off */}

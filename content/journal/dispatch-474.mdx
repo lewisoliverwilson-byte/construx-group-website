@@ -1,0 +1,211 @@
+---
+title: "Cloudflare R2: object storage without egress fees"
+date: "2028-11-04"
+excerpt: "S3 charges for egress. R2 doesn't. For read-heavy workloads — product images, generated assets, user uploads — that difference compounds fast. Here's the R2 setup with presigned URLs, Workers integration, and the migration path from S3."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Cloudflare R2 is S3-compatible object storage with zero egress fees. The API is identical to S3 — you swap the endpoint and credentials, and existing code works. The meaningful difference is cost: on S3, downloading 1TB costs $90. On R2, it's free.
+
+## Setup
+
+```bash
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+R2 is S3-compatible, so the AWS SDK works without modification:
+
+```ts
+// lib/r2.ts
+import { S3Client } from '@aws-sdk/client-s3';
+
+export const r2 = new S3Client({
+  region: 'auto',
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+export const BUCKET = process.env.R2_BUCKET_NAME!;
+```
+
+## Presigned URLs for direct browser uploads
+
+The standard pattern: your server generates a short-lived presigned URL, the browser uploads directly to R2. Your server never handles the file bytes.
+
+```ts
+// app/api/upload/route.ts
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { r2, BUCKET } from '@/lib/r2';
+import { nanoid } from 'nanoid';
+
+export async function POST(req: Request) {
+  const { filename, contentType, size } = await req.json();
+
+  // Validate before signing
+  if (size > 50 * 1024 * 1024) {
+    return Response.json({ error: 'File too large (50MB max)' }, { status: 400 });
+  }
+
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  if (!allowedTypes.includes(contentType)) {
+    return Response.json({ error: 'File type not allowed' }, { status: 400 });
+  }
+
+  const ext = filename.split('.').pop();
+  const key = `uploads/${nanoid()}/${Date.now()}.${ext}`;
+
+  const url = await getSignedUrl(
+    r2,
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: size,
+    }),
+    { expiresIn: 300 },  // 5 minutes to complete the upload
+  );
+
+  return Response.json({ uploadUrl: url, key });
+}
+```
+
+```tsx
+// components/FileUpload.tsx — client-side upload hook
+'use client';
+
+import { useState } from 'react';
+
+export function useR2Upload() {
+  const [progress, setProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+
+  const upload = async (file: File): Promise<string> => {
+    setUploading(true);
+    setProgress(0);
+
+    // 1. Get presigned URL from your server
+    const { uploadUrl, key } = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+      }),
+    }).then((r) => r.json());
+
+    // 2. Upload directly to R2 with progress tracking
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => (xhr.status === 200 ? resolve() : reject(new Error('Upload failed')));
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.send(file);
+    });
+
+    setUploading(false);
+    return key;
+  };
+
+  return { upload, progress, uploading };
+}
+```
+
+## Reading objects
+
+For public buckets (product images, avatars), connect R2 to a Cloudflare Worker or use a custom domain:
+
+```ts
+// app/api/files/[...key]/route.ts — private file proxy
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { r2, BUCKET } from '@/lib/r2';
+
+export async function GET(
+  _req: Request,
+  { params }: { params: { key: string[] } }
+) {
+  const key = params.key.join('/');
+
+  const { Body, ContentType, ContentLength } = await r2.send(
+    new GetObjectCommand({ Bucket: BUCKET, Key: key }),
+  );
+
+  return new Response(Body as ReadableStream, {
+    headers: {
+      'Content-Type': ContentType ?? 'application/octet-stream',
+      'Content-Length': String(ContentLength ?? 0),
+      'Cache-Control': 'private, max-age=3600',
+    },
+  });
+}
+```
+
+For public access, R2 supports custom domains and Cloudflare's CDN natively — set up a Worker in front of the bucket and serve files directly.
+
+## Listing and deleting
+
+```ts
+import { ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { r2, BUCKET } from '@/lib/r2';
+
+// List objects with a prefix
+async function listUserFiles(userId: string) {
+  const { Contents } = await r2.send(
+    new ListObjectsV2Command({
+      Bucket: BUCKET,
+      Prefix: `uploads/${userId}/`,
+    }),
+  );
+  return Contents ?? [];
+}
+
+// Delete a single object
+async function deleteFile(key: string) {
+  await r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+}
+
+// Batch delete (up to 1000 keys)
+async function deleteUserFiles(keys: string[]) {
+  await r2.send(
+    new DeleteObjectsCommand({
+      Bucket: BUCKET,
+      Delete: { Objects: keys.map((Key) => ({ Key })) },
+    }),
+  );
+}
+```
+
+## Migrating from S3
+
+The SDK change is a one-liner:
+
+```ts
+// Before
+const s3 = new S3Client({
+  region: 'eu-west-2',
+  credentials: { accessKeyId: '...', secretAccessKey: '...' },
+});
+
+// After (R2-compatible)
+const s3 = new S3Client({
+  region: 'auto',
+  endpoint: `https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  },
+});
+```
+
+Existing `PutObjectCommand`, `GetObjectCommand`, `DeleteObjectCommand`, and presigned URL code is unchanged. The only consideration: R2 doesn't support all S3 features (no S3 Object Lambda, no S3 Batch Operations, no lifecycle policies as of 2027). For straightforward blob storage, it's a complete replacement.
+
+At high read volumes, R2 pays for itself quickly. For a product with 500GB of files serving 10TB of egress monthly, that's roughly $900/month saved on S3 egress costs — before R2's storage costs, which are also slightly cheaper than S3.

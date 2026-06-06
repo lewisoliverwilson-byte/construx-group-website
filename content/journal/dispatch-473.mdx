@@ -1,0 +1,217 @@
+---
+title: "Zustand: global state without the ceremony"
+date: "2028-11-01"
+excerpt: "Zustand is a 1KB state management library with no providers, no reducers, no boilerplate. You define a store, use it in any component, and selectors ensure components only re-render when their specific slice changes. Here's the setup that works."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redux taught a generation to distrust global state by making it painful. The ceremony — actions, reducers, dispatchers, selectors, connect HOCs — exists because Redux was designed for a different era of React. Zustand is what global state looks like when you start from first principles: a hook that returns your state, with no configuration around it.
+
+## Installation
+
+```bash
+npm install zustand
+```
+
+## Basic store
+
+```ts
+// stores/ui.ts
+import { create } from 'zustand';
+
+interface UIStore {
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  toggleSidebar: () => void;
+
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+}
+
+export const useUIStore = create<UIStore>((set) => ({
+  sidebarOpen: false,
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  theme: 'dark',
+  setTheme: (theme) => set({ theme }),
+}));
+```
+
+```tsx
+// Using it in any component — no Provider required
+import { useUIStore } from '@/stores/ui';
+
+function Sidebar() {
+  // Only re-renders when sidebarOpen changes, not when theme changes
+  const { sidebarOpen, toggleSidebar } = useUIStore((state) => ({
+    sidebarOpen: state.sidebarOpen,
+    toggleSidebar: state.toggleSidebar,
+  }));
+
+  return (
+    <aside className={sidebarOpen ? 'translate-x-0' : '-translate-x-full'}>
+      <button onClick={toggleSidebar}>Close</button>
+    </aside>
+  );
+}
+
+function Header() {
+  // Only re-renders when toggleSidebar changes — which it never does
+  const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+
+  return <button onClick={toggleSidebar}>Menu</button>;
+}
+```
+
+## Selector-based subscriptions
+
+The selector argument is how Zustand prevents unnecessary re-renders:
+
+```ts
+// ✓ Component only re-renders when user.name changes
+const name = useUserStore((state) => state.user?.name);
+
+// ✓ Stable selector — returns same reference if values haven't changed
+const { isLoading, error } = useUserStore(
+  (state) => ({ isLoading: state.isLoading, error: state.error }),
+  shallow,  // shallow equality check — compare object fields, not reference
+);
+
+// ✗ Creates a new object every render — component always re-renders
+const { isLoading, error } = useUserStore((state) => ({
+  isLoading: state.isLoading,
+  error: state.error,
+}));
+```
+
+Import `shallow` from `zustand/shallow` for object selectors:
+
+```ts
+import { shallow } from 'zustand/shallow';
+
+const { count, label } = useCounterStore(
+  (state) => ({ count: state.count, label: state.label }),
+  shallow,
+);
+```
+
+## Store with async actions
+
+```ts
+// stores/scans.ts
+import { create } from 'zustand';
+
+interface Scan {
+  id: string;
+  productId: string;
+  alertLevel: 'high' | 'medium' | 'low';
+  priceDelta: number;
+  createdAt: string;
+}
+
+interface ScansStore {
+  scans: Scan[];
+  isLoading: boolean;
+  error: string | null;
+
+  fetchScans: () => Promise<void>;
+  dismissScan: (id: string) => void;
+}
+
+export const useScansStore = create<ScansStore>((set, get) => ({
+  scans: [],
+  isLoading: false,
+  error: null,
+
+  fetchScans: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await fetch('/api/scans');
+      if (!response.ok) throw new Error('Failed to fetch scans');
+      const { scans } = await response.json();
+      set({ scans, isLoading: false });
+    } catch (err) {
+      set({ error: (err as Error).message, isLoading: false });
+    }
+  },
+
+  dismissScan: (id) => {
+    set((state) => ({
+      scans: state.scans.filter((s) => s.id !== id),
+    }));
+    // Optimistic dismiss — fire-and-forget API call
+    fetch(`/api/scans/${id}/dismiss`, { method: 'POST' });
+  },
+}));
+```
+
+## Devtools and persistence
+
+```ts
+import { create } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
+
+interface PreferencesStore {
+  compactMode: boolean;
+  setCompactMode: (v: boolean) => void;
+  defaultCurrency: 'GBP' | 'USD' | 'EUR';
+  setDefaultCurrency: (c: 'GBP' | 'USD' | 'EUR') => void;
+}
+
+export const usePreferencesStore = create<PreferencesStore>()(
+  devtools(
+    persist(
+      (set) => ({
+        compactMode: false,
+        setCompactMode: (v) => set({ compactMode: v }),
+        defaultCurrency: 'GBP',
+        setDefaultCurrency: (c) => set({ defaultCurrency: c }),
+      }),
+      {
+        name: 'construx-preferences',  // localStorage key
+        // Only persist specific keys — don't persist ephemeral state
+        partialize: (state) => ({
+          compactMode: state.compactMode,
+          defaultCurrency: state.defaultCurrency,
+        }),
+      },
+    ),
+    { name: 'PreferencesStore' },
+  ),
+);
+```
+
+`persist` saves the selected state to `localStorage`. `devtools` shows state changes in the Redux DevTools browser extension — works with Zustand out of the box.
+
+## Splitting stores
+
+One store per domain area is easier to reason about than one global store:
+
+```ts
+// stores/user.ts     — auth state, current user
+// stores/ui.ts       — sidebar, modals, theme
+// stores/scans.ts    — scan results, loading state
+// stores/filters.ts  — search, sort, pagination state
+```
+
+Stores can read from each other using `getState()`:
+
+```ts
+// Inside an action in scans.ts
+fetchScans: async () => {
+  // Read from another store
+  const { filters } = useFiltersStore.getState();
+  const response = await fetch(`/api/scans?status=${filters.status}`);
+  // ...
+},
+```
+
+## Context vs Zustand
+
+The distinction is simple:
+- **Context** — stable values that don't change often (auth state, theme, locale)
+- **Zustand** — shared mutable state that multiple components write to (scan results, UI state, filter selections)
+
+If you're using `useMemo` to prevent a context value from causing re-renders, that's the signal to switch to Zustand. The selector pattern handles it without the ceremony.
