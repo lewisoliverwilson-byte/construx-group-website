@@ -1,0 +1,191 @@
+---
+title: "Drizzle ORM: type-safe SQL without the magic"
+date: "2030-01-31"
+excerpt: "Drizzle is a TypeScript ORM that stays close to SQL. You define your schema in TypeScript, run migrations with the CLI, and write queries using a builder that maps directly to SQL. There's no N+1 abstraction, no implicit joins, no 'magic' — every query you write produces a predictable SQL statement you can read. It's lightweight, fast, and edge-compatible."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Prisma abstracts SQL with a high-level model API. Drizzle exposes SQL directly through TypeScript — the query builder reads like SQL, and the output is SQL. You trade Prisma's ergonomic model queries for explicit control and edge-runtime compatibility.
+
+## Schema definition
+
+```ts
+// db/schema.ts
+import { pgTable, text, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+export const users = pgTable('users', {
+  id:        text('id').primaryKey().default(sql`gen_random_uuid()`),
+  email:     text('email').notNull().unique(),
+  name:      text('name'),
+  active:    boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const posts = pgTable('posts', {
+  id:       text('id').primaryKey().default(sql`gen_random_uuid()`),
+  title:    text('title').notNull(),
+  content:  text('content').notNull(),
+  status:   text('status', { enum: ['draft', 'published', 'archived'] }).notNull().default('draft'),
+  authorId: text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Inferred types
+export type User  = typeof users.$inferSelect;
+export type Post  = typeof posts.$inferSelect;
+export type NewPost = typeof posts.$inferInsert;
+```
+
+## Database connection
+
+```ts
+// db/index.ts
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool }    from 'pg';
+import * as schema from './schema';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const db = drizzle(pool, { schema });
+```
+
+For edge runtimes (Cloudflare Workers, Vercel Edge):
+
+```ts
+import { drizzle }   from 'drizzle-orm/neon-http';
+import { neon }      from '@neondatabase/serverless';
+
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql, { schema });
+```
+
+## Querying
+
+```ts
+import { eq, and, desc, like, count } from 'drizzle-orm';
+
+// Select
+const allPosts = await db.select().from(posts);
+
+// Select with filter
+const publishedPosts = await db
+  .select()
+  .from(posts)
+  .where(eq(posts.status, 'published'))
+  .orderBy(desc(posts.createdAt))
+  .limit(10);
+
+// Select specific columns
+const titles = await db
+  .select({ id: posts.id, title: posts.title })
+  .from(posts)
+  .where(eq(posts.authorId, userId));
+
+// Join
+const postsWithAuthors = await db
+  .select({
+    postId:     posts.id,
+    postTitle:  posts.title,
+    authorName: users.name,
+  })
+  .from(posts)
+  .innerJoin(users, eq(posts.authorId, users.id))
+  .where(eq(posts.status, 'published'));
+
+// Count
+const [{ total }] = await db
+  .select({ total: count() })
+  .from(posts)
+  .where(eq(posts.status, 'published'));
+```
+
+## Mutations
+
+```ts
+// Insert
+const [newPost] = await db
+  .insert(posts)
+  .values({
+    title:    'New post',
+    content:  'Content here',
+    authorId: userId,
+  })
+  .returning();
+
+// Update
+const [updated] = await db
+  .update(posts)
+  .set({ status: 'published' })
+  .where(and(eq(posts.id, postId), eq(posts.authorId, userId)))
+  .returning();
+
+// Delete
+await db.delete(posts).where(eq(posts.id, postId));
+```
+
+## Transactions
+
+```ts
+const result = await db.transaction(async (tx) => {
+  const [user] = await tx.insert(users).values({ email, name }).returning();
+  const [post] = await tx.insert(posts).values({
+    title:    'First post',
+    content:  'Welcome!',
+    authorId: user.id,
+  }).returning();
+  return { user, post };
+});
+```
+
+## Migrations
+
+```bash
+npm install drizzle-kit
+
+# Generate migration from schema changes
+npx drizzle-kit generate
+
+# Apply migrations
+npx drizzle-kit migrate
+
+# Or push schema directly (dev only, no migration file)
+npx drizzle-kit push
+```
+
+```ts
+// drizzle.config.ts
+import { defineConfig } from 'drizzle-kit';
+
+export default defineConfig({
+  schema:    './db/schema.ts',
+  out:       './db/migrations',
+  dialect:   'postgresql',
+  dbCredentials: { url: process.env.DATABASE_URL! },
+});
+```
+
+## Query builder vs ORM mental model
+
+Drizzle's query builder:
+
+```ts
+// Drizzle: explicit SQL structure
+const results = await db
+  .select({ id: posts.id, title: posts.title, authorName: users.name })
+  .from(posts)
+  .leftJoin(users, eq(posts.authorId, users.id))
+  .where(eq(posts.status, 'published'));
+```
+
+Prisma's model API:
+
+```ts
+// Prisma: higher-level, implicit joins
+const results = await prisma.post.findMany({
+  where:   { status: 'published' },
+  select:  { id: true, title: true, author: { select: { name: true } } },
+});
+```
+
+Drizzle wins when: you need edge runtime support, you want precise SQL output, or you're optimising specific queries and need to see exactly what SQL is generated. Prisma wins when: you prefer the abstraction, you need Prisma's relation loading patterns, or your team is more comfortable with the ORM mental model.

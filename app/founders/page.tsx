@@ -8,6 +8,7 @@ import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import UlimitPanel from '@/components/UlimitPanel';
+import VarLogAuthPanel from '@/components/VarLogAuthPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -470,6 +471,11 @@ export default function FoundersPage() {
         {/* Resource limits */}
         <div className="mt-6">
           <UlimitPanel />
+        </div>
+
+        {/* Auth log */}
+        <div className="mt-6">
+          <VarLogAuthPanel />
         </div>
 
         {/* CTA */}

@@ -1,0 +1,175 @@
+---
+title: "Nix: reproducible development environments"
+date: "2030-02-06"
+excerpt: "Nix is a package manager that guarantees reproducible environments. Every dependency is hashed — the same hash always produces the same package. A Nix shell gives every developer on the project the exact same tools at the exact same versions, regardless of what's installed on their machine. No 'works on my machine', no version drift, no manual setup docs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The problem: your CI runs Node 22, your colleague's laptop has Node 20, and production runs Node 22.14. Your app works in CI, breaks locally, passes review, fails in prod. Nix solves this by specifying the exact build of every tool and letting the Nix daemon isolate environments per project.
+
+## How Nix works
+
+Nix stores every package in `/nix/store` under a hash of its inputs:
+
+```
+/nix/store/7b3ab0e2g…-nodejs-22.14.0/
+/nix/store/q4f9x1r5c…-nodejs-20.18.1/
+/nix/store/9dk2m3p8s…-postgresql-16.2/
+```
+
+Two projects that need different Node.js versions coexist — each gets the exact binary it asked for. No symlink wars, no `nvm use`, no version manager.
+
+## Installation
+
+```bash
+# macOS / Linux
+sh <(curl -L https://nixos.org/nix/install)
+
+# Enable nix-command and flakes (modern API)
+echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+```
+
+## flake.nix: project environment definition
+
+```nix
+# flake.nix
+{
+  description = "Construx development environment";
+
+  inputs = {
+    nixpkgs.url    = "github:nixos/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+  };
+
+  outputs = { self, nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let pkgs = nixpkgs.legacyPackages.${system};
+      in {
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            nodejs_22
+            bun
+            postgresql_16
+            redis
+            awscli2
+            wrangler
+            turbo
+            git
+            curl
+            jq
+          ];
+
+          shellHook = ''
+            echo "Construx dev environment loaded"
+            echo "Node: $(node --version)"
+            echo "Bun:  $(bun --version)"
+          '';
+        };
+      });
+}
+```
+
+```bash
+# Enter the project environment
+nix develop
+
+# Or: automatically activate when entering the directory
+# Install direnv and nix-direnv:
+echo "use flake" > .envrc
+direnv allow
+```
+
+With `direnv`, your shell automatically switches to the project environment when you `cd` into the directory and switches back when you leave.
+
+## Pin to specific package versions
+
+```nix
+inputs = {
+  # Pin to a specific nixpkgs commit for exact reproducibility
+  nixpkgs.url = "github:nixos/nixpkgs/a3a3dda3bacf61e8a39258a0ed9c924eeca8e293";
+};
+```
+
+Everyone on the team running `nix develop` with this flake.lock gets bit-for-bit identical binaries.
+
+## per-project postgres
+
+```nix
+devShells.default = pkgs.mkShell {
+  packages = with pkgs; [ nodejs_22 postgresql_16 ];
+
+  shellHook = ''
+    export PGDATA="$PWD/.pgdata"
+    export PGHOST="$PWD/.pg"
+
+    mkdir -p "$PGHOST"
+
+    if [ ! -d "$PGDATA" ]; then
+      initdb --auth=trust --no-locale -E UTF8 "$PGDATA"
+    fi
+
+    if ! pg_ctl status -D "$PGDATA" > /dev/null 2>&1; then
+      pg_ctl start -D "$PGDATA" -l "$PGDATA/server.log" \
+        -o "-k $PGHOST -p 5433"
+    fi
+
+    export DATABASE_URL="postgresql://localhost:5433/construx"
+    createdb -h "$PGHOST" -p 5433 construx 2>/dev/null || true
+  '';
+};
+```
+
+When you enter the dev shell, Postgres starts on port 5433. When you leave, it stays running (or you can add a shutdown hook). Each project gets its own Postgres data directory — no shared state between projects.
+
+## Docker vs Nix for development
+
+Docker containers give you an isolated environment but with overhead: image layers, Docker daemon, volume mounts. Nix gives you the same isolation at the native binary level — tools run directly on your OS, no container layer, faster startup.
+
+Docker is better for: production deployment (well-understood, platform support everywhere), services (databases, message queues) that run alongside your app. Nix is better for: developer tooling (the CLI tools you run, not the services you connect to), reproducible CI builds, and environments where you want native performance.
+
+## NixOS: the full operating system
+
+Nix is also a Linux distribution (NixOS) where the entire OS is declarative:
+
+```nix
+# /etc/nixos/configuration.nix
+{ config, pkgs, ... }: {
+  services.postgresql = {
+    enable  = true;
+    package = pkgs.postgresql_16;
+  };
+
+  services.nginx.enable = true;
+
+  users.users.lewis = {
+    isNormalUser = true;
+    extraGroups  = [ "wheel" "docker" ];
+    packages     = with pkgs; [ git vim nodejs_22 ];
+  };
+}
+```
+
+```bash
+nixos-rebuild switch  # apply the configuration
+```
+
+The entire system state is declarative. Roll back to a previous configuration:
+
+```bash
+nixos-rebuild switch --rollback
+```
+
+NixOS on production servers gives you: reproducible deployments, atomic upgrades, and easy rollback. The tradeoff is the learning curve — Nix's language and module system take time to learn.
+
+## Getting started without committing
+
+```bash
+# Try a package without installing it
+nix shell nixpkgs#jq nixpkgs#httpie
+
+# Run a one-off command
+nix run nixpkgs#cowsay -- "Hello from Nix"
+```
+
+This is the easiest way to try Nix: install nothing, run packages from nixpkgs directly.

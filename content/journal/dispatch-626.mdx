@@ -1,0 +1,196 @@
+---
+title: "Temporal: durable workflows and reliable background jobs"
+date: "2030-02-03"
+excerpt: "Temporal is a workflow engine for writing long-running, reliable code. You write ordinary TypeScript functions — activities — and orchestrate them in workflows. Temporal handles retries, timeouts, state persistence, and recovery from failures. A workflow that spans days, makes dozens of API calls, and needs every step to succeed exactly once becomes straightforward to write and debug."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Temporal solves the reliable execution problem. You have code that must run to completion — a multi-step order fulfillment, a background sync that retries until it succeeds, a workflow that waits for external events. With plain async/await, a crash loses all state. Temporal persists every state transition and resumes from where it left off.
+
+## Core concepts
+
+**Activity**: a function that does one unit of work — an API call, a database write, sending an email. Activities can fail and be retried independently.
+
+**Workflow**: orchestrates activities. A workflow function is deterministic — it can run the same way multiple times (on replay) and produce the same result. State, timers, and signals are built in.
+
+**Worker**: a process that runs your workflow and activity code. Workers poll Temporal Server for tasks.
+
+**Temporal Server**: the durable state machine. Stores event history, schedules tasks, handles retries.
+
+## Setup
+
+```bash
+npm install @temporalio/client @temporalio/worker @temporalio/workflow @temporalio/activity
+```
+
+```bash
+# Local dev server
+docker run -p 7233:7233 temporalio/auto-setup:latest
+```
+
+## Activities: the units of work
+
+```ts
+// activities.ts
+import { Context } from '@temporalio/activity';
+
+export async function chargeCustomer(
+  orderId: string,
+  amountCents: number,
+  stripeCustomerId: string,
+): Promise<string> {
+  // Activities can be retried — use idempotency keys
+  const idempotencyKey = `order-${orderId}-charge`;
+
+  const intent = await stripe.paymentIntents.create({
+    amount:         amountCents,
+    currency:       'gbp',
+    customer:       stripeCustomerId,
+    idempotency_key: idempotencyKey,
+  });
+
+  if (intent.status !== 'succeeded') {
+    throw new Error(`Payment failed: ${intent.status}`);
+  }
+
+  return intent.id;
+}
+
+export async function fulfillOrder(orderId: string, paymentIntentId: string): Promise<void> {
+  await db.order.update({
+    where: { id: orderId },
+    data:  { status: 'fulfilled', paymentIntentId },
+  });
+}
+
+export async function sendOrderConfirmation(orderId: string, email: string): Promise<void> {
+  await resend.emails.send({
+    from:    'Construx <orders@construxgroup.io>',
+    to:      [email],
+    subject: `Order #${orderId} confirmed`,
+    html:    orderEmailHtml(orderId),
+  });
+}
+```
+
+## Workflow: the orchestration
+
+```ts
+// workflows.ts
+import { proxyActivities, sleep } from '@temporalio/workflow';
+import type * as activities        from './activities';
+
+const { chargeCustomer, fulfillOrder, sendOrderConfirmation } =
+  proxyActivities<typeof activities>({
+    startToCloseTimeout: '30 seconds',
+    retry: {
+      maximumAttempts:  5,
+      initialInterval:  '1 second',
+      backoffCoefficient: 2,
+    },
+  });
+
+export async function processOrderWorkflow(params: {
+  orderId:         string;
+  amountCents:     number;
+  stripeCustomerId: string;
+  customerEmail:   string;
+}): Promise<void> {
+  const { orderId, amountCents, stripeCustomerId, customerEmail } = params;
+
+  // Step 1: charge (retried automatically on failure)
+  const paymentIntentId = await chargeCustomer(orderId, amountCents, stripeCustomerId);
+
+  // Step 2: fulfill (runs only after charge succeeds)
+  await fulfillOrder(orderId, paymentIntentId);
+
+  // Step 3: send confirmation
+  await sendOrderConfirmation(orderId, customerEmail);
+
+  // Step 4: wait 7 days, then archive
+  await sleep('7 days');
+  await archiveOrder(orderId);
+}
+```
+
+## Starting workflows from your application
+
+```ts
+// client.ts
+import { Client, Connection } from '@temporalio/client';
+import { processOrderWorkflow } from './workflows';
+
+const connection = await Connection.connect({ address: 'localhost:7233' });
+const client     = new Client({ connection });
+
+// Start a workflow
+const handle = await client.workflow.start(processOrderWorkflow, {
+  workflowId: `order-${orderId}`,  // idempotent — duplicate starts are ignored
+  taskQueue:  'orders',
+  args: [{
+    orderId,
+    amountCents: 4999,
+    stripeCustomerId: 'cus_abc123',
+    customerEmail: 'lewis@construxgroup.io',
+  }],
+});
+
+console.log(`Workflow started: ${handle.workflowId}`);
+const result = await handle.result();  // wait for completion
+```
+
+## Worker: running the code
+
+```ts
+// worker.ts
+import { Worker } from '@temporalio/worker';
+import * as activities from './activities';
+
+const worker = await Worker.create({
+  workflowsPath: require.resolve('./workflows'),
+  activities,
+  taskQueue:    'orders',
+});
+
+await worker.run();
+```
+
+Workers are just Node.js processes. Run multiple workers for concurrency; Temporal distributes tasks across them.
+
+## Signals and queries
+
+```ts
+// Workflow: accept external signals
+import { defineSignal, defineQuery, setHandler } from '@temporalio/workflow';
+
+export const approveSignal = defineSignal<[string]>('approve');
+export const statusQuery   = defineQuery<string>('status');
+
+export async function approvalWorkflow(requestId: string) {
+  let status = 'pending';
+
+  setHandler(approveSignal, (approvedBy) => {
+    status = `approved by ${approvedBy}`;
+  });
+
+  setHandler(statusQuery, () => status);
+
+  // Wait for approval or timeout after 7 days
+  await condition(() => status !== 'pending', '7 days');
+
+  if (status === 'pending') {
+    throw new Error('Approval timed out');
+  }
+}
+
+// Client: send signal and query
+await handle.signal(approveSignal, 'lewis');
+const status = await handle.query(statusQuery);
+```
+
+## Temporal vs Inngest
+
+Both solve the durable execution problem. Inngest is simpler to get started (serverless, no infrastructure), better for event-driven workflows, and integrates natively with Next.js API routes. Temporal is more powerful (signals, complex orchestration, queries, replay), more opinionated (requires a server), and better for long-lived workflows spanning days or weeks.
+
+Start with Inngest. Reach for Temporal when your workflows are complex enough to need signals, custom retries per activity, or workflows that span weeks.
