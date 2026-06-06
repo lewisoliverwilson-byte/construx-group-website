@@ -1,0 +1,281 @@
+---
+title: "Resend: transactional email that doesn't suck"
+date: "2028-09-02"
+excerpt: "Resend is a developer-first transactional email API. React-based templates, clean SDK, good deliverability. Here's the full setup: API integration, React Email templates, webhook handling for delivery events, and domain authentication."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Transactional email has always been painful: SMTP configuration, HTML template hell, deliverability mystery, and analytics you can't trust. Resend solves the developer side of this cleanly.
+
+## Setup
+
+```bash
+npm install resend @react-email/components
+```
+
+```ts
+// lib/email.ts
+import { Resend } from 'resend';
+
+export const resend = new Resend(process.env.RESEND_API_KEY);
+```
+
+## React Email templates
+
+```tsx
+// emails/WelcomeEmail.tsx
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Heading,
+  Hr,
+  Html,
+  Link,
+  Preview,
+  Section,
+  Text,
+} from '@react-email/components';
+
+interface WelcomeEmailProps {
+  name: string;
+  confirmUrl: string;
+}
+
+export function WelcomeEmail({ name, confirmUrl }: WelcomeEmailProps) {
+  return (
+    <Html>
+      <Head />
+      <Preview>Confirm your email to get started</Preview>
+      <Body style={{ backgroundColor: '#f6f9fc', fontFamily: 'sans-serif' }}>
+        <Container style={{ maxWidth: '580px', margin: '40px auto', backgroundColor: '#ffffff', borderRadius: '4px', overflow: 'hidden' }}>
+          <Section style={{ padding: '40px' }}>
+            <Heading style={{ fontSize: '24px', color: '#1a1a2e', marginBottom: '16px' }}>
+              Welcome, {name}
+            </Heading>
+            <Text style={{ fontSize: '16px', color: '#666', lineHeight: '1.5' }}>
+              You're one step away. Confirm your email address to activate your account.
+            </Text>
+            <Section style={{ marginTop: '32px', marginBottom: '32px' }}>
+              <Button
+                href={confirmUrl}
+                style={{
+                  backgroundColor: '#F97316',
+                  borderRadius: '4px',
+                  color: '#000',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  padding: '12px 24px',
+                  textDecoration: 'none',
+                }}
+              >
+                Confirm email address
+              </Button>
+            </Section>
+            <Text style={{ fontSize: '13px', color: '#999' }}>
+              If you didn't create an account, ignore this email.
+            </Text>
+          </Section>
+          <Hr style={{ borderColor: '#eee' }} />
+          <Section style={{ padding: '20px 40px' }}>
+            <Text style={{ fontSize: '12px', color: '#999', margin: 0 }}>
+              Construx Group · <Link href="https://construxgroup.io">construxgroup.io</Link>
+            </Text>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+```
+
+## Sending from a route handler
+
+```ts
+// app/api/auth/register/route.ts
+import { resend } from '@/lib/email';
+import { WelcomeEmail } from '@/emails/WelcomeEmail';
+
+export async function POST(req: Request) {
+  const { email, name } = await req.json();
+
+  // Create user in database...
+  const confirmToken = generateToken();
+  const confirmUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm?token=${confirmToken}`;
+
+  const { data, error } = await resend.emails.send({
+    from: 'Construx Group <hello@construxgroup.io>',
+    to: email,
+    subject: 'Confirm your email',
+    react: WelcomeEmail({ name, confirmUrl }),
+  });
+
+  if (error) {
+    console.error('[email] send failed:', error);
+    // Don't fail the registration — email can be resent
+  }
+
+  return Response.json({ ok: true });
+}
+```
+
+## Email templates with dynamic content
+
+```tsx
+// emails/ScanAlertEmail.tsx
+import { Body, Container, Head, Heading, Html, Preview, Row, Section, Text } from '@react-email/components';
+
+interface ScanResult {
+  productTitle: string;
+  sourcePrice: number;
+  targetPrice: number;
+  priceDelta: number;
+  alertLevel: 'low' | 'medium' | 'high';
+}
+
+interface ScanAlertEmailProps {
+  userName: string;
+  results: ScanResult[];
+  scanDate: string;
+}
+
+const ALERT_COLORS = {
+  low: '#4ade80',
+  medium: '#FBBF24',
+  high: '#F97316',
+};
+
+export function ScanAlertEmail({ userName, results, scanDate }: ScanAlertEmailProps) {
+  const highAlerts = results.filter((r) => r.alertLevel === 'high');
+
+  return (
+    <Html>
+      <Head />
+      <Preview>
+        {highAlerts.length > 0
+          ? `${highAlerts.length} high-value opportunities found`
+          : `${results.length} scan results from ${scanDate}`}
+      </Preview>
+      <Body style={{ backgroundColor: '#05050F', fontFamily: 'monospace' }}>
+        <Container style={{ maxWidth: '600px', margin: '40px auto', backgroundColor: '#0a0a1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>
+          <Section style={{ padding: '32px' }}>
+            <Text style={{ color: 'rgba(249,115,22,0.8)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>
+              SCOUTR ALERT — {scanDate}
+            </Text>
+            <Heading style={{ color: '#F0EFFF', fontSize: '20px', fontWeight: '700', margin: '0 0 24px' }}>
+              {results.length} results for {userName}
+            </Heading>
+
+            {results.map((result, i) => (
+              <Row key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '12px 0' }}>
+                <Section>
+                  <Text style={{ color: '#F0EFFF', fontSize: '13px', margin: '0 0 4px', fontWeight: '600' }}>
+                    {result.productTitle}
+                  </Text>
+                  <Text style={{ color: 'rgba(240,239,255,0.5)', fontSize: '12px', margin: '0 0 4px' }}>
+                    £{result.sourcePrice.toFixed(2)} → £{result.targetPrice.toFixed(2)}
+                  </Text>
+                  <Text style={{ color: ALERT_COLORS[result.alertLevel], fontSize: '12px', margin: 0, fontWeight: '600' }}>
+                    +{result.priceDelta.toFixed(1)}% delta · {result.alertLevel.toUpperCase()}
+                  </Text>
+                </Section>
+              </Row>
+            ))}
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+```
+
+## Webhook handling for delivery events
+
+```ts
+// app/api/webhooks/resend/route.ts
+import { resend } from '@/lib/email';
+
+export async function POST(req: Request) {
+  const payload = await req.text();
+  const headers = Object.fromEntries(req.headers.entries());
+
+  // Verify signature
+  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!webhookSecret) return new Response('Missing webhook secret', { status: 500 });
+
+  try {
+    const svix = await import('svix');
+    const wh = new svix.Webhook(webhookSecret);
+    const event = wh.verify(payload, headers) as { type: string; data: Record<string, unknown> };
+
+    switch (event.type) {
+      case 'email.delivered':
+        console.log('[email] delivered to', event.data.to);
+        break;
+
+      case 'email.bounced':
+        // Mark email address as invalid in database
+        await markEmailBounced(event.data.to as string);
+        break;
+
+      case 'email.complained':
+        // Remove from marketing lists
+        await removeFromMarketingLists(event.data.to as string);
+        break;
+
+      case 'email.opened':
+        // Track open rate
+        break;
+    }
+
+    return Response.json({ ok: true });
+  } catch (err) {
+    return new Response('Invalid signature', { status: 400 });
+  }
+}
+```
+
+## Batch sending
+
+```ts
+// Send to multiple recipients without triggering spam filters
+export async function sendBatch(emails: Array<{ to: string; name: string }>) {
+  // Resend supports batch sending — up to 100 emails per call
+  const batch = emails.map(({ to, name }) => ({
+    from: 'Construx Group <hello@construxgroup.io>',
+    to,
+    subject: 'Your weekly scan summary',
+    react: ScanSummaryEmail({ name }),
+  }));
+
+  const { data, error } = await resend.batch.send(batch);
+
+  if (error) {
+    console.error('[email] batch failed:', error);
+    return { sent: 0, error };
+  }
+
+  return { sent: data?.data.length ?? 0 };
+}
+```
+
+## Domain setup
+
+In the Resend dashboard, verify your sending domain with three DNS records:
+- SPF record — proves you're authorised to send from the domain
+- DKIM record — signs emails with a private key Resend controls
+- DMARC record — tells receivers what to do with failing messages
+
+Without these, email goes to spam regardless of content quality. Set them up before sending anything.
+
+## Previewing templates locally
+
+```bash
+npx email dev
+```
+
+React Email ships a local dev server that hot-reloads templates and shows a browser preview. Much faster than test-sending to your own inbox every time you change the layout.
+
+The stack: Resend API + React Email components + webhook verification. Domain auth in DNS. That's it. No SMTP, no HTML string concatenation, no deliverability mysteries you can't diagnose.

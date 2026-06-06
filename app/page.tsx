@@ -10,6 +10,7 @@ import CountUp from '@/components/ui/CountUp';
 import SystemLog from '@/components/SystemLog';
 import SysBootSequence from '@/components/SysBootSequence';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
+import DmesgPanel from '@/components/DmesgPanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -142,8 +143,13 @@ export default function HomePage() {
       </div>
 
       {/* Network ping panel */}
-      <div className="pb-10">
+      <div className="pb-6">
         <NetworkPingPanel />
+      </div>
+
+      {/* dmesg kernel log */}
+      <div className="pb-10">
+        <DmesgPanel />
       </div>
 
       {/* Below-fold: What is Construx */}
