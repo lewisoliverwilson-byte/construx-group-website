@@ -1,0 +1,79 @@
+---
+title: "Pricing psychology: what we learned setting prices for three different products"
+date: "2026-09-16"
+excerpt: "Pricing is a product decision, not just a financial one. Each Construx product has a different pricing structure, and we didn't get all of them right on the first attempt."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Pricing is one of the most important and least discussed product decisions. There's a tendency to treat it as an operational concern — "what are competitors charging?" or "what covers our costs?" — rather than a product decision that shapes how users perceive value and make decisions.
+
+We got some pricing decisions right immediately and others took two or three iterations to land on something that worked.
+
+## Scoutr: the subscription vs. pay-per-analysis debate
+
+The first pricing question for Scoutr: subscription or pay-per-scan?
+
+Pay-per-scan is intuitive for a tool that does discrete analysis. You scan a product, you pay for the scan. Transactional pricing.
+
+Subscription is better for tools used habitually. The user pays once per month and uses the tool as much as they want. No friction at point of use.
+
+We launched with both: a free tier (5 scans per day), a £12/month pro tier (unlimited scans, CSV export), and a pay-per-scan option at £0.15 per scan beyond the free limit.
+
+What happened: the pay-per-scan option was used by almost nobody. Users either stayed on free or upgraded to pro. The pay-per-scan users were almost entirely users who'd hit the daily limit once and didn't want to commit to a subscription — exactly the users we most wanted to convert to pro.
+
+The problem with pay-per-scan: it creates decision friction at the point of use. "Is this scan worth £0.15?" is a question users ask every time they hit the limit. The answer was consistently "no" — they'd stop rather than pay per scan. The subscription avoids this question entirely.
+
+We removed the pay-per-scan option three months post-launch. The free-to-pro conversion rate improved by 11% in the following month. Removing friction is a pricing strategy.
+
+## The Marqet: commission vs. listing fee
+
+Marketplaces have two obvious pricing models: listing fees (sellers pay to list) or commission (the platform takes a percentage of sales).
+
+Listing fees generate revenue immediately and predictably. Commission aligns the platform's revenue with seller success.
+
+We launched with listing fees: £3 per listing per month. Small enough to be accessible; large enough to signal that we're not free-tier infrastructure.
+
+The problem: sellers who listed services that didn't sell were paying ongoing fees for a service they weren't getting value from. The listing fee created resentment in cases where listings were live but inactive.
+
+At month three, we added a commission tier as an alternative: 8% of each sale, no listing fee. Sellers choose when creating their account.
+
+The result: 60% of sellers chose commission, 40% chose listing fees. Commission sellers are, on average, more active sellers with higher-quality listings. Listing-fee sellers tend to be one-off or occasional sellers who know their listing will convert and don't want to pay 8% on every sale.
+
+The two-tier structure also revealed a pricing signal we hadn't anticipated: high-volume sellers who were price-sensitive about commission asked for a lower commission rate in exchange for a listing fee. We added a hybrid tier (£1.50/listing/month + 4% commission) that captures this segment.
+
+## The Hyve: team-based pricing
+
+The Hyve is a team workspace. Individual pricing doesn't fit — you'd never buy a team tool for one person. Team pricing has two common structures:
+
+**Per-seat pricing:** £X per user per month. Revenue scales with team size.
+
+**Workspace pricing:** £X per workspace per month, unlimited users. Revenue doesn't scale with team size but is simpler and more predictable for buyers.
+
+We launched with per-seat pricing at £8/seat/month, with the first 3 seats free (to allow small teams to get started without payment friction).
+
+The problem: per-seat pricing creates a budget decision every time a team grows. "Should we add a new workspace member?" becomes "Should we spend another £8/month?" This friction limits the product's natural growth within a workspace.
+
+We switched to workspace pricing at month four: £25/month for unlimited users, with a 14-day free trial and a 3-seat free tier for very small teams.
+
+Conversion from trial to paid went up 23% after the switch. The unlimited-users framing removed the per-seat anxiety and encouraged workspace admins to invite their full team rather than controlling headcount for budget reasons.
+
+## The psychological principles
+
+In retrospect, each pricing iteration moved in the same direction: reducing friction at the point of value delivery.
+
+**Remove per-use pricing for habitual tools.** Every decision point where a user considers whether to pay interrupts the habit loop. Subscription eliminates these decisions.
+
+**Align pricing with value delivery.** Commission pricing for a marketplace aligns the platform's revenue with seller success. When sellers succeed, we succeed. This is more psychologically acceptable than paying a fee regardless of outcome.
+
+**Remove headcount pricing for collaboration tools.** Per-seat pricing turns team growth into a budget line item. Workspace pricing makes team growth free at the margin.
+
+The pattern: people don't object to paying for value; they object to friction and to paying for something that doesn't deliver value. Remove the friction, align the pricing with the value, and conversion improves.
+
+## What we still get wrong
+
+We don't know if our prices are optimal. £12/month for Scoutr Pro, £25/month for The Hyve — these are plausible prices based on competitive research and user willingness to pay signals. They might be 20% too low or 20% too high.
+
+Pricing experimentation is uncomfortable. Running an A/B test on price means some users pay more than others for the same product, which creates equity concerns when users compare notes.
+
+We've done light testing via cohort analysis (users who signed up in different months faced different price points due to our own changes) but haven't run explicit price tests. This is probably leaving money on the table. We'll test more explicitly in the next phase of growth.

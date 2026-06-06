@@ -1,0 +1,163 @@
+---
+title: "Error boundaries and graceful failure: designing for when things go wrong"
+date: "2026-09-17"
+excerpt: "Errors are not edge cases; they're part of the product. The question is whether your UI tells the user something useful when an error happens or just shows a white screen."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every production product fails. Not continuously, but regularly. Third-party APIs return errors. Database connections time out. Edge cases in user input produce unexpected results. The question isn't whether your product will fail but what the user sees when it does.
+
+In early versions of all three Construx products, the answer was: a white screen, an unhandled exception, or at best a generic "something went wrong" message. We've since built a more intentional approach to failure.
+
+## React error boundaries
+
+Error boundaries are React's mechanism for catching render-time JavaScript errors and rendering a fallback UI instead of crashing the entire page. Every Construx product uses them at multiple levels of the component tree.
+
+The base error boundary:
+
+```tsx
+'use client';
+
+import { Component, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+  context?: string;
+}
+
+interface State {
+  hasError: boolean;
+  errorMessage: string;
+}
+
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, errorMessage: '' };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, errorMessage: error.message };
+  }
+
+  componentDidCatch(error: Error, info: { componentStack: string }) {
+    console.error(`[ErrorBoundary:${this.props.context ?? 'unknown'}]`, error, info);
+    // In production: send to error monitoring
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? <DefaultError message={this.state.errorMessage} />;
+    }
+    return this.props.children;
+  }
+}
+```
+
+We wrap individual features rather than the entire application in error boundaries. This means a failure in the AI analysis panel doesn't crash the product listing page — the listing is still usable, the AI panel shows an error state.
+
+## The fallback hierarchy
+
+Not all errors should look the same. We have three levels of fallback UI:
+
+**Feature-level degradation.** The AI analysis feature is unavailable; the rest of the page works normally. The error state is contained to the AI component, which shows:
+
+```tsx
+function AIUnavailable() {
+  return (
+    <div className="px-4 py-3 font-mono text-[10px]" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}>
+      <span style={{ color: 'rgba(249,115,22,0.6)' }}>// AI.ANALYSIS</span>
+      <p className="mt-2" style={{ color: 'rgba(240,239,255,0.4)' }}>
+        Analysis unavailable — API timeout. Core data below.
+      </p>
+    </div>
+  );
+}
+```
+
+**Section-level degradation.** A section of the page failed to load (the chart, the listing grid, the message history). The section shows a minimal error state; navigation and other sections work.
+
+**Page-level error.** Something fundamental failed — the page route threw, the layout broke. Next.js's `error.tsx` convention handles this, rendering a full-page error with a reload option.
+
+## Next.js error.tsx
+
+Next.js 13+ allows an `error.tsx` file in any route segment, which catches errors thrown during rendering and provides a fallback:
+
+```tsx
+// app/journal/[slug]/error.tsx
+'use client';
+
+import { useEffect } from 'react';
+import Link from 'next/link';
+
+interface Props {
+  error: Error & { digest?: string };
+  reset: () => void;
+}
+
+export default function JournalError({ error, reset }: Props) {
+  useEffect(() => {
+    console.error('[JournalRoute]', error);
+  }, [error]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-5">
+      <div className="font-mono text-center max-w-sm">
+        <p className="text-[9px] uppercase tracking-[0.25em] mb-3" style={{ color: 'rgba(249,115,22,0.6)' }}>
+          // DISPATCH.ERROR
+        </p>
+        <p className="text-sm text-text-muted mb-6">
+          This dispatch couldn't load. Try refreshing, or go back to the journal.
+        </p>
+        <div className="flex gap-3 justify-center">
+          <button
+            onClick={reset}
+            className="font-mono text-[10px] px-4 py-2 uppercase tracking-widest transition-colors"
+            style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.22)', color: '#F97316' }}
+          >
+            Retry
+          </button>
+          <Link
+            href="/journal"
+            className="font-mono text-[10px] px-4 py-2 uppercase tracking-widest transition-colors"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(240,239,255,0.5)' }}
+          >
+            Back to Journal
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+The `reset()` function provided by Next.js re-renders the route, effectively retrying the failed render. For transient errors (network flickers, brief API timeouts), the retry often succeeds.
+
+## API error handling
+
+Client-side API calls use a wrapper that normalises error responses:
+
+```ts
+async function apiCall<T>(url: string, options?: RequestInit): Promise<{ data: T | null; error: string | null }> {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { data: null, error: body.error ?? `HTTP ${res.status}` };
+    }
+    const data = await res.json();
+    return { data, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Network error' };
+  }
+}
+```
+
+Components check the `error` return and render the appropriate fallback. The key pattern: the component always renders something, even if the API call failed. A loading skeleton followed by an error state is better than an invisible component.
+
+## The principle
+
+The principle behind all of this: users should always know what's happening. An error is better than silence; a specific error is better than a generic one; a specific error with a recovery action is best of all.
+
+A white screen tells a user nothing. "Something went wrong" tells a user their action failed. "Analysis unavailable — the AI API is temporarily down. Your product data is available below." tells a user exactly what failed, what still works, and implicitly that it might resolve on retry.
+
+Designing failure states is product work, not engineering cleanup. We now design them during feature development, not after we see production failures.
