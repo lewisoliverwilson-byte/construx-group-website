@@ -1,0 +1,194 @@
+---
+title: "How we handle file uploads: S3, presigned URLs, and what not to do"
+date: "2027-03-07"
+excerpt: "File uploads are deceptively complex. Routing files through your server adds latency and cost. Presigned URLs let clients upload directly to S3, but require careful security design. Here's the pattern we use and the mistakes we avoided."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+File uploads in web applications have a hidden cost that isn't obvious when the feature is small: every byte of every file you upload goes through your server if you're not careful. At any non-trivial file volume, this adds latency, burns bandwidth, and creates a chokepoint in your infrastructure.
+
+The correct pattern is to upload directly to S3 (or R2, or GCS) from the client, with your server providing a short-lived authorisation token. Here's how we implement this.
+
+## The naive pattern and why it's wrong
+
+The naive implementation:
+
+```ts
+// ✗ File passes through your server
+export async function POST(req: Request) {
+  const formData = await req.formData();
+  const file = formData.get('file') as File;
+  const buffer = await file.arrayBuffer();
+  
+  // Upload to S3 from the server
+  await s3.putObject({
+    Bucket: 'construx-storage',
+    Key: `uploads/${crypto.randomUUID()}`,
+    Body: Buffer.from(buffer),
+  });
+  
+  return Response.json({ success: true });
+}
+```
+
+Problems:
+1. Every file byte travels client → server → S3. Double the bandwidth, double the latency.
+2. Serverless functions have memory limits and timeouts. A 100MB upload that takes 60 seconds will timeout.
+3. Your server bears the cost of streaming a file that S3 can receive directly.
+
+## Presigned URLs: direct upload to S3
+
+The correct pattern uses a two-step flow:
+1. Client asks your server for a presigned URL (fast — no file involved)
+2. Client uploads directly to S3 using the presigned URL (no server involvement)
+3. Client notifies your server that the upload is complete
+
+```ts
+// Step 1: Generate a presigned URL
+// app/api/upload/presign/route.ts
+
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const s3 = new S3Client({ region: 'eu-west-2' });
+
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session) return new Response('Unauthorized', { status: 401 });
+
+  const { filename, contentType, size } = await req.json();
+
+  // Validate before generating the URL
+  if (size > 10 * 1024 * 1024) {  // 10MB limit
+    return Response.json({ error: 'File too large' }, { status: 400 });
+  }
+
+  const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+  if (!ALLOWED_TYPES.has(contentType)) {
+    return Response.json({ error: 'File type not allowed' }, { status: 400 });
+  }
+
+  const key = `uploads/${session.workspaceId}/${crypto.randomUUID()}-${filename}`;
+
+  const command = new PutObjectCommand({
+    Bucket: process.env.S3_BUCKET,
+    Key: key,
+    ContentType: contentType,
+    ContentLength: size,
+    // Tag with workspace for access control
+    Tagging: `workspaceId=${session.workspaceId}`,
+  });
+
+  const presignedUrl = await getSignedUrl(s3, command, {
+    expiresIn: 300,  // URL valid for 5 minutes
+  });
+
+  return Response.json({ presignedUrl, key });
+}
+```
+
+```ts
+// Step 2: Client uploads directly to S3
+// components/FileUpload.tsx
+
+async function uploadFile(file: File): Promise<string> {
+  // Get the presigned URL
+  const { presignedUrl, key } = await fetch('/api/upload/presign', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    }),
+    headers: { 'Content-Type': 'application/json' },
+  }).then(r => r.json());
+
+  // Upload directly to S3 — no server involvement
+  await fetch(presignedUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': file.type },
+  });
+
+  return key;  // The S3 key to store in your database
+}
+```
+
+```ts
+// Step 3: Notify the server that the upload is complete
+async function confirmUpload(key: string, metadata: Record<string, unknown>) {
+  await fetch('/api/upload/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ key, ...metadata }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+```
+
+## Access control
+
+The `key` structure matters for access control. We namespace by `workspaceId`:
+
+```
+uploads/{workspaceId}/{uuid}-{filename}
+```
+
+S3 bucket policy restricts access:
+- Public read is disabled entirely
+- Read access is granted via presigned GET URLs generated server-side
+- The server only generates read URLs for files belonging to the requesting workspace
+
+```ts
+// Generating a read URL — only for files the user owns
+export async function GET(req: Request) {
+  const session = await getSession();
+  const { key } = Object.fromEntries(new URL(req.url).searchParams);
+
+  // Verify the key belongs to this workspace
+  if (!key.startsWith(`uploads/${session.workspaceId}/`)) {
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: process.env.S3_BUCKET,
+    Key: key,
+  });
+
+  const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+  return Response.json({ url });
+}
+```
+
+## Progress reporting
+
+The direct-to-S3 upload pattern requires `XMLHttpRequest` for upload progress (the `fetch` API doesn't expose upload progress):
+
+```ts
+function uploadWithProgress(
+  presignedUrl: string,
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Upload failed: ${xhr.status}`));
+    });
+    xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+    xhr.open('PUT', presignedUrl);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.send(file);
+  });
+}
+```
+
+The `fetch` API will eventually support upload progress via `Request.body.pipeTo` — but not yet in a way that's practical across all browsers. For now, `XMLHttpRequest` is the pragmatic choice.
+
+## What we don't do
+
+We don't process files server-side at upload time (image resizing, virus scanning, OCR). These run asynchronously after the upload confirms, via the job queue. This keeps the upload path fast and reliable — the heavy processing happens separately.
