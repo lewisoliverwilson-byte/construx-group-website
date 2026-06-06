@@ -49,10 +49,21 @@ export default function ListViewToggle() {
             role="navigation"
             aria-label="Venture list"
           >
-            <div className="px-5 py-3.5 border-b border-border">
-              <p className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim">
-                // ALL VENTURES
-              </p>
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 border-b border-border select-none"
+              style={{ background: 'rgba(255,255,255,0.02)' }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
+                construx · ventures
+              </span>
+              <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                {ventures.length}
+              </span>
             </div>
             <ul className="p-2 flex flex-col gap-0.5">
               {ventures.map((v, i) => (
