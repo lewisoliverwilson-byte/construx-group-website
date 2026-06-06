@@ -1,0 +1,190 @@
+---
+title: "Optimistic updates with React Query: instant UI without waiting for the server"
+date: "2029-03-10"
+excerpt: "An optimistic update applies the expected server result to the UI immediately, then confirms or reverts when the real response arrives. React Query makes this four lines of code. Here's the pattern and where it goes wrong."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A pessimistic UI waits for the server: click Like, spinner, count updates. An optimistic UI assumes success: click Like, count updates immediately, server confirms in the background. Optimistic updates make the product feel instant. When the server returns an error, you revert to the previous state.
+
+## Basic setup with TanStack Query
+
+```bash
+npm install @tanstack/react-query
+```
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+}
+```
+
+## The mutation with optimistic update
+
+```tsx
+// components/LikeButton.tsx
+'use client';
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+interface Post {
+  id:     string;
+  likes:  number;
+  liked:  boolean;
+}
+
+export function LikeButton({ post }: { post: Post }) {
+  const queryClient = useQueryClient();
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: () =>
+      fetch(`/api/posts/${post.id}/like`, { method: 'POST' }).then((r) => r.json()),
+
+    onMutate: async () => {
+      // Cancel any in-flight queries for this post
+      await queryClient.cancelQueries({ queryKey: ['post', post.id] });
+
+      // Snapshot the current value
+      const previous = queryClient.getQueryData<Post>(['post', post.id]);
+
+      // Apply the optimistic update
+      queryClient.setQueryData<Post>(['post', post.id], (old) =>
+        old ? { ...old, likes: old.likes + 1, liked: true } : old,
+      );
+
+      return { previous };
+    },
+
+    onError: (_err, _vars, context) => {
+      // Revert on error
+      if (context?.previous) {
+        queryClient.setQueryData(['post', post.id], context.previous);
+      }
+    },
+
+    onSettled: () => {
+      // Always refetch to sync with server truth
+      queryClient.invalidateQueries({ queryKey: ['post', post.id] });
+    },
+  });
+
+  return (
+    <button
+      onClick={() => mutate()}
+      disabled={isPending || post.liked}
+      className={post.liked ? 'text-orange-500' : 'text-gray-400'}
+    >
+      ♥ {post.likes}
+    </button>
+  );
+}
+```
+
+The three hooks: `onMutate` applies the optimistic change and returns a snapshot. `onError` rolls back using that snapshot. `onSettled` refetches regardless of outcome to make sure the UI matches the database.
+
+## Optimistic list operations
+
+Adding an item to a list before the server confirms:
+
+```tsx
+const { mutate } = useMutation({
+  mutationFn: (newItem: { title: string }) =>
+    fetch('/api/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newItem),
+    }).then((r) => r.json()),
+
+  onMutate: async (newItem) => {
+    await queryClient.cancelQueries({ queryKey: ['items'] });
+    const previous = queryClient.getQueryData<Item[]>(['items']);
+
+    queryClient.setQueryData<Item[]>(['items'], (old = []) => [
+      ...old,
+      {
+        id:        `temp-${Date.now()}`,  // Temporary ID until server responds
+        title:     newItem.title,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+
+    return { previous };
+  },
+
+  onError: (_err, _vars, context) => {
+    if (context?.previous) {
+      queryClient.setQueryData(['items'], context.previous);
+    }
+  },
+
+  onSuccess: (serverItem, _vars) => {
+    // Replace temp item with server-generated item (with real ID)
+    queryClient.setQueryData<Item[]>(['items'], (old = []) =>
+      old.map((item) =>
+        item.id.startsWith('temp-') ? serverItem : item
+      ),
+    );
+  },
+
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ['items'] });
+  },
+});
+```
+
+## Server Actions with optimistic updates
+
+In Next.js App Router, `useOptimistic` from React handles this without a full query client:
+
+```tsx
+'use client';
+
+import { useOptimistic, startTransition } from 'react';
+import { toggleLike } from '@/app/actions/posts';
+
+export function LikeButton({ postId, initialLikes }: { postId: string; initialLikes: number }) {
+  const [optimisticLikes, addOptimisticLike] = useOptimistic(
+    initialLikes,
+    (current) => current + 1,
+  );
+
+  async function handleLike() {
+    startTransition(() => {
+      addOptimisticLike(null);
+    });
+
+    await toggleLike(postId);
+  }
+
+  return (
+    <button onClick={handleLike}>
+      ♥ {optimisticLikes}
+    </button>
+  );
+}
+```
+
+`useOptimistic` applies a reducer during a transition, shows the result immediately, and reverts if the async operation throws. It's the React-native approach — no query client needed.
+
+## When optimistic updates go wrong
+
+**Network error after user navigates away**: the rollback fires but the component is unmounted. Handle this by invalidating the query globally, not reverting the UI.
+
+**Race conditions**: two rapid clicks. The second `onMutate` snapshots a state that already has the first optimistic update applied. Mitigate with debounce on the trigger, or by cancelling in-flight mutations before starting a new one.
+
+**Server and client disagree on the new state**: a Like that deduplicates server-side — you can only like once. The optimistic update shows +1, server returns the same count. Always call `invalidateQueries` in `onSettled` to sync with truth.
+
+The rule: optimistic updates work best on idempotent operations (toggles, edits) where the expected server result is predictable from the client state. For complex mutations where the server response isn't predictable, skip the optimism and show a loading state instead.

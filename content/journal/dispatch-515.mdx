@@ -1,0 +1,191 @@
+---
+title: "TypeScript generics: the patterns that actually matter"
+date: "2029-03-07"
+excerpt: "Generics are how TypeScript lets you write functions and types that work across many types without losing type information. Most of the patterns you need in practice reduce to five or six forms. Here they are with concrete examples."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Generics feel opaque until they click. The insight is that a generic is a variable for a type — instead of fixing a function to work with `string` or `number`, you let the caller supply the type, and TypeScript tracks it through the output. Once you see it that way, the syntax makes sense.
+
+## The basic form
+
+```ts
+// Without generics — loses type information
+function first(arr: unknown[]): unknown {
+  return arr[0];
+}
+
+const x = first([1, 2, 3]);  // x: unknown — not useful
+
+// With generics — type flows through
+function first<T>(arr: T[]): T {
+  return arr[0];
+}
+
+const x = first([1, 2, 3]);   // x: number
+const y = first(['a', 'b']);  // y: string
+```
+
+TypeScript infers `T` from the argument — you don't need to write `first<number>([1,2,3])`.
+
+## Constrained generics
+
+`T extends X` says: T must be assignable to X.
+
+```ts
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+
+const user = { name: 'Lewis', age: 30 };
+const name = getProperty(user, 'name');  // string
+const age  = getProperty(user, 'age');   // number
+getProperty(user, 'email');              // Error: not a key of user
+```
+
+`K extends keyof T` means K must be one of T's keys. `T[K]` is the type of that property.
+
+## Conditional types
+
+```ts
+// Unwrap a Promise type
+type Awaited<T> = T extends Promise<infer U> ? U : T;
+
+type A = Awaited<Promise<string>>;  // string
+type B = Awaited<number>;           // number
+
+// Extract the return type of any function
+type ReturnType<T extends (...args: any) => any> =
+  T extends (...args: any) => infer R ? R : never;
+
+async function fetchUser(id: string) {
+  return { id, name: 'Lewis' };
+}
+
+type User = Awaited<ReturnType<typeof fetchUser>>;
+// { id: string; name: string }
+```
+
+`infer U` inside a conditional type lets TypeScript extract a type from within another type.
+
+## Generic API response wrapper
+
+A pattern used constantly in the Construx codebase:
+
+```ts
+type Result<T> =
+  | { ok: true;  data: T }
+  | { ok: false; error: string };
+
+async function safeQuery<T>(fn: () => Promise<T>): Promise<Result<T>> {
+  try {
+    const data = await fn();
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+// Usage
+const result = await safeQuery(() => db.select().from(users).where(eq(users.id, id)).get());
+
+if (result.ok) {
+  console.log(result.data.name);  // Typed as User
+} else {
+  console.error(result.error);    // string
+}
+```
+
+The discriminated union on `ok` lets TypeScript narrow the type in each branch.
+
+## Generic React components
+
+```tsx
+interface SelectProps<T> {
+  options:    T[];
+  value:      T | null;
+  onChange:   (value: T) => void;
+  getLabel:   (option: T) => string;
+  getValue:   (option: T) => string;
+}
+
+function Select<T>({ options, value, onChange, getLabel, getValue }: SelectProps<T>) {
+  return (
+    <select
+      value={value ? getValue(value) : ''}
+      onChange={(e) => {
+        const selected = options.find((o) => getValue(o) === e.target.value);
+        if (selected) onChange(selected);
+      }}
+    >
+      {options.map((opt) => (
+        <option key={getValue(opt)} value={getValue(opt)}>
+          {getLabel(opt)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// Usage — T inferred as { id: string; name: string }
+<Select
+  options={users}
+  value={selectedUser}
+  onChange={setSelectedUser}
+  getLabel={(u) => u.name}
+  getValue={(u) => u.id}
+/>
+```
+
+## Mapped types
+
+Transform every property of a type:
+
+```ts
+// Make all properties required
+type Required<T> = { [K in keyof T]-?: T[K] };
+
+// Make all properties nullable
+type Nullable<T> = { [K in keyof T]: T[K] | null };
+
+// Pick specific keys
+type Pick<T, K extends keyof T> = { [P in K]: T[P] };
+
+// Make all optional, remove readonly
+type Mutable<T> = { -readonly [K in keyof T]?: T[K] };
+
+// Practical: form state from a data type
+type FormState<T> = {
+  [K in keyof T]: {
+    value:   T[K];
+    error:   string | null;
+    touched: boolean;
+  };
+};
+```
+
+## Template literal types
+
+```ts
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+type ApiPath    = '/users' | '/posts' | '/comments';
+
+type ApiRoute = `${HttpMethod} ${ApiPath}`;
+// "GET /users" | "POST /users" | ... (15 combinations)
+
+// Extract the ID param from a route pattern
+type ExtractParam<Route extends string> =
+  Route extends `${string}:${infer Param}/${string}`
+    ? Param
+    : Route extends `${string}:${infer Param}`
+      ? Param
+      : never;
+
+type PostParam = ExtractParam<'/posts/:postId/comments/:commentId'>;
+// "postId" | "commentId"
+```
+
+## The rule
+
+Add generics when you'd otherwise use `any` or `unknown` to return something from a function, or when a type needs to work across a family of shapes. Don't add generics to be clever — if a function is always called with `string`, type it `string`. Generics earn their complexity when the type information genuinely needs to flow through.

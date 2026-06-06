@@ -5,6 +5,7 @@ import { ventures } from '@/lib/ventures';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
+import TopProcessPanel from '@/components/TopProcessPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -352,6 +353,11 @@ export default function StatsPage() {
       {/* Nginx access log panel */}
       <div className="mt-6">
         <NginxAccessLogPanel />
+      </div>
+
+      {/* Top process monitor */}
+      <div className="mt-6">
+        <TopProcessPanel />
       </div>
     </div>
   );
