@@ -1,0 +1,157 @@
+---
+title: "The Marqet's full-text search: from ILIKE to pg_trgm to tsvector"
+date: "2027-01-16"
+excerpt: "Search is often implemented as an afterthought — ILIKE queries that break at scale. The Marqet went through three iterations of search, each better than the last. Here's the evolution from naive substring matching to full-text search with tsvector."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+When The Marqet launched, search was a single SQL query:
+
+```sql
+SELECT * FROM listings
+WHERE title ILIKE '%' || $1 || '%'
+   OR description ILIKE '%' || $1 || '%'
+ORDER BY created_at DESC;
+```
+
+This worked for the first 50 listings. At 167, it was noticeably slow. The query couldn't use any index — `ILIKE` with a leading wildcard forces a sequential scan of the entire table.
+
+Three iterations of improvement got us to where we are now. Here's each one.
+
+## Iteration 1: pg_trgm with a GIN index
+
+`pg_trgm` (trigram) is a PostgreSQL extension that splits strings into 3-character sequences ("construx" → "con", "ons", "nst", "str", "tru", "rux"). Two strings are similar if they share many trigrams — this enables fuzzy matching and, crucially, index-accelerated `ILIKE` queries.
+
+```sql
+-- Enable the extension
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Create a GIN index on the concatenated title + description
+CREATE INDEX listings_search_trgm_idx ON listings
+  USING GIN ((title || ' ' || description) gin_trgm_ops);
+```
+
+With this index, the query becomes:
+
+```sql
+SELECT * FROM listings
+WHERE (title || ' ' || description) ILIKE '%' || $1 || '%'
+ORDER BY created_at DESC;
+```
+
+The GIN index means PostgreSQL can use the trigram structure to quickly find candidate rows rather than scanning every row. Query time dropped from ~200ms to ~8ms at 167 listings.
+
+**What pg_trgm doesn't handle well:** word boundaries and relevance ranking. A search for "api" matches "api integration" and "capital" and "scraping" equally. There's no concept of "this result is more relevant than that result."
+
+## Iteration 2: tsvector full-text search
+
+PostgreSQL's built-in full-text search uses `tsvector` (a processed representation of text) and `tsquery` (a search query). It handles stemming ("automation" matches "automate", "automated", "automating"), stop words ("the", "a", "is" are ignored), and relevance ranking via `ts_rank`.
+
+```sql
+-- Add a tsvector column
+ALTER TABLE listings ADD COLUMN search_vector tsvector;
+
+-- Populate it (weight 'A' for title, 'B' for description)
+UPDATE listings SET search_vector =
+  setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+  setweight(to_tsvector('english', coalesce(description, '')), 'B') ||
+  setweight(to_tsvector('english', coalesce(category, '')), 'C');
+
+-- Create an index on the tsvector column
+CREATE INDEX listings_search_fts_idx ON listings USING GIN (search_vector);
+
+-- Keep search_vector updated automatically
+CREATE TRIGGER update_search_vector
+BEFORE INSERT OR UPDATE OF title, description, category ON listings
+FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger(
+  search_vector, 'pg_catalog.english', title, description, category
+);
+```
+
+The search query:
+
+```sql
+SELECT
+  id,
+  title,
+  category,
+  ts_rank(search_vector, query) AS rank
+FROM listings, plainto_tsquery('english', $1) query
+WHERE search_vector @@ query
+ORDER BY rank DESC;
+```
+
+`plainto_tsquery` converts a plain string ("ai writing tool") into a boolean tsquery, handling phrase parsing. `ts_rank` scores each result by how well it matches the query. Results are ordered by relevance, not just recency.
+
+**What tsvector doesn't handle:** typos and partial words. "Automtion" doesn't match "automation". "Auto" doesn't match "automation". The stemmer handles inflections but not arbitrary typos.
+
+## Iteration 3: combined pg_trgm + tsvector
+
+The current implementation combines both:
+
+1. **Primary: tsvector** — relevance-ranked full-text search for well-formed queries
+2. **Fallback: pg_trgm** — fuzzy matching for short queries or queries with likely typos
+
+```ts
+async function searchListings(query: string): Promise<Listing[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  // Short queries (< 4 chars) or single-character words: use trigram similarity
+  const words = trimmed.split(/\s+/);
+  const usesTrigram = trimmed.length < 4 || words.some(w => w.length < 4);
+
+  if (usesTrigram) {
+    return db.execute(sql`
+      SELECT * FROM listings
+      WHERE (title || ' ' || description) % ${trimmed}
+      ORDER BY similarity(title, ${trimmed}) DESC
+      LIMIT 20
+    `);
+  }
+
+  // Full-text search for longer queries
+  const results = await db.execute(sql`
+    SELECT id, title, category,
+           ts_rank(search_vector, plainto_tsquery('english', ${trimmed})) AS rank
+    FROM listings
+    WHERE search_vector @@ plainto_tsquery('english', ${trimmed})
+    ORDER BY rank DESC
+    LIMIT 20
+  `);
+
+  // If full-text found nothing, fall back to trigram
+  if (results.rows.length === 0) {
+    return db.execute(sql`
+      SELECT * FROM listings
+      WHERE (title || ' ' || description) % ${trimmed}
+      ORDER BY similarity(title || ' ' || description, ${trimmed}) DESC
+      LIMIT 20
+    `);
+  }
+
+  return results.rows;
+}
+```
+
+The `%` operator uses pg_trgm similarity (above a threshold, configurable with `pg_trgm.similarity_threshold`).
+
+## The result
+
+- Short queries ("ai", "seo"): trigram similarity finds relevant listings quickly
+- Full phrases ("ai workflow automation"): tsvector returns ranked results
+- Typos ("machien learning"): trigram similarity catches it
+- Inflections ("automated", "automating"): tsvector's stemmer handles it
+
+Query latency at 167 listings: under 5ms for both paths. The GIN indexes do the work.
+
+## What's next: semantic search
+
+The current system matches keywords, not meaning. "Build an AI assistant for my customer support team" won't match a listing titled "Claude configuration for helpdesk automation" unless the user uses the same words.
+
+The next iteration (planned alongside pgvector for The Hyve) adds vector embeddings to listing search. A buyer's query is embedded as a vector; the top-k nearest listing vectors are retrieved and merged with the keyword results.
+
+Keyword search and semantic search serve different intents: keyword search is best when you know the term you're looking for; semantic search is best when you're describing the problem. Combined, they cover both.
+
+The migration path is clear: add an `embedding` column to `listings`, run a backfill job, and add the vector similarity search as a third path alongside the existing two. The keyword search remains as a tie-breaker for listings with identical semantic similarity scores.
