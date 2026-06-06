@@ -33,6 +33,19 @@ export default function JournalStats({ rows }: Props) {
         </span>
       </div>
 
+      {/* Shell prompt */}
+      <div
+        className="px-3 py-1.5 select-none"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
+      >
+        <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
+          construx@sys:~$
+        </span>
+        <span className="font-mono text-[9px]" style={{ color: 'rgba(240,239,255,0.25)' }}>
+          {' '}journal --stats --format=table
+        </span>
+      </div>
+
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4">
         {rows.map(({ label, value, accent }, i) => (
