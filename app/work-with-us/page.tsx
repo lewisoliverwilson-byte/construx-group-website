@@ -7,6 +7,7 @@ import TerraformPlanPanel from '@/components/TerraformPlanPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
+import HelmChartPanel from '@/components/HelmChartPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -574,6 +575,11 @@ export default function WorkWithUsPage() {
       {/* Kubernetes events */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <K8sEventsPanel />
+      </section>
+
+      {/* Helm releases */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <HelmChartPanel />
       </section>
 
       {/* CTA */}

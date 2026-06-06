@@ -1,0 +1,179 @@
+---
+title: "gRPC: efficient service-to-service communication"
+date: "2030-01-13"
+excerpt: "gRPC is a high-performance RPC framework that uses Protocol Buffers for serialisation and HTTP/2 for transport. It's faster than REST+JSON for service-to-service communication, generates type-safe clients from a schema, supports streaming in four modes, and works across languages. Here's the schema definition, the Node.js setup, and when gRPC is worth the complexity."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+gRPC is the right tool for service-to-service communication where performance matters: microservices communicating dozens of times per request, IoT devices sending high-frequency telemetry, or any internal API that needs to be fast and strongly typed across language boundaries.
+
+## Protocol Buffers: the schema
+
+gRPC uses Protocol Buffers (.proto files) as both the schema and the serialisation format.
+
+```protobuf
+// posts.proto
+syntax = "proto3";
+
+package construx.posts.v1;
+
+message Post {
+  string  id         = 1;
+  string  title      = 2;
+  string  content    = 3;
+  string  author_id  = 4;
+  string  status     = 5;
+  int64   created_at = 6;  // Unix timestamp
+}
+
+message GetPostRequest {
+  string post_id = 1;
+}
+
+message ListPostsRequest {
+  string status = 1;
+  int32  limit  = 2;
+  string cursor = 3;
+}
+
+message ListPostsResponse {
+  repeated Post posts      = 1;
+  string        next_cursor = 2;
+}
+
+service PostsService {
+  rpc GetPost(GetPostRequest)             returns (Post);
+  rpc ListPosts(ListPostsRequest)         returns (ListPostsResponse);
+  rpc StreamPosts(ListPostsRequest)       returns (stream Post);
+  rpc WatchPost(GetPostRequest)           returns (stream Post);
+}
+```
+
+The `.proto` file is the source of truth. From it, you generate server stubs and client code for any supported language.
+
+## Node.js setup
+
+```bash
+npm install @grpc/grpc-js @grpc/proto-loader
+npm install -D @bufbuild/buf @bufbuild/protoc-gen-es @connectrpc/protoc-gen-connect-es
+```
+
+```bash
+# Generate TypeScript types from proto
+buf generate
+```
+
+```ts
+// Generated types (buf generates these)
+// posts_pb.ts
+export interface Post {
+  id:        string;
+  title:     string;
+  content:   string;
+  authorId:  string;
+  status:    string;
+  createdAt: bigint;
+}
+```
+
+## Server
+
+```ts
+// posts-server.ts
+import { createServer }     from '@connectrpc/connect-node';
+import { fastify }          from 'fastify';
+import { fastifyConnectPlugin } from '@connectrpc/connect-fastify';
+import { PostsService }     from './gen/posts_connect';
+
+const routes = createRouteHandler({
+  routes(router) {
+    router.service(PostsService, {
+      async getPost(req, context) {
+        const post = await db.post.findUniqueOrThrow({
+          where: { id: req.postId },
+        });
+        return {
+          id:        post.id,
+          title:     post.title,
+          content:   post.content,
+          authorId:  post.authorId,
+          status:    post.status,
+          createdAt: BigInt(Math.floor(post.createdAt.getTime() / 1000)),
+        };
+      },
+
+      async *streamPosts(req, context) {
+        const posts = await db.post.findMany({
+          where:  { status: req.status },
+          take:   req.limit || 100,
+        });
+        for (const post of posts) {
+          yield {
+            id:        post.id,
+            title:     post.title,
+            // ...
+          };
+          await new Promise((r) => setTimeout(r, 10));  // backpressure
+        }
+      },
+    });
+  },
+});
+```
+
+## Client
+
+```ts
+// posts-client.ts
+import { createClient } from '@connectrpc/connect';
+import { createGrpcTransport } from '@connectrpc/connect-node';
+import { PostsService } from './gen/posts_connect';
+
+const transport = createGrpcTransport({
+  baseUrl:     'https://posts.construxgroup.io',
+  httpVersion: '2',
+});
+
+const client = createClient(PostsService, transport);
+
+// Unary call
+const post = await client.getPost({ postId: 'abc123' });
+console.log(post.title);
+
+// Server streaming
+for await (const post of client.streamPosts({ status: 'published', limit: 100 })) {
+  console.log(post.title);
+}
+```
+
+The client is fully typed from the proto schema — `client.getPost()` returns a `Post` object, not `any`. Rename a field in the proto and the TypeScript compiler catches every call site that needs updating.
+
+## gRPC streaming modes
+
+**Unary**: client sends one request, server sends one response. Standard RPC.
+**Server streaming**: client sends one request, server streams multiple responses. Good for: subscriptions, pagination, large result sets.
+**Client streaming**: client streams multiple requests, server sends one response. Good for: file uploads, batch writes.
+**Bidirectional streaming**: both sides stream. Good for: real-time collaborative features, live data sync.
+
+## Protocol Buffers vs JSON
+
+Binary serialisation (protobuf) vs text (JSON):
+
+| Metric              | Protobuf       | JSON            |
+|---------------------|----------------|-----------------|
+| Payload size        | 30-50% smaller | Larger          |
+| Parse speed         | 5-10x faster   | Slower          |
+| Human readable      | No             | Yes             |
+| Schema required     | Yes            | Optional        |
+| Browser native      | No (needs lib) | Yes             |
+
+For internal services: protobuf wins on every performance metric. For public APIs where developers need to curl the endpoint and read the response: JSON is better.
+
+## When to use gRPC vs REST
+
+Use gRPC for: internal microservice communication, services with many RPCs called per request, streaming use cases (live feeds, real-time sync), polyglot environments where the schema generates clients in multiple languages.
+
+Use REST for: public APIs, browser-facing APIs (gRPC-Web works but adds complexity), simple CRUD services where JSON is fine, teams unfamiliar with Protocol Buffers.
+
+ConnectRPC (used above) is worth knowing: it's gRPC-compatible but also supports HTTP/JSON, making it work in browsers without a proxy layer.
