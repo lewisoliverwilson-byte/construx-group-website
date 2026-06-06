@@ -1,0 +1,117 @@
+---
+title: "Caching strategy: what we cache, where, and why"
+date: "2026-09-27"
+excerpt: "Caching is one of the highest-leverage performance investments you can make. Here's how we think about caching layers across the Construx stack and the specific decisions we made."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The standard joke: there are two hard problems in computer science — cache invalidation and naming things. The joke persists because cache invalidation is genuinely hard. But the harder problem for most products isn't invalidation — it's knowing what to cache in the first place.
+
+Here's how we approach caching across the three products.
+
+## The cache layers
+
+We operate at four cache layers:
+
+**Browser cache.** HTTP cache headers (`Cache-Control`, `ETag`) that control how long the browser stores static assets and API responses. Free to use; requires no application infrastructure.
+
+**CDN cache.** CloudFront (via AWS Amplify) caches static pages and assets at edge locations globally. Reduces latency for repeated requests and reduces origin server load.
+
+**Application cache.** In-process memory caches (Node.js Maps) and Redis for shared state across instances. Used for expensive computations, API call results, and frequently-read database data.
+
+**Database query cache.** Database-level caching (PostgreSQL shared buffers). Managed by the database; we don't control it directly but can influence it by writing queries that hit the same pages repeatedly.
+
+## What we cache
+
+**eBay listing data (Scoutr).** eBay completed sales data doesn't change faster than once per hour for most products. We cache eBay API responses in Redis with a 1-hour TTL. Without this cache, every Scoutr scan would make multiple eBay API calls; with it, scans for popular products (searched by multiple users) hit cache and return in milliseconds.
+
+```ts
+const EBAY_CACHE_TTL = 60 * 60; // 1 hour
+
+async function getEbayData(productId: string) {
+  const cacheKey = `ebay:${productId}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  const data = await fetchFromEbayAPI(productId);
+  await redis.set(cacheKey, JSON.stringify(data), 'EX', EBAY_CACHE_TTL);
+  return data;
+}
+```
+
+**Listing search embeddings (The Marqet).** User search queries are embedded (vector representation) and used to retrieve similar listings. Embedding is slow (~300ms). We cache embeddings for the 500 most common queries in Redis with a 24-hour TTL:
+
+```ts
+const queryEmbeddingCache = new LRUCache<string, number[]>({
+  max: 500,
+  ttl: 1000 * 60 * 60 * 24, // 24 hours
+});
+```
+
+**Journal posts (this website).** Journal post content is parsed from MDX files at build time and cached as static HTML pages by Next.js. No runtime database calls; sub-50ms response time globally via CloudFront.
+
+**User sessions.** Authentication sessions are stored in Redis (not database) with appropriate TTLs. Database lookups on every request would be slow; in-memory sessions are fast.
+
+## What we don't cache
+
+**Payment information.** Payment intents, transaction states, and order records are always read from the database. The cost of serving stale payment state is too high.
+
+**User-specific content.** Personalised dashboards, user settings, and activity feeds are read fresh from the database. The risk of showing stale user data (displaying a scan result that's been deleted, showing incorrect balance) outweighs the performance benefit.
+
+**Real-time data.** The Hyve's channel messages and presence data are inherently real-time. Caching would undermine the real-time guarantee.
+
+## Cache invalidation patterns
+
+The difficult part: when cached data changes, the cache needs to be updated.
+
+**TTL-based invalidation.** The simplest approach — data expires after a fixed time. Appropriate when the cost of serving slightly stale data is low and the update rate is predictable. We use this for eBay data.
+
+**Event-based invalidation.** When data changes, explicitly invalidate the cache. Appropriate when you know exactly when data changes and the cost of stale data is higher.
+
+```ts
+async function updateListing(listingId: string, updates: Partial<Listing>) {
+  await db.update(listings).set(updates).where(eq(listings.id, listingId));
+  // Explicitly invalidate listing cache
+  await redis.del(`listing:${listingId}`);
+  // Invalidate search embedding cache (listing content changed)
+  await redis.del(`search:listing:${listingId}:embedding`);
+}
+```
+
+**Read-through + write-through.** A pattern where the cache is always the source of truth. On read, check cache first, populate from database if miss. On write, update both cache and database atomically. Appropriate for frequently-read, infrequently-written data.
+
+## The CDN layer
+
+AWS Amplify with CloudFront provides CDN caching for all static pages and assets. Next.js's static generation (SSG) means most pages are pre-rendered HTML files — perfect for CDN caching.
+
+The key `Cache-Control` headers we set:
+
+```ts
+// For static assets (JS, CSS, fonts) — hash-busted, cache forever
+'Cache-Control': 'public, max-age=31536000, immutable'
+
+// For static pages — serve from CDN, revalidate in background
+'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400'
+
+// For API responses with dynamic data — no CDN cache, browser short-term
+'Cache-Control': 'private, max-age=0, must-revalidate'
+```
+
+The `stale-while-revalidate` directive is particularly useful: CloudFront serves the cached version immediately (fast) while revalidating in the background. Users always get a fast response; the cache is always fresh within the revalidation window.
+
+## The performance numbers
+
+The impact of the caching layers on Scoutr:
+
+- **Without eBay cache:** average API response time 2.8s (eBay API calls)
+- **With eBay cache (warm):** average API response time 0.3s (cache hit + Claude analysis)
+- **Cache hit rate:** ~45% for professional users (who frequently scan the same products)
+
+For The Marqet search:
+
+- **Without embedding cache:** search response ~450ms (embedding + vector search)
+- **With embedding cache (warm):** search response ~35ms (cache hit + vector search)
+- **Cache hit rate:** ~60% (many users search similar terms)
+
+The caching investments represent a one-time implementation cost for a permanent performance dividend.

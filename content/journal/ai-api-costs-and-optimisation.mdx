@@ -1,0 +1,77 @@
+---
+title: "AI API costs: what we spend, what we've optimised, and what we've accepted"
+date: "2026-09-29"
+excerpt: "Claude API costs are real. They're also manageable. Here's our honest accounting of AI inference costs across three products, the optimisations we've made, and where we've decided the cost is worth it."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+AI API costs are one of the primary operating expenses for AI products. Unlike most SaaS infrastructure costs that scale with users or data storage, AI inference costs scale with usage — every feature that calls the Claude API has a cost per invocation.
+
+Here's the honest accounting.
+
+## The cost structure
+
+Claude API pricing is based on token usage — input tokens (the prompt you send) and output tokens (the response you receive). Input tokens are cheaper than output tokens. Longer prompts cost more; longer responses cost more.
+
+The model tier matters significantly. Using Claude Sonnet is approximately 5x cheaper per token than using Claude Opus, with a quality difference that's meaningful for some tasks and irrelevant for others.
+
+## Current monthly spend
+
+Across all three products, our monthly Claude API spend is currently £320-£420. Broken down:
+
+**Scoutr:** ~55% of total API spend. The profitability analysis is the core feature — every scan calls the API. At current scan volume, this is the largest cost driver.
+
+**The Marqet:** ~30% of API spend. Embedding operations (listing embeddings + search query embeddings) dominate. The classification and quality scoring prompts are smaller-cost but run on every listing change.
+
+**The Hyve:** ~15% of API spend. Workspace usage is relatively low volume; the AI agent is used contextually rather than continuously.
+
+## The optimisations we've made
+
+**Model selection by task.** We use Haiku for simple classification and extraction tasks where quality requirements are lower. We use Sonnet for analysis and generation where quality matters. We've never needed Opus for production workloads.
+
+The Marqet's listing quality scorer runs on Haiku — it's making a simple 1-10 scoring judgment with a rubric, and Haiku is sufficient. The quality of Haiku scores compared to Sonnet scores is within measurement error for this task.
+
+**Prompt compression.** Long prompts cost more. We've audited each prompt for unnecessary content. The eBay analysis prompt was initially 1,200 tokens; after removing redundant context and tightening the language, it's 620 tokens. Across thousands of scans, this halved the prompt cost for that call.
+
+**Response length control.** Specifying `max_tokens` prevents runaway responses. For structured JSON output, we set `max_tokens` to 1.5x the expected output size.
+
+**Caching query embeddings.** As described in the caching post, we cache vector embeddings for common search queries. This eliminates the embedding API call for repeated searches — at 60% hit rate, we've reduced embedding costs by approximately 60%.
+
+**Batch embedding when possible.** When processing multiple items (multiple new listings, bulk listing updates), we batch the embedding calls where the API supports it. Batching reduces the per-call overhead.
+
+## The optimisations we've rejected
+
+**Cheaper third-party embedding models.** We use Claude's embedding model for consistency with our analysis model. We evaluated an open-source embedding model running on a GPU server — the cost would be lower, but the operational complexity of running inference infrastructure is not worth it at our current scale.
+
+**Caching AI analysis results.** We cache eBay data, but we don't cache the Claude analysis output per product. The analysis incorporates market context (current prices, recent sold data) that changes over time. A cached analysis from two days ago might recommend buying a product that's now saturated. The analysis freshness is a product quality requirement.
+
+**Using a smaller model for the core Scoutr analysis.** We tested Haiku for Scoutr's profitability analysis. The quality degradation was measurable: Haiku's confidence calibration was less accurate, and it missed category-specific pricing patterns more often. The quality difference justifies the cost difference for this specific feature.
+
+## The unit economics
+
+At current pricing, Scoutr's Claude API cost per scan is approximately £0.018 on the free tier and £0.024 on pro (slightly longer context for batch features). 
+
+Scoutr pro is £12/month. At the average scan rate for pro users (25 scans per session, 3 sessions per month), the API cost per user per month is £1.80. Gross margin on Scoutr at current API costs is approximately 85%.
+
+This is healthy. The costs scale linearly with usage, but so does revenue — more active users pay the same subscription but create more API spend. We've modelled the crossover point where a very high-usage pro user becomes unprofitable on the current pricing; it's about 500 scans per month. We've never had a user at that volume. If we do, we'll reconsider the pricing structure.
+
+## The costs we've accepted
+
+Some API costs are non-negotiable for the product to work:
+
+**Real-time profitability analysis (Scoutr).** The core value proposition requires fresh AI analysis per scan. No caching; no model compromise.
+
+**Semantic search (The Marqet).** The quality of vector embeddings determines search quality. Using cheaper embeddings would degrade the buyer experience.
+
+**Agent context retrieval (The Hyve).** The AI agent needs to retrieve and process relevant context. The quality of this determines whether the agent is useful.
+
+In each case, the AI cost is directly tied to the feature that users pay for. Cutting the AI cost would cut the product quality. That's not a trade we make.
+
+## The trajectory
+
+AI inference costs have decreased significantly in the past two years and continue to decrease. Our current unit economics assume today's prices; they'll improve as prices continue to decline.
+
+We budget AI API costs separately from other infrastructure costs. We review the split monthly: are AI costs growing faster than revenue? (No.) Are there specific features with poor cost/value ratios? (Not currently.) Are there optimisation opportunities we've missed? (Continuously reviewing.)
+
+The approach: invest in AI quality where it drives product value, optimise ruthlessly where the trade-off doesn't affect quality, and accept that some costs are the price of the product being good.

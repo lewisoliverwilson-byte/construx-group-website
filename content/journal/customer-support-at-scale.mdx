@@ -1,0 +1,90 @@
+---
+title: "Customer support without a support team: how we handle it"
+date: "2026-09-28"
+excerpt: "Two people, three products, and no dedicated support team. Here's how we run customer support without it consuming all of our time — and what we've learned about what users actually need."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+Customer support is one of those operational realities that startup advice consistently underestimates. Everyone tells you to talk to your users. Nobody tells you how much time that takes when you're running three products.
+
+Here's how we've structured support to be sustainable without sacrificing quality.
+
+## The support tiers
+
+We don't offer live chat or phone support. We offer email support and in-app support forms, with documented response times.
+
+We set expectations explicitly in our products and on the support page:
+- **Standard support:** response within 48 hours
+- **Critical issues** (payment problems, data loss, access issues): response within 4 hours
+
+The 48-hour standard is achievable without disrupting our development workflow. The 4-hour critical issue SLA is achievable because critical issues are rare and high-priority — we look at them immediately when they come in.
+
+Setting these expectations explicitly prevents the most common support frustration: users not knowing when to expect a response.
+
+## The first line: self-service
+
+The most effective support is support that doesn't require us. Every support ticket is potential documentation.
+
+We track support enquiries by category and, when three or more tickets ask the same question, we:
+1. Write an FAQ entry.
+2. Add a tooltip or in-app explanation to the relevant feature.
+3. Sometimes update the UI to make the issue clearer.
+
+The goal is that each question we get asked for the third time is the last time we get asked it.
+
+The categories most frequently appearing in support tickets, across all three products:
+
+**"How do I interpret [output]?"** — The product is producing output that users don't know how to act on. This is a product design problem, not a support problem. We fix it in the product.
+
+**"Why did [action] fail?"** — Error messages are insufficiently clear. We improve the error messages.
+
+**"Can [product] do [thing]?"** — Feature request or capability question. We add it to the FAQ and, if it's a common enough request, the product roadmap.
+
+**"Something is broken"** — Actual bugs. We prioritise these.
+
+## The template approach
+
+We use response templates for the 10 most common support scenarios. Templates reduce our per-ticket time from 15-20 minutes (composing a fresh response) to 3-5 minutes (personalising a template).
+
+Templates don't mean impersonal responses. Each template is a starting point that we customise with the user's specific situation. The goal is that users don't feel like they received a generic response — they received a fast, accurate response to their specific question.
+
+The most used templates:
+- Explaining the confidence score (Scoutr)
+- Walking through the eBay fee calculation methodology
+- Explaining the escrow release timeline (The Marqet)
+- Onboarding the AI agent in a new workspace (The Hyve)
+
+## The escalation filter
+
+Not every support ticket requires a detailed response. We triage incoming tickets into four buckets:
+
+**Quick resolve (< 5 minutes):** "Where is [feature]?" "How do I do [thing]?" These get a direct answer + a pointer to the relevant documentation.
+
+**Standard (5-15 minutes):** Technical questions, feature clarification, billing questions. These get a thorough response using or adapting a template.
+
+**Escalation required (15-30 minutes):** Complex product questions, potential bugs, partial data loss. These get full investigation before response.
+
+**Critical (immediate):** Payment failures, total outages, data loss. Drop everything and fix.
+
+The triage happens at initial read. Most tickets are Quick resolve or Standard.
+
+## What support reveals
+
+Support isn't overhead — it's product intelligence. The tickets that come in tell us what's confusing, what's broken, and what users want to do that the product doesn't support.
+
+Specific examples of product changes driven by support:
+
+**Scoutr's batch feature** — multiple professional users asked about scanning multiple products simultaneously. Support tickets revealed this as a genuine workflow need before we saw it in analytics.
+
+**The Marqet's delivery timeline field** — sellers kept receiving questions from buyers about how long services would take. We added a mandatory "delivery timeline" field to listings after the fifth support ticket about timeline expectations.
+
+**The Hyve's session export** — workspace admins asked for a way to export channel history for compliance purposes. We shipped a CSV export feature after this pattern became clear from support.
+
+The line between support and product development is blurred at our scale — and that's a feature, not a bug.
+
+## The time budget
+
+Support currently takes 3-4 hours per week across all three products. That's a sustainable allocation. When it exceeds 5 hours, we investigate why — usually it means a new feature has caused confusion that we can fix in the product, or a bug has produced an unusual volume of error-related tickets.
+
+The key discipline: support time is bounded by product quality. A well-designed, well-documented product with clear error messages produces fewer support tickets. Every hour we invest in improving product clarity reduces support time in perpetuity.
