@@ -1,0 +1,240 @@
+---
+title: "Search in Next.js: Algolia, Typesense, and the in-memory fallback"
+date: "2027-10-09"
+excerpt: "Search is the feature that looks easy until it isn't. Substring matching on a database column gets you to 80% — the last 20% requires typo tolerance, relevance ranking, and instant results. Here's the full stack."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Most applications start with `ILIKE '%query%'` on a database column and call it search. That works until users start typing "recieve" for "receive", searching for "JS" and expecting "JavaScript", or wondering why the most recent post doesn't appear first when it clearly matches.
+
+Proper search needs typo tolerance, relevance ranking, and latency under 50ms. That means a dedicated search engine.
+
+## Algolia
+
+Algolia is the managed search benchmark. Fast, accurate, generous typo tolerance, instant-search client, and a dashboard that non-developers can use to tune relevance.
+
+```bash
+npm install algoliasearch @algolia/autocomplete-core
+```
+
+### Indexing
+
+```ts
+// scripts/index-algolia.ts
+import { algoliasearch } from 'algoliasearch';
+import { getAllPostMeta } from '@/lib/posts';
+
+const client = algoliasearch(
+  process.env.ALGOLIA_APP_ID!,
+  process.env.ALGOLIA_ADMIN_KEY!,  // admin key — never expose to client
+);
+
+const index = client.initIndex('posts');
+
+async function indexPosts() {
+  const posts = getAllPostMeta();
+  const records = posts.map((p) => ({
+    objectID: p.slug,  // Algolia requires objectID
+    title: p.title,
+    excerpt: p.excerpt,
+    tag: p.tag,
+    date: p.date,
+    slug: p.slug,
+  }));
+
+  await index.saveObjects(records);
+  console.log(`Indexed ${records.length} posts`);
+}
+
+indexPosts();
+```
+
+Run this in CI on every deploy, or use a webhook from your CMS.
+
+### Client-side search
+
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { algoliasearch } from 'algoliasearch';
+import { liteClient } from 'algoliasearch/lite';
+
+const searchClient = liteClient(
+  process.env.NEXT_PUBLIC_ALGOLIA_APP_ID!,
+  process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY!,  // search-only key — safe to expose
+);
+
+const index = searchClient.initIndex('posts');
+
+interface Hit {
+  objectID: string;
+  title: string;
+  excerpt: string;
+  tag: string;
+  slug: string;
+}
+
+export function SearchBox() {
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState<Hit[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!query.trim()) { setHits([]); return; }
+
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      const { hits } = await index.search<Hit>(query, { hitsPerPage: 5 });
+      setHits(hits);
+      setLoading(false);
+    }, 200);  // debounce 200ms
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search…"
+        className="w-full px-4 py-2 bg-subtle border border-border rounded text-sm"
+      />
+      {loading && <span className="absolute right-3 top-2.5 text-text-dim text-xs">…</span>}
+      {hits.length > 0 && (
+        <ul className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg z-50">
+          {hits.map((hit) => (
+            <li key={hit.objectID}>
+              <a href={`/journal/${hit.slug}`} className="flex flex-col px-4 py-3 hover:bg-subtle transition-colors">
+                <span className="text-sm font-semibold text-text-base">{hit.title}</span>
+                <span className="text-xs text-text-dim mt-0.5 line-clamp-1">{hit.excerpt}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
+Use `NEXT_PUBLIC_ALGOLIA_SEARCH_KEY` — the search-only API key scoped to read access. Never expose the admin key.
+
+## Typesense: self-hosted alternative
+
+Typesense is open-source, self-hostable, and fast. The API is nearly identical to Algolia. Useful when you want to avoid vendor lock-in or need to keep data on-premises.
+
+```bash
+npm install typesense
+```
+
+```ts
+// lib/typesense.ts
+import Typesense from 'typesense';
+
+export const typesenseClient = new Typesense.Client({
+  nodes: [{ host: 'localhost', port: 8108, protocol: 'http' }],
+  apiKey: process.env.TYPESENSE_API_KEY!,
+  connectionTimeoutSeconds: 2,
+});
+```
+
+### Collection schema
+
+```ts
+await typesenseClient.collections().create({
+  name: 'posts',
+  fields: [
+    { name: 'id', type: 'string' },
+    { name: 'title', type: 'string' },
+    { name: 'excerpt', type: 'string' },
+    { name: 'tag', type: 'string', facet: true },
+    { name: 'date', type: 'string', sort: true },
+  ],
+  default_sorting_field: 'date',
+});
+```
+
+```ts
+// Search
+const results = await typesenseClient
+  .collections('posts')
+  .documents()
+  .search({
+    q: query,
+    query_by: 'title,excerpt',
+    sort_by: '_text_match:desc,date:desc',
+    per_page: 5,
+  });
+```
+
+Typesense Cloud is available if you want managed hosting without the self-hosting ops overhead.
+
+## In-memory fallback for small datasets
+
+For fewer than ~500 records, an in-memory search with Fuse.js is fast enough and requires no external service:
+
+```bash
+npm install fuse.js
+```
+
+```ts
+// lib/search.ts
+import Fuse from 'fuse.js';
+import { getAllPostMeta, type PostMeta } from './posts';
+
+let fuse: Fuse<PostMeta> | null = null;
+
+export function getSearchIndex(): Fuse<PostMeta> {
+  if (fuse) return fuse;
+
+  const posts = getAllPostMeta();
+  fuse = new Fuse(posts, {
+    keys: [
+      { name: 'title', weight: 0.7 },
+      { name: 'excerpt', weight: 0.3 },
+    ],
+    threshold: 0.35,   // 0 = exact match, 1 = match anything
+    includeScore: true,
+    minMatchCharLength: 2,
+  });
+
+  return fuse;
+}
+```
+
+```tsx
+// Server-side search in a route handler
+// app/api/search/route.ts
+import { getSearchIndex } from '@/lib/search';
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const q = searchParams.get('q') ?? '';
+
+  if (q.length < 2) return Response.json({ results: [] });
+
+  const index = getSearchIndex();
+  const results = index.search(q, { limit: 8 });
+
+  return Response.json({
+    results: results.map((r) => ({
+      ...r.item,
+      score: r.score,
+    })),
+  });
+}
+```
+
+Fuse.js on 339 posts runs in under 5ms. The moment you have more than a few hundred posts or need typo tolerance that Fuse can't match, switch to Algolia or Typesense.
+
+## Which to choose
+
+- **Algolia**: you want the best instant-search experience, managed, and are OK with the cost. The dashboard and analytics are excellent.
+- **Typesense Cloud**: Algolia parity, lower price, open-source so you can self-host if needed.
+- **Typesense self-hosted**: full control, no ongoing cost beyond infra, but ops overhead.
+- **Fuse.js**: small dataset, zero external dependencies, runs at the edge, no index to maintain.
+
+Don't build your own search. The edge cases — Unicode normalization, compound words, phonetic matching — are harder than they look.

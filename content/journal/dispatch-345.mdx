@@ -1,0 +1,199 @@
+---
+title: "Monitoring and alerting for Next.js: what to measure and what to page on"
+date: "2027-10-12"
+excerpt: "Observability without a pager is a dashboard nobody looks at. The practical setup: structured logging, error tracking with Sentry, uptime checks, and the three metrics that actually tell you something is broken."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Most monitoring setups fail the same way: too many metrics, no alerting on the ones that matter, and an on-call rotation that pages on noise until everyone ignores the alerts. The goal isn't comprehensive coverage — it's knowing when users are affected before they tell you.
+
+## The three metrics that matter
+
+**Error rate**: what percentage of requests are returning 5xx? If it's above 1%, something is broken.
+
+**P99 latency**: what's the slowest response time at the 99th percentile? P50 hides the long tail. P99 captures the users having a bad experience.
+
+**Uptime**: is the site responding at all? This one sounds obvious but it's the one that pages you at 3am.
+
+Everything else — CPU, memory, connection pool size — is useful for diagnosis after an alert fires, not for alerting itself.
+
+## Sentry for errors
+
+Sentry catches unhandled exceptions, surface-level React rendering errors, and Next.js API failures.
+
+```bash
+npm install @sentry/nextjs
+npx @sentry/wizard@latest -i nextjs
+```
+
+The wizard adds `instrumentation.ts` and wraps your `next.config.ts`. The key configuration:
+
+```ts
+// sentry.client.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 0.1,       // 10% of transactions — enough for latency data
+  replaysSessionSampleRate: 0.01,   // 1% session replay
+  replaysOnErrorSampleRate: 1.0,    // 100% replay on errors — invaluable for debugging
+  environment: process.env.NODE_ENV,
+  ignoreErrors: [
+    'ResizeObserver loop',           // browser noise
+    'Non-Error promise rejection',   // usually a cancelled fetch
+  ],
+});
+```
+
+```ts
+// sentry.server.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: 0.1,
+});
+```
+
+### Alerting in Sentry
+
+Create an alert rule: "when error rate exceeds 5% in any 5-minute window, alert on Slack". Skip the default "any new issue" alert — it fires constantly. Alert on rate, not on existence.
+
+### Capturing custom context
+
+```ts
+import * as Sentry from '@sentry/nextjs';
+
+export async function processOrder(orderId: string, userId: string) {
+  return Sentry.withScope(async (scope) => {
+    scope.setUser({ id: userId });
+    scope.setTag('orderId', orderId);
+
+    try {
+      return await doProcessOrder(orderId);
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  });
+}
+```
+
+The scope context shows up in the Sentry issue — you know exactly which user and order caused the error.
+
+## Uptime monitoring
+
+Sentry, Vercel, and Amplify don't give you external uptime monitoring by default. If your server is down, they can't tell you — they're on the same infrastructure.
+
+Use an external service:
+
+- **Better Uptime** / **UptimeRobot** — free tier, 5-minute check intervals
+- **Checkly** — runs synthetic checks (full browser tests) from edge locations
+- **Vercel Status** notifications — subscribe, but don't rely on it
+
+Minimum setup: HTTP check on `/` from three geo-distributed locations, alert when two or more fail (avoids single-location false positives).
+
+Add a dedicated health endpoint:
+
+```ts
+// app/api/health/route.ts
+export const runtime = 'edge';
+
+export async function GET() {
+  return Response.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: process.env.NEXT_PUBLIC_DEPLOY_SHA ?? 'unknown',
+  });
+}
+```
+
+Monitor `/api/health` rather than `/` — it's lighter and won't trigger page render. The `runtime = 'edge'` means it responds even if the Node.js runtime is struggling.
+
+## Structured logging
+
+`console.log` in production is noise you can't query. Use structured logs:
+
+```ts
+// lib/logger.ts
+type Level = 'info' | 'warn' | 'error';
+
+export function log(level: Level, message: string, context: Record<string, unknown> = {}) {
+  const entry = {
+    level,
+    message,
+    timestamp: new Date().toISOString(),
+    ...context,
+  };
+
+  if (process.env.NODE_ENV === 'production') {
+    process.stdout.write(JSON.stringify(entry) + '\n');
+  } else {
+    console[level](`[${level.toUpperCase()}] ${message}`, context);
+  }
+}
+```
+
+```ts
+log('info', 'Order processed', { orderId, userId, amount, duration_ms: 142 });
+log('error', 'Payment failed', { orderId, error: err.message, code: err.code });
+```
+
+JSON logs flow into Vercel's log drain, Cloudwatch, Datadog, or any log aggregator. You can then query: `level:error AND orderId:ord_123` to find all errors for a specific order.
+
+## Web Vitals tracking
+
+Next.js has a built-in hook for reporting Core Web Vitals:
+
+```ts
+// app/vitals.ts
+'use client';
+
+import { useReportWebVitals } from 'next/web-vitals';
+
+export function WebVitals() {
+  useReportWebVitals((metric) => {
+    // Send to your analytics/monitoring
+    const body = JSON.stringify({
+      name: metric.name,
+      value: metric.value,
+      id: metric.id,
+      delta: metric.delta,
+      navigationType: metric.navigationType,
+    });
+
+    navigator.sendBeacon('/api/vitals', body);
+  });
+
+  return null;
+}
+```
+
+```ts
+// app/api/vitals/route.ts
+export async function POST(req: Request) {
+  const metric = await req.json();
+
+  // Log or forward to your observability platform
+  log('info', 'web_vital', metric);
+  return new Response(null, { status: 204 });
+}
+```
+
+Track LCP, CLS, and INP. If LCP exceeds 3.5 seconds in p75, users are experiencing a slow first load — that's a real problem, not a warning.
+
+## The alert fatigue problem
+
+Alert on what users experience:
+- Error rate > 1% → page (wake someone up)
+- Uptime check fails → page
+- P99 > 5 seconds → Slack notification (not a page, but worth knowing)
+
+Do not alert on:
+- Individual new Sentry issues (too noisy)
+- CPU > 80% (irrelevant if users aren't affected)
+- Memory usage (serverless doesn't have persistent memory)
+- Every deploy (use a deploy notification, not an alert)
+
+The test: would a user notice this problem? If yes, page. If no, log it and diagnose later.
