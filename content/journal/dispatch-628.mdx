@@ -1,0 +1,213 @@
+---
+title: "tRPC: end-to-end type-safe APIs without code generation"
+date: "2030-02-09"
+excerpt: "tRPC lets you build APIs where the server and client share a single TypeScript type definition. Call a server function from the client — the types flow through automatically. No REST spec, no GraphQL schema, no code generation step. The API contract is the TypeScript interface, and the compiler enforces it on both sides."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+tRPC works by exporting a router from your server and importing that type on the client. The client never imports the implementation — only the type. At runtime it makes HTTP calls; at compile time the TypeScript compiler sees the full function signatures.
+
+## Setup with Next.js App Router
+
+```bash
+npm install @trpc/server @trpc/client @trpc/react-query @tanstack/react-query zod
+```
+
+## Server: define the router
+
+```ts
+// server/trpc.ts
+import { initTRPC } from '@trpc/server';
+import { z }        from 'zod';
+
+const t = initTRPC.create();
+
+export const router    = t.router;
+export const publicProcedure = t.procedure;
+```
+
+```ts
+// server/routers/posts.ts
+import { router, publicProcedure } from '../trpc';
+import { z }                       from 'zod';
+import { db }                      from '@/db';
+
+export const postsRouter = router({
+  list: publicProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(10) }))
+    .query(async ({ input }) => {
+      return db.post.findMany({
+        take:    input.limit,
+        orderBy: { createdAt: 'desc' },
+      });
+    }),
+
+  bySlug: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .query(async ({ input }) => {
+      const post = await db.post.findUnique({ where: { slug: input.slug } });
+      if (!post) throw new TRPCError({ code: 'NOT_FOUND' });
+      return post;
+    }),
+
+  create: publicProcedure
+    .input(z.object({
+      title:   z.string().min(1).max(200),
+      content: z.string().min(1),
+      slug:    z.string().regex(/^[a-z0-9-]+$/),
+    }))
+    .mutation(async ({ input }) => {
+      return db.post.create({ data: input });
+    }),
+});
+```
+
+```ts
+// server/routers/index.ts
+import { router }      from '../trpc';
+import { postsRouter } from './posts';
+
+export const appRouter = router({
+  posts: postsRouter,
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+## HTTP handler (Next.js App Router)
+
+```ts
+// app/api/trpc/[trpc]/route.ts
+import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import { appRouter }           from '@/server/routers';
+
+const handler = (req: Request) =>
+  fetchRequestHandler({
+    endpoint:  '/api/trpc',
+    req,
+    router:    appRouter,
+    createContext: () => ({}),
+  });
+
+export { handler as GET, handler as POST };
+```
+
+## Client setup
+
+```ts
+// lib/trpc.ts
+import { createTRPCReact } from '@trpc/react-query';
+import type { AppRouter }  from '@/server/routers';
+
+export const trpc = createTRPCReact<AppRouter>();
+```
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { httpBatchLink }                    from '@trpc/client';
+import { trpc }                             from '@/lib/trpc';
+
+const queryClient = new QueryClient();
+const trpcClient  = trpc.createClient({
+  links: [httpBatchLink({ url: '/api/trpc' })],
+});
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+```
+
+## Using queries and mutations
+
+```tsx
+'use client';
+
+import { trpc } from '@/lib/trpc';
+
+export function PostList() {
+  const { data, isLoading } = trpc.posts.list.useQuery({ limit: 20 });
+  const createPost = trpc.posts.create.useMutation({
+    onSuccess: () => trpc.useUtils().posts.list.invalidate(),
+  });
+
+  if (isLoading) return <p>Loading…</p>;
+
+  return (
+    <div>
+      {data?.map((post) => (
+        <div key={post.id}>{post.title}</div>
+      ))}
+      <button
+        onClick={() =>
+          createPost.mutate({
+            title:   'New post',
+            content: 'Content here',
+            slug:    'new-post',
+          })
+        }
+      >
+        Create post
+      </button>
+    </div>
+  );
+}
+```
+
+The input object `{ title, content, slug }` is typed from the Zod schema on the server. Passing a wrong type is a compile error, not a runtime error.
+
+## Protected procedures
+
+```ts
+// server/trpc.ts
+import { initTRPC, TRPCError } from '@trpc/server';
+import { getSession }          from '@/lib/auth';
+
+export const t = initTRPC.context<{ userId?: string }>().create();
+
+export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
+  if (!ctx.userId) throw new TRPCError({ code: 'UNAUTHORIZED' });
+  return next({ ctx: { userId: ctx.userId } });
+});
+```
+
+```ts
+// createContext (in the handler)
+createContext: async ({ req }) => {
+  const session = await getSession(req);
+  return { userId: session?.userId };
+},
+```
+
+## Server-side calls (React Server Components)
+
+```ts
+// app/posts/page.tsx
+import { appRouter } from '@/server/routers';
+import { createCallerFactory } from '@trpc/server';
+
+const createCaller = createCallerFactory(appRouter);
+const caller = createCaller({});  // pass context if needed
+
+export default async function PostsPage() {
+  const posts = await caller.posts.list({ limit: 10 });
+  return <PostList initialData={posts} />;
+}
+```
+
+Direct server-to-server calls with full type safety — no HTTP round-trip.
+
+## tRPC vs REST vs GraphQL
+
+tRPC is best when: your frontend and backend are in the same TypeScript monorepo, you control both ends, and you want type safety without schema files. The tradeoff: tRPC APIs are not consumable by non-TypeScript clients.
+
+REST is best when: you need a public API, mobile clients, or third-party integrations. GraphQL is best when: you have complex data graphs, multiple clients with different data needs, or introspection is important.

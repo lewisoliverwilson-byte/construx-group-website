@@ -9,6 +9,7 @@ import DispatchCalendar from '@/components/journal/DispatchCalendar';
 import DispatchGitLog from '@/components/journal/DispatchGitLog';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import TechFreqPanel from '@/components/TechFreqPanel';
+import SitemapIndexPanel from '@/components/SitemapIndexPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -173,6 +174,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* Tech term frequency */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <TechFreqPanel />
+      </section>
+
+      {/* Sitemap index */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <SitemapIndexPanel />
       </section>
 
       {/* Posts */}

@@ -1,0 +1,240 @@
+---
+title: "OpenAPI: documenting and generating from your HTTP API"
+date: "2030-02-15"
+excerpt: "OpenAPI is a standard for describing HTTP APIs — their endpoints, request shapes, response shapes, and auth. A single YAML or JSON file becomes your contract: generate client SDKs, server stubs, interactive docs, and type-safe fetch clients from it. Write the spec once; derive everything else."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+OpenAPI (formerly Swagger) solves the contract problem. Your API evolves, docs drift, client code breaks. With OpenAPI, the spec is the source of truth. Code, docs, and types are generated outputs — not things you maintain by hand.
+
+## A minimal spec
+
+```yaml
+# openapi.yaml
+openapi: '3.1.0'
+info:
+  title:   Construx API
+  version: '1.0.0'
+
+servers:
+  - url: https://api.construxgroup.io
+
+paths:
+  /posts:
+    get:
+      operationId: listPosts
+      summary:     List published posts
+      parameters:
+        - name:     limit
+          in:       query
+          schema:   { type: integer, minimum: 1, maximum: 100, default: 10 }
+        - name:     tag
+          in:       query
+          schema:   { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type:  array
+                items: { $ref: '#/components/schemas/Post' }
+
+  /posts/{id}:
+    get:
+      operationId: getPost
+      parameters:
+        - name: id
+          in:   path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+        '404':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  schemas:
+    Post:
+      type:     object
+      required: [id, title, content, status, createdAt]
+      properties:
+        id:        { type: string, format: uuid }
+        title:     { type: string }
+        content:   { type: string }
+        status:    { type: string, enum: [draft, published, archived] }
+        createdAt: { type: string, format: date-time }
+
+    Error:
+      type:     object
+      required: [code, message]
+      properties:
+        code:    { type: string }
+        message: { type: string }
+```
+
+## Generate a TypeScript client
+
+```bash
+npm install -D openapi-typescript openapi-fetch
+
+# Generate types from the spec
+npx openapi-typescript openapi.yaml -o src/api/types.ts
+```
+
+```ts
+// src/api/client.ts
+import createClient from 'openapi-fetch';
+import type { paths } from './types';
+
+export const api = createClient<paths>({
+  baseUrl: 'https://api.construxgroup.io',
+});
+```
+
+```ts
+// Usage — fully typed from the spec
+const { data, error } = await api.GET('/posts', {
+  params: { query: { limit: 20, tag: 'Build Log' } },
+});
+
+// data is typed as Post[] | undefined
+// error is typed as Error | undefined
+data?.map((post) => console.log(post.title));
+```
+
+The type of `data` is derived from the OpenAPI spec — if the spec says `Post[]`, that's what you get. Change the spec, regenerate, and TypeScript tells you everywhere that broke.
+
+## Generate from code (TypeSpec)
+
+TypeSpec lets you write the spec in TypeScript-like syntax instead of YAML:
+
+```bash
+npm install -D @typespec/compiler @typespec/http @typespec/openapi3
+```
+
+```ts
+// main.tsp
+import "@typespec/http";
+import "@typespec/openapi3";
+using TypeSpec.Http;
+
+@service({ title: "Construx API", version: "1.0.0" })
+namespace ConstruxApi;
+
+model Post {
+  id:        string;
+  title:     string;
+  content:   string;
+  status:    "draft" | "published" | "archived";
+  createdAt: utcDateTime;
+}
+
+@route("/posts")
+interface Posts {
+  @get list(@query limit?: int32 = 10): Post[];
+  @get get(@path id: string): Post | NotFoundError;
+}
+```
+
+```bash
+tsp compile . --emit @typespec/openapi3
+```
+
+Outputs `openapi.yaml`. TypeSpec catches inconsistencies that hand-written YAML doesn't — mismatched references, missing required fields, duplicate operation IDs.
+
+## Zod → OpenAPI (schema-first from validation)
+
+If you're already writing Zod schemas for validation, generate the OpenAPI spec from them:
+
+```bash
+npm install zod-to-openapi
+```
+
+```ts
+import { extendZodWithOpenApi, OpenApiGeneratorV31, OpenAPIRegistry } from 'zod-to-openapi';
+import { z } from 'zod';
+
+extendZodWithOpenApi(z);
+
+const registry = new OpenAPIRegistry();
+
+const PostSchema = registry.register(
+  'Post',
+  z.object({
+    id:        z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
+    title:     z.string().min(1).openapi({ example: 'Building with Nix' }),
+    status:    z.enum(['draft', 'published', 'archived']),
+    createdAt: z.string().datetime(),
+  }),
+);
+
+registry.registerPath({
+  method:      'get',
+  path:        '/posts/{id}',
+  operationId: 'getPost',
+  request: {
+    params: z.object({ id: z.string().uuid() }),
+  },
+  responses: {
+    200: {
+      description: 'The post',
+      content: { 'application/json': { schema: PostSchema } },
+    },
+    404: { description: 'Not found' },
+  },
+});
+
+const generator = new OpenApiGeneratorV31(registry.definitions);
+const spec = generator.generateDocument({ openapi: '3.1.0', info: { title: 'Construx', version: '1' } });
+```
+
+Now your Zod schemas (which you run at runtime for validation) and your OpenAPI spec (which you use for documentation and client generation) stay in sync automatically.
+
+## Scalar: modern API docs
+
+```bash
+npm install @scalar/nextjs-api-reference
+```
+
+```ts
+// app/api/docs/route.ts
+import { ApiReference } from '@scalar/nextjs-api-reference';
+
+export const GET = ApiReference({
+  spec: { url: '/openapi.yaml' },
+  theme: 'saturn',
+});
+```
+
+Scalar renders interactive docs with a built-in HTTP client. Users can authenticate and make real API calls from the docs page.
+
+## Validate responses in tests
+
+```ts
+import { createTestServer } from '@/test/helpers';
+import Ajv                  from 'ajv';
+import spec                 from '../openapi.json';
+
+const ajv = new Ajv();
+
+test('GET /posts response matches OpenAPI schema', async () => {
+  const res  = await fetch('http://localhost:3000/api/posts');
+  const data = await res.json();
+
+  const schema  = spec.components.schemas.Post;
+  const validate = ajv.compile(schema);
+
+  for (const post of data) {
+    expect(validate(post)).toBe(true);
+  }
+});
+```
+
+This closes the loop: the spec defines the contract, tests verify the implementation matches.
