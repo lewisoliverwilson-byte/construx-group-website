@@ -1,0 +1,194 @@
+---
+title: "Database migrations: Drizzle Kit, schema evolution, and zero-downtime deploys"
+date: "2028-01-20"
+excerpt: "Schema changes are where most production outages happen. Drizzle Kit generates migrations from your schema diff. The challenge is deploying them without taking down a live database — here's the pattern."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Schema migrations are the most dangerous part of deploying a web app. A migration that takes a table-level lock on a 50M-row table can take down production for minutes. Here's how to use Drizzle Kit for migrations and how to structure schema changes so they don't cause downtime.
+
+## Drizzle Kit: migrations from schema diffs
+
+Drizzle Kit compares your current schema file against the migration history and generates the SQL diff:
+
+```bash
+npm install -D drizzle-kit
+```
+
+```ts
+// drizzle.config.ts
+import type { Config } from 'drizzle-kit';
+
+export default {
+  schema: './db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+} satisfies Config;
+```
+
+```bash
+# Generate a migration (never run — just review the SQL)
+npx drizzle-kit generate
+
+# Apply pending migrations
+npx drizzle-kit migrate
+
+# Open Drizzle Studio — browse your database locally
+npx drizzle-kit studio
+```
+
+## The migration file
+
+Generated migrations are plain SQL wrapped in a Drizzle meta format. Always review before applying:
+
+```sql
+-- drizzle/0003_add_subscription_tier.sql
+ALTER TABLE "users" ADD COLUMN "subscription_tier" text DEFAULT 'free' NOT NULL;
+ALTER TABLE "users" ADD COLUMN "subscription_expires_at" timestamp;
+CREATE INDEX IF NOT EXISTS "idx_users_subscription_tier" ON "users" ("subscription_tier");
+```
+
+## Applying migrations in production
+
+Two approaches: on startup, or in CI/CD.
+
+**On startup** — simple, works for small teams:
+
+```ts
+// db/migrate.ts
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { Pool } from 'pg';
+
+async function runMigrations() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const db = drizzle(pool);
+
+  console.log('Running migrations...');
+  await migrate(db, { migrationsFolder: './drizzle' });
+  console.log('Migrations complete.');
+
+  await pool.end();
+}
+
+runMigrations().catch(console.error);
+```
+
+```json
+// package.json
+{
+  "scripts": {
+    "db:migrate": "tsx db/migrate.ts",
+    "build": "npm run db:migrate && next build"
+  }
+}
+```
+
+**In CI/CD** — safer for larger teams, no migration running in the app process:
+
+```yaml
+# .github/workflows/deploy.yml
+- name: Run migrations
+  run: npx drizzle-kit migrate
+  env:
+    DATABASE_URL: ${{ secrets.DATABASE_URL }}
+- name: Deploy app
+  run: vercel deploy --prod
+```
+
+## Zero-downtime migrations
+
+The hard rule: **never make a breaking schema change in a single deploy**. Instead, use the expand-contract pattern.
+
+### Adding a column (safe)
+
+Adding a nullable column or a column with a default is safe — no lock needed beyond a brief metadata update:
+
+```sql
+-- Safe: nullable column
+ALTER TABLE users ADD COLUMN avatar_url text;
+
+-- Safe: NOT NULL with a default
+ALTER TABLE users ADD COLUMN subscription_tier text NOT NULL DEFAULT 'free';
+```
+
+### Renaming a column (dangerous)
+
+Renaming in one step breaks any code reading the old name. Do it in three deploys:
+
+**Deploy 1 — expand**: add the new column, start writing to both
+
+```ts
+// db/schema.ts
+users: pgTable('users', {
+  id: text('id').primaryKey(),
+  fullName: text('full_name'),        // old column — still exists
+  displayName: text('display_name'),  // new column — start populating
+});
+```
+
+```ts
+// Write to both columns
+await db.update(users)
+  .set({ fullName: name, displayName: name })
+  .where(eq(users.id, userId));
+```
+
+**Deploy 2 — migrate reads**: start reading from the new column, backfill old rows
+
+```sql
+-- Backfill: copy old data to new column
+UPDATE users SET display_name = full_name WHERE display_name IS NULL;
+```
+
+**Deploy 3 — contract**: drop the old column now that nothing reads it
+
+```ts
+// db/schema.ts — remove fullName
+users: pgTable('users', {
+  id: text('id').primaryKey(),
+  displayName: text('display_name').notNull(),
+});
+```
+
+```sql
+ALTER TABLE users DROP COLUMN full_name;
+```
+
+### Adding an index (can lock)
+
+`CREATE INDEX` can lock the table for the duration on older PostgreSQL. Use `CONCURRENTLY`:
+
+```sql
+-- Locks the table — dangerous on large tables
+CREATE INDEX idx_users_email ON users (email);
+
+-- Concurrent — no lock, but takes longer and can't be done in a transaction
+CREATE INDEX CONCURRENTLY idx_users_email ON users (email);
+```
+
+Drizzle doesn't generate `CONCURRENTLY` by default — write this migration manually for large tables.
+
+### Dropping a column
+
+Never drop in the same deploy as the code change that removes the read. Wait one deploy cycle:
+
+**Deploy 1**: remove all code reading the column. The column still exists — old instances don't break.
+
+**Deploy 2**: drop the column once all instances are running the new code.
+
+## Schema evolution checklist
+
+Before applying a migration to production:
+
+1. **Estimate lock duration** — adding nullable columns is instant; NOT NULL without DEFAULT, table rewrites are not
+2. **Check table size** — operations that scan the whole table are proportional to row count
+3. **Test the migration** — run it against a production-size copy of the database to measure time
+4. **Have a rollback plan** — can you revert the schema change without losing data?
+5. **Schedule maintenance windows** for unavoidable locking migrations — or use pg_repack
+
+The rule: additive changes are safe, subtractive changes need the expand-contract pattern, and any migration that could lock a large table needs to be done with `CONCURRENTLY` or in a maintenance window.

@@ -1,0 +1,202 @@
+---
+title: "TypeScript patterns that actually matter in production"
+date: "2028-01-14"
+excerpt: "TypeScript's type system is Turing complete — you can express almost any constraint. Most of that power you don't need. Here are the patterns that show up repeatedly in production Next.js apps and the ones worth internalizing."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript's value is catching bugs before runtime. Most TypeScript tutorials focus on the type system's capabilities. This covers what shows up repeatedly in production Next.js codebases — the patterns that prevent real bugs.
+
+## Discriminated unions for state machines
+
+Instead of a mix of optional fields, use discriminated unions:
+
+```ts
+// Bad — hard to reason about, many invalid states
+type RequestState = {
+  loading: boolean;
+  data?: User;
+  error?: string;
+};
+// loading: false, data: undefined, error: undefined = what state is this?
+
+// Good — each variant is unambiguous
+type RequestState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: string };
+
+// TypeScript narrows correctly
+function renderUser(state: RequestState<User>) {
+  if (state.status === 'success') {
+    return state.data.name;  // TypeScript knows data exists here
+  }
+  if (state.status === 'error') {
+    return state.error;  // TypeScript knows error exists here
+  }
+}
+```
+
+This pattern: model state as a union where each variant carries exactly the data that state requires.
+
+## `satisfies` for config objects
+
+`satisfies` validates a value against a type while inferring the most specific type possible:
+
+```ts
+const routes = {
+  home: '/',
+  about: '/about',
+  ventures: '/ventures',
+} satisfies Record<string, string>;
+
+// TypeScript infers: { home: '/', about: '/about', ventures: '/ventures' }
+// Not: { home: string; about: string; ventures: string }
+routes.home  // type is '/', not string — enables literal type completions
+```
+
+Useful for theme configs, route maps, and any structured constants where you want validation but also need inference.
+
+## Template literal types
+
+```ts
+type EventName = 'click' | 'focus' | 'blur';
+type HandlerName = `on${Capitalize<EventName>}`;
+// 'onClick' | 'onFocus' | 'onBlur'
+
+type ApiRoute = `/api/${string}`;
+// Only strings starting with /api/ are valid
+
+type CssVar = `--${string}`;
+
+// Extract parts from a string type
+type ExtractLocale<T extends string> =
+  T extends `${infer Locale}/${infer Rest}` ? Locale : never;
+
+type Locale = ExtractLocale<'en/about'>;  // 'en'
+```
+
+Template literal types catch typos in string-typed APIs at compile time.
+
+## `infer` for extracting types
+
+```ts
+// Extract the resolved value of a Promise
+type Awaited<T> = T extends Promise<infer R> ? R : T;
+
+// Extract the element type of an array
+type ElementOf<T extends any[]> = T extends (infer E)[] ? E : never;
+
+// Extract the return type of an async function
+type AsyncReturnType<T extends (...args: any) => Promise<any>> =
+  T extends (...args: any) => Promise<infer R> ? R : never;
+
+// Practical use: type the data from a server action
+async function getUser(id: string) {
+  return db.query.users.findFirst({ where: eq(users.id, id) });
+}
+type UserData = AsyncReturnType<typeof getUser>;
+// typeof what getUser resolves to, without having to write the type twice
+```
+
+## Branded types for preventing ID confusion
+
+```ts
+// Without branding — TypeScript accepts this
+function getPost(userId: string, postId: string) { /* ... */ }
+getPost(postId, userId);  // bug: args swapped, TypeScript can't catch it
+
+// With branding
+type UserId = string & { readonly __brand: 'UserId' };
+type PostId = string & { readonly __brand: 'PostId' };
+
+function getPost(userId: UserId, postId: PostId) { /* ... */ }
+
+// Cast at the boundary (from a database or validated input)
+const userId = rawId as UserId;
+
+getPost(postId as PostId, userId as UserId);  // error: wrong argument types
+```
+
+Branded types cost nothing at runtime but prevent entire classes of bugs where IDs get swapped.
+
+## `as const` for immutable data
+
+```ts
+// Without as const — values are widened to their base types
+const config = {
+  maxRetries: 3,        // type: number (not 3)
+  timeout: 'short',    // type: string (not 'short')
+};
+
+// With as const — values are narrowed to literals
+const config = {
+  maxRetries: 3,        // type: 3
+  timeout: 'short',    // type: 'short'
+} as const;
+
+// Useful for creating union types from array values
+const roles = ['admin', 'editor', 'viewer'] as const;
+type Role = typeof roles[number];  // 'admin' | 'editor' | 'viewer'
+```
+
+## Strict null checks — use them
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true  // includes strictNullChecks, noImplicitAny, etc.
+  }
+}
+```
+
+With `strictNullChecks: true`, `undefined` and `null` are distinct types. This forces you to handle nullable values:
+
+```ts
+function getUsername(user: User | null): string {
+  // return user.name;  // Error: user could be null
+  return user?.name ?? 'Anonymous';  // correct
+}
+```
+
+The cost is some initial type errors in new code. The payoff is eliminating an entire category of `Cannot read property of null` runtime crashes.
+
+## Type guards for runtime validation
+
+```ts
+// Type predicate — narrows type based on a runtime check
+function isUser(value: unknown): value is User {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as any).id === 'string' &&
+    typeof (value as any).email === 'string'
+  );
+}
+
+// Or use Zod for schema validation + type inference
+import { z } from 'zod';
+
+const userSchema = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  name: z.string().optional(),
+});
+
+type User = z.infer<typeof userSchema>;  // infer TypeScript type from schema
+
+// Validate at the boundary — API responses, form inputs
+const user = userSchema.parse(await res.json());
+// user is now typed correctly, or throws if invalid
+```
+
+Zod is the standard for runtime validation with TypeScript inference. Use it at every boundary where external data enters the app: API responses, form submissions, environment variables.
+
+## The three rules
+
+1. Express impossible states as impossible types — use discriminated unions, not optional fields.
+2. Validate at boundaries, trust within — use Zod at the edge, avoid runtime checks in the interior.
+3. Avoid `any` — use `unknown` when you have to accept unknown input, then narrow it.

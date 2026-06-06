@@ -1,0 +1,222 @@
+---
+title: "Search: Typesense, Algolia, and building your own with pg_trgm"
+date: "2028-01-17"
+excerpt: "Every product needs search eventually. The options: Algolia for managed search with zero infra, Typesense for self-hosted speed, or PostgreSQL's pg_trgm for simple fuzzy search without adding a service. Here's when each makes sense."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Search is one of the features that feels simple until you implement it. Full-text search, fuzzy matching, typo tolerance, faceted filters, ranking — each requirement adds complexity. The options in 2028 have matured considerably.
+
+## The tier list
+
+| Option | Best for | Cold start | Cost |
+|--------|----------|-----------|------|
+| `pg_trgm` | Simple fuzzy search, small datasets | None | Free |
+| Typesense | Self-hosted, fast, privacy-focused | Minutes | Infra only |
+| Algolia | Managed, zero-ops, needs zero config | Minutes | Per-search |
+| OpenSearch | Enterprise, AWS, huge datasets | Hours | Infra + ops |
+
+## pg_trgm: search without a new service
+
+PostgreSQL's trigram extension enables fuzzy text search. A trigram breaks text into 3-character chunks — "hello" becomes `[hel, ell, llo]`. Overlap between query and document trigrams determines similarity:
+
+```sql
+-- Enable the extension
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Create a trigram index on the columns you want to search
+CREATE INDEX idx_posts_search ON posts USING GIN (
+  (title || ' ' || content) gin_trgm_ops
+);
+
+-- Fuzzy search query
+SELECT id, title, excerpt,
+  similarity(title || ' ' || content, $1) AS score
+FROM posts
+WHERE (title || ' ' || content) % $1
+ORDER BY score DESC
+LIMIT 20;
+```
+
+```ts
+// In your app
+export async function searchPosts(query: string) {
+  return db.execute(sql`
+    SELECT id, title, excerpt,
+      similarity(title || ' ' || content, ${query}) AS score
+    FROM posts
+    WHERE (title || ' ' || content) % ${query}
+      AND published = true
+    ORDER BY score DESC
+    LIMIT 20
+  `);
+}
+```
+
+The `%` operator returns rows where similarity exceeds `pg_trgm.similarity_threshold` (default 0.3). Adjust with `SET pg_trgm.similarity_threshold = 0.2` for more lenient matching.
+
+For weighted results — titles should rank higher than body text:
+
+```sql
+SELECT id, title, excerpt,
+  (similarity(title, $1) * 2 + similarity(content, $1)) AS score
+FROM posts
+WHERE title % $1 OR content % $1
+ORDER BY score DESC;
+```
+
+Use pg_trgm when: you're already on PostgreSQL, dataset is under ~1M rows, and you want results in seconds without adding infrastructure.
+
+## Typesense: self-hosted, sub-millisecond search
+
+Typesense is an open-source search engine built for speed. Sub-millisecond search, typo tolerance built in, no configuration required:
+
+```bash
+docker run -p 8108:8108 -v $(pwd)/data:/data typesense/typesense:27.1 \
+  --data-dir /data --api-key=your-api-key
+```
+
+```ts
+// lib/typesense.ts
+import Typesense from 'typesense';
+
+export const client = new Typesense.Client({
+  nodes: [{ host: process.env.TYPESENSE_HOST!, port: 8108, protocol: 'https' }],
+  apiKey: process.env.TYPESENSE_API_KEY!,
+  connectionTimeoutSeconds: 2,
+});
+
+// Define your collection schema
+const postsSchema = {
+  name: 'posts',
+  fields: [
+    { name: 'id', type: 'string' },
+    { name: 'title', type: 'string' },
+    { name: 'content', type: 'string' },
+    { name: 'tag', type: 'string', facet: true },
+    { name: 'publishedAt', type: 'int64' },  // unix timestamp for sorting
+    { name: 'readingTime', type: 'int32' },
+  ],
+  default_sorting_field: 'publishedAt',
+} as const;
+```
+
+```ts
+// Index a document
+await client.collections('posts').documents().upsert({
+  id: post.id,
+  title: post.title,
+  content: post.content,
+  tag: post.tag,
+  publishedAt: Math.floor(new Date(post.date).getTime() / 1000),
+  readingTime: post.readingTime,
+});
+
+// Search with facets
+const results = await client.collections('posts').documents().search({
+  q: query,
+  query_by: 'title,content',
+  query_by_weights: '3,1',  // title matches ranked 3x higher than content
+  facet_by: 'tag',
+  filter_by: tag ? `tag:=${tag}` : undefined,
+  sort_by: '_text_match:desc,publishedAt:desc',
+  per_page: 20,
+});
+```
+
+Typesense Cloud is the managed option — same API, no infra to run.
+
+## Algolia: zero-ops managed search
+
+Algolia is the most established managed search. Generous free tier (10k records, 10k searches/month):
+
+```bash
+npm install algoliasearch
+```
+
+```ts
+// lib/algolia.ts
+import algoliasearch from 'algoliasearch';
+
+const client = algoliasearch(
+  process.env.ALGOLIA_APP_ID!,
+  process.env.ALGOLIA_ADMIN_KEY!,  // admin key for writes
+);
+
+export const index = client.initIndex('posts');
+
+// Configure the index (run once)
+await index.setSettings({
+  searchableAttributes: ['title', 'unordered(content)'],
+  attributesForFaceting: ['tag'],
+  ranking: ['typo', 'words', 'filters', 'proximity', 'attribute', 'exact', 'custom'],
+  customRanking: ['desc(publishedAt)'],
+});
+```
+
+```tsx
+// Client-side search with InstantSearch
+import { InstantSearch, SearchBox, Hits, RefinementList } from 'react-instantsearch';
+import algoliasearch from 'algoliasearch/lite';
+
+const searchClient = algoliasearch(
+  process.env.NEXT_PUBLIC_ALGOLIA_APP_ID!,
+  process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY!,  // search-only key — safe for client
+);
+
+function SearchPage() {
+  return (
+    <InstantSearch searchClient={searchClient} indexName="posts">
+      <SearchBox placeholder="Search dispatches…" />
+      <RefinementList attribute="tag" />
+      <Hits hitComponent={PostHit} />
+    </InstantSearch>
+  );
+}
+
+function PostHit({ hit }: { hit: Post }) {
+  return (
+    <article>
+      <h2>{hit.title}</h2>
+      <p>{hit.excerpt}</p>
+    </article>
+  );
+}
+```
+
+## Keeping the index in sync
+
+The pattern: index on write, never on read.
+
+```ts
+// Webhook or Server Action that runs after a post is published
+export async function onPostPublished(post: Post) {
+  await Promise.all([
+    // Primary database
+    db.update(posts).set({ published: true }).where(eq(posts.id, post.id)),
+
+    // Search index
+    searchIndex.upsert({
+      objectID: post.id,
+      ...post,
+      publishedAt: new Date(post.date).getTime() / 1000,
+    }),
+  ]);
+}
+
+export async function onPostDeleted(postId: string) {
+  await Promise.all([
+    db.delete(posts).where(eq(posts.id, postId)),
+    searchIndex.delete(postId),
+  ]);
+}
+```
+
+## The decision rule
+
+- **pg_trgm**: you're on Postgres, dataset fits in RAM, team can write SQL, no new services
+- **Typesense**: you need typo tolerance + facets + speed and want self-hosted with data sovereignty
+- **Algolia**: you want managed, care about DX, can afford per-search pricing at scale
+
+Don't add Algolia or Typesense if pg_trgm is sufficient. Most early-stage products don't need a dedicated search service.
