@@ -1,0 +1,176 @@
+---
+title: "React 19: actions, optimistic updates, and use()"
+date: "2030-08-05"
+excerpt: "React 19 formalises the patterns that React Server Components required into a stable API. Actions replace useState+fetch for form mutations. useOptimistic() makes optimistic updates declarative. use() reads promises and context directly in render. useFormStatus() gives form inputs awareness of their parent form's pending state. The result is less boilerplate for the most common async patterns in React applications."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React 18 introduced concurrent rendering. React 19 builds on it with a set of APIs specifically for the forms-and-mutations pattern that every application has, but React previously had no direct answer for beyond `useState` + manual loading state management.
+
+## Actions
+
+Actions are functions passed to `<form action={fn}>` or called via `useTransition`. They run as transitions — React marks them as non-urgent and handles pending state automatically.
+
+```tsx
+// Server Action (Next.js App Router)
+// app/actions.ts
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { z }              from 'zod';
+
+const CreatePostSchema = z.object({
+  title:   z.string().min(1),
+  content: z.string().min(10),
+});
+
+export async function createPost(formData: FormData) {
+  const parsed = CreatePostSchema.safeParse({
+    title:   formData.get('title'),
+    content: formData.get('content'),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors };
+  }
+
+  await db.posts.create({ data: parsed.data });
+  revalidatePath('/journal');
+}
+
+// Usage
+import { createPost } from './actions';
+
+function NewPostForm() {
+  return (
+    <form action={createPost}>
+      <input name="title" placeholder="Title" />
+      <textarea name="content" placeholder="Content" />
+      <button type="submit">Publish</button>
+    </form>
+  );
+}
+```
+
+## useFormStatus
+
+```tsx
+'use client';
+import { useFormStatus } from 'react-dom';
+
+function SubmitButton() {
+  const { pending } = useFormStatus();  // reads parent form's pending state
+  return (
+    <button type="submit" disabled={pending}>
+      {pending ? 'Saving…' : 'Save'}
+    </button>
+  );
+}
+
+// The button doesn't need to know anything about the form
+function MyForm() {
+  return (
+    <form action={createPost}>
+      <input name="title" />
+      <SubmitButton />  {/* knows about pending state automatically */}
+    </form>
+  );
+}
+```
+
+## useOptimistic
+
+```tsx
+'use client';
+import { useOptimistic, startTransition } from 'react';
+import { likePost }                       from './actions';
+
+function LikeButton({ postId, initialLikes }: { postId: string; initialLikes: number }) {
+  const [optimisticLikes, addOptimisticLike] = useOptimistic(
+    initialLikes,
+    (currentLikes: number) => currentLikes + 1,
+  );
+
+  const handleClick = () => {
+    startTransition(async () => {
+      addOptimisticLike();   // immediately update UI
+      await likePost(postId); // then sync with server
+      // if likePost() throws, React reverts to initialLikes automatically
+    });
+  };
+
+  return (
+    <button onClick={handleClick}>
+      ♥ {optimisticLikes}
+    </button>
+  );
+}
+```
+
+## use()
+
+```tsx
+'use client';
+import { use, Suspense } from 'react';
+
+// use() reads a Promise in render — works with Suspense
+function UserProfile({ userPromise }: { userPromise: Promise<User> }) {
+  const user = use(userPromise);  // suspends until resolved
+  return <div>{user.name}</div>;
+}
+
+// Parent
+function Page({ params }: { params: { id: string } }) {
+  const userPromise = fetchUser(params.id);  // start fetching immediately
+  return (
+    <Suspense fallback={<Skeleton />}>
+      <UserProfile userPromise={userPromise} />
+    </Suspense>
+  );
+}
+
+// use() also reads context (like useContext but works in more places)
+const theme = use(ThemeContext);
+```
+
+## useActionState
+
+```tsx
+'use client';
+import { useActionState } from 'react';
+import { createPost }     from './actions';
+
+function NewPostForm() {
+  const [state, formAction, isPending] = useActionState(createPost, null);
+
+  return (
+    <form action={formAction}>
+      <input name="title" />
+      {state?.error?.title && <p className="text-red-500">{state.error.title[0]}</p>}
+      <textarea name="content" />
+      {state?.error?.content && <p className="text-red-500">{state.error.content[0]}</p>}
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Publishing…' : 'Publish'}
+      </button>
+    </form>
+  );
+}
+```
+
+`useActionState` gives you the action's last return value as `state`, handles pending, and works with progressive enhancement — the form works even without JavaScript.
+
+## ref as prop
+
+```tsx
+// React 19: ref is now a regular prop, no more forwardRef
+function Input({ ref, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { ref?: React.Ref<HTMLInputElement> }) {
+  return <input ref={ref} {...props} />;
+}
+
+// No forwardRef wrapper needed — breaking change for library code, gradual migration path
+```
+
+## React 19 vs React 18
+
+React 18: concurrent rendering, `startTransition`, `useDeferredValue`, streaming SSR. React 19: Actions, `useOptimistic`, `use()`, `useFormStatus`, `useActionState`, ref-as-prop. The upgrade is additive — React 18 code works unchanged in React 19. The new APIs are opt-in improvements, not replacements.

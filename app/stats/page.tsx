@@ -11,6 +11,7 @@ import SensorsPanel from '@/components/SensorsPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import StraceProcPanel from '@/components/StraceProcPanel';
+import TcpdumpPanel from '@/components/TcpdumpPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -386,8 +387,13 @@ export default function StatsPage() {
       </div>
 
       {/* Syscall trace */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <StraceProcPanel />
+      </div>
+
+      {/* Packet capture */}
+      <div className="mt-6 pb-10">
+        <TcpdumpPanel />
       </div>
     </div>
   );
