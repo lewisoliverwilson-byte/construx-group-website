@@ -54,19 +54,45 @@ export default function VenturesPage() {
       </section>
 
       {/* Stats bar */}
-      <section className="relative border-y border-border py-6 px-5" style={{ background: 'rgba(3,3,14,0.7)' }}>
-        <div className="mx-auto max-w-6xl flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
-          {[
-            { node: <CountUp to={live.length} pad={3} />, label: 'Live ventures' },
-            { node: <CountUp to={167} suffix="+" />, label: 'Marketplace listings' },
-            { node: <>{'<5s'}</>, label: 'Avg. scan time' },
-            { node: <CountUp to={4} />, label: 'Tools replaced' },
-          ].map(({ node, label }) => (
-            <div key={label} className="flex items-center gap-2.5">
-              <span className="font-mono text-sm font-bold text-construx">{node}</span>
-              <span className="font-mono text-[9px] text-text-dim uppercase tracking-[0.18em]">{label}</span>
+      <section className="relative border-y border-border px-5" style={{ background: 'rgba(3,3,14,0.7)' }}>
+        <div className="mx-auto max-w-6xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px', margin: '0 auto' }}>
+          {/* Terminal title bar */}
+          <div
+            className="flex items-center gap-3 px-4 py-2 select-none"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,8,0.5)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
             </div>
-          ))}
+            <span className="font-mono text-[8px] uppercase tracking-[0.22em] text-text-dim/40 flex-1">
+              construx.portfolio — metrics.overview
+            </span>
+            <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.45)' }}>
+              ● LIVE
+            </span>
+          </div>
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4">
+            {[
+              { node: <CountUp to={live.length} pad={3} />, label: 'Live ventures', key: 'ventures' },
+              { node: <CountUp to={167} suffix="+" />, label: 'Marketplace listings', key: 'listings' },
+              { node: <span>{'<5s'}</span>, label: 'Avg. scan time', key: 'scan' },
+              { node: <CountUp to={4} />, label: 'Tools replaced', key: 'tools' },
+            ].map(({ node, label, key }, i) => (
+              <div
+                key={key}
+                className="text-center py-7 px-4"
+                style={{
+                  borderRight: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                }}
+              >
+                <p className="font-mono text-heading-xl font-bold text-gradient-orange mb-1">{node}</p>
+                <p className="font-mono text-[10px] text-text-dim uppercase tracking-[0.2em]">{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -224,14 +250,34 @@ export default function VenturesPage() {
               <Link
                 key={v.id}
                 href={`/ventures/${v.slug}`}
-                className="group relative overflow-hidden transition-all duration-200 hover:border-border-bright"
+                className="group relative overflow-hidden transition-all duration-200"
                 style={{
                   background: 'rgba(5,5,18,0.5)',
-                  border: '1px dashed rgba(255,255,255,0.08)',
+                  border: `1px solid ${v.accent}18`,
                   borderRadius: '3px',
                 }}
               >
-                <div className="p-7 flex items-center gap-4">
+                {/* Terminal title bar */}
+                <div
+                  className="flex items-center gap-2 px-3 py-2 select-none"
+                  style={{ background: `${v.accent}06`, borderBottom: `1px solid ${v.accent}12` }}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+                  </div>
+                  <span
+                    className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center truncate"
+                    style={{ color: `${v.accent}45` }}
+                  >
+                    construx.{v.slug} — {v.status}
+                  </span>
+                  <span className="font-mono text-[7px] uppercase tracking-widest flex-shrink-0" style={{ color: `${v.accent}50` }}>
+                    ◈ SOON
+                  </span>
+                </div>
+                <div className="p-6 flex items-center gap-4">
                   <div
                     className="h-10 w-10 rounded-full flex-shrink-0 opacity-50 group-hover:opacity-80 transition-opacity"
                     style={{
