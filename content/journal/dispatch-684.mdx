@@ -1,0 +1,151 @@
+---
+title: "Hono: fast, lightweight web framework for the edge"
+date: "2030-07-27"
+excerpt: "Hono is a web framework for the edge runtime era — Cloudflare Workers, Deno Deploy, Bun, and Node.js. It's tiny (under 15KB), fast, and has excellent TypeScript support with typed route handlers and middleware. Its RPC client lets you call your Hono routes from the browser with the same type safety as tRPC — without the schema definition overhead."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Express was designed for Node.js in 2010. Its architecture — mutable `req`/`res` objects, callback-based middleware — doesn't map cleanly to edge runtimes that use the web Fetch API. Hono is designed for the Fetch API from the start — it runs everywhere that supports `Request` and `Response`.
+
+## Setup
+
+```bash
+npm install hono
+```
+
+## Basic routing
+
+```ts
+import { Hono }    from 'hono';
+import { logger }  from 'hono/logger';
+import { cors }    from 'hono/cors';
+import { z }       from 'zod';
+import { zValidator } from '@hono/zod-validator';
+
+const app = new Hono();
+
+app.use('*', logger());
+app.use('/api/*', cors({ origin: 'https://construxgroup.io' }));
+
+// GET with path params
+app.get('/api/posts/:id', async (c) => {
+  const id   = c.req.param('id');
+  const post = await db.posts.findUnique({ where: { id } });
+  if (!post) return c.json({ error: 'Not Found' }, 404);
+  return c.json(post);
+});
+
+// POST with zod validation
+const CreatePostSchema = z.object({
+  title:   z.string().min(1),
+  content: z.string().min(10),
+});
+
+app.post('/api/posts', zValidator('json', CreatePostSchema), async (c) => {
+  const body = c.req.valid('json');  // typed as CreatePostSchema output
+  const post = await db.posts.create({ data: body });
+  return c.json(post, 201);
+});
+
+export default app;
+```
+
+## Middleware
+
+```ts
+import { createMiddleware } from 'hono/factory';
+import { getCookie }        from 'hono/cookie';
+
+// Auth middleware
+const authMiddleware = createMiddleware(async (c, next) => {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '')
+    ?? getCookie(c, 'session');
+
+  if (!token) return c.json({ error: 'Unauthorized' }, 401);
+
+  const session = await validateSession(token);
+  if (!session) return c.json({ error: 'Invalid session' }, 401);
+
+  c.set('userId', session.userId);
+  c.set('user',   session.user);
+
+  await next();
+});
+
+// Apply to specific routes
+app.use('/api/dashboard/*', authMiddleware);
+app.get('/api/dashboard/stats', async (c) => {
+  const userId = c.get('userId');  // typed
+  const stats  = await getUserStats(userId);
+  return c.json(stats);
+});
+```
+
+## TypeScript RPC client
+
+```ts
+// server/routes/posts.ts
+import { Hono } from 'hono';
+
+const postsRoute = new Hono()
+  .get('/', async (c) => {
+    const posts = await db.posts.findMany();
+    return c.json({ posts });
+  })
+  .post('/', zValidator('json', CreatePostSchema), async (c) => {
+    const body = c.req.valid('json');
+    const post = await db.posts.create({ data: body });
+    return c.json({ post }, 201);
+  });
+
+export type PostsRoute = typeof postsRoute;
+export default postsRoute;
+
+// client/api.ts
+import { hc }         from 'hono/client';
+import type { AppType } from '../server/app';
+
+const client = hc<AppType>('https://api.construxgroup.io');
+
+// Fully typed — autocomplete, no manual type definitions
+const { data } = await client.api.posts.$get();
+const { post } = await client.api.posts.$post({ json: { title: 'Hello', content: '…' } });
+```
+
+## Cloudflare Workers deployment
+
+```ts
+// src/index.ts
+import { Hono }    from 'hono';
+import { cache }   from 'hono/cache';
+
+type Env = { DB: D1Database; CACHE: KVNamespace; };
+
+const app = new Hono<{ Bindings: Env }>();
+
+app.use('/api/posts/*', cache({ cacheName: 'posts', cacheControl: 'max-age=60' }));
+
+app.get('/api/posts', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM posts').all();
+  return c.json(results);
+});
+
+export default app;
+```
+
+```jsonc
+// wrangler.toml
+name = "construx-api"
+main = "src/index.ts"
+compatibility_date = "2030-07-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "construx-prod"
+database_id = "xxxxxxxx"
+```
+
+## Hono vs Express vs Fastify
+
+Express: most libraries, 10+ years of Stack Overflow answers, non-async middleware. Fastify: fast, JSON schema validation, good TypeScript support — designed for Node.js. Hono: smallest, fastest, edge-first, excellent TypeScript — designed for environments that support the Fetch API. For new APIs targeting Cloudflare Workers, Deno Deploy, or Bun, Hono is the natural choice. For Node.js APIs where Express ecosystem compatibility matters, Fastify is stronger.
