@@ -1,0 +1,63 @@
+---
+title: "Scoutr's first 30 days: what we learned"
+date: "2026-06-10"
+excerpt: "Scoutr launched as an experiment. The first 30 days showed us where the product was strong, where it was wrong, and what kind of problem it actually solves versus what we thought it solved."
+author: "Lewis Wilson"
+tag: "Strategy"
+---
+
+We launched Scoutr without being certain we'd built the right thing. That's the point of launching — you know more after 30 days of real users than you do after 30 days of planning.
+
+Here's what the first 30 days showed us.
+
+## What we thought the product was
+
+Our original assumption: Scoutr is for casual resellers who want to know if something they've spotted is worth flipping. Someone sees a clearance item, pastes the URL, gets a quick read on the margin.
+
+The UI we built reflected this. Simple, fast, single-question experience. "Is this profitable?" in, answer out.
+
+## What the product actually is
+
+The users who engaged most deeply with Scoutr were not casual resellers. They were professional arbitrage traders who source at volume — people who process dozens or hundreds of products per sitting, looking for the high-margin opportunities in a large set of mediocre ones.
+
+The difference matters for product design. A casual reseller wants reassurance on a specific decision. A professional trader wants a tool for efficient triage across a large set.
+
+For the casual reseller, "this product has 34% margin" is the answer. For the professional trader, "of these 50 products on this page, 4 have margins above 25% after all fees" is the answer.
+
+We had built the first product. The users who stayed were the ones who needed the second.
+
+## The pivots we made
+
+**From single-product to batch output.** The original Scoutr gave you one product at a time. We redesigned the output to prioritise batch scanning — paste a product listing URL, get back a ranked list of every resellable product on that page, sorted by margin. This is what professional traders need.
+
+**Added explicit sorting.** Professional traders wanted to see the best opportunities first, not the first products listed on the page. We added a default sort by projected margin, with the option to sort by volume or category.
+
+**Removed the "should I buy this?" framing.** The original UI had a binary recommendation. Professionals don't want a recommendation — they want data. We replaced the recommendation with a detailed breakdown: margin, fees by category, estimated shipping, sell-through probability. Let the professional make the call.
+
+**Improved the fee accuracy feedback loop.** Early professional users told us where our fee estimates were wrong. A category we had classified incorrectly, a size tier we were miscalculating. The professionals had enough volume to notice systematic errors that a casual user would attribute to variance.
+
+## What we didn't change
+
+**The core scan mechanism.** URL in, product data out, fee calculation applied. This worked. The professional users wanted more from it, not something different from it.
+
+**The fee calculation model.** The underlying fee logic was sound. The improvements were to data quality (better category classification, more accurate dimension estimation) rather than to the calculation approach.
+
+**The pricing model.** We'd initially worried that professionals might have different price sensitivity than casual users. They don't — they're evaluating "does this tool save me meaningful time per unit of cost?" and the answer is yes at the current price point.
+
+## What surprised us
+
+**The category errors.** We expected some inaccuracy in dimension estimation. We didn't expect that a few product categories were being systematically misclassified by Claude in our original prompting. Jewellery in particular was being classified as "other accessories" instead of using the correct jewellery referral fee. When we fixed this, the margin estimates for jewellery dropped by 5-6 percentage points — a meaningful difference for a reseller evaluating a 15% margin opportunity.
+
+**The professional use case emerged, not designed.** We didn't design Scoutr for professional traders. They found it and adapted their workflow around it. The lesson: the most engaged users will tell you what your product actually is. Listen to them.
+
+**Retention looked bad, then good.** Early retention numbers looked poor — a lot of one-time users who never came back. When we segmented by usage depth (how many scans they ran, how many products they evaluated), the picture changed: users who ran 5+ scans in their first session came back at a high rate. Users who ran 1 scan often didn't. The product was working for people who gave it enough time to demonstrate value; the challenge was getting people to that threshold.
+
+## The 30-day conclusion
+
+Scoutr works for professional arbitrage traders better than it works for casual resellers. We hadn't planned this — the professional use case found us.
+
+The right product response was not to abandon the casual user and build exclusively for professionals. It was to recognise that the product was proving out the hardest part (a fee calculation that's accurate enough to trust) and lean into the use case where that accuracy matters most.
+
+Six months later, that direction has held. The features that have driven the most improvement are all in the direction of "better for high-volume professional use." The casual reseller use case still works; it's just not where the product has the strongest differentiation.
+
+The lesson that applies beyond Scoutr: your first 30 days will tell you who actually needs your product, not who you thought would need it. Be willing to update your assumptions from that signal.

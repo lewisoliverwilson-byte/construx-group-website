@@ -58,9 +58,24 @@ const process = [
   },
 ];
 
+const serviceSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Service',
+  name: 'AI-First Product Development',
+  description: 'Construx Group builds AI-first software products for organisations that need something built properly — from architecture to deployment.',
+  provider: { '@type': 'Organization', name: 'Construx Group', url: 'https://construxgroup.io' },
+  serviceType: ['AI Product Development', 'Full-stack Development', 'Product Strategy', 'Rapid Prototyping'],
+  areaServed: 'Worldwide',
+  url: 'https://construxgroup.io/work-with-us',
+};
+
 export default function WorkWithUsPage() {
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }}
+      />
       {/* Hero */}
       <section className="relative pt-36 pb-20 px-5 overflow-hidden grid-bg">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
