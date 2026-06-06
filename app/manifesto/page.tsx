@@ -14,6 +14,7 @@ import LighthousePanel from '@/components/LighthousePanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
+import PgExplainPanel from '@/components/PgExplainPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -267,8 +268,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* k6 load test */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <K6LoadTestPanel />
+        </div>
+
+        {/* PostgreSQL EXPLAIN ANALYZE */}
+        <div className="mt-4 pb-6">
+          <PgExplainPanel />
         </div>
 
         {/* Sign-off */}

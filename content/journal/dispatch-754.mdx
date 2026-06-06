@@ -1,0 +1,155 @@
+---
+title: "TypeScript 5.5: inferred type predicates and the satisfies operator"
+date: "2031-02-22"
+excerpt: "TypeScript 5.5 introduced inferred type predicates — the compiler now narrows types through filter callbacks automatically. Combined with the satisfies operator (5.0) and const type parameters (5.4), modern TypeScript eliminates most type assertions and as casts. These three features together cover the majority of cases where developers previously reached for as unknown as T."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Three features that together eliminate most `as` casts from a modern TypeScript codebase.
+
+## Inferred type predicates (5.5)
+
+Before 5.5, `Array.filter` didn't narrow types:
+
+```ts
+const items = ['hello', null, 'world', undefined, 'foo'];
+
+// TypeScript 5.4 and earlier — type is (string | null | undefined)[]
+const strings = items.filter((x) => x !== null && x !== undefined);
+
+// Had to write a manual type predicate:
+const strings2 = items.filter((x): x is string => x !== null && x !== undefined);
+```
+
+TypeScript 5.5 infers the predicate:
+
+```ts
+// TypeScript 5.5 — type is string[] automatically
+const strings = items.filter((x) => x !== null && x !== undefined);
+```
+
+Works for any function the compiler can prove narrows the type:
+
+```ts
+const users = [getUser('a'), getUser('b'), null].filter(Boolean);
+// users: User[]  (not (User | null)[])
+```
+
+## satisfies operator (5.0)
+
+`satisfies` validates a value against a type without widening it:
+
+```ts
+type Route = {
+  path:      string;
+  component: React.ComponentType;
+  auth?:     boolean;
+};
+
+// Without satisfies — routes has type Route[] and loses literal types
+const routes: Route[] = [
+  { path: '/',        component: HomePage },
+  { path: '/pricing', component: PricingPage, auth: false },
+];
+
+// With satisfies — routes retains literal types but is still validated
+const routes = [
+  { path: '/',        component: HomePage },
+  { path: '/pricing', component: PricingPage, auth: false },
+] satisfies Route[];
+
+// Now TypeScript knows routes[1].path is '/pricing', not string
+type PricingPath = (typeof routes)[1]['path'];  // '/pricing'
+```
+
+Practical use — config objects with known keys:
+
+```ts
+const config = {
+  apiUrl:    'https://api.construxgroup.io',
+  timeout:   5000,
+  retries:   3,
+  features: {
+    billing:  true,
+    analytics: false,
+  },
+} satisfies {
+  apiUrl:   string;
+  timeout:  number;
+  retries:  number;
+  features: Record<string, boolean>;
+};
+
+// config.features.billing is boolean (not Record<string, boolean>[string])
+```
+
+## const type parameters (5.4)
+
+Pass a generic and preserve literal types:
+
+```ts
+// Without const — T is inferred as string
+function pick<T extends string>(values: T[]): T[] {
+  return values;
+}
+const result = pick(['a', 'b', 'c']);
+// result: string[]
+
+// With const — T is inferred as 'a' | 'b' | 'c'
+function pick<const T extends string>(values: T[]): T[] {
+  return values;
+}
+const result = pick(['a', 'b', 'c']);
+// result: ('a' | 'b' | 'c')[]
+```
+
+Real use — a typed event emitter:
+
+```ts
+function createEmitter<const Events extends Record<string, unknown>>() {
+  const listeners = new Map<keyof Events, Set<(data: unknown) => void>>();
+
+  return {
+    on<K extends keyof Events>(event: K, cb: (data: Events[K]) => void) {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event)!.add(cb as (data: unknown) => void);
+    },
+    emit<K extends keyof Events>(event: K, data: Events[K]) {
+      listeners.get(event)?.forEach((cb) => cb(data));
+    },
+  };
+}
+
+const emitter = createEmitter<{
+  'workspace:created': { id: string; slug: string };
+  'user:deleted':      { id: string };
+}>();
+
+// Both calls are fully typed — no as casts needed
+emitter.on('workspace:created', ({ id, slug }) => console.log(id, slug));
+emitter.emit('workspace:created', { id: 'abc', slug: 'acme' });
+```
+
+## Putting them together — no more as casts
+
+```ts
+// Config validated with satisfies
+const ROUTES = [
+  { path: '/',         component: HomePage,    public: true  },
+  { path: '/app',      component: AppPage,     public: false },
+  { path: '/pricing',  component: PricingPage, public: true  },
+] satisfies Array<{ path: string; component: React.ComponentType; public: boolean }>;
+
+// Filter with inferred predicate — ROUTES is narrowed to public routes
+const publicRoutes = ROUTES.filter((r) => r.public);
+// publicRoutes: Array<{ path: '/' | '/pricing'; ... }>
+
+// const generic preserves the path literals in router function
+function navigate<const T extends string>(path: T): void {
+  window.location.href = path;
+}
+navigate(publicRoutes[0].path);  // navigate('/')
+```
+
+These three features cover the vast majority of `as` cast usage. If you're reaching for `as`, there's usually a satisfies, a const generic, or an inferred predicate that makes the types work without the cast.
