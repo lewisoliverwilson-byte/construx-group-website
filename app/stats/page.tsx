@@ -16,6 +16,7 @@ import SarPanel from '@/components/SarPanel';
 import RedisCLIPanel from '@/components/RedisCLIPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CargoPanel from '@/components/CargoPanel';
+import K6SummaryPanel from '@/components/K6SummaryPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -416,8 +417,13 @@ export default function StatsPage() {
       </div>
 
       {/* Cargo release build */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CargoPanel />
+      </div>
+
+      {/* k6 load test summary */}
+      <div className="mt-6 pb-10">
+        <K6SummaryPanel />
       </div>
     </div>
   );

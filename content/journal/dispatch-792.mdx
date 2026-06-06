@@ -1,0 +1,150 @@
+---
+title: "Zod's transform and preprocess: shape data at the boundary"
+date: "2031-06-16"
+excerpt: "Zod's parse validates input. Its transform and preprocess features go further — they let you coerce, reshape, and enrich data as part of the schema definition. You can normalize strings, coerce query parameters from strings to numbers, strip unknown keys, and convert between formats. Combined with discriminated unions and refinements, Zod schemas become the single source of truth for both validation and data transformation at API boundaries."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Validation and transformation in the same schema. No separate sanitization step.
+
+## Transform — shape validated output
+
+```ts
+import { z } from 'zod';
+
+const UserSchema = z.object({
+  id:        z.string().uuid(),
+  email:     z.string().email().transform((e) => e.toLowerCase().trim()),
+  name:      z.string().min(1).transform((n) => n.trim()),
+  createdAt: z.string().datetime().transform((d) => new Date(d)),
+});
+
+type User = z.infer<typeof UserSchema>;
+// { id: string; email: string; name: string; createdAt: Date }
+
+const user = UserSchema.parse({
+  id:        '550e8400-e29b-41d4-a716-446655440000',
+  email:     '  Lewis@construxgroup.io  ',
+  name:      '  Lewis Wilson  ',
+  createdAt: '2031-01-01T00:00:00Z',
+});
+// user.email === 'lewis@construxgroup.io'
+// user.createdAt instanceof Date === true
+```
+
+## Preprocess — coerce before validation
+
+```ts
+// Query parameters arrive as strings — coerce them
+const SearchParamsSchema = z.object({
+  page:  z.preprocess(Number, z.number().int().min(1).default(1)),
+  limit: z.preprocess(Number, z.number().int().min(1).max(100).default(20)),
+  sort:  z.enum(['asc', 'desc']).default('desc'),
+  q:     z.string().optional(),
+});
+
+// app/api/posts/route.ts
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const params = SearchParamsSchema.parse(Object.fromEntries(searchParams));
+  // params.page is number, not string — even though it arrived as '2'
+}
+```
+
+## Discriminated unions — type-safe variants
+
+```ts
+const EventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type:      z.literal('payment.succeeded'),
+    amount:    z.number().positive(),
+    currency:  z.string().length(3),
+    customerId: z.string(),
+  }),
+  z.object({
+    type:      z.literal('subscription.cancelled'),
+    reason:    z.enum(['user_requested', 'payment_failed', 'admin']),
+    effectiveAt: z.string().datetime(),
+  }),
+  z.object({
+    type:  z.literal('user.created'),
+    email: z.string().email(),
+    plan:  z.enum(['free', 'pro', 'enterprise']),
+  }),
+]);
+
+type Event = z.infer<typeof EventSchema>;
+
+function handleEvent(event: Event) {
+  switch (event.type) {
+    case 'payment.succeeded':
+      // TypeScript knows event.amount and event.currency exist here
+      console.log(`£${event.amount / 100} from ${event.customerId}`);
+      break;
+    case 'subscription.cancelled':
+      console.log(`Cancelled: ${event.reason}`);
+      break;
+  }
+}
+```
+
+## Refinements — cross-field validation
+
+```ts
+const PasswordResetSchema = z
+  .object({
+    password:        z.string().min(12),
+    confirmPassword: z.string(),
+    token:           z.string().uuid(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path:    ['confirmPassword'],
+  })
+  .refine(
+    async (d) => await isValidResetToken(d.token),
+    { message: 'Reset token is invalid or expired', path: ['token'] },
+  );
+```
+
+## Pipe — chain schemas
+
+```ts
+// Parse a JSON string from a webhook body
+const JsonPayloadSchema = z
+  .string()
+  .transform((str, ctx) => {
+    try {
+      return JSON.parse(str);
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'Invalid JSON' });
+      return z.NEVER;
+    }
+  })
+  .pipe(EventSchema);
+
+// Usage — body is a raw string from a webhook
+const event = JsonPayloadSchema.parse(rawBody);
+// event is fully typed as Event
+```
+
+## Strip unknown keys
+
+```ts
+// .strict() — throw on unknown keys
+// .strip() (default) — silently remove unknown keys
+// .passthrough() — keep unknown keys
+
+const StrictConfig = z
+  .object({ apiKey: z.string(), timeout: z.number().default(5000) })
+  .strict();  // { apiKey: '...', timeout: 5000, unknownProp: true } → error
+
+const DatabaseUrl = z
+  .string()
+  .url()
+  .startsWith('postgresql://')
+  .transform((url) => new URL(url));
+```
+
+Zod transform vs a separate mapper function: a mapper function gets called separately and can be skipped or called out of order. A transform lives in the schema — it always runs when the schema is parsed, guaranteeing consistent data shape at the boundary. The Construx default: all API route input parsing uses Zod with transforms; no separate sanitization step.
