@@ -15,6 +15,7 @@ import HttpArchivePanel from '@/components/HttpArchivePanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GhCliPanel from '@/components/GhCliPanel';
+import AwsCliPanel from '@/components/AwsCliPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -209,6 +210,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* GitHub CLI — org repos, PRs, issues */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <GhCliPanel />
+      </section>
+
+      {/* AWS CLI — Amplify apps, S3, CloudWatch */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <AwsCliPanel />
       </section>
 
       {/* Posts */}
