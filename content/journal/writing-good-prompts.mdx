@@ -1,0 +1,132 @@
+---
+title: "Writing prompts that work: what we've learned building three AI products"
+date: "2026-09-18"
+excerpt: "Prompt engineering is a real skill that takes real time to develop. After thousands of prompts across three products, here's what we've learned about the difference between prompts that work and prompts that don't."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+Every AI product is only as good as its prompts. This sounds obvious, but the implications are easy to underestimate. A prompt that works 80% of the time in development produces a product that fails 20% of the time in production — which, at scale, is a lot of failures.
+
+Here's what we've learned about writing prompts that work reliably.
+
+## The structure of a good prompt
+
+Bad prompts leave ambiguity. Good prompts eliminate it.
+
+The structure we use for every structured output prompt:
+
+1. **Role definition.** What is the model doing in this context? Not "you are an AI assistant" — something specific to the task.
+2. **Context.** What does the model need to know to do the task well?
+3. **Task definition.** What exactly is requested?
+4. **Output format.** Exactly what format should the response be in?
+5. **Constraints.** What should the model not do?
+
+Example — the Scoutr product classification prompt before improvement:
+
+```
+Classify this eBay listing as arbitrage opportunity or not: {{description}}
+```
+
+This produces inconsistent results. "Arbitrage opportunity" is undefined. The output format is unspecified. There are no constraints.
+
+After improvement:
+
+```
+You are an eBay resale profitability analyst reviewing product listings for retail arbitrage potential.
+
+Context:
+- Retail arbitrage: buying products below market price and reselling for profit
+- The buyer is looking for listings where the eBay selling price is likely to exceed the purchase price plus fees
+
+Listing data:
+Title: {{title}}
+Category: {{category}}
+Current eBay prices for similar items: {{ebayPrices}}
+Retail price: {{retailPrice}}
+
+Task: Determine if this product presents an arbitrage opportunity.
+
+Return JSON with this exact structure:
+{
+  "isOpportunity": boolean,
+  "confidenceScore": number (0-100),
+  "estimatedMargin": number (pounds sterling, negative if loss),
+  "reasoning": string (one sentence, no jargon)
+}
+
+Constraints:
+- Only return the JSON object, no other text
+- confidenceScore must reflect data quality: high score requires clear price data
+- reasoning must explain the conclusion in plain English
+```
+
+The improved prompt produces consistent JSON output with appropriate confidence calibration.
+
+## The output format problem
+
+Unstructured prose output is difficult to parse reliably. Even if you ask for JSON, the model may add explanatory text before or after the JSON, markdown formatting around it, or inconsistently use quotes.
+
+Defences:
+
+**Specify exactly.** "Return JSON with this exact structure:" followed by a schema or example. "No other text" as an explicit constraint.
+
+**Use `zod` for validation.** Every structured output we parse from the Claude API goes through Zod schema validation before being used. Invalid output is caught, logged, and either retried or returned as an error.
+
+```ts
+const analysisSchema = z.object({
+  isOpportunity: z.boolean(),
+  confidenceScore: z.number().min(0).max(100),
+  estimatedMargin: z.number(),
+  reasoning: z.string(),
+});
+
+async function analyseProduct(data: ProductData) {
+  const response = await callClaude(buildPrompt(data));
+  const parsed = JSON.parse(response);
+  const validated = analysisSchema.safeParse(parsed);
+  
+  if (!validated.success) {
+    throw new Error(`Invalid analysis output: ${validated.error.message}`);
+  }
+  
+  return validated.data;
+}
+```
+
+**Log failures.** Every Zod validation failure is logged with the raw response. Reviewing these logs shows patterns in how the model deviates from the expected format, which informs prompt improvements.
+
+## Handling edge cases explicitly
+
+Every prompt encounters edge cases the model doesn't handle well without guidance. Common ones:
+
+**Insufficient data.** What should the model do if the information it needs to make a decision isn't available? Define this explicitly: "If price data is unavailable, set confidenceScore to below 30 and note the missing data in reasoning."
+
+**Conflicting signals.** What if the data is ambiguous? "If the evidence is mixed, reflect this in confidenceScore (50-70 range)."
+
+**Out-of-scope inputs.** What if the user submits something the product isn't designed to handle? "If the listing is not an eBay product (e.g., a service, a digital download), return isOpportunity: false with reasoning explaining why."
+
+The edge cases that produce bad output in production are almost always cases that weren't considered during prompt design.
+
+## Temperature and model selection
+
+We use temperature 0 for all structured output tasks — analysis, classification, data extraction. Deterministic output means the same input produces the same output, which is important for consistent product behaviour.
+
+We use higher temperature (0.7-1.0) for generative tasks — writing descriptions, drafting responses, generating suggestions. Creativity benefits from temperature; analysis doesn't.
+
+Model selection: we use the most capable model available for tasks where quality matters most (Scoutr's profitability analysis), and smaller/faster models for tasks where speed and cost matter more (category classification, simple extraction). The classification prompt runs on Haiku; the profitability analysis runs on Sonnet.
+
+## Iteration is the process
+
+No prompt is correct on the first draft. The process:
+
+1. Write the prompt.
+2. Test it on a diverse set of inputs, including edge cases.
+3. Identify failure modes.
+4. Add constraints and context to address failures.
+5. Test again.
+6. Repeat until the failure rate is acceptable.
+
+"Acceptable" for a production product is case-dependent. For Scoutr's profitability analysis, we accepted a 3-5% inconsistency rate (where the model's output was technically valid but not what we intended) after 6 iterations. Improving further would have required significant prompt complexity.
+
+The cost of prompt quality problems in production is higher than the cost of additional iteration before launch. Invest in iteration.
