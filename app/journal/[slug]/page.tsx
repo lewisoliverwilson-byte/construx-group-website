@@ -263,6 +263,11 @@ export default async function JournalPostPage({ params }: Props) {
                       journal.prev
                     </span>
                   </div>
+                  {/* Shell prompt */}
+                  <div className="px-3 py-1 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+                    <span className="font-mono text-[7px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                    <span className="font-mono text-[7px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`cat /journal/${prevPost.slug}`}</span>
+                  </div>
                   <div className="px-4 py-3">
                     <span className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
                       {prevPost.title}
@@ -289,6 +294,11 @@ export default async function JournalPostPage({ params }: Props) {
                       journal.next
                       <ArrowRight size={9} className="group-hover:translate-x-0.5 transition-transform" />
                     </span>
+                  </div>
+                  {/* Shell prompt */}
+                  <div className="px-3 py-1 select-none w-full" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)' }}>
+                    <span className="font-mono text-[7px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+                    <span className="font-mono text-[7px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`cat /journal/${nextPost.slug}`}</span>
                   </div>
                   <div className="px-4 py-3 w-full">
                     <span className="text-sm font-semibold text-text-muted group-hover:text-text-base transition-colors leading-snug line-clamp-2">
