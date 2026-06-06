@@ -1,0 +1,125 @@
+---
+title: "Rate limiting at the edge in Next.js"
+date: "2026-08-08"
+excerpt: "Without rate limiting, public-facing API routes are exposed to abuse. Here's how we implemented edge-side rate limiting across our products using Upstash Redis and Next.js middleware."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every public-facing API route is a potential abuse vector. Without rate limiting, a single bad actor can generate thousands of requests per second, exhaust your usage quotas on third-party APIs, or degrade service for legitimate users.
+
+Here's how we handle rate limiting at the edge in Next.js.
+
+## The problem
+
+Scoutr's scan endpoint calls Amazon's product data API (via a licensed third-party provider) and our fee calculation engine. Both have per-request costs. Without rate limiting, a script that calls the scan endpoint in a loop could generate significant API charges in minutes.
+
+The contact form on the Construx Group website doesn't have rate limiting yet (it's on the list), but it should. An unconstrained form endpoint is an easy spam target.
+
+Rate limiting belongs at the edge — as close to the user as possible, before the request reaches the application server. Edge rate limiting:
+- Blocks abusive requests before they consume server resources
+- Is geographically distributed (the rate limit check runs close to the requester)
+- Can be implemented independently of application code
+
+## The implementation
+
+We use Upstash Redis (serverless Redis with a REST API) and Next.js middleware.
+
+The Upstash `@upstash/ratelimit` package provides a sliding window rate limiter that works at the edge:
+
+```typescript
+// lib/ratelimit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+export const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(10, '60 s'),
+  analytics: true,
+});
+```
+
+This creates a rate limiter that allows 10 requests per 60-second sliding window per identifier.
+
+In the middleware:
+
+```typescript
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { ratelimit } from '@/lib/ratelimit';
+
+export async function middleware(request: NextRequest) {
+  if (!request.nextUrl.pathname.startsWith('/api/scan')) {
+    return NextResponse.next();
+  }
+
+  const ip = request.ip ?? request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+  const { success, limit, reset, remaining } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return new NextResponse('Too Many Requests', {
+      status: 429,
+      headers: {
+        'X-RateLimit-Limit': limit.toString(),
+        'X-RateLimit-Remaining': remaining.toString(),
+        'X-RateLimit-Reset': reset.toString(),
+        'Retry-After': Math.ceil((reset - Date.now()) / 1000).toString(),
+      },
+    });
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: '/api/scan/:path*',
+};
+```
+
+The middleware runs at the edge before any application code. If the rate limit is exceeded, it returns a 429 immediately without the request reaching the server.
+
+## Identifier selection
+
+The rate limiter needs an identifier to track per-entity. Options:
+
+**IP address** — the most common choice. Simple, available without authentication. Weakness: shared IPs (corporate NAT, public Wi-Fi) can rate-limit multiple legitimate users. We use IP for unauthenticated endpoints.
+
+**User ID** — better for authenticated endpoints. Each user has their own limit; a single user on a shared IP can't affect other users. We use user ID for authenticated Scoutr scans.
+
+**API key** — for programmatic API access. Each key has its own limit; this is the correct model for the Business tier API access we're building.
+
+For Scoutr's scan endpoint, we use user ID for authenticated requests and fall back to IP for unauthenticated ones:
+
+```typescript
+const identifier = session?.user?.id ?? ip;
+const { success } = await ratelimit.limit(identifier);
+```
+
+## Different limits for different tiers
+
+Scoutr's Starter tier allows 100 scans/month; Professional is unlimited. We implement this as a monthly quota check (in the application layer, not middleware) rather than a sliding window rate limit:
+
+```typescript
+// Check monthly quota in the API route
+const monthlyCount = await getMonthlyScansForUser(userId);
+if (user.tier === 'starter' && monthlyCount >= 100) {
+  return NextResponse.json(
+    { error: 'Monthly scan limit reached. Upgrade to Professional for unlimited scans.' },
+    { status: 429 }
+  );
+}
+```
+
+The middleware rate limit (10 per 60 seconds) applies regardless of tier — this prevents burst abuse even from Professional users. The monthly quota check is separate.
+
+## The Upstash choice
+
+Upstash Redis is serverless Redis — you don't run a Redis instance, you call a REST API. This is the right model for edge rate limiting where you need a fast, globally-distributed data store without managing infrastructure.
+
+Cost: very low at our scale. Upstash charges per request; the rate limit check is cheap. The free tier covers several hundred thousand requests per month.
+
+The alternative — running a Redis instance for rate limiting — is overkill for three small products. Upstash's REST API adds a few milliseconds of latency to edge requests; for rate limiting (which only fires frequently for abusive clients), this is acceptable.
+
+## What we haven't done yet
+
+We haven't added rate limiting to the contact form or email endpoints. These are lower-risk (no API costs) but still should have limits. It's on the list; the implementation is the same pattern, just a lower limit (2-3 requests per hour for contact form submissions).

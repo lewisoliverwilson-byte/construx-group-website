@@ -60,7 +60,7 @@ export default function SystemLog({ posts, totalPosts }: Props) {
   return (
     <section className="px-5 pb-12 mx-auto max-w-5xl" aria-label="Recent system activity">
       <div
-        className="overflow-hidden"
+        className="overflow-hidden terminal-scanline relative"
         style={{
           background: 'rgba(1,1,10,0.96)',
           border: '1px solid rgba(255,255,255,0.07)',
@@ -182,6 +182,38 @@ export default function SystemLog({ posts, totalPosts }: Props) {
               className="inline-block w-1.5 h-3.5 ml-auto animate-glow-pulse"
               style={{ background: 'rgba(249,115,22,0.55)' }}
             />
+          </div>
+        </div>
+
+        {/* Status bar */}
+        <div
+          className="flex items-center gap-0 px-4 py-1.5 overflow-hidden select-none"
+          style={{
+            background: 'rgba(249,115,22,0.08)',
+            borderTop: '1px solid rgba(249,115,22,0.12)',
+          }}
+        >
+          {/* Left cluster */}
+          <div className="flex items-center gap-4 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span className="status-blink w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#4ade80' }} />
+              <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.7)' }}>LIVE</span>
+            </span>
+            <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              ENTRIES: {totalPosts}
+            </span>
+            <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              VENTURES: 3
+            </span>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(103,232,249,0.5)' }}>
+              AI·API: OK
+            </span>
+          </div>
+          {/* Right cluster */}
+          <div className="flex items-center gap-4">
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.15)' }}>UTF-8</span>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.15)' }}>bash</span>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(249,115,22,0.5)' }}>construx@sys</span>
           </div>
         </div>
       </div>
