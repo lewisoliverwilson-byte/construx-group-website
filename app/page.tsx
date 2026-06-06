@@ -16,6 +16,7 @@ import PingPanel from '@/components/PingPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import VmstatPanel from '@/components/VmstatPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
+import RoutingTablePanel from '@/components/RoutingTablePanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -178,8 +179,13 @@ export default function HomePage() {
       </div>
 
       {/* Memory usage */}
-      <div className="pb-10">
+      <div className="pb-6">
         <FreeMemPanel />
+      </div>
+
+      {/* Routing table */}
+      <div className="pb-10">
+        <RoutingTablePanel />
       </div>
 
       {/* Below-fold: What is Construx */}

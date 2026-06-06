@@ -1,0 +1,180 @@
+---
+title: "Redis pub/sub and streams: real-time messaging patterns"
+date: "2029-12-08"
+excerpt: "Redis has two real-time messaging primitives: pub/sub (fire-and-forget broadcast to subscribers) and streams (a persistent, consumer-group-aware log). Pub/sub is right for notifications where missed messages don't matter. Streams are right for event queues, audit logs, and job processing where every message must be processed exactly once."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redis is primarily a key-value store, but its pub/sub and stream primitives make it useful as a lightweight message bus. Understanding when to use each one saves a lot of pain.
+
+## Pub/sub: broadcast messaging
+
+Pub/sub is simple: publishers send messages to a channel, all current subscribers receive them. Messages are not stored — if no subscriber is listening, the message is lost.
+
+```ts
+// Using ioredis
+import Redis from 'ioredis';
+
+const publisher  = new Redis();
+const subscriber = new Redis();  // separate connection for subscriptions
+
+// Subscribe to a channel
+await subscriber.subscribe('notifications');
+
+subscriber.on('message', (channel, message) => {
+  const data = JSON.parse(message);
+  console.log(`[${channel}]`, data);
+  // → [notifications] { type: 'post.published', postId: 'abc123' }
+});
+
+// Publish a message
+await publisher.publish('notifications', JSON.stringify({
+  type:   'post.published',
+  postId: 'abc123',
+  userId: 'user-456',
+}));
+```
+
+**Key characteristic**: no persistence. A subscriber that disconnects misses all messages published during the downtime. Use pub/sub for: live notifications, cache invalidation broadcast, presence updates, WebSocket fan-out.
+
+## Pattern subscriptions
+
+```ts
+// Subscribe to all channels matching a pattern
+await subscriber.psubscribe('events:*');
+
+subscriber.on('pmessage', (pattern, channel, message) => {
+  // pattern = 'events:*', channel = 'events:post', message = '...'
+});
+
+// Publishers use specific channels
+await publisher.publish('events:post', JSON.stringify({ action: 'created' }));
+await publisher.publish('events:user', JSON.stringify({ action: 'registered' }));
+```
+
+## Streams: persistent event log
+
+A Redis stream is an append-only log. Each entry has a unique ID (timestamp-based), a set of fields, and a position in the stream. Consumers read from a position and can track where they left off.
+
+```ts
+// Append to a stream
+const id = await redis.xadd(
+  'events',
+  '*',                    // auto-generate ID (timestamp-based)
+  'type',   'post.published',
+  'postId', 'abc123',
+  'userId', 'user-456',
+);
+// id = '1701388800000-0' (timestamp-sequence)
+
+// Trim to last 10,000 entries
+await redis.xadd('events', 'MAXLEN', '~', '10000', '*', 'type', 'heartbeat');
+```
+
+```ts
+// Read from a stream (starting from the beginning)
+const entries = await redis.xrange('events', '-', '+', 'COUNT', 100);
+for (const [id, fields] of entries) {
+  const data = Object.fromEntries(
+    fields.reduce<[string, string][]>((acc, v, i) => {
+      if (i % 2 === 0) acc.push([v, fields[i + 1]]);
+      return acc;
+    }, [])
+  );
+  console.log(id, data);
+}
+```
+
+## Consumer groups: exactly-once processing
+
+Consumer groups let multiple workers process a stream, with Redis tracking which messages each worker has acknowledged.
+
+```ts
+// Create a consumer group (once, at startup)
+await redis.xgroup('CREATE', 'events', 'workers', '0', 'MKSTREAM');
+
+// Worker reads messages assigned to it
+async function worker(workerId: string) {
+  while (true) {
+    // Read up to 10 unacknowledged messages for this worker
+    const results = await redis.xreadgroup(
+      'GROUP', 'workers', workerId,
+      'COUNT', '10',
+      'BLOCK', '2000',  // block for 2s if no messages
+      'STREAMS', 'events', '>',  // '>' = only new messages
+    );
+
+    if (!results) continue;
+
+    for (const [stream, messages] of results) {
+      for (const [id, fields] of messages) {
+        try {
+          await processMessage(fields);
+          // Acknowledge successful processing
+          await redis.xack('events', 'workers', id);
+        } catch (err) {
+          // Don't ack — message will be retried
+          console.error('Failed to process', id, err);
+        }
+      }
+    }
+  }
+}
+```
+
+Unacknowledged messages stay in the pending entries list. Use `XPENDING` to inspect and `XCLAIM` to reassign stale messages from crashed workers.
+
+## Recovering pending messages
+
+```ts
+// Find messages pending for > 60 seconds
+const pending = await redis.xpending(
+  'events', 'workers',
+  '-', '+',           // all pending
+  10,                 // limit
+);
+
+for (const [id, consumer, idleMs] of pending) {
+  if (idleMs > 60_000) {
+    // Claim the message for this worker
+    await redis.xclaim('events', 'workers', workerId, 60_000, id);
+  }
+}
+```
+
+## Pub/sub vs streams: choosing
+
+| Characteristic          | Pub/sub          | Streams                    |
+|-------------------------|------------------|----------------------------|
+| Persistence             | None             | Yes (until trimmed)        |
+| Missed messages         | Lost             | Readable from any position |
+| Multiple consumers      | All get every msg | Partitioned via groups     |
+| Consumer group acks     | No               | Yes                        |
+| Best for                | Notifications, cache invalidation | Job queues, audit logs, event sourcing |
+
+Rule: if a missed message is acceptable, use pub/sub. If every message must be processed, use streams.
+
+## WebSocket fan-out pattern
+
+A common pattern: use pub/sub to fan out to WebSocket connections across multiple server instances.
+
+```ts
+// On WebSocket message (any server instance)
+ws.on('message', async (data) => {
+  const event = JSON.parse(data);
+  // Publish to Redis — all server instances receive it
+  await publisher.publish(`room:${event.roomId}`, JSON.stringify(event));
+});
+
+// Each server subscribes to channels for its connected clients
+await subscriber.subscribe(`room:${roomId}`);
+subscriber.on('message', (channel, message) => {
+  // Broadcast to all WebSocket clients in this room on this server
+  for (const client of roomClients.get(roomId) ?? []) {
+    client.send(message);
+  }
+});
+```
+
+This scales horizontally: 10 server instances each handle a subset of WebSocket connections, but all instances receive all room events via Redis.
