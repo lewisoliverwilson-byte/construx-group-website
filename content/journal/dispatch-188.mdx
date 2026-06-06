@@ -1,0 +1,203 @@
+---
+title: "Function composition and the pipeline pattern in TypeScript"
+date: "2026-11-19"
+excerpt: "Chained transformations appear everywhere in our codebase: data processing, API middleware, form validation. Here's the pipeline pattern we use to make these transformations readable, testable, and composable."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Data transformation is ubiquitous in web application code. A request comes in, gets validated, gets enriched, gets transformed, gets persisted. The imperative approach works but produces nested code that's hard to trace and test.
+
+The pipeline pattern makes these transformations explicit and composable.
+
+## The basic pattern
+
+A pipeline is a sequence of functions where the output of each step is the input to the next:
+
+```ts
+type Pipeline<T, R> = (input: T) => R;
+
+function pipe<A, B, C>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+): (a: A) => C;
+
+function pipe<A, B, C, D>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+): (a: A) => D;
+
+// Implementation handles any number of functions
+function pipe(...fns: Function[]) {
+  return (input: unknown) => fns.reduce((v, f) => f(v), input);
+}
+```
+
+Usage:
+
+```ts
+const processListing = pipe(
+  validateListing,       // ListingInput → ValidatedListing
+  enrichWithCategory,   // ValidatedListing → EnrichedListing
+  applyFeeDefaults,     // EnrichedListing → ListingWithFees
+  normaliseDescription, // ListingWithFees → FinalListing
+);
+
+const result = processListing(rawInput);
+```
+
+Each step in the pipeline has a clear type signature and a single responsibility. The pipeline is readable as a description of what happens to the data.
+
+## Async pipelines
+
+Most real pipelines involve async operations (database queries, API calls). The async version:
+
+```ts
+async function asyncPipe<T>(
+  input: T,
+  ...fns: ((value: unknown) => unknown | Promise<unknown>)[]
+): Promise<unknown> {
+  let result: unknown = input;
+  for (const fn of fns) {
+    result = await fn(result);
+  }
+  return result;
+}
+
+// Usage:
+const result = await asyncPipe(
+  rawInput,
+  validateListing,            // sync
+  fetchSellerVerification,    // async — checks database
+  enrichWithCategoryData,     // async — queries category stats
+  applyFeeDefaults,           // sync
+);
+```
+
+## The Either pattern for error handling
+
+Pipelines that can fail at any step benefit from the Either pattern — a value that's either a success or an error:
+
+```ts
+type Either<E, A> = { tag: 'left'; error: E } | { tag: 'right'; value: A };
+
+const left = <E, A>(error: E): Either<E, A> => ({ tag: 'left', error });
+const right = <E, A>(value: A): Either<E, A> => ({ tag: 'right', value });
+
+function mapRight<E, A, B>(
+  either: Either<E, A>,
+  fn: (value: A) => Either<E, B>,
+): Either<E, B> {
+  if (either.tag === 'left') return either;
+  return fn(either.value);
+}
+```
+
+A pipeline using Either:
+
+```ts
+function validatePrice(listing: ListingInput): Either<string, ListingInput> {
+  if (listing.price <= 0) return left('Price must be positive');
+  if (listing.price > 100000) return left('Price exceeds maximum');
+  return right(listing);
+}
+
+function validateDescription(listing: ListingInput): Either<string, ListingInput> {
+  if (listing.description.length < 100) return left('Description too short');
+  return right(listing);
+}
+
+function validateListing(input: ListingInput): Either<string, ListingInput> {
+  return mapRight(
+    validatePrice(input),
+    (v) => validateDescription(v),
+  );
+}
+
+const result = validateListing(rawInput);
+if (result.tag === 'left') {
+  return Response.json({ error: result.error }, { status: 400 });
+}
+// result.value is the validated listing
+```
+
+The Either pattern ensures that if any step fails, the error propagates through the pipeline without executing subsequent steps. No exceptions, no early returns, no nested if statements.
+
+## Where we use pipelines in practice
+
+**Scoutr's scan pipeline:**
+
+```ts
+const processScan = asyncPipe(
+  parseScanInput,            // Extract URL and source price
+  fetchEbayListing,          // Fetch listing data from eBay API
+  extractProductIdentifiers, // Get title, brand, model
+  fetchSoldListings,         // Get completed sales for this product
+  calculateMargin,           // Compute profit margin
+  computeConfidenceScore,    // Generate buy/pass confidence
+  formatScanResult,          // Format for API response
+);
+```
+
+**The Marqet's listing creation:**
+
+```ts
+const createListing = asyncPipe(
+  validateListingInput,      // Zod schema validation
+  screenContent,             // Moderation screening
+  generateSearchEmbedding,   // pgvector embedding for search
+  persistListing,            // Database insert
+  notifyAdminIfFlagged,      // Queue manual review if needed
+  formatListingResponse,     // Format for API response
+);
+```
+
+**The Hyve's message processing:**
+
+```ts
+const processMessage = asyncPipe(
+  validateMessage,           // Content validation
+  checkRateLimit,            // Per-user rate limiting
+  persistMessage,            // Database insert
+  broadcastToSubscribers,    // Real-time delivery
+  checkForAiMention,         // Trigger AI response if @hyve
+);
+```
+
+## Testing pipelines
+
+Each step in the pipeline is a pure (or deterministically testable) function. Testing is simple:
+
+```ts
+test('validatePrice rejects zero price', () => {
+  const result = validatePrice({ ...validListing, price: 0 });
+  expect(result.tag).toBe('left');
+  expect(result.error).toContain('positive');
+});
+
+test('validatePrice accepts valid price', () => {
+  const result = validatePrice({ ...validListing, price: 100 });
+  expect(result.tag).toBe('right');
+});
+```
+
+Composing the full pipeline is tested at the integration level, not the unit level — the integration test verifies that the steps compose correctly, which is the harder thing to verify.
+
+## The readability argument
+
+The pipeline pattern's greatest virtue is readability. A sequence of named functions:
+
+```ts
+const result = await asyncPipe(
+  input,
+  validateInput,
+  enrichData,
+  persistToDatabase,
+  formatResponse,
+);
+```
+
+reads as a description of what happens. The equivalent imperative code — with nested conditionals, intermediate variables, and interleaved concerns — is harder to scan and reason about.
+
+The overhead of the pattern is real but minimal: a small utility function, consistent function signatures, slightly more boilerplate per step. The benefit — readable, testable, composable data transformations — is significant over the life of the codebase.

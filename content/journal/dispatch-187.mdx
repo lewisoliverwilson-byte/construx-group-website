@@ -1,0 +1,145 @@
+---
+title: "Content moderation at scale: the policies and systems behind The Marqet's trust layer"
+date: "2026-11-18"
+excerpt: "A marketplace without content moderation is a marketplace that attracts bad actors. Here's how we handle listing review, user reports, and automated flagging for The Marqet — without a dedicated trust and safety team."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Marqet is a marketplace where anyone can list professional services and anyone can buy them. Without a moderation system, it would fill with spam, fake listings, and bad-faith sellers. Building that system as a two-person team requires automation and clear policies.
+
+Here's what we built.
+
+## The moderation layers
+
+**Layer 1: Listing creation rules.** Structural requirements that prevent obviously invalid listings: minimum title length, required category, required pricing, required description (minimum 100 words). These are enforced at submission with clear error messages.
+
+**Layer 2: Automated content screening.** Every listing passes through an automated screening step before going live. The screening checks:
+
+- Known spam domains in the contact information
+- Price anomalies (pricing outside category norms — often a signal of fraud)
+- Content similarity to flagged listings (known bad actors often reuse copy)
+- Keyword filters for prohibited service types
+
+**Layer 3: Human review queue.** Listings that pass automated screening but trigger soft signals go into a manual review queue. We review these within 24 hours.
+
+**Layer 4: Community reporting.** Buyers and sellers can report any listing or user. Reports are reviewed within 48 hours.
+
+**Layer 5: Reactive enforcement.** Violations that emerge after listing approval (pattern of bad disputes, buyer complaints, seller going unresponsive) trigger reactive review.
+
+## The automated screening implementation
+
+```ts
+interface ScreeningResult {
+  approved: boolean;
+  flags: string[];
+  requiresManualReview: boolean;
+}
+
+async function screenListing(listing: NewListing): Promise<ScreeningResult> {
+  const flags: string[] = [];
+  
+  // Price anomaly check
+  const categoryStats = await getCategoryPriceStats(listing.category);
+  if (listing.priceMin > categoryStats.p90 * 3) {
+    flags.push('PRICE_ANOMALY_HIGH');
+  }
+  if (listing.priceMin < categoryStats.p10 * 0.3) {
+    flags.push('PRICE_ANOMALY_LOW');
+  }
+  
+  // Contact information screening
+  const contactDomain = extractEmailDomain(listing.contactEmail);
+  if (await isKnownSpamDomain(contactDomain)) {
+    return { approved: false, flags: ['SPAM_DOMAIN'], requiresManualReview: false };
+  }
+  
+  // Content similarity
+  const embedding = await generateEmbedding(listing.description);
+  const similar = await findSimilarFlaggedListings(embedding, 0.95);
+  if (similar.length > 0) {
+    flags.push('SIMILAR_TO_FLAGGED');
+  }
+  
+  // Keyword filter
+  const hasProhibitedContent = PROHIBITED_KEYWORDS.some((kw) => 
+    listing.description.toLowerCase().includes(kw)
+  );
+  if (hasProhibitedContent) {
+    return { approved: false, flags: ['PROHIBITED_CONTENT'], requiresManualReview: false };
+  }
+  
+  const requiresManualReview = flags.length > 0;
+  return {
+    approved: !requiresManualReview,
+    flags,
+    requiresManualReview,
+  };
+}
+```
+
+Listings with no flags go live immediately. Listings with soft flags (price anomaly, content similarity) go to manual review. Listings with hard flags (spam domain, prohibited content) are rejected immediately with a clear reason.
+
+## The policy document
+
+Every enforcement decision is governed by a published policy. The policy is written in plain language and linked from every moderation communication. Clear policies have three benefits:
+
+1. Users understand what's allowed before they're rejected
+2. Enforcement is consistent — we're applying the policy, not making case-by-case judgments
+3. Appeal decisions have a clear standard
+
+The policy covers:
+- Prohibited service categories
+- Fake review policies
+- Price gouging definitions
+- Identity requirements for verified sellers
+- Dispute policy and when platform review applies
+
+## The appeal process
+
+Every moderation decision — listing rejection, account suspension, dispute resolution — is appealable. The appeal flow:
+
+1. User submits appeal with explanation and any additional evidence
+2. We review within 3 business days
+3. Decision is made and communicated with reasoning
+
+Most appeals are rejected (the original decision was correct) but some are upheld. An appeal process that's never upheld is a sham; ours has a ~15% uphold rate, which indicates it's functioning as a genuine review mechanism.
+
+## Repeat offender escalation
+
+We track violation history per user. A user with repeated violations escalates through warning → temporary suspension → permanent ban:
+
+```ts
+async function enforceViolation(userId: string, violation: Violation) {
+  const history = await getViolationHistory(userId);
+  
+  if (history.length === 0) {
+    // First violation: warning
+    await sendWarning(userId, violation);
+  } else if (history.length === 1) {
+    // Second violation: 7-day suspension
+    await suspendAccount(userId, 7);
+  } else {
+    // Third+ violation: permanent ban
+    await banAccount(userId, violation.reason);
+  }
+  
+  await recordViolation(userId, violation);
+}
+```
+
+The escalation is documented in the policy. Users who receive a first warning know the consequences of repeat violations before they happen.
+
+## The transparency report
+
+We publish quarterly transparency reports: how many listings were rejected (and for what reasons), how many accounts were suspended, how many disputes were resolved, how many appeals were filed and upheld.
+
+The transparency report serves two purposes: accountability (we're held to our own stated policies) and deterrence (bad actors see that the platform enforces actively).
+
+## The honest constraint
+
+A two-person team can't run a content moderation operation at scale. The systems above work at our current volume. At significantly larger scale (thousands of new listings per day), we'd need a dedicated operations function or third-party content moderation services.
+
+The answer to "how do you moderate at scale without a trust and safety team?" is: you don't, fully. You build systems that handle the high-volume, clear-cut cases automatically, and you handle the judgment calls manually with clear policies. At some scale, the judgment calls require dedicated headcount.
+
+We're not at that scale yet. The systems work.
