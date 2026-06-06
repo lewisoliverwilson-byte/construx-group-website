@@ -1,0 +1,205 @@
+---
+title: "Error boundaries in React: when to use them and how"
+date: "2027-06-20"
+excerpt: "Error boundaries catch JavaScript errors in component trees and display fallback UI instead of a crashed screen. They're a critical production safety net — here's the complete pattern."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+An error boundary is a React component that catches JavaScript errors in its child component tree and renders fallback UI instead of propagating the crash to the root. Without them, an uncaught error in any component unmounts the entire application.
+
+Error boundaries only exist in class components. The hooks-based workaround is to wrap a class boundary in a functional component.
+
+## The base implementation
+
+```tsx
+// components/ErrorBoundary.tsx
+'use client';
+
+import { Component, type ReactNode, type ErrorInfo } from 'react';
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error, info: ErrorInfo) => void;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[ErrorBoundary] caught:', error, info);
+    this.props.onError?.(error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? (
+        <div className="p-6 text-center">
+          <p className="text-sm text-red-400 mb-2">Something went wrong</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="text-sm text-text-dim hover:text-construx transition-colors"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+```
+
+`getDerivedStateFromError` runs during rendering when an error is thrown — it updates state to trigger the fallback. `componentDidCatch` runs after rendering, suitable for logging.
+
+## Usage patterns
+
+**Granular boundaries** — wrap individual features that can fail independently:
+
+```tsx
+export default function DashboardPage() {
+  return (
+    <div>
+      <ErrorBoundary fallback={<ScannerError />}>
+        <ProductScanner />
+      </ErrorBoundary>
+
+      <ErrorBoundary fallback={<ListingsError />}>
+        <ListingsTable />
+      </ErrorBoundary>
+
+      {/* This one uses the default fallback */}
+      <ErrorBoundary>
+        <AIRecommendations />
+      </ErrorBoundary>
+    </div>
+  );
+}
+```
+
+When `AIRecommendations` crashes, the scanner and listings table still work. One broken feature doesn't cascade.
+
+**With error reporting**:
+
+```tsx
+<ErrorBoundary
+  onError={(error, info) => {
+    // Send to your observability platform
+    posthog.capture('component_error', {
+      error: error.message,
+      component: info.componentStack?.split('\n')[1]?.trim(),
+    });
+  }}
+>
+  <ComplexFeature />
+</ErrorBoundary>
+```
+
+## The reset pattern
+
+A boundary that can be reset when upstream data changes:
+
+```tsx
+interface Props {
+  resetKey?: string | number;
+  children: ReactNode;
+}
+
+export class ResettableErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromProps(props: Props, state: State) {
+    // When resetKey changes, reset the error state
+    if (state.hasError && state.prevResetKey !== props.resetKey) {
+      return { hasError: false, error: null, prevResetKey: props.resetKey };
+    }
+    return { prevResetKey: props.resetKey };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) return <FallbackUI error={this.state.error} />;
+    return this.props.children;
+  }
+}
+
+// Usage: reset boundary when route changes or data refetches
+<ResettableErrorBoundary resetKey={productId}>
+  <ProductDetails id={productId} />
+</ResettableErrorBoundary>
+```
+
+## What error boundaries don't catch
+
+Error boundaries only catch errors in rendering, lifecycle methods, and constructors of class components. They don't catch:
+
+- Errors in event handlers (use try/catch)
+- Async errors (use `.catch()` or try/await/catch)
+- Errors during SSR (use Next.js's `error.tsx`)
+- Errors in the boundary component itself
+
+```tsx
+// Event handler errors — error boundary doesn't help here
+function Button() {
+  const handleClick = async () => {
+    try {
+      await performAction();
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  return <button onClick={handleClick}>Click me</button>;
+}
+```
+
+## Next.js error.tsx
+
+Next.js has built-in error handling for route segments via `error.tsx`. These files automatically wrap the route segment in an error boundary:
+
+```tsx
+// app/dashboard/error.tsx
+'use client';
+
+export default function DashboardError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <div>
+      <h2>Something went wrong loading the dashboard</h2>
+      <button onClick={reset}>Try again</button>
+    </div>
+  );
+}
+```
+
+`error.tsx` handles route-level failures. For component-level failures inside a route, use `ErrorBoundary` directly. The two complement each other.
+
+## The right granularity
+
+One root boundary (or `error.tsx`) catches catastrophic failures. Feature-level boundaries contain partial failures. The question is: if this component breaks, should the rest of the page still work?
+
+For AI-generated content, AI features, or anything calling external APIs: yes. For core layout components: no. The failure of the navigation bar or the main shell should propagate — it signals something is fundamentally wrong, not just a feature that's temporarily unavailable.

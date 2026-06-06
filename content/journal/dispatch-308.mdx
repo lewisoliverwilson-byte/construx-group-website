@@ -1,0 +1,153 @@
+---
+title: "Cursor-based pagination: why offset breaks at scale"
+date: "2027-06-23"
+excerpt: "Offset pagination is simple to implement and breaks at scale. Cursor-based pagination stays fast regardless of dataset size. Here's why one beats the other and how to implement cursor pagination correctly."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Offset pagination is `SELECT * FROM posts ORDER BY created_at DESC LIMIT 20 OFFSET 200`. Simple. The problem: at OFFSET 200, Postgres must scan and discard the first 200 rows before returning your 20. At OFFSET 10000, it scans 10,000 rows. Performance degrades linearly with depth.
+
+For datasets under 10,000 rows with infrequent deep pagination, this doesn't matter. For everything else, cursor-based pagination is the right default.
+
+## How cursor pagination works
+
+Instead of tracking a position by count (page 5 = skip 80 rows), cursor pagination tracks a position by a value from the last result:
+
+```
+Page 1: SELECT * FROM posts ORDER BY created_at DESC LIMIT 20
+  → returns posts 1-20, last post has created_at = '2027-06-01 14:22:00'
+
+Page 2: SELECT * FROM posts 
+  WHERE created_at < '2027-06-01 14:22:00'
+  ORDER BY created_at DESC LIMIT 20
+  → returns posts 21-40
+```
+
+Postgres can use the index on `created_at` directly. It doesn't scan anything it doesn't return. The query is O(log n + page_size), not O(offset + page_size).
+
+## Implementation
+
+```ts
+// lib/pagination.ts
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export function encodeCursor(value: Date | string | number): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+export function decodeCursor(cursor: string): unknown {
+  return JSON.parse(Buffer.from(cursor, 'base64url').toString());
+}
+```
+
+```ts
+// lib/posts.ts
+import { db } from './db';
+import { posts } from './schema';
+import { lt, desc, and } from 'drizzle-orm';
+import { encodeCursor, decodeCursor, type CursorPage } from './pagination';
+
+export async function getPostsPage(
+  cursor?: string,
+  limit = 20,
+): Promise<CursorPage<Post>> {
+  const take = limit + 1; // Fetch one extra to check hasMore
+
+  const where = cursor
+    ? lt(posts.createdAt, new Date(decodeCursor(cursor) as string))
+    : undefined;
+
+  const results = await db
+    .select()
+    .from(posts)
+    .where(where)
+    .orderBy(desc(posts.createdAt))
+    .limit(take);
+
+  const hasMore = results.length > limit;
+  const items = hasMore ? results.slice(0, limit) : results;
+  const lastItem = items[items.length - 1];
+
+  return {
+    items,
+    hasMore,
+    nextCursor: hasMore && lastItem
+      ? encodeCursor(lastItem.createdAt.toISOString())
+      : null,
+  };
+}
+```
+
+The `limit + 1` trick: fetch one more item than you need. If you get it back, there's a next page. Return `limit` items and set `nextCursor`. If you don't get the extra item, you're on the last page — return all results and set `nextCursor: null`.
+
+## API endpoint
+
+```ts
+// app/api/posts/route.ts
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const cursor = url.searchParams.get('cursor') ?? undefined;
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? 20), 100);
+
+  const page = await getPostsPage(cursor, limit);
+
+  return Response.json(page);
+}
+```
+
+Response shape:
+
+```json
+{
+  "items": [...],
+  "nextCursor": "eyJjcmVhdGVkQXQiOiIyMDI3LTA2LTIzVDExOjM0OjAyWiJ9",
+  "hasMore": true
+}
+```
+
+The cursor is opaque to the client — just a string passed back on the next request. The client doesn't need to know it's a base64-encoded timestamp.
+
+## The non-unique cursor problem
+
+Using a single non-unique field (like `created_at`) as the cursor breaks when multiple rows have the same value:
+
+```
+posts at 2027-06-01 14:22:00: [post A, post B, post C]
+
+Page 1 cursor → '2027-06-01 14:22:00'
+Page 2 WHERE created_at < '2027-06-01 14:22:00'
+→ Misses post B and post C if they were on page 1's boundary
+```
+
+The fix: use a composite cursor including a unique field:
+
+```ts
+// Composite cursor with created_at + id
+export function encodeCompositeCursor(createdAt: Date, id: string): string {
+  return encodeCursor({ createdAt: createdAt.toISOString(), id });
+}
+
+// Query using both fields
+const where = cursor
+  ? or(
+      lt(posts.createdAt, decodedCursor.createdAt),
+      and(
+        eq(posts.createdAt, decodedCursor.createdAt),
+        lt(posts.id, decodedCursor.id)
+      )
+    )
+  : undefined;
+```
+
+Now the cursor is unambiguous: "everything before this timestamp, or at this timestamp but before this id."
+
+## When to use offset pagination
+
+Cursor pagination doesn't support "jump to page 47" — the client must traverse pages sequentially. For admin interfaces where operators need to jump to specific pages, offset pagination is fine. For product-facing infinite scroll, feeds, and large datasets where users move linearly: cursor pagination is the right choice.
+
+The index requirement is the other consideration. Cursor pagination requires a good index on the cursor column(s). If you're paginating on an un-indexed column, offset might actually be faster at small scales. Index the sort column and cursor pagination wins at every scale.
