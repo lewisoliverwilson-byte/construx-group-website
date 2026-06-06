@@ -1,0 +1,79 @@
+---
+title: "The Hyve's architecture: decisions and their consequences"
+date: "2026-06-13"
+excerpt: "Building a real-time collaborative workspace from scratch instead of stitching together Firebase and Slack. The decisions that shaped The Hyve's technical architecture, and what we'd do differently."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Hyve is the most technically complex thing we've built. Real-time channels, collaborative documents, kanban boards, vector memory, and an AI agent that can read and act across all of it. Building it required making a series of architectural decisions that compound — get the wrong one early and it shapes everything downstream.
+
+Here's what we decided, why, and what we'd change.
+
+## Why we didn't use Firebase
+
+The obvious approach: Firebase for real-time, Clerk for auth, OpenAI for AI, Notion-style blocks for documents. Stitch existing services together. Ship faster.
+
+We ruled it out for one reason: the AI agent needs to understand what's in the workspace. An AI that can "see" documents, decisions, and channels isn't a wrapper around a database call — it needs a unified, semantically queryable view of the workspace state. Firebase's document model doesn't give you that cleanly. Building a vector memory layer on top of a fragmented Firebase structure felt worse than building the layer once over a schema we controlled.
+
+The actual cost of this decision was a longer initial build. The ongoing cost is maintaining infrastructure we own. The benefit is that the AI integration is genuinely deep rather than bolted on.
+
+## The database decision: Postgres with pgvector
+
+The Hyve uses a single Postgres instance with the pgvector extension for all storage — relational data and vector embeddings in the same database.
+
+This was the right call. The alternative (Pinecone or a dedicated vector database alongside Postgres) would have split our data across two systems and created a synchronisation problem: every time a document changed in Postgres, we'd need to re-embed it and update Pinecone. With pgvector, the embedding lives next to the data it represents. A transaction that updates a document can update the embedding in the same operation.
+
+The limitation: pgvector's performance at very large scale (millions of embeddings) isn't as good as dedicated vector databases. At The Hyve's current scale, this doesn't matter. When it does, migrating the vector storage while keeping the relational structure is tractable.
+
+## The WebSocket server: not Pusher
+
+We run our own WebSocket server rather than using Pusher or Ably.
+
+This was a cost and control decision. At the per-message pricing of managed WebSocket services, The Hyve's real-time volume would have been expensive. Running our own server is cheaper above a threshold, and we crossed that threshold earlier than expected because the AI agent generates a significant volume of streamed messages.
+
+The cost is operational complexity. WebSocket connections require monitoring — you can't just check if an HTTP endpoint returns 200. We track connection count, message throughput, and reconnect rates. When something goes wrong with the WebSocket layer, it fails silently from the user's perspective (the channel stops updating) rather than returning an error they can act on.
+
+If we were starting over, we'd probably use a managed service until the scale forced the switch. The operational overhead of a custom WebSocket server is real and we underestimated it.
+
+## The AI agent's context pipeline
+
+The most important architectural decision in The Hyve is how the AI agent gets context.
+
+When a user sends a message in a channel, the AI agent doesn't just receive that message. It receives:
+
+1. The message itself
+2. Recent channel history (last 40 messages)
+3. Semantically relevant past decisions from the decision engine (retrieved via vector similarity)
+4. Any documents linked or referenced in recent messages
+5. The channel's purpose and the project it belongs to
+
+This context assembly happens before the call to Claude. The result is an AI that appears to "know" the project deeply — because by the time it responds, it has been given the most relevant subset of the project's history.
+
+The engineering challenge: assembling this context quickly. The similarity search against past decisions needs to complete in under 200ms to not feel slow. We achieve this through pre-computed embeddings (updated on every new decision) and a restricted similarity search against the current channel's decision history.
+
+## Documents: block-based storage
+
+Documents in The Hyve are stored as block arrays rather than raw HTML or markdown. Each paragraph, heading, code block, and image is a separate record with its own ID.
+
+This decision was made for collaborative editing. When two users edit the same document, block-based storage means edits to different blocks don't conflict — only edits to the same block require reconciliation. In practice, most concurrent edits are to different sections, so conflicts are rare.
+
+The downside: rendering is more complex. Each block type needs its own renderer, and the AI agent needs to understand the block format to produce valid document output. We've handled this by teaching the agent to emit a structured format that our renderer can parse deterministically.
+
+## What we'd change
+
+**Starting with a managed WebSocket service.** The operational complexity was real, and we got it at a time when we should have been spending that attention on product decisions. The cost savings weren't relevant at our early scale.
+
+**The embedding strategy.** We embed everything eagerly — every message, every document, every decision. This was simpler to reason about but expensive at scale. A smarter approach would be to embed selectively: decisions and documents always, messages only if they're flagged as containing important information.
+
+**The block document model.** In hindsight, markdown stored as a single string, with a simple locking mechanism for concurrent edits, would have been simpler and good enough for our use case. The block model is more powerful but also more complex to implement correctly throughout the stack.
+
+## The decisions that held up
+
+**Postgres with pgvector.** Single database for all storage is operationally simpler than we expected, and pgvector's performance has been adequate.
+
+**Building the AI context pipeline ourselves.** Generic AI integrations (just pass the last N messages) produce generic AI responses. The context-aware assembly is the thing that makes The Hyve's AI feel like it actually knows your project.
+
+**Next.js for the frontend.** The real-time updates use client-side subscriptions to the WebSocket server, and the rest of the UI is standard React. We got SSR for public pages and a fast SPA for the authenticated workspace without fighting the framework.
+
+The overall lesson: architectural decisions compound. The right decision at the start is often "simpler than you think you need," because the complexity you add later at least has the benefit of solving a problem you've actually encountered.

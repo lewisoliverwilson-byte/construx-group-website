@@ -24,6 +24,10 @@ export default function ConsoleGreeting({ postCount }: Props) {
       '%c⌘K search · ? shortcuts · g+j journal · g+v ventures · g+m manifesto',
       'color: rgba(240,239,255,0.3); font-family: monospace; font-size: 10px;'
     );
+    console.log(
+      '%c→ /stats for system diagnostics',
+      'color: rgba(249,115,22,0.3); font-family: monospace; font-size: 10px;'
+    );
   }, []);
 
   return null;
