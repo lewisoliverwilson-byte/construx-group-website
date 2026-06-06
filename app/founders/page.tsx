@@ -6,6 +6,7 @@ import GitShortlogPanel from '@/components/GitShortlogPanel';
 import WhoamiPanel from '@/components/WhoamiPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import LastLoginPanel from '@/components/LastLoginPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -458,6 +459,11 @@ export default function FoundersPage() {
         {/* Network interfaces */}
         <div className="mt-6">
           <IpAddrPanel />
+        </div>
+
+        {/* Login history */}
+        <div className="mt-6">
+          <LastLoginPanel />
         </div>
 
         {/* CTA */}

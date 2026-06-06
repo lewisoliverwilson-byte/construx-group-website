@@ -1,0 +1,168 @@
+---
+title: "Next.js middleware: edge functions between request and response"
+date: "2029-08-28"
+excerpt: "Next.js middleware runs at the edge before your page or API handler receives the request. It can read cookies, set headers, redirect, rewrite, or block the request entirely. The edge runtime is fast and global but has a restricted API surface. Here's the pattern for auth guards, A/B testing, geolocation routing, and request rewriting."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js middleware runs on every request that matches its config. It executes at the edge — close to the user, before the request reaches your application server. The restriction: it runs in the Edge Runtime, a V8 isolate with no Node.js APIs. No `fs`, no `child_process`, no native modules.
+
+What you get instead: `Request`, `Response`, cookies, headers, and `NextResponse` for rewriting and redirecting.
+
+## The basic structure
+
+```ts
+// middleware.ts (in project root, next to app/)
+import { NextRequest, NextResponse } from 'next/server';
+
+export function middleware(req: NextRequest) {
+  return NextResponse.next(); // pass through
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
+};
+```
+
+The `matcher` config controls which paths trigger the middleware. The pattern above runs on everything except Next.js internals and the favicon.
+
+## Auth guard
+
+The most common use: redirect unauthenticated users away from protected routes.
+
+```ts
+import { NextRequest, NextResponse } from 'next/server';
+
+const PROTECTED = ['/dashboard', '/settings', '/api/user'];
+
+export function middleware(req: NextRequest) {
+  const isProtected = PROTECTED.some((path) =>
+    req.nextUrl.pathname.startsWith(path)
+  );
+
+  if (!isProtected) return NextResponse.next();
+
+  const token = req.cookies.get('session')?.value;
+  if (!token) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('redirect', req.nextUrl.pathname);
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/settings/:path*', '/api/user/:path*'],
+};
+```
+
+The matcher pattern is more efficient than checking inside the middleware — it avoids running the function entirely for non-matching paths.
+
+**Important**: middleware cannot run arbitrary async operations reliably. For JWT verification, use the `jose` library (Edge-compatible), not `jsonwebtoken` (Node.js only).
+
+```ts
+import { jwtVerify } from 'jose';
+
+export async function middleware(req: NextRequest) {
+  const token = req.cookies.get('session')?.value;
+  if (!token) return redirectToLogin(req);
+
+  try {
+    await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!));
+    return NextResponse.next();
+  } catch {
+    return redirectToLogin(req);
+  }
+}
+```
+
+## A/B testing
+
+Middleware can assign users to experiment variants and rewrite the request to a different path:
+
+```ts
+export function middleware(req: NextRequest) {
+  if (!req.nextUrl.pathname.startsWith('/pricing')) {
+    return NextResponse.next();
+  }
+
+  const variant = req.cookies.get('pricing-variant')?.value
+    ?? (Math.random() < 0.5 ? 'control' : 'treatment');
+
+  const url = req.nextUrl.clone();
+  url.pathname = `/pricing/${variant}`;
+
+  const res = NextResponse.rewrite(url);
+
+  if (!req.cookies.get('pricing-variant')) {
+    res.cookies.set('pricing-variant', variant, { maxAge: 60 * 60 * 24 * 30 });
+  }
+
+  return res;
+}
+```
+
+The user sees `/pricing` in their browser, but the server renders `/pricing/control` or `/pricing/treatment`. The cookie persists the assignment so they get the same variant on return visits.
+
+## Geolocation routing
+
+Vercel sets `x-vercel-ip-country` and related headers. Other providers have similar conventions.
+
+```ts
+export function middleware(req: NextRequest) {
+  const country = req.geo?.country ?? req.headers.get('x-vercel-ip-country') ?? 'US';
+
+  if (country === 'GB' && req.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/uk', req.url));
+  }
+
+  return NextResponse.next();
+}
+```
+
+`req.geo` is available on Vercel. For self-hosted, read the header from your reverse proxy.
+
+## Setting request headers for Server Components
+
+Middleware can set custom headers that Server Components read:
+
+```ts
+export function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+
+  // Pass data to Server Components via headers
+  res.headers.set('x-user-id', getUserId(req));
+  res.headers.set('x-locale', detectLocale(req));
+
+  return res;
+}
+```
+
+In the Server Component:
+
+```ts
+import { headers } from 'next/headers';
+
+export default function Page() {
+  const headersList = headers();
+  const userId = headersList.get('x-user-id');
+  // ...
+}
+```
+
+This is useful for passing request-scoped data (auth info, locale) to Server Components without threading it through props.
+
+## What not to do in middleware
+
+**Database queries**: the Edge Runtime doesn't support most database drivers. Use an Edge-compatible client (Neon's serverless driver, Turso, Planetscale's HTTP API) or move the logic to your API layer.
+
+**Heavy computation**: middleware adds latency to every request it runs on. Keep it fast.
+
+**Server-only secrets in client-accessible middleware**: middleware code that runs for `/api/*` is the same code that runs for your pages. Don't put secrets in middleware that can be reached by client JavaScript. Use environment variables with `NEXT_PUBLIC_` prefix discipline.
+
+The middleware pattern is powerful precisely because it runs before everything else. Keep it small and fast.
