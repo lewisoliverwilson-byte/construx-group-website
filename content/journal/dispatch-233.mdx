@@ -1,0 +1,139 @@
+---
+title: "REST vs. tRPC vs. GraphQL: how we choose the API layer for each product"
+date: "2027-01-04"
+excerpt: "Every product needs an API layer. The choice between REST, tRPC, and GraphQL involves different trade-offs around type safety, flexibility, and client complexity. Here's how we made these choices across Scoutr, The Marqet, and The Hyve."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Scoutr uses REST API routes. The Marqet uses REST API routes. The Hyve uses a mix — REST for most operations, SSE for real-time updates. None of the three uses tRPC or GraphQL.
+
+This isn't an oversight — it's a deliberate choice based on what each option optimises for.
+
+## REST API routes in Next.js
+
+Next.js App Router API routes are the simplest option. You create a file in `app/api/`, export named HTTP method handlers, and you have an endpoint:
+
+```ts
+// app/api/scans/route.ts
+export async function POST(req: Request) {
+  const { url } = await req.json();
+  const result = await scanProduct(url);
+  return Response.json(result);
+}
+```
+
+The advantages:
+- No additional library or configuration
+- HTTP semantics directly: status codes, headers, caching
+- Accessible from any client (browser, mobile app, third-party integrations)
+- Straightforward mental model
+
+The disadvantages:
+- No end-to-end type safety between frontend and API without additional tooling
+- Repetitive request/response handling boilerplate
+- No automatic API documentation
+
+For our current products — all Next.js monorepos where the frontend and API live in the same repository — the lack of end-to-end type safety is the main practical cost. We mitigate it with shared TypeScript types in a `types/` directory:
+
+```ts
+// types/api.ts
+export interface ScanRequest {
+  url: string;
+}
+
+export interface ScanResult {
+  productName: string;
+  margin: number;
+  confidenceScore: number;
+  soldItems30Days: number;
+}
+```
+
+Both the API route and the client-side fetch call import from `types/api.ts`. TypeScript validates the client calls the correct shape; but the runtime guarantee is weaker — the API could still return a different shape and TypeScript wouldn't catch it.
+
+## tRPC: type-safe RPC for TypeScript monorepos
+
+tRPC is a library for building type-safe APIs in TypeScript. You define procedures on the server, and the client gets the types automatically without any code generation:
+
+```ts
+// Server: define a procedure
+const appRouter = router({
+  scan: publicProcedure
+    .input(z.object({ url: z.string().url() }))
+    .mutation(async ({ input }) => {
+      return await scanProduct(input.url);
+    }),
+});
+
+// Client: call with full type safety
+const result = await trpc.scan.mutate({ url: 'https://...' });
+// result is typed as the return type of scanProduct
+```
+
+The key advantage: the client and server share a single type definition. If you change the server response shape, TypeScript errors appear immediately on every client call site.
+
+The disadvantages:
+- Tighter coupling between frontend and backend — harder to add non-Next.js clients (mobile app, third-party API)
+- Additional library and configuration complexity
+- Not standard HTTP — tRPC uses JSON-RPC under the hood, which some infrastructure doesn't handle well
+
+**When we'd use tRPC:** If we had a product where the API is private (only consumed by our own frontend, no third-party access needed) and the frontend and backend are in the same repository, tRPC's type safety advantage is significant. The Hyve is closest to this — it's a single Next.js app with no public API. We might migrate The Hyve's internal API to tRPC as a Q1 project.
+
+## GraphQL: flexible queries for complex data graphs
+
+GraphQL lets clients specify exactly what data they need:
+
+```graphql
+query {
+  workspace(id: "ws-123") {
+    name
+    members {
+      name
+      role
+    }
+    channels {
+      name
+      lastMessage {
+        content
+        author {
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+The advantages:
+- Clients fetch exactly what they need — no over-fetching or under-fetching
+- Self-documenting (the schema is the documentation)
+- Powerful for complex, nested data relationships
+
+The disadvantages:
+- Significantly more complexity to set up and maintain
+- Caching is harder (requests all hit the same endpoint)
+- N+1 query problems require DataLoader or similar — subtle performance pitfall
+- Overkill for APIs with few endpoints and simple data shapes
+
+**When we'd use GraphQL:** If we had a product with many different client types (web, mobile, partner integrations) each needing different data shapes from the same API. The complexity investment pays off when many clients query the same data in different ways. None of our current products are in this situation.
+
+## The public API question
+
+The Marqet and The Hyve both have plans for public APIs — allowing developers to build integrations on top of them. This changes the decision.
+
+For a public API, REST is almost always right. It's the standard that every developer understands, every tool supports, and every programming language has libraries for. A tRPC API requires the client to be TypeScript. A GraphQL API requires the client to understand GraphQL.
+
+When The Marqet's public API ships, it will be REST with OpenAPI documentation and a developer portal. The internal API layer (consumed only by our Next.js frontend) might be tRPC for type safety; the external API will be REST.
+
+## The current choice in practice
+
+For a two-person team building three products, the cognitive overhead of tRPC or GraphQL isn't justified by the benefit at current scale:
+
+- The type safety gap in REST can be managed with shared types and Zod validation at the API boundary
+- The data shapes are simple enough that over-fetching isn't a problem
+- The team understands REST deeply; tRPC and GraphQL would require ramp-up time
+
+If we hired a third engineer, or if any product started needing a mobile client or public API with many consumers, the calculus would change. The right tool isn't fixed — it's determined by the specific trade-offs at your current scale and team composition.
+
+REST for now. tRPC for The Hyve internal API in Q1. REST for the public APIs. GraphQL when we have a product that genuinely needs it.
