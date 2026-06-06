@@ -1,0 +1,212 @@
+---
+title: "WebSockets in Next.js: real-time bidirectional communication"
+date: "2027-08-31"
+excerpt: "SSE works for server-to-client streaming, but WebSockets are the right tool when you need bidirectional communication: collaborative editing, multiplayer, live chat, presence indicators. Here's the architecture that works with Next.js App Router."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js Route Handlers don't support WebSockets — they're HTTP handlers. The standard solution is a separate Node.js server running Socket.io or raw `ws`, sharing the same process via a custom server setup, or using a managed service like Ably or Pusher.
+
+## Custom server with Socket.io
+
+The most flexible approach: a Next.js custom server that handles both HTTP and WebSocket traffic.
+
+```ts
+// server.ts
+import { createServer } from 'http';
+import { parse } from 'url';
+import next from 'next';
+import { Server } from 'socket.io';
+
+const dev = process.env.NODE_ENV !== 'production';
+const app = next({ dev });
+const handle = app.getRequestHandler();
+
+app.prepare().then(() => {
+  const httpServer = createServer((req, res) => {
+    const parsedUrl = parse(req.url!, true);
+    handle(req, res, parsedUrl);
+  });
+
+  const io = new Server(httpServer, {
+    cors: {
+      origin: process.env.NEXT_PUBLIC_SITE_URL,
+      credentials: true,
+    },
+  });
+
+  // Make io available to route handlers
+  (global as any).io = io;
+
+  io.on('connection', (socket) => {
+    console.log(`[ws] Connected: ${socket.id}`);
+
+    socket.on('join-room', (roomId: string) => {
+      socket.join(roomId);
+      socket.to(roomId).emit('user-joined', { socketId: socket.id });
+    });
+
+    socket.on('message', ({ roomId, content }: { roomId: string; content: string }) => {
+      io.to(roomId).emit('message', {
+        from: socket.id,
+        content,
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on('disconnect', () => {
+      console.log(`[ws] Disconnected: ${socket.id}`);
+    });
+  });
+
+  httpServer.listen(3000, () => {
+    console.log('> Ready on http://localhost:3000');
+  });
+});
+```
+
+Update `package.json` to run the custom server:
+
+```json
+{
+  "scripts": {
+    "dev": "ts-node --project tsconfig.server.json server.ts",
+    "build": "next build",
+    "start": "NODE_ENV=production ts-node --project tsconfig.server.json server.ts"
+  }
+}
+```
+
+## Client hook
+
+```ts
+// hooks/useSocket.ts
+import { useEffect, useRef, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+
+export function useSocket(roomId: string) {
+  const socketRef = useRef<Socket | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    const socket = io(process.env.NEXT_PUBLIC_SITE_URL!, {
+      path: '/socket.io',
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setConnected(true);
+      socket.emit('join-room', roomId);
+    });
+
+    socket.on('disconnect', () => setConnected(false));
+
+    socket.on('message', (msg: Message) => {
+      setMessages((prev) => [...prev, msg]);
+    });
+
+    socket.on('user-joined', ({ socketId }: { socketId: string }) => {
+      console.log(`User joined: ${socketId}`);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [roomId]);
+
+  const sendMessage = (content: string) => {
+    socketRef.current?.emit('message', { roomId, content });
+  };
+
+  return { connected, messages, sendMessage };
+}
+```
+
+## Presence with rooms
+
+Track who's online using room membership:
+
+```ts
+// server-side room tracking
+const roomUsers = new Map<string, Set<string>>();
+
+io.on('connection', (socket) => {
+  socket.on('join-room', (roomId: string, userId: string) => {
+    socket.join(roomId);
+    socket.data.roomId = roomId;
+    socket.data.userId = userId;
+
+    if (!roomUsers.has(roomId)) roomUsers.set(roomId, new Set());
+    roomUsers.get(roomId)!.add(userId);
+
+    // Broadcast updated presence to room
+    io.to(roomId).emit('presence', {
+      users: Array.from(roomUsers.get(roomId)!),
+    });
+  });
+
+  socket.on('disconnect', () => {
+    const { roomId, userId } = socket.data;
+    if (roomId && userId) {
+      roomUsers.get(roomId)?.delete(userId);
+      io.to(roomId).emit('presence', {
+        users: Array.from(roomUsers.get(roomId) ?? []),
+      });
+    }
+  });
+});
+```
+
+## Managed alternative: Ably
+
+For production apps that can't run a custom server (Vercel, Netlify), use a managed WebSocket service:
+
+```ts
+// lib/ably.ts
+import Ably from 'ably';
+
+export const ably = new Ably.Realtime({
+  key: process.env.ABLY_API_KEY,
+  clientId: 'server',
+});
+
+// app/api/ably-token/route.ts — issue client tokens
+export async function GET() {
+  const token = await ably.auth.createTokenRequest({
+    clientId: 'user-' + Math.random().toString(36).slice(2),
+  });
+  return Response.json(token);
+}
+```
+
+```ts
+// Client: use Ably React hooks
+import { useChannel } from 'ably/react';
+
+function ChatRoom({ roomId }: { roomId: string }) {
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  const { channel } = useChannel(`room:${roomId}`, (msg) => {
+    setMessages((prev) => [...prev, msg.data]);
+  });
+
+  const send = (content: string) => {
+    channel.publish('message', { content, timestamp: Date.now() });
+  };
+
+  return <ChatUI messages={messages} onSend={send} />;
+}
+```
+
+Ably handles scaling, connection management, and message history. The tradeoff is cost — it's pay-per-message at scale.
+
+## When not to use WebSockets
+
+- **Notifications, activity feeds**: use SSE (simpler, HTTP-compatible, no persistent connection)
+- **Occasional updates (dashboard, prices)**: use polling with SWR `refreshInterval`
+- **One-way AI streaming**: use SSE or ReadableStream
+
+WebSockets are right when the client needs to send as well as receive — chat, collaborative editing, multiplayer game state, live cursors.

@@ -1,0 +1,220 @@
+---
+title: "NextAuth v5: authentication that doesn't fight you"
+date: "2027-09-03"
+excerpt: "NextAuth v5 (Auth.js) rewrites the internals for App Router and Edge Runtime. The config is simpler, middleware-based session checking works correctly, and JWT vs database sessions is a clearer choice. Here's the setup that actually works."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+NextAuth v5 is a significant rewrite — same name, different architecture. The config moves to a single `auth.ts` file, everything is async, and it works correctly with Edge Runtime middleware.
+
+## Setup
+
+```bash
+npm install next-auth@beta
+```
+
+```ts
+// auth.ts
+import NextAuth from 'next-auth';
+import GitHub from 'next-auth/providers/github';
+import Google from 'next-auth/providers/google';
+import Credentials from 'next-auth/providers/credentials';
+import { db } from '@/db';
+import { verifyPassword } from '@/lib/crypto';
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  providers: [
+    GitHub({
+      clientId: process.env.AUTH_GITHUB_ID!,
+      clientSecret: process.env.AUTH_GITHUB_SECRET!,
+    }),
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+    }),
+    Credentials({
+      credentials: {
+        email: { type: 'email' },
+        password: { type: 'password' },
+      },
+      authorize: async ({ email, password }) => {
+        if (!email || !password) return null;
+        const user = await db.query.users.findFirst({
+          where: (u, { eq }) => eq(u.email, email as string),
+        });
+        if (!user || !user.passwordHash) return null;
+        const valid = await verifyPassword(password as string, user.passwordHash);
+        if (!valid) return null;
+        return { id: user.id, email: user.email, name: user.name };
+      },
+    }),
+  ],
+
+  callbacks: {
+    jwt({ token, user }) {
+      if (user) token.id = user.id;
+      return token;
+    },
+    session({ session, token }) {
+      session.user.id = token.id as string;
+      return session;
+    },
+  },
+
+  pages: {
+    signIn: '/login',
+    error: '/login',
+  },
+});
+```
+
+```ts
+// app/api/auth/[...nextauth]/route.ts
+import { handlers } from '@/auth';
+export const { GET, POST } = handlers;
+```
+
+## Session access
+
+```ts
+// Server Component — direct session access, no API call
+import { auth } from '@/auth';
+
+export default async function DashboardPage() {
+  const session = await auth();
+  if (!session?.user) redirect('/login');
+
+  return <Dashboard user={session.user} />;
+}
+```
+
+```ts
+// Client Component — use the hook
+'use client';
+import { useSession } from 'next-auth/react';
+
+export function UserMenu() {
+  const { data: session, status } = useSession();
+  if (status === 'loading') return <Skeleton />;
+  if (!session) return <SignInButton />;
+  return <Avatar user={session.user} />;
+}
+```
+
+## Middleware-based route protection
+
+```ts
+// middleware.ts
+import { auth } from '@/auth';
+
+export default auth((req) => {
+  const isProtected = req.nextUrl.pathname.startsWith('/dashboard');
+  const isLoggedIn = !!req.auth;
+
+  if (isProtected && !isLoggedIn) {
+    return Response.redirect(new URL('/login', req.url));
+  }
+});
+
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};
+```
+
+The `req.auth` check happens at the Edge — zero database calls, fast. The session is validated from the JWT in the cookie.
+
+## JWT vs database sessions
+
+**JWT (default)**: session data lives in a signed cookie. No database lookup on each request. Limited to ~4KB. Tokens live until expiry — you can't invalidate them server-side without a blocklist.
+
+**Database sessions**: each request looks up a session record. More latency, but you can revoke sessions instantly. Required if you need to invalidate on password change, suspicious activity, or logout-everywhere.
+
+```ts
+// Switch to database sessions
+import { DrizzleAdapter } from '@auth/drizzle-adapter';
+import { db } from '@/db';
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  adapter: DrizzleAdapter(db),
+  session: { strategy: 'database' },
+  // ...providers
+});
+```
+
+Use JWT unless you specifically need server-side session invalidation.
+
+## Sign in / sign out
+
+```tsx
+// app/login/page.tsx — use the server action directly
+import { signIn } from '@/auth';
+
+export default function LoginPage() {
+  return (
+    <form
+      action={async () => {
+        'use server';
+        await signIn('github', { redirectTo: '/dashboard' });
+      }}
+    >
+      <button type="submit">Sign in with GitHub</button>
+    </form>
+  );
+}
+```
+
+```tsx
+// Sign out
+import { signOut } from '@/auth';
+
+export function SignOutButton() {
+  return (
+    <form
+      action={async () => {
+        'use server';
+        await signOut({ redirectTo: '/' });
+      }}
+    >
+      <button type="submit">Sign out</button>
+    </form>
+  );
+}
+```
+
+## Extending the session type
+
+```ts
+// types/next-auth.d.ts
+import { DefaultSession } from 'next-auth';
+
+declare module 'next-auth' {
+  interface Session {
+    user: DefaultSession['user'] & {
+      id: string;
+      role: 'user' | 'admin';
+      plan: 'free' | 'pro';
+    };
+  }
+}
+```
+
+Then populate in the `session` callback from the JWT or a database lookup.
+
+## Common pattern: role-based access
+
+```ts
+// middleware.ts
+export default auth((req) => {
+  const { pathname } = req.nextUrl;
+  const session = req.auth;
+
+  if (pathname.startsWith('/admin')) {
+    if (!session || session.user.role !== 'admin') {
+      return Response.redirect(new URL('/403', req.url));
+    }
+  }
+});
+```
+
+The pattern: store role in JWT (fast, no DB), validate in middleware (edge, no latency). Accept the tradeoff that role changes don't take effect until the JWT expires (default 30 days) — use a short expiry or database sessions if that matters.
