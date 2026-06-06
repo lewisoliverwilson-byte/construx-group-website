@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import NeofetchPanel from '@/components/NeofetchPanel';
+import BrewListPanel from '@/components/BrewListPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -316,6 +317,11 @@ export default function UsesPage() {
         {/* Dev machine system info */}
         <div className="mt-8">
           <NeofetchPanel />
+        </div>
+
+        {/* Homebrew packages */}
+        <div className="mt-6">
+          <BrewListPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

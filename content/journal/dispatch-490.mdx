@@ -1,0 +1,214 @@
+---
+title: "Turso and libSQL: SQLite at the edge"
+date: "2028-12-22"
+excerpt: "Turso distributes SQLite databases across edge locations. Zero connection overhead, sub-millisecond reads close to users, and a Drizzle ORM adapter that makes the switch from Postgres mostly mechanical. Here's the setup and the cases where it's the right call."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SQLite has a reputation as a toy database. Turso makes it a serious edge-native option: they distribute your SQLite file across 35+ regions, replicate writes globally, and expose it via a WebSocket protocol called libSQL. The result is a relational database with zero connection pooling overhead and reads that happen in the same edge region as your Next.js function.
+
+## When to use it
+
+Turso is the right call for:
+- Read-heavy workloads where latency to a central Postgres instance hurts
+- Apps deployed on edge runtimes (Cloudflare Workers, Vercel Edge Functions)
+- Multi-tenant apps where each tenant gets their own isolated database
+- Hobby/early-stage projects on Turso's generous free tier
+
+Not the right call for:
+- Heavy write workloads (writes go to primary, then replicate)
+- Complex queries requiring advanced Postgres features (full-text search, pgvector, CTEs with `RETURNING`)
+- Existing Postgres migrations with decades of tooling
+
+## Setup
+
+```bash
+npm install @libsql/client drizzle-orm
+npm install -D drizzle-kit
+```
+
+```ts
+// lib/db.ts
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN!,
+});
+
+export const db = drizzle(client);
+```
+
+```bash
+# Create a database
+turso db create my-app
+
+# Get the connection URL
+turso db show my-app --url
+
+# Create an auth token
+turso db tokens create my-app
+```
+
+## Schema with Drizzle
+
+libSQL uses SQLite types. The Drizzle adapter maps them:
+
+```ts
+// db/schema.ts
+import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+
+export const posts = sqliteTable('posts', {
+  id:        text('id').primaryKey(),
+  title:     text('title').notNull(),
+  slug:      text('slug').notNull().unique(),
+  body:      text('body').notNull(),
+  authorId:  text('author_id').notNull(),
+  published: integer('published', { mode: 'boolean' }).default(false),
+  views:     integer('views').default(0),
+  score:     real('score'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+});
+
+export const authors = sqliteTable('authors', {
+  id:    text('id').primaryKey(),
+  name:  text('name').notNull(),
+  email: text('email').notNull().unique(),
+});
+```
+
+```ts
+// db/relations.ts
+import { relations } from 'drizzle-orm';
+import { posts, authors } from './schema';
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(authors, {
+    fields:     [posts.authorId],
+    references: [authors.id],
+  }),
+}));
+```
+
+## Migrations
+
+```bash
+# Generate migration files
+npx drizzle-kit generate --dialect sqlite --schema ./db/schema.ts
+
+# Push directly to Turso (dev workflow)
+npx drizzle-kit push --dialect sqlite --url $TURSO_DATABASE_URL --auth-token $TURSO_AUTH_TOKEN
+```
+
+For production, apply migrations in your CI pipeline before deploying the app.
+
+## Querying
+
+The Drizzle API is identical to the Postgres adapter — same `select`, `insert`, `where`, `eq`:
+
+```ts
+import { db } from '@/lib/db';
+import { posts, authors } from '@/db/schema';
+import { eq, desc, and, like } from 'drizzle-orm';
+
+// Select with join
+const results = await db
+  .select({
+    title:      posts.title,
+    slug:       posts.slug,
+    authorName: authors.name,
+  })
+  .from(posts)
+  .innerJoin(authors, eq(posts.authorId, authors.id))
+  .where(eq(posts.published, true))
+  .orderBy(desc(posts.createdAt))
+  .limit(10);
+
+// Insert
+await db.insert(posts).values({
+  id:       crypto.randomUUID(),
+  title:    'New post',
+  slug:     'new-post',
+  body:     '...',
+  authorId: 'author-123',
+});
+
+// Update
+await db
+  .update(posts)
+  .set({ views: sql`${posts.views} + 1` })
+  .where(eq(posts.slug, slug));
+```
+
+## Edge runtime compatibility
+
+libSQL's WebSocket client works in Cloudflare Workers and Vercel Edge Functions. The standard `@libsql/client` package automatically selects the WebSocket transport when the Node.js `net` module is unavailable:
+
+```ts
+// This works in edge runtimes — no special config needed
+import { createClient } from '@libsql/client';
+
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN!,
+});
+```
+
+In Vercel Edge Functions, add the edge runtime declaration:
+
+```ts
+// app/api/posts/route.ts
+export const runtime = 'edge';
+
+import { db } from '@/lib/db';
+import { posts } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const slug = searchParams.get('slug');
+
+  if (!slug) return Response.json({ error: 'Missing slug' }, { status: 400 });
+
+  const [post] = await db.select().from(posts).where(eq(posts.slug, slug));
+  if (!post) return Response.json({ error: 'Not found' }, { status: 404 });
+
+  return Response.json(post);
+}
+```
+
+## Multi-tenant databases
+
+Turso's per-database model makes multi-tenancy trivial — one SQLite file per tenant, provisioned on signup:
+
+```ts
+import { createClient } from '@turso/api';
+
+const turso = createClient({ token: process.env.TURSO_API_TOKEN! });
+
+async function provisionTenant(tenantId: string) {
+  // Create isolated database for this tenant
+  const db = await turso.databases.create({
+    name:  `tenant-${tenantId}`,
+    group: 'default',
+  });
+
+  // Create auth token scoped to this database
+  const { jwt } = await turso.databases.createToken(db.name);
+
+  // Store credentials
+  await saveTenantCredentials(tenantId, {
+    url:   db.hostname,
+    token: jwt,
+  });
+}
+```
+
+Each tenant's data is physically isolated — no `WHERE tenant_id = ?` leaks, no cross-tenant query interference, simpler schema design.
+
+## Free tier limits
+
+Turso's free tier: 500 databases, 9GB total storage, 1 billion row reads/month. More than enough for early-stage products with real users.
