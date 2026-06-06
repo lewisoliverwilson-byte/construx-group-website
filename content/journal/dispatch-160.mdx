@@ -1,0 +1,110 @@
+---
+title: "Email as a product: transactional email design that people don't hate"
+date: "2026-10-22"
+excerpt: "Every product interaction produces emails. Here's how we design transactional email across the Construx products — what goes in, what stays out, and why most transactional email is worse than it needs to be."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Transactional email is the email users don't choose to receive but have to deal with. Order confirmations, verification codes, payment receipts, notification digests. Most of it is terrible.
+
+Here's how we think about it.
+
+## The problem with most transactional email
+
+**Design theatre.** Templates with elaborate headers, footers, sidebars, and multiple call-to-action buttons for email that needs to communicate one thing. The design complexity dilutes the core message.
+
+**Passive voice and corporate language.** "Your order has been placed." "A request has been received." This language feels like it was written to be legally defensible, not to be read.
+
+**Too much information.** An order confirmation email shouldn't explain your return policy, cross-promote other products, and request a review. It should confirm the order, include the key details, and stop.
+
+**Overuse.** Sending email for every minor event trains users to ignore the channel. The emails that matter get lost in the ones that don't.
+
+## Our email principles
+
+**One email, one purpose.** Each transactional email communicates exactly one thing. The order is confirmed. The payment has been released. The document is ready. No cross-promotion, no secondary calls to action.
+
+**Active, direct language.** "Your payment cleared." "Lewis sent you a message." "Your listing is live." First name, simple verbs, short sentences.
+
+**Minimal design.** Plain text or near-plain text for most transactional emails. A small header with the product logo. The essential content. A single link if action is needed. No elaborate layout.
+
+**The "what do I do?" test.** Every transactional email should answer "what do I do with this?" in one second. If the answer isn't obvious, the email is doing too much.
+
+## The Marqet email architecture
+
+The Marqet has four core transactional email types:
+
+**New enquiry notification (to seller):** Someone sent you an enquiry. One CTA: reply. No account promotion, no related listings, no review request.
+
+```
+Subject: New enquiry from Alex Johnson
+
+Alex Johnson sent you an enquiry about your Web Development listing.
+
+→ View and reply: [link]
+
+—
+The Marqet
+```
+
+**Enquiry received (to buyer):** Your enquiry was sent. No action required.
+
+```
+Subject: Your enquiry was sent
+
+Your enquiry to Emma Clarke (UX Design) was received.
+Emma typically responds within 24 hours.
+
+You'll get an email when she replies.
+
+—
+The Marqet
+```
+
+**Payment released (to seller):** The buyer confirmed the work. Payment is on its way.
+
+```
+Subject: £340.00 released to your account
+
+Payment for "Brand Strategy & Identity Design" has been released.
+£340.00 will arrive in 2-3 business days.
+
+[View transaction] →
+
+—
+The Marqet
+```
+
+**Dispute opened:** One party has raised a dispute. Both parties receive the same email with symmetric information.
+
+These four templates cover 80% of the email volume. Each is plain text with the exception of the Marqet wordmark in a header.
+
+## The Hyve email architecture
+
+The Hyve has two transactional types and deliberate restraint on volume:
+
+**Daily digest (opt-in only):** A summary of workspace activity while the user was away. Not sent if the user has been active in the past 24 hours — the digest is for users who've been away, not a supplement for active users.
+
+**Invitation email:** You've been invited to a workspace. Direct, clear, one CTA.
+
+The Hyve does not send email for every message, every @mention, or every channel update. These are in-product notifications. Email is for time-sensitive or missed information.
+
+## HTML vs. plain text
+
+We use styled HTML for all transactional email, but styled to look like plain text. The actual email is HTML (to control layout and rendering across clients) but the visual design is: black text on white, default font sizes, no background colours, no images beyond the logo.
+
+The reason: plain text email renders identically across all email clients. Elaborate HTML email breaks in Outlook, in dark mode, in mobile clients. Near-plain-text HTML is the optimal combination: reliable rendering, branded header, readable on any client.
+
+## The open rate metric
+
+We track open rates but don't optimise for them in the conventional sense (subject line testing, send-time optimisation). Transactional email that does its job well will be opened because it contains information the user needs. Optimising for open rate on email that does its job poorly is a distraction.
+
+The metric we do care about: click rate on CTA emails (enquiry reply, payment confirmation). If users are receiving the email but not clicking through to respond, the email isn't doing its job.
+
+## The unsubscribe question
+
+Transactional email is exempt from unsubscribe requirements in most jurisdictions (it's triggered by a specific user action rather than being marketing). We still include a preference management link in every email footer — not because we're required to, but because users who want less email should be able to manage it easily.
+
+The preference page lets users turn off specific notification types. "When someone replies to my enquiry" stays on by default (you need to know). "Weekly platform digest" is opt-out.
+
+Good transactional email design is mostly restraint: say less, do one thing, make the action obvious. The emails that users actually read are the ones that respect their attention.

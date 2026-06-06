@@ -1,0 +1,195 @@
+---
+title: "The search problem: implementing full-text and semantic search for The Marqet"
+date: "2026-10-23"
+excerpt: "Search is where The Marqet lives or dies. A buyer looking for a UX designer needs to find the right listings quickly. Here's the dual-mode search implementation: full-text for precision, semantic for intent."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Search is fundamental to any marketplace. A buyer who can't find the right seller leaves. A buyer who finds the right seller and hires them comes back. Getting search right is one of the most impactful technical investments we've made.
+
+Here's the implementation.
+
+## The requirements
+
+Buyers on The Marqet search in different ways:
+
+**Exact searches:** "UX designer Manchester", "React developer", "brand strategy agency". The buyer knows what they want and is filtering for it.
+
+**Intent searches:** "someone to help me launch my product", "make my website look more professional", "fix my brand". The buyer knows the outcome but not the professional category.
+
+Exact searches are well-served by full-text search. Intent searches require semantic understanding — the query "make my website look more professional" doesn't lexically match "UX Designer" or "Brand Consultant" but should surface both.
+
+We needed both.
+
+## Full-text search with PostgreSQL
+
+PostgreSQL has built-in full-text search that handles the exact query case well:
+
+```sql
+-- Add a tsvector column for efficient full-text search
+ALTER TABLE listings 
+ADD COLUMN search_vector tsvector 
+GENERATED ALWAYS AS (
+  setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+  setweight(to_tsvector('english', coalesce(description, '')), 'B') ||
+  setweight(to_tsvector('english', coalesce(category, '')), 'A') ||
+  setweight(to_tsvector('english', coalesce(location, '')), 'C') ||
+  setweight(to_tsvector('english', coalesce(array_to_string(skills, ' '), '')), 'A')
+) STORED;
+
+CREATE INDEX idx_listings_search_vector ON listings USING GIN(search_vector);
+```
+
+The `setweight` function assigns relevance weights to different fields: title and category (weight A, most relevant) rank above description (B) and location (C).
+
+Query execution:
+
+```sql
+SELECT 
+  id, title, seller_id, category, price_min, price_max, location,
+  ts_rank(search_vector, query) AS rank
+FROM listings,
+  to_tsquery('english', $1) query
+WHERE search_vector @@ query
+  AND status = 'active'
+ORDER BY rank DESC
+LIMIT 20;
+```
+
+The `to_tsquery` function parses the search query into a TSQuery, handling stemming (searching "design" matches "designed", "designer", "designing") and operators (AND, OR, NOT).
+
+**Limitation:** `to_tsquery` is strict — it throws an error if the input contains characters it can't parse. For user queries, we use `websearch_to_tsquery` instead, which handles natural-language queries gracefully:
+
+```sql
+websearch_to_tsquery('english', 'UX designer who can help with landing pages')
+-- produces: 'ux' & 'design' & 'help' & 'land' & 'page'
+```
+
+## Semantic search with pgvector
+
+For intent-based queries, we store listing embeddings and query against them with cosine similarity:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+ALTER TABLE listings 
+ADD COLUMN embedding vector(1536);
+
+CREATE INDEX idx_listings_embedding ON listings 
+USING hnsw(embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+```
+
+The HNSW index (Hierarchical Navigable Small World) provides approximate nearest-neighbour search — much faster than exact cosine similarity for large tables.
+
+When a listing is created or updated, we generate an embedding:
+
+```ts
+async function generateListingEmbedding(listing: Listing): Promise<number[]> {
+  const text = [
+    listing.title,
+    listing.description,
+    listing.category,
+    listing.skills.join(', '),
+    `Based in ${listing.location}`,
+  ].join('\n\n');
+
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: text,
+  });
+
+  return response.data[0].embedding;
+}
+```
+
+At query time:
+
+```ts
+async function semanticSearch(query: string, limit = 20) {
+  const queryEmbedding = await generateQueryEmbedding(query);
+  
+  const results = await db.execute(sql`
+    SELECT 
+      id, title, seller_id, category, price_min, price_max,
+      1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) AS similarity
+    FROM listings
+    WHERE status = 'active'
+      AND embedding IS NOT NULL
+    ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+    LIMIT ${limit}
+  `);
+  
+  return results.rows;
+}
+```
+
+The `<=>` operator is pgvector's cosine distance operator. `1 - cosine_distance` gives us cosine similarity (1.0 = identical, 0.0 = orthogonal).
+
+## Combining the two: hybrid search
+
+The most effective search combines both approaches. We run both queries and merge results using Reciprocal Rank Fusion (RRF):
+
+```ts
+async function hybridSearch(query: string) {
+  const [ftResults, semanticResults] = await Promise.all([
+    fullTextSearch(query),
+    semanticSearch(query),
+  ]);
+
+  // RRF: score = sum of 1/(k + rank) for each list the item appears in
+  const k = 60; // standard RRF constant
+  const scores = new Map<string, number>();
+
+  ftResults.forEach((item, rank) => {
+    const current = scores.get(item.id) ?? 0;
+    scores.set(item.id, current + 1 / (k + rank + 1));
+  });
+
+  semanticResults.forEach((item, rank) => {
+    const current = scores.get(item.id) ?? 0;
+    scores.set(item.id, current + 1 / (k + rank + 1));
+  });
+
+  // Merge unique results, sorted by RRF score
+  const allIds = new Set([...ftResults.map(r => r.id), ...semanticResults.map(r => r.id)]);
+  const merged = [...allIds]
+    .map(id => {
+      const result = ftResults.find(r => r.id === id) ?? semanticResults.find(r => r.id === id)!;
+      return { ...result, score: scores.get(id) ?? 0 };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20);
+
+  return merged;
+}
+```
+
+RRF is simple and effective: it rewards listings that appear highly ranked in both lists, and still surfaces listings that appear in only one list at a lower position.
+
+## The query routing decision
+
+We don't always need both searches. A short, specific query ("React developer") works well with full-text alone. A longer, natural-language query ("someone to help me grow my e-commerce business") benefits from semantic search.
+
+We route based on query characteristics:
+
+```ts
+function shouldUseSemanticSearch(query: string): boolean {
+  const words = query.trim().split(/\s+/);
+  // Long queries (5+ words) or queries that don't contain common service terms
+  return words.length >= 5 || !containsServiceTerms(query);
+}
+```
+
+For short, specific queries, we skip the embedding generation (saves API cost and latency). For long, intent-based queries, we run hybrid search.
+
+## Performance
+
+- Full-text search: ~12ms p50, ~35ms p99
+- Semantic search: ~180ms p50 (dominated by embedding API call), ~420ms p99
+- Hybrid search: ~200ms p50 (parallel execution, dominated by embedding)
+
+The embedding API call is the dominant latency source. We've reduced this with a query cache: repeated queries within a 15-minute window reuse the cached embedding. For popular search terms, this reduces the latency to full-text levels.
+
+The search is fast enough. The quality improvement from semantic search on intent-based queries is worth the 200ms vs. 35ms tradeoff.
