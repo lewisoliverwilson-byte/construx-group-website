@@ -234,6 +234,20 @@ export default function VenturesPage() {
                   </Link>
                 </div>
               </div>
+              {/* Status footer */}
+              <div
+                className="flex items-center justify-between px-3 py-1.5 select-none"
+                style={{ borderTop: `1px solid ${v.accent}14`, background: 'rgba(0,0,0,0.28)' }}
+              >
+                <span className="font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'rgba(74,222,128,0.55)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#4ade80', boxShadow: '0 0 3px rgba(74,222,128,0.5)' }} />
+                  LIVE
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[8px] tabular-nums" style={{ color: `${v.accent}40` }}>p50 &lt;80ms</span>
+                  <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>exit: 0</span>
+                </div>
+              </div>
             </article>
           ))}
         </div>
