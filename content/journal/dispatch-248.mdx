@@ -1,0 +1,199 @@
+---
+title: "File uploads in Next.js: presigned URLs, Cloudflare R2, and the client pattern"
+date: "2027-01-19"
+excerpt: "The Hyve allows users to attach files to messages and documents. Here's the file upload architecture — why we use presigned URLs instead of API routes, how Cloudflare R2 compares to S3, and the client-side implementation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+File uploads have a deceptively complex decision tree. The naive approach — send the file to your API route, have the API route upload it to storage — has a specific failure mode: the file transits through your serverless function, which has a 4.5MB (Vercel) or similar body limit, and you're paying for every byte of upload traffic twice (client → server → storage).
+
+The right pattern is presigned URLs: the client uploads directly to the storage provider, your API route is only involved to create the URL and record the upload.
+
+## The architecture
+
+```
+Client → POST /api/upload/presign → Returns presigned URL + file ID
+Client → PUT {presignedUrl} → Uploads directly to Cloudflare R2
+Client → POST /api/upload/confirm → Server records the upload
+```
+
+Three steps, but only two involve your server — and neither involves the file itself. The API routes handle small JSON payloads; the file goes directly to R2.
+
+## Why Cloudflare R2 over S3
+
+AWS S3 and Cloudflare R2 are both S3-compatible object stores. For The Hyve's use case, R2 is better:
+
+- **No egress fees.** S3 charges for data egress (downloads). R2 has no egress fees. For a workspace where uploaded files are frequently downloaded (shared attachments), this matters at scale.
+- **Pricing.** R2's per-GB storage price is comparable to S3; the savings come from egress.
+- **S3-compatible API.** The `@aws-sdk/client-s3` SDK works with R2 using a custom endpoint. No R2-specific SDK needed.
+
+The disadvantages:
+- Fewer region options — R2 stores data in Cloudflare's network, not a specific region you choose
+- Less mature ecosystem — some S3 integrations assume AWS-specific features
+
+## The presign endpoint
+
+```ts
+// app/api/upload/presign/route.ts
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { auth } from '@clerk/nextjs/server';
+
+const r2 = new S3Client({
+  region: 'auto',
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+export async function POST(req: Request) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { filename, contentType, size } = await req.json();
+
+  // Validate before creating the presigned URL
+  if (!ALLOWED_TYPES.includes(contentType)) {
+    return Response.json({ error: 'File type not allowed' }, { status: 400 });
+  }
+  if (size > MAX_SIZE) {
+    return Response.json({ error: 'File too large (max 10MB)' }, { status: 400 });
+  }
+
+  const fileId = crypto.randomUUID();
+  const key = `uploads/${userId}/${fileId}/${filename}`;
+
+  const command = new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+    ContentType: contentType,
+    ContentLength: size,
+    // Restrict what the presigned URL allows
+    Metadata: {
+      'uploaded-by': userId,
+    },
+  });
+
+  const presignedUrl = await getSignedUrl(r2, command, {
+    expiresIn: 300, // URL expires in 5 minutes
+  });
+
+  return Response.json({
+    presignedUrl,
+    fileId,
+    key,
+    publicUrl: `https://${process.env.R2_PUBLIC_DOMAIN}/${key}`,
+  });
+}
+```
+
+The presigned URL is scoped: it can only be used to PUT the specific key, with the specified `ContentType` and `ContentLength`. The 5-minute expiry prevents URL accumulation.
+
+## The client upload hook
+
+```ts
+function useFileUpload() {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const upload = async (file: File): Promise<{ url: string; fileId: string }> => {
+    setUploading(true);
+    setProgress(0);
+
+    try {
+      // 1. Get presigned URL
+      const presignRes = await fetch('/api/upload/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        }),
+      });
+
+      if (!presignRes.ok) throw new Error('Failed to get upload URL');
+      const { presignedUrl, fileId, publicUrl } = await presignRes.json();
+
+      // 2. Upload directly to R2
+      // XMLHttpRequest gives us progress events; fetch doesn't
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload failed: ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.open('PUT', presignedUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
+
+      // 3. Confirm the upload with our server
+      await fetch('/api/upload/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId, filename: file.name, publicUrl }),
+      });
+
+      return { url: publicUrl, fileId };
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  };
+
+  return { upload, uploading, progress };
+}
+```
+
+We use `XMLHttpRequest` instead of `fetch` for the R2 upload because XHR gives us `xhr.upload.onprogress` events — the only way to get upload progress in the browser.
+
+## The confirm endpoint
+
+```ts
+// app/api/upload/confirm/route.ts
+export async function POST(req: Request) {
+  const { userId } = await auth();
+  const { fileId, filename, publicUrl } = await req.json();
+
+  await db.insert(uploads).values({
+    id: fileId,
+    userId,
+    filename,
+    url: publicUrl,
+    uploadedAt: new Date(),
+  });
+
+  return Response.json({ ok: true });
+}
+```
+
+The confirm step records the upload in our database. The file URL is attached to the message or document at this point:
+
+```ts
+const { url, fileId } = await upload(file);
+await sendMessage(channelId, {
+  content: `[${file.name}](${url})`,
+  attachments: [{ id: fileId, url, name: file.name }],
+});
+```
+
+## What we validate client-side vs server-side
+
+**Client-side (UX):** file type check, size check, progress display. These fail fast and give the user immediate feedback.
+
+**Server-side (security):** file type check again (the presign endpoint), size check again (the presign endpoint). Never trust client-side validation alone — the presigned URL parameters enforce the content type and content length at the R2 level, preventing a malicious client from uploading a larger or different file than declared.
+
+The `ContentType` and `ContentLength` constraints on the presigned URL are the actual security boundary. A request to R2 that doesn't match these constraints will fail with a 403.

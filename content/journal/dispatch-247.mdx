@@ -1,0 +1,183 @@
+---
+title: "The Hyve's notification system: real-time alerts without a WebSocket"
+date: "2027-01-18"
+excerpt: "The Hyve needs to notify users when they're mentioned in a channel, when a task is assigned, or when the AI agent responds. Here's the notification architecture — using SSE for delivery, PostgreSQL for persistence, and a careful unread count implementation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Notifications in a workspace app need to answer three questions:
+1. What happened that this user should know about?
+2. Is the user currently online to receive it?
+3. If not, where do we store it until they return?
+
+The Hyve's notification system uses Server-Sent Events for real-time delivery and PostgreSQL for persistence. No WebSocket, no separate notification service.
+
+## The data model
+
+```sql
+CREATE TABLE notifications (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL,
+  user_id      TEXT NOT NULL, -- Clerk user ID
+  type         TEXT NOT NULL, -- 'mention' | 'task_assigned' | 'agent_response' | 'message_dm'
+  title        TEXT NOT NULL,
+  body         TEXT,
+  metadata     JSONB DEFAULT '{}',
+  -- e.g. { "channelId": "...", "messageId": "...", "fromUserId": "..." }
+  read         BOOLEAN NOT NULL DEFAULT false,
+  created_at   TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX notifications_user_unread_idx ON notifications (user_id, read, created_at DESC)
+  WHERE read = false;
+```
+
+The partial index on `WHERE read = false` makes unread count queries fast — they only scan the unread subset, not the full notification history.
+
+## Creating notifications
+
+When an event occurs that triggers a notification, we create the database record and push to the SSE stream:
+
+```ts
+async function createNotification({
+  workspaceId,
+  userId,
+  type,
+  title,
+  body,
+  metadata,
+}: NotificationPayload) {
+  // 1. Persist to database
+  const [notification] = await db.insert(notifications)
+    .values({ workspaceId, userId, type, title, body, metadata })
+    .returning();
+
+  // 2. Push to SSE stream if user is connected
+  await notificationBroadcast(userId, {
+    type: 'notification',
+    notification,
+    unreadCount: await getUnreadCount(userId),
+  });
+
+  return notification;
+}
+```
+
+The `notificationBroadcast` function delivers to any open SSE connection for the user. If the user is offline, the database record is there for when they return.
+
+## The notification SSE endpoint
+
+```ts
+// app/api/notifications/stream/route.ts
+export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return new Response('Unauthorized', { status: 401 });
+
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  // Send existing unread count on connect
+  const unread = await getUnreadCount(userId);
+  await writer.write(encoder.encode(
+    `data: ${JSON.stringify({ type: 'unread_count', count: unread })}\n\n`
+  ));
+
+  // Register in active connections map
+  notificationConnections.set(userId, writer);
+
+  // Clean up on close
+  const cleanup = () => {
+    notificationConnections.delete(userId);
+    writer.close().catch(() => {});
+  };
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+```
+
+The `notificationConnections` map holds active SSE writers keyed by user ID. When a notification is created for a user, `notificationBroadcast` looks up their writer and delivers the event.
+
+## The unread count
+
+The notification bell in the header shows an unread count. This count needs to be:
+1. Accurate on page load (read from database)
+2. Updated in real-time as new notifications arrive (via SSE)
+3. Cleared when the user reads notifications
+
+```ts
+async function getUnreadCount(userId: string): Promise<number> {
+  const result = await db.select({ count: count() })
+    .from(notifications)
+    .where(and(
+      eq(notifications.userId, userId),
+      eq(notifications.read, false)
+    ));
+  return result[0]?.count ?? 0;
+}
+```
+
+The `mark_as_read` operation:
+
+```ts
+// app/api/notifications/mark-read/route.ts
+export async function POST(req: Request) {
+  const { userId } = await auth();
+  const { notificationIds } = await req.json();
+
+  await db.update(notifications)
+    .set({ read: true })
+    .where(and(
+      eq(notifications.userId, userId),
+      inArray(notifications.id, notificationIds)
+    ));
+
+  // Push updated count to SSE
+  const unread = await getUnreadCount(userId);
+  await notificationBroadcast(userId, {
+    type: 'unread_count',
+    count: unread,
+  });
+
+  return Response.json({ ok: true });
+}
+```
+
+When the user opens the notification panel, all visible notifications are marked read. The SSE stream receives the updated count (0 or lower), and the bell badge disappears.
+
+## Notification types and routing
+
+Each notification type has different metadata and a different link destination:
+
+```ts
+const NOTIFICATION_ROUTES: Record<string, (meta: Record<string, string>) => string> = {
+  mention: (m) => `/workspace/${m.workspaceId}/channel/${m.channelId}#${m.messageId}`,
+  task_assigned: (m) => `/workspace/${m.workspaceId}/board?card=${m.cardId}`,
+  agent_response: (m) => `/workspace/${m.workspaceId}/channel/${m.channelId}`,
+  message_dm: (m) => `/workspace/${m.workspaceId}/dm/${m.fromUserId}`,
+};
+
+function getNotificationLink(notification: Notification): string {
+  const route = NOTIFICATION_ROUTES[notification.type];
+  return route ? route(notification.metadata) : `/workspace/${notification.metadata.workspaceId}`;
+}
+```
+
+Clicking a notification navigates to the relevant context: the channel, the kanban card, or the DM thread.
+
+## What's missing
+
+**Push notifications.** When the browser tab is closed, the SSE connection is dead. We don't send browser push notifications (via the Push API) — users who aren't in the browser miss notifications until they return. This is acceptable for the current product but would need to change if The Hyve becomes a primary work tool for teams that need to be responsive across devices.
+
+**Notification preferences.** Users can't currently configure which events generate notifications. Every mention, every task assignment, every DM triggers a notification. Notification preferences are on the roadmap but not implemented.
+
+**Email digest.** Daily or weekly digest emails for unread notifications. Depends on RESEND_API_KEY being configured (see dispatch #230).
+
+Each of these is a known gap, not an oversight. We built the notification system that serves the current use case — real-time delivery to active browser sessions, persistence for later retrieval — and left these additions for when users ask for them.
