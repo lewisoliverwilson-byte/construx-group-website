@@ -1,0 +1,150 @@
+---
+title: "Feature flags: implementing safe, gradual rollouts"
+date: "2029-09-15"
+excerpt: "Feature flags let you deploy code without releasing it — the feature is in production but only visible to specific users or a percentage of traffic. They enable gradual rollouts, instant killswitches, and A/B testing without git branches. Here's the implementation and the operational discipline required to keep them from becoming permanent technical debt."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Feature flags decouple deployment from release. Code ships to production in every deploy; the flag controls whether users see it. This lets you: roll out to 1% of traffic, monitor for errors, expand to 10%, 50%, 100%, and kill instantly if something goes wrong — without a hotfix deploy.
+
+## The simplest implementation
+
+The minimal flag is just an environment variable:
+
+```ts
+const SHOW_NEW_DASHBOARD = process.env.NEXT_PUBLIC_SHOW_NEW_DASHBOARD === 'true';
+
+export function DashboardPage() {
+  if (SHOW_NEW_DASHBOARD) return <NewDashboard />;
+  return <OldDashboard />;
+}
+```
+
+This works for all-or-nothing releases. It doesn't support per-user targeting or gradual rollout.
+
+## User targeting with a server-side check
+
+For per-user flags, the flag resolution runs on the server:
+
+```ts
+// lib/flags.ts
+interface FlagContext {
+  userId:  string;
+  email?:  string;
+  plan?:   string;
+}
+
+const FLAGS: Record<string, (ctx: FlagContext) => boolean> = {
+  new_dashboard: (ctx) =>
+    ctx.email?.endsWith('@construxgroup.io') ?? false,  // staff only
+
+  new_billing_flow: (ctx) =>
+    ['pro', 'enterprise'].includes(ctx.plan ?? ''),      // paid plans only
+};
+
+export function isEnabled(flag: string, ctx: FlagContext): boolean {
+  return FLAGS[flag]?.(ctx) ?? false;
+}
+```
+
+```tsx
+// app/dashboard/page.tsx (Server Component)
+import { isEnabled } from '@/lib/flags';
+import { getServerSession } from 'next-auth';
+
+export default async function DashboardPage() {
+  const session = await getServerSession();
+  const ctx = { userId: session?.user?.id!, email: session?.user?.email! };
+
+  if (isEnabled('new_dashboard', ctx)) {
+    return <NewDashboard />;
+  }
+  return <OldDashboard />;
+}
+```
+
+Server-side flag resolution prevents the flash of old content that client-side flags cause.
+
+## Percentage rollout
+
+```ts
+function stableHashPercent(userId: string, flagName: string): number {
+  // Deterministic hash: same user+flag always returns same bucket
+  let hash = 0;
+  const str = `${flagName}:${userId}`;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 100;
+}
+
+export function isInRollout(flag: string, userId: string, pct: number): boolean {
+  return stableHashPercent(userId, flag) < pct;
+}
+```
+
+```ts
+// 10% rollout
+const enabled = isInRollout('new_checkout', session.user.id, 10);
+```
+
+The hash is stable: the same user always ends up in the same bucket. Changing the rollout percentage (10 → 20) adds the next bucket of users — it doesn't reshuffle who sees what. Users don't get a different experience on page refresh.
+
+## The killswitch pattern
+
+The most important feature of a flag system: being able to turn something off without a deploy.
+
+```ts
+// Environment-based killswitch
+const KILLED_FLAGS = (process.env.KILLED_FLAGS ?? '').split(',');
+
+export function isEnabled(flag: string, ctx: FlagContext): boolean {
+  if (KILLED_FLAGS.includes(flag)) return false;  // always off if killed
+  return FLAGS[flag]?.(ctx) ?? false;
+}
+```
+
+`KILLED_FLAGS` is an environment variable you set in your hosting platform (Amplify, Vercel, Railway). Setting `KILLED_FLAGS=new_dashboard` immediately disables the flag for all users. No code change, no deploy — just an env var update, which most platforms apply in under 30 seconds.
+
+## Using a managed flag service
+
+For teams that need more sophistication — audit logs, targeting rules, analytics — managed services are the right choice:
+
+**GrowthBook**: open-source, self-hostable, full-featured. The SDK integrates with Next.js via middleware.
+
+**LaunchDarkly**: the enterprise standard. Expensive but has every feature.
+
+**Posthog**: product analytics with feature flags built in. Good if you're already using Posthog.
+
+```ts
+// GrowthBook with Next.js
+import { GrowthBook } from '@growthbook/growthbook';
+
+const gb = new GrowthBook({
+  apiHost: process.env.GROWTHBOOK_API_HOST,
+  clientKey: process.env.GROWTHBOOK_CLIENT_KEY,
+  attributes: {
+    id:    userId,
+    email: userEmail,
+    plan:  userPlan,
+  },
+});
+
+await gb.loadFeatures();
+const enabled = gb.isOn('new_dashboard');
+```
+
+## The operational discipline
+
+Feature flags create technical debt if they're not cleaned up. The discipline:
+
+**Set a removal date when you create the flag.** Write it in the code as a comment: `// TODO: remove after 2029-10-01, flag: new_dashboard`. Add a ticket to the backlog.
+
+**100% rollout is not the same as removing the flag.** At 100%, the old code path is dead but still exists. Remove the flag code within two weeks of full rollout.
+
+**Don't nest flags.** `if (flagA && flagB)` is a maintenance trap. If you need two flags to interact, consolidate them.
+
+**Audit your flags quarterly.** Any flag that's been at 100% for more than a month is ready to remove.
+
+The goal is to use flags for release safety and then remove them. Permanent flags are configuration; they should be named and treated differently from release flags.

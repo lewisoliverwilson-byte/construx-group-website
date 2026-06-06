@@ -1,0 +1,196 @@
+---
+title: "Building a design system from scratch: tokens, components, documentation"
+date: "2029-09-12"
+excerpt: "A design system is a shared language between design and engineering — a set of tokens (colors, spacing, typography), a component library, and documentation. Built well, it makes UI consistency automatic. Built poorly, it becomes a bureaucratic obstacle nobody updates. Here's the structure that works."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A design system exists to solve the coordination problem: how do ten engineers produce UI that looks like it was built by one person? The answer is shared primitives — values and components that everyone agrees to use rather than reinventing.
+
+## Layer 1: Design tokens
+
+Tokens are named values for every visual decision — color, spacing, typography, border radius, shadow, animation timing.
+
+```ts
+// tokens.ts
+export const tokens = {
+  color: {
+    brand:    '#F97316',
+    surface:  '#0a0a12',
+    text:     {
+      base:   'rgba(240,239,255,0.9)',
+      muted:  'rgba(240,239,255,0.55)',
+      dim:    'rgba(240,239,255,0.3)',
+    },
+    border:   'rgba(255,255,255,0.08)',
+    semantic: {
+      success: '#4ade80',
+      warning: '#fbbf24',
+      error:   '#f87171',
+      info:    '#67e8f9',
+    },
+  },
+  space: {
+    1:  '4px',
+    2:  '8px',
+    3:  '12px',
+    4:  '16px',
+    6:  '24px',
+    8:  '32px',
+    12: '48px',
+    16: '64px',
+  },
+  radius: {
+    sm: '2px',
+    md: '4px',
+    lg: '8px',
+    full: '9999px',
+  },
+  font: {
+    size: {
+      xs: '11px',
+      sm: '12px',
+      base: '14px',
+      lg: '16px',
+      xl: '20px',
+    },
+    mono: '"JetBrains Mono", monospace',
+    sans: '"Inter", system-ui, sans-serif',
+  },
+};
+```
+
+With Tailwind, tokens live in `tailwind.config.ts` under `theme.extend`:
+
+```ts
+// tailwind.config.ts
+export default {
+  theme: {
+    extend: {
+      colors: {
+        construx:   '#F97316',
+        'text-base': 'rgba(240,239,255,0.9)',
+        'text-muted':'rgba(240,239,255,0.55)',
+        border:      'rgba(255,255,255,0.08)',
+      },
+      fontFamily: {
+        mono: ['"JetBrains Mono"', 'monospace'],
+      },
+    },
+  },
+};
+```
+
+Now `text-text-base`, `bg-construx`, `font-mono` are available everywhere in the codebase.
+
+## Layer 2: Primitive components
+
+Primitives are the smallest useful UI units: Button, Input, Badge, Card. They have variants, but no business logic.
+
+```tsx
+// components/ui/Button.tsx
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive';
+  size?:    'sm' | 'md' | 'lg';
+  loading?: boolean;
+}
+
+const VARIANT_CLASSES = {
+  primary:     'bg-construx text-black hover:bg-orange-400',
+  secondary:   'bg-surface border border-border text-text-base hover:bg-subtle',
+  ghost:       'text-text-muted hover:text-text-base hover:bg-subtle',
+  destructive: 'bg-transparent border border-red-500/30 text-red-400 hover:bg-red-500/10',
+};
+
+const SIZE_CLASSES = {
+  sm: 'px-3 py-1.5 text-xs',
+  md: 'px-4 py-2 text-sm',
+  lg: 'px-6 py-3 text-base',
+};
+
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  loading = false,
+  children,
+  disabled,
+  className,
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      {...props}
+      disabled={disabled || loading}
+      className={cn(
+        'inline-flex items-center justify-center font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-construx disabled:opacity-50 disabled:cursor-not-allowed',
+        VARIANT_CLASSES[variant],
+        SIZE_CLASSES[size],
+        className,
+      )}
+    >
+      {loading && <Spinner className="mr-2 h-3 w-3" />}
+      {children}
+    </button>
+  );
+}
+```
+
+The key constraint: primitives have no opinion about layout. They don't set their own margins. They're positioned by their parent.
+
+## Layer 3: Composite components
+
+Composites assemble primitives into higher-level patterns: Modal, Toast, DataTable, CommandPalette. They're business-agnostic but more opinionated than primitives.
+
+```tsx
+// components/ui/Modal.tsx
+interface ModalProps {
+  open:      boolean;
+  onClose:   () => void;
+  title:     string;
+  children:  React.ReactNode;
+  footer?:   React.ReactNode;
+}
+
+export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative bg-surface border border-border rounded-md shadow-2xl max-w-lg w-full mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-text-base">{title}</h2>
+          <button onClick={onClose} className="text-text-dim hover:text-text-muted">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-4">{children}</div>
+        {footer && (
+          <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+## Layer 4: Documentation
+
+A design system without documentation is a component library nobody trusts. Documentation needs to be:
+
+**Colocated with the component**: the most-read docs are in the same file or folder as the component. JSDoc on the props interface covers the basics.
+
+**Interactive**: developers need to see what variants look like. Storybook or a custom `/design-system` route in your app works. The internal route is simpler to maintain — it's just a page that imports and renders every component variant.
+
+**Authoritative on rules, not just examples**: "use the `destructive` variant for irreversible actions" is more useful than just showing what the destructive variant looks like.
+
+## The organisational mistake
+
+Most design systems fail because they're treated as a separate project maintained by a dedicated team. Then they lag behind product requirements, developers bypass them for speed, and the system gradually loses relevance.
+
+The alternative: the design system lives in the product repo. Every product feature that introduces a new UI pattern contributes back to the system. No separate team, no review process for adding a component — just a shared conventions layer that grows with the product.
+
+The system is a codification of what you already do, not a separate artefact you maintain in parallel.

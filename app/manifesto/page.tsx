@@ -7,6 +7,7 @@ import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
+import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -227,6 +228,11 @@ export default function ManifestoPage() {
         {/* Load benchmark */}
         <div className="mt-4">
           <WrkBenchmarkPanel />
+        </div>
+
+        {/* Syscall summary */}
+        <div className="mt-4">
+          <StraceSummaryPanel />
         </div>
 
         {/* Sign-off */}
