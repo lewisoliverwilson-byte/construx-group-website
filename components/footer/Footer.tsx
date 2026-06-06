@@ -62,28 +62,58 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-5 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
           {/* Brand column */}
-          <div className="md:col-span-2">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="h-8 w-8 bg-construx flex items-center justify-center shadow-[0_0_16px_rgba(249,115,22,0.3)]" style={{ borderRadius: '3px' }}>
-                <span className="font-mono font-bold text-black text-sm">CX</span>
-              </div>
-              <div className="flex flex-col leading-none">
-                <span className="text-sm font-bold tracking-wider text-text-base uppercase">Construx</span>
-                <span className="text-[10px] font-medium tracking-widest text-text-muted uppercase">Group</span>
-              </div>
-            </div>
-            <p className="text-text-muted text-sm leading-relaxed max-w-sm">
-              A portfolio of AI-first ventures. We build the things that are only possible
-              now that AI exists — and we build them properly.
-            </p>
-            <a
-              href="https://anthropic.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-[9px] text-text-dim hover:text-construx uppercase tracking-[0.18em] mt-4 inline-block transition-colors"
+          <div className="md:col-span-2 overflow-hidden" style={{ background: 'rgba(3,3,14,0.7)', border: '1px solid rgba(249,115,22,0.1)', borderRadius: '3px' }}>
+            {/* Terminal title bar */}
+            <div
+              className="flex items-center gap-2 px-3 py-2 select-none"
+              style={{ borderBottom: '1px solid rgba(249,115,22,0.07)', background: 'rgba(249,115,22,0.03)' }}
             >
-              Powered by Claude &amp; Anthropic ↗
-            </a>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[7px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: 'rgba(249,115,22,0.3)' }}>
+                construx.hq — brand.identity
+              </span>
+              <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.35)' }}>● live</span>
+            </div>
+            {/* Content */}
+            <div className="p-4">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="h-8 w-8 bg-construx flex items-center justify-center shadow-[0_0_16px_rgba(249,115,22,0.3)]" style={{ borderRadius: '3px' }}>
+                  <span className="font-mono font-bold text-black text-sm">CX</span>
+                </div>
+                <div className="flex flex-col leading-none">
+                  <span className="text-sm font-bold tracking-wider text-text-base uppercase">Construx</span>
+                  <span className="text-[10px] font-medium tracking-widest text-text-muted uppercase">Group</span>
+                </div>
+              </div>
+              <p className="text-text-muted text-sm leading-relaxed max-w-sm">
+                A portfolio of AI-first ventures. We build the things that are only possible
+                now that AI exists — and we build them properly.
+              </p>
+              <a
+                href="https://anthropic.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-[9px] text-text-dim hover:text-construx uppercase tracking-[0.18em] mt-4 inline-block transition-colors"
+              >
+                Powered by Claude &amp; Anthropic ↗
+              </a>
+            </div>
+            {/* Status footer */}
+            <div
+              className="flex items-center justify-between px-3 py-1.5"
+              style={{ borderTop: '1px solid rgba(249,115,22,0.06)', background: 'rgba(0,0,0,0.2)' }}
+            >
+              <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.2)' }}>
+                construx@sys
+              </span>
+              <span className="font-mono text-[7px]" style={{ color: 'rgba(255,255,255,0.08)' }}>
+                exit: 0
+              </span>
+            </div>
           </div>
 
           {/* Site links */}
