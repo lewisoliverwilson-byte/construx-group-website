@@ -1,0 +1,181 @@
+---
+title: "Redis in production: caching patterns that actually work"
+date: "2027-07-23"
+excerpt: "Redis is a cache, a pub/sub broker, a session store, a job queue, and a rate limiter. The implementation pattern that matters most: cache-aside with proper invalidation. Most Redis bugs come from stale data, not slow queries. Here's how to get invalidation right."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redis earns its place in a production stack by solving problems that your primary database shouldn't handle: session storage, ephemeral counters, rate limiting, pub/sub for real-time updates, and—most commonly—caching results that are expensive to compute or retrieve.
+
+## The cache-aside pattern
+
+Cache-aside is the standard approach: the application manages the cache explicitly. On a miss, it fetches from the database and populates the cache. On write, it invalidates the cache.
+
+```ts
+// lib/cache.ts
+import { redis } from './redis';
+
+export async function getCached<T>(
+  key: string,
+  ttlSeconds: number,
+  fetch: () => Promise<T>,
+): Promise<T> {
+  const cached = await redis.get(key);
+  if (cached) return JSON.parse(cached) as T;
+
+  const fresh = await fetch();
+  await redis.setex(key, ttlSeconds, JSON.stringify(fresh));
+  return fresh;
+}
+
+export async function invalidate(pattern: string) {
+  const keys = await redis.keys(pattern);
+  if (keys.length > 0) {
+    await redis.del(...keys);
+  }
+}
+```
+
+Usage:
+
+```ts
+// Cache user profile for 5 minutes
+const user = await getCached(
+  `user:${userId}`,
+  300,
+  () => db.users.findUnique({ where: { id: userId } }),
+);
+
+// Invalidate on update
+await updateUser(userId, data);
+await invalidate(`user:${userId}`);
+```
+
+## Key design
+
+Good Redis key design makes invalidation obvious:
+
+```ts
+const KEYS = {
+  user: (id: string) => `user:${id}`,
+  userPosts: (id: string) => `user:${id}:posts`,
+  post: (id: string) => `post:${id}`,
+  postsByTag: (tag: string) => `posts:tag:${tag}`,
+  recentPosts: () => `posts:recent`,
+  siteStats: () => `stats:site`,
+};
+```
+
+Prefix by entity, then ID, then the specific data. When a user changes, you can invalidate `user:${id}` and `user:${id}:posts` explicitly. Avoid `keys()` in production — it blocks Redis. If you need pattern-based invalidation, maintain a set of related keys or use tagged caching.
+
+## Tagged caching
+
+```ts
+async function setCachedWithTags(
+  key: string,
+  value: unknown,
+  ttlSeconds: number,
+  tags: string[],
+) {
+  const pipeline = redis.pipeline();
+  pipeline.setex(key, ttlSeconds, JSON.stringify(value));
+  // Register this key under each tag
+  for (const tag of tags) {
+    pipeline.sadd(`tag:${tag}`, key);
+    pipeline.expire(`tag:${tag}`, ttlSeconds + 60);
+  }
+  await pipeline.exec();
+}
+
+async function invalidateTag(tag: string) {
+  const keys = await redis.smembers(`tag:${tag}`);
+  if (keys.length > 0) {
+    await redis.del(...keys);
+  }
+  await redis.del(`tag:${tag}`);
+}
+
+// Cache a post — tagged with its author and category
+await setCachedWithTags(
+  KEYS.post(postId),
+  post,
+  3600,
+  [`author:${post.authorId}`, `category:${post.category}`],
+);
+
+// When an author changes, invalidate all their cached posts
+await invalidateTag(`author:${authorId}`);
+```
+
+## Atomic operations
+
+Redis operations are atomic. Use this for counters, rate limits, and set membership:
+
+```ts
+// Atomic increment — safe for concurrent requests
+async function incrementCounter(key: string, ttlSeconds?: number): Promise<number> {
+  const count = await redis.incr(key);
+  if (ttlSeconds && count === 1) {
+    // Set TTL only on first increment (race-condition-safe)
+    await redis.expire(key, ttlSeconds);
+  }
+  return count;
+}
+
+// View counting — deduplicated per user per day
+async function recordView(postId: string, userId: string): Promise<boolean> {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `views:${postId}:${today}`;
+  const isNew = await redis.sadd(key, userId);
+  if (isNew) {
+    await redis.expire(key, 86400); // 24h TTL
+    await redis.incr(`post:${postId}:views:total`);
+  }
+  return isNew === 1;
+}
+```
+
+## Serialization and compression
+
+For large cached values, compression reduces memory usage significantly:
+
+```ts
+import zlib from 'zlib';
+import { promisify } from 'util';
+
+const gzip = promisify(zlib.gzip);
+const gunzip = promisify(zlib.gunzip);
+
+async function setCompressed(key: string, value: unknown, ttlSeconds: number) {
+  const json = JSON.stringify(value);
+  const compressed = await gzip(Buffer.from(json));
+  await redis.setex(key, ttlSeconds, compressed.toString('base64'));
+}
+
+async function getCompressed<T>(key: string): Promise<T | null> {
+  const raw = await redis.get(key);
+  if (!raw) return null;
+  const decompressed = await gunzip(Buffer.from(raw, 'base64'));
+  return JSON.parse(decompressed.toString()) as T;
+}
+```
+
+Worth the extra latency (typically <2ms) for cached values over 10KB. For smaller values, the overhead outweighs the benefit.
+
+## Connection in serverless
+
+In serverless environments (Vercel, AWS Lambda), avoid creating a new Redis connection on every invocation:
+
+```ts
+// lib/redis.ts
+import { Redis } from '@upstash/redis';
+
+// Upstash REST client — no persistent connection needed
+export const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+```
+
+Upstash uses a REST API for Redis — no connection pooling needed, no "too many connections" error in serverless. For persistent Node.js services, use ioredis with connection pooling.
