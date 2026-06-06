@@ -1,0 +1,211 @@
+---
+title: "Observability with Grafana, Prometheus, and Loki"
+date: "2029-05-21"
+excerpt: "Grafana + Prometheus + Loki is the open-source observability stack: Prometheus for metrics, Loki for logs, Grafana for dashboards. Together they give you dashboards, alerts, and log correlation without a SaaS bill scaling with your traffic."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The commercial observability stack (Datadog, New Relic) works well and costs a lot. The open-source stack works comparably for most use cases and costs infrastructure. For a small team running multiple products, self-hosted Grafana + Prometheus + Loki provides the visibility you need without the cost curve that kicks in when your traffic grows.
+
+## Architecture
+
+```
+Application
+    │
+    ├── /metrics endpoint (Prometheus format)
+    │       └── Prometheus ──scrapes──▶ stores metrics
+    │
+    └── structured logs (stdout)
+            └── Promtail ──ships──▶ Loki ──indexes──▶ stores logs
+                                              │
+                                    Grafana ──queries──▶ dashboards
+```
+
+Prometheus scrapes metrics on a schedule (every 15s by default). Promtail watches log files or Docker stdout and ships them to Loki. Grafana queries both and displays dashboards.
+
+## Metrics with Prometheus
+
+Expose a `/metrics` endpoint from your Next.js app:
+
+```bash
+npm install prom-client
+```
+
+```ts
+// lib/metrics.ts
+import { Registry, Counter, Histogram, Gauge } from 'prom-client';
+
+export const registry = new Registry();
+
+export const httpRequestsTotal = new Counter({
+  name:    'http_requests_total',
+  help:    'Total HTTP requests',
+  labelNames: ['method', 'path', 'status'],
+  registers: [registry],
+});
+
+export const httpRequestDuration = new Histogram({
+  name:    'http_request_duration_seconds',
+  help:    'HTTP request duration',
+  labelNames: ['method', 'path'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
+  registers: [registry],
+});
+
+export const activeConnections = new Gauge({
+  name:    'active_connections',
+  help:    'Current active WebSocket connections',
+  registers: [registry],
+});
+```
+
+```ts
+// app/api/metrics/route.ts
+import { registry } from '@/lib/metrics';
+
+export async function GET() {
+  const metrics = await registry.metrics();
+  return new Response(metrics, {
+    headers: { 'Content-Type': registry.contentType },
+  });
+}
+```
+
+```ts
+// Middleware to record metrics
+import { httpRequestsTotal, httpRequestDuration } from '@/lib/metrics';
+
+export function middleware(req: NextRequest) {
+  const start = Date.now();
+
+  const response = NextResponse.next();
+
+  const duration = (Date.now() - start) / 1000;
+  httpRequestDuration.observe({ method: req.method, path: req.nextUrl.pathname }, duration);
+  httpRequestsTotal.inc({ method: req.method, path: req.nextUrl.pathname, status: response.status });
+
+  return response;
+}
+```
+
+## Prometheus scrape config
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name:        'construx-web'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['construxgroup.io:443']
+    metrics_path:    '/api/metrics'
+    scheme:          https
+    tls_config:
+      insecure_skip_verify: false
+
+  - job_name:        'scoutr-api'
+    static_configs:
+      - targets: ['api.scoutr.io:443']
+    metrics_path:    '/metrics'
+    scheme:          https
+```
+
+## Log shipping with Promtail
+
+```yaml
+# promtail-config.yml
+server:
+  http_listen_port: 9080
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: construx
+    static_configs:
+      - targets: ['localhost']
+        labels:
+          job: construx-web
+          __path__: /var/log/construx/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level:     level
+            message:   message
+            traceId:   traceId
+      - labels:
+          level:
+          traceId:
+```
+
+## Grafana dashboards
+
+```yaml
+# docker-compose.yml
+services:
+  grafana:
+    image: grafana/grafana:latest
+    ports: ['3001:3000']
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports: ['9090:9090']
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  loki:
+    image: grafana/loki:latest
+    ports: ['3100:3100']
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - /var/log:/var/log
+      - ./promtail-config.yml:/etc/promtail/config.yml
+```
+
+## Useful Grafana panels
+
+**Request rate:**
+```promql
+rate(http_requests_total[5m])
+```
+
+**Error rate:**
+```promql
+sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
+```
+
+**95th percentile latency:**
+```promql
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+```
+
+**Log query for errors:**
+```logql
+{job="construx-web"} |= "error" | json | level="error"
+```
+
+## Alerting
+
+```yaml
+# alertmanager rules
+groups:
+  - name: construx
+    rules:
+      - alert: HighErrorRate
+        expr:  sum(rate(http_requests_total{status=~"5.."}[5m])) > 0.05
+        for:   2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate above 5%"
+```
+
+Route alerts to Slack or PagerDuty via Alertmanager. Grafana also has native alerting that can trigger on dashboard queries without Alertmanager.
+
+## The Grafana Cloud free tier
+
+If you don't want to self-host: Grafana Cloud's free tier includes 10,000 Prometheus series, 50GB of logs, and 2 weeks of retention. Enough for a small multi-product portfolio. The agent (Grafana Alloy) replaces both Prometheus and Promtail and ships metrics and logs to Grafana Cloud.

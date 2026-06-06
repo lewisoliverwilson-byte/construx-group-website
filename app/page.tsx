@@ -13,6 +13,7 @@ import NetworkPingPanel from '@/components/NetworkPingPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import UptimePanel from '@/components/UptimePanel';
 import PingPanel from '@/components/PingPanel';
+import CpuStatsPanel from '@/components/CpuStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -160,8 +161,13 @@ export default function HomePage() {
       </div>
 
       {/* Global ping latency */}
-      <div className="pb-10">
+      <div className="pb-6">
         <PingPanel />
+      </div>
+
+      {/* CPU and memory stats */}
+      <div className="pb-10">
+        <CpuStatsPanel />
       </div>
 
       {/* Below-fold: What is Construx */}
