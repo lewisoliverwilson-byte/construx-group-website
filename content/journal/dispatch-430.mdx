@@ -1,0 +1,225 @@
+---
+title: "Zod schema composition: building complex validation from simple parts"
+date: "2028-06-25"
+excerpt: "Zod works by composing schemas together. A form validator is a product of smaller validators. Here's how to think in terms of composition: shared schemas, discriminated unions, transformations, and the refinements that catch the edge cases type-checking misses."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Zod is a TypeScript schema declaration and validation library. It ships with TypeScript types that match what it validates, so you define the shape once and get both runtime validation and compile-time types.
+
+## The composition model
+
+Every Zod schema is an object. You build complex schemas by composing simple ones:
+
+```ts
+import { z } from 'zod';
+
+// Primitives
+const id = z.string().uuid();
+const email = z.string().email().toLowerCase();
+const name = z.string().min(2).max(100).trim();
+const url = z.string().url();
+const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Must be a valid slug');
+
+// Composed schema
+const createUserSchema = z.object({
+  id,
+  email,
+  name,
+  website: url.optional(),
+});
+
+// Extract the TypeScript type
+type CreateUser = z.infer<typeof createUserSchema>;
+// { id: string; email: string; name: string; website?: string }
+```
+
+## Shared base schemas
+
+Define base schemas and extend them:
+
+```ts
+// Base schemas that appear in many places
+const baseEntity = z.object({
+  id: z.string().uuid(),
+  createdAt: z.coerce.date(),  // coerce: string → Date
+  updatedAt: z.coerce.date(),
+});
+
+// Extend with additional fields
+const userSchema = baseEntity.extend({
+  email: z.string().email(),
+  name: z.string(),
+  role: z.enum(['admin', 'user', 'viewer']),
+});
+
+const postSchema = baseEntity.extend({
+  title: z.string().min(3).max(200),
+  content: z.string().min(10),
+  authorId: z.string().uuid(),
+  status: z.enum(['draft', 'published', 'archived']),
+  tags: z.array(z.string()).max(10).default([]),
+});
+
+type User = z.infer<typeof userSchema>;
+type Post = z.infer<typeof postSchema>;
+```
+
+## Input vs output schemas
+
+Separate schemas for API input (what you receive) and output (what you return):
+
+```ts
+// Input — what the API receives
+const createPostInput = z.object({
+  title: z.string().min(3).max(200).trim(),
+  content: z.string().min(10),
+  tags: z.array(z.string().trim().toLowerCase()).max(10).default([]),
+});
+
+// Output — what the API returns (different shape)
+const postResponse = z.object({
+  id: z.string(),
+  title: z.string(),
+  content: z.string(),
+  tags: z.array(z.string()),
+  author: z.object({
+    id: z.string(),
+    name: z.string(),
+  }),
+  createdAt: z.string().datetime(),  // serialized as ISO string
+  readingTime: z.number(),
+});
+
+type CreatePostInput = z.infer<typeof createPostInput>;
+type PostResponse = z.infer<typeof postResponse>;
+```
+
+## Discriminated unions
+
+For types that vary by a discriminant field:
+
+```ts
+const successResponse = z.object({
+  status: z.literal('success'),
+  data: z.array(postResponse),
+  total: z.number(),
+});
+
+const errorResponse = z.object({
+  status: z.literal('error'),
+  code: z.string(),
+  message: z.string(),
+});
+
+const apiResponse = z.discriminatedUnion('status', [
+  successResponse,
+  errorResponse,
+]);
+
+type ApiResponse = z.infer<typeof apiResponse>;
+// { status: 'success'; data: PostResponse[]; total: number }
+// | { status: 'error'; code: string; message: string }
+
+// Narrow with the discriminant
+const result = apiResponse.parse(rawData);
+if (result.status === 'success') {
+  result.data;  // TypeScript knows this is PostResponse[]
+} else {
+  result.message;  // TypeScript knows this is string
+}
+```
+
+## Transformations
+
+Transform the parsed value as part of validation:
+
+```ts
+const dateRangeSchema = z.object({
+  from: z.string().transform((s) => new Date(s)),
+  to: z.string().transform((s) => new Date(s)),
+}).refine(
+  (data) => data.from <= data.to,
+  { message: 'From date must be before to date' }
+);
+
+// Input: { from: "2028-01-01", to: "2028-12-31" }
+// Output: { from: Date, to: Date }
+```
+
+```ts
+// Transform email to lowercase, trim whitespace
+const emailSchema = z.string()
+  .trim()
+  .toLowerCase()
+  .email('Invalid email address');
+
+// Transform slug from title
+const postInput = z.object({
+  title: z.string().min(3),
+}).transform((data) => ({
+  ...data,
+  slug: data.title.toLowerCase().replace(/\W+/g, '-'),
+}));
+```
+
+## Refinements
+
+For validation logic that's not expressible with built-in validators:
+
+```ts
+const passwordSchema = z.string()
+  .min(8, 'At least 8 characters')
+  .refine((val) => /[A-Z]/.test(val), 'Must contain an uppercase letter')
+  .refine((val) => /[0-9]/.test(val), 'Must contain a number')
+  .refine((val) => /[^a-zA-Z0-9]/.test(val), 'Must contain a special character');
+
+const changePasswordSchema = z.object({
+  current: z.string(),
+  newPassword: passwordSchema,
+  confirm: z.string(),
+}).refine(
+  (data) => data.newPassword === data.confirm,
+  { message: 'Passwords do not match', path: ['confirm'] }
+);
+```
+
+## Safe parsing
+
+`parse` throws on invalid input. `safeParse` returns a result object:
+
+```ts
+const result = createUserSchema.safeParse(input);
+
+if (!result.success) {
+  // result.error.flatten() gives field-level errors
+  const errors = result.error.flatten().fieldErrors;
+  // { email: ['Invalid email'], name: ['Required'] }
+  return errorResponse('VALIDATION_ERROR', 'Invalid input', 422, errors);
+}
+
+const user = result.data;  // fully typed
+```
+
+## Reusable validators in forms
+
+Share schema between server validation and client-side form validation:
+
+```ts
+// Shared between server API route and client form
+export const createPostSchema = z.object({
+  title: z.string().min(3, 'Title must be at least 3 characters').max(200),
+  content: z.string().min(10, 'Content too short'),
+  tags: z.array(z.string()).max(10, 'Too many tags').default([]),
+});
+
+// Server
+const parsed = createPostSchema.safeParse(await req.json());
+
+// Client with react-hook-form
+import { zodResolver } from '@hookform/resolvers/zod';
+const form = useForm({ resolver: zodResolver(createPostSchema) });
+```
+
+One schema, two use cases. The validation logic never gets out of sync between client and server.

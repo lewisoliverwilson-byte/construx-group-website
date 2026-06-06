@@ -1,0 +1,306 @@
+---
+title: "Next.js metadata and SEO: everything the search engine sees"
+date: "2028-06-28"
+excerpt: "SEO in Next.js happens at the metadata level. The App Router has a typed metadata API that handles title, description, Open Graph, Twitter cards, sitemaps, and robots.txt. Here's the full setup for a production site."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Search engines read metadata. Social platforms read Open Graph tags. Both affect how your site appears before a user ever clicks. The Next.js Metadata API handles all of it with TypeScript types and file-based conventions.
+
+## Static metadata
+
+```ts
+// app/page.tsx
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Construx Group — AI-First Ventures',
+  description: 'A portfolio of AI-first ventures. Building at the frontier of what AI makes possible.',
+  keywords: ['AI', 'ventures', 'software', 'startup'],
+  authors: [{ name: 'Lewis Wilson' }],
+  creator: 'Construx Group',
+  publisher: 'Construx Group',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://construxgroup.io',
+    siteName: 'Construx Group',
+    title: 'Construx Group — AI-First Ventures',
+    description: 'Building at the frontier of what AI makes possible.',
+    images: [
+      {
+        url: 'https://construxgroup.io/og.png',
+        width: 1200,
+        height: 630,
+        alt: 'Construx Group',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Construx Group — AI-First Ventures',
+    description: 'Building at the frontier of what AI makes possible.',
+    creator: '@construxgroup',
+    images: ['https://construxgroup.io/og.png'],
+  },
+  alternates: {
+    canonical: 'https://construxgroup.io',
+  },
+};
+```
+
+## Title templates
+
+Avoid repeating your site name in every page title:
+
+```ts
+// app/layout.tsx — defines the template
+export const metadata: Metadata = {
+  title: {
+    default: 'Construx Group',
+    template: '%s — Construx Group',  // child pages use: "About — Construx Group"
+  },
+};
+
+// app/about/page.tsx — just the page title
+export const metadata: Metadata = {
+  title: 'About',  // renders as "About — Construx Group"
+};
+
+// Override the template for a specific page
+export const metadata: Metadata = {
+  title: {
+    absolute: 'Construx Group — AI-First Ventures',  // ignores parent template
+  },
+};
+```
+
+## Dynamic metadata for content pages
+
+```ts
+// app/journal/[slug]/page.tsx
+import type { Metadata } from 'next';
+import { getPostBySlug } from '@/lib/posts';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await getPostBySlug(slug);
+
+  if (!post) {
+    return { title: 'Post Not Found' };
+  }
+
+  return {
+    title: post.title,
+    description: post.excerpt,
+    authors: [{ name: post.author }],
+    openGraph: {
+      type: 'article',
+      title: post.title,
+      description: post.excerpt,
+      publishedTime: post.date,
+      authors: [post.author],
+      images: [
+        {
+          url: `https://construxgroup.io/api/og?title=${encodeURIComponent(post.title)}&tag=${encodeURIComponent(post.tag)}`,
+          width: 1200,
+          height: 630,
+        },
+      ],
+    },
+    alternates: {
+      canonical: `https://construxgroup.io/journal/${post.slug}`,
+    },
+  };
+}
+```
+
+## Dynamic OG images
+
+Next.js generates OG images on-demand with a React component:
+
+```tsx
+// app/api/og/route.tsx
+import { ImageResponse } from 'next/og';
+
+export const runtime = 'edge';
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const title = searchParams.get('title') ?? 'Construx Group';
+  const tag = searchParams.get('tag') ?? 'Build Log';
+
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          height: '100%',
+          background: '#000008',
+          padding: '60px',
+          fontFamily: 'JetBrains Mono',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+          <div style={{
+            background: '#F97316',
+            borderRadius: '4px',
+            width: '36px',
+            height: '36px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'black',
+            fontWeight: 700,
+            fontSize: '16px',
+          }}>CX</div>
+          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', letterSpacing: '0.2em' }}>
+            CONSTRUX GROUP
+          </span>
+        </div>
+        <div style={{
+          fontSize: '14px',
+          color: '#F97316',
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+          marginBottom: '16px',
+        }}>
+          {tag}
+        </div>
+        <div style={{
+          fontSize: '42px',
+          fontWeight: 700,
+          color: 'rgba(240,239,255,0.92)',
+          lineHeight: 1.25,
+          maxWidth: '800px',
+        }}>
+          {title}
+        </div>
+        <div style={{
+          marginTop: 'auto',
+          fontSize: '13px',
+          color: 'rgba(255,255,255,0.3)',
+          letterSpacing: '0.12em',
+        }}>
+          construxgroup.io
+        </div>
+      </div>
+    ),
+    {
+      width: 1200,
+      height: 630,
+    },
+  );
+}
+```
+
+## Sitemap
+
+```ts
+// app/sitemap.ts
+import type { MetadataRoute } from 'next';
+import { getAllPostMeta } from '@/lib/posts';
+import { ventures } from '@/lib/ventures';
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  const posts = getAllPostMeta();
+  const baseUrl = 'https://construxgroup.io';
+
+  const staticRoutes: MetadataRoute.Sitemap = [
+    { url: baseUrl, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
+    { url: `${baseUrl}/ventures`, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${baseUrl}/journal`, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/manifesto`, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${baseUrl}/founders`, changeFrequency: 'monthly', priority: 0.7 },
+  ];
+
+  const postRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
+    url: `${baseUrl}/journal/${post.slug}`,
+    lastModified: new Date(post.date),
+    changeFrequency: 'monthly' as const,
+    priority: 0.6,
+  }));
+
+  const ventureRoutes: MetadataRoute.Sitemap = ventures.map((v) => ({
+    url: `${baseUrl}/ventures/${v.slug}`,
+    changeFrequency: 'monthly' as const,
+    priority: 0.8,
+  }));
+
+  return [...staticRoutes, ...ventureRoutes, ...postRoutes];
+}
+```
+
+## Robots.txt
+
+```ts
+// app/robots.ts
+import type { MetadataRoute } from 'next';
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: '*',
+      allow: '/',
+      disallow: ['/api/', '/admin/'],
+    },
+    sitemap: 'https://construxgroup.io/sitemap.xml',
+  };
+}
+```
+
+## Structured data (JSON-LD)
+
+```tsx
+// app/journal/[slug]/page.tsx
+export default async function PostPage({ params }: { params: { slug: string } }) {
+  const post = await getPostBySlug((await params).slug);
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.excerpt,
+    author: {
+      '@type': 'Person',
+      name: post.author,
+    },
+    datePublished: post.date,
+    publisher: {
+      '@type': 'Organization',
+      name: 'Construx Group',
+      url: 'https://construxgroup.io',
+    },
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <article>{/* post content */}</article>
+    </>
+  );
+}
+```
+
+The metadata API handles the mechanics. The content — titles, descriptions, and OG images — is what actually moves the needle for search ranking and social sharing.
