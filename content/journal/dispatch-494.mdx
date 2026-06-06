@@ -1,0 +1,242 @@
+---
+title: "next/image: responsive images without the complexity"
+date: "2029-01-03"
+excerpt: "Next.js Image component handles resizing, format conversion, lazy loading, and CLS prevention automatically. Here's the configuration for common patterns: hero images, user avatars, product photos, OG images, and the gotchas that trip people up."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Images are usually the heaviest assets on a page and the most common source of layout shift. Next.js's `Image` component solves both: it resizes on the fly using a built-in image optimisation server, converts to WebP/AVIF automatically, lazy loads by default, and reserves layout space with explicit dimensions to prevent CLS.
+
+## Basic usage
+
+```tsx
+import Image from 'next/image';
+
+// Local import — Next.js infers dimensions at build time
+import heroImage from '@/public/hero.jpg';
+
+<Image
+  src={heroImage}
+  alt="Product hero image"
+  priority  // Load eagerly — no lazy load for above-fold images
+/>
+
+// Remote URL — explicit dimensions required
+<Image
+  src="https://cdn.example.com/product-123.jpg"
+  alt="Product photo"
+  width={800}
+  height={600}
+/>
+```
+
+For local imports, `width` and `height` are inferred automatically. For remote URLs, you must provide them or use `fill` mode.
+
+## Responsive fill
+
+```tsx
+// fill — image fills the container. Parent must have position: relative and explicit height.
+<div className="relative w-full h-64">
+  <Image
+    src="/hero.jpg"
+    alt="Hero"
+    fill
+    className="object-cover object-center"
+  />
+</div>
+
+// sizes — tells the browser how wide the image will be at each breakpoint
+// Without sizes, browser assumes the image is 100vw wide and downloads the wrong size
+<div className="relative w-full md:w-1/2 h-96">
+  <Image
+    src="/product.jpg"
+    alt="Product"
+    fill
+    sizes="(max-width: 768px) 100vw, 50vw"
+    className="object-contain"
+    priority
+  />
+</div>
+```
+
+The `sizes` prop is critical for responsive images. Without it, the browser can't compute the right source to download from the `srcset`. Always set `sizes` when the image isn't full-viewport-width.
+
+## User avatars
+
+```tsx
+function Avatar({ src, name, size = 40 }: { src?: string; name: string; size?: number }) {
+  if (!src) {
+    return (
+      <div
+        className="rounded-full bg-orange-500/20 flex items-center justify-center font-semibold text-orange-400"
+        style={{ width: size, height: size, fontSize: size * 0.4 }}
+      >
+        {name.charAt(0).toUpperCase()}
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={name}
+      width={size}
+      height={size}
+      className="rounded-full object-cover"
+    />
+  );
+}
+```
+
+## Remote domain configuration
+
+Next.js blocks remote images by default. Configure allowed domains:
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const config: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.amazonaws.com',
+        pathname: '/your-bucket/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+      },
+    ],
+  },
+};
+
+export default config;
+```
+
+Use `remotePatterns` rather than the deprecated `domains` array — patterns support wildcards and path restrictions.
+
+## Custom loader for Cloudflare Images or Imgix
+
+```ts
+// next.config.ts
+const config: NextConfig = {
+  images: {
+    loader: 'custom',
+    loaderFile: './lib/image-loader.ts',
+  },
+};
+```
+
+```ts
+// lib/image-loader.ts
+interface LoaderProps {
+  src: string;
+  width: number;
+  quality?: number;
+}
+
+export default function cloudflareLoader({ src, width, quality }: LoaderProps): string {
+  const params = new URLSearchParams({
+    w:  String(width),
+    q:  String(quality ?? 75),
+    f:  'auto',
+    fit: 'cover',
+  });
+
+  return `https://images.construxgroup.io/cdn-cgi/image/${params.toString()}/${src}`;
+}
+```
+
+## Placeholder blur for perceived performance
+
+```tsx
+// Local images — blurDataURL auto-generated at build time
+import productImage from '@/public/product.jpg';
+
+<Image
+  src={productImage}
+  alt="Product"
+  placeholder="blur"  // Blurred thumbnail while loading
+  priority={false}
+/>
+
+// Remote images — generate blurDataURL manually (base64 LQIP)
+<Image
+  src="https://cdn.example.com/product.jpg"
+  alt="Product"
+  width={800}
+  height={600}
+  placeholder="blur"
+  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2w..."
+/>
+```
+
+For remote images, generate the blur placeholder at build time or cache it with the image fetch:
+
+```ts
+async function getImageBlurData(src: string): Promise<string> {
+  const response = await fetch(src);
+  const buffer = await response.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString('base64');
+  const mimeType = response.headers.get('content-type') ?? 'image/jpeg';
+  return `data:${mimeType};base64,${base64}`;
+}
+```
+
+## OG image generation
+
+Next.js generates OG images with `ImageResponse` from `next/og`:
+
+```ts
+// app/opengraph-image.tsx (auto-detected by Next.js)
+import { ImageResponse } from 'next/og';
+
+export const runtime = 'edge';
+export const size = { width: 1200, height: 630 };
+export const contentType = 'image/png';
+
+export default function OGImage() {
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width:      '100%',
+          height:     '100%',
+          background: '#000008',
+          display:    'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: 'monospace',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <p style={{ color: '#F97316', fontSize: 20, letterSpacing: 6 }}>
+            CONSTRUX GROUP
+          </p>
+          <p style={{ color: '#fff', fontSize: 56, fontWeight: 700 }}>
+            AI-First Ventures
+          </p>
+        </div>
+      </div>
+    ),
+    { ...size },
+  );
+}
+```
+
+## Common gotchas
+
+**CLS from missing dimensions**: always specify `width` + `height` or use `fill`. Without them, Next.js falls back to an unsized image that causes layout shift.
+
+**Priority on LCP images**: set `priority` on the largest image visible in the initial viewport (the LCP image). This disables lazy loading and adds a `<link rel="preload">` to the document head.
+
+**Object-fit with fill**: `fill` makes the image position `absolute` and fill the parent — it won't apply `object-fit` unless you add the Tailwind class directly to the `Image` element.
+
+**AVIF on Amplify**: AWS Amplify's Next.js runtime supports AVIF generation, but the first request is slow (~500ms). AVIF is cached after the first request — the cost is one-time per size variant.

@@ -1,0 +1,205 @@
+---
+title: "Rate limiting with Upstash Redis: sliding windows at the edge"
+date: "2029-01-06"
+excerpt: "Rate limiting protects API routes from abuse without adding latency. Upstash's serverless Redis and the @upstash/ratelimit library give you sliding window rate limiting in a single function call — works in Vercel Edge Functions, Cloudflare Workers, and Node.js."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Rate limiting is one of those infrastructure concerns that looks optional until it isn't. An unprotected API route is an invitation: bots, load testers, and misconfigured clients will hammer it until something breaks or your bill spikes. Upstash makes rate limiting cheap to implement — a single Redis client, one function call per request, and a configurable window.
+
+## Setup
+
+```bash
+npm install @upstash/redis @upstash/ratelimit
+```
+
+Get credentials from the Upstash console (free tier includes 10,000 requests/day, no cold start since it's HTTP-based):
+
+```
+UPSTASH_REDIS_REST_URL=https://eu1-reliable-crab-12345.upstash.io
+UPSTASH_REDIS_REST_TOKEN=AXxxxxx
+```
+
+## Basic rate limiter
+
+```ts
+// lib/ratelimit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+// Sliding window: 10 requests per 10 seconds per identifier
+export const ratelimit = new Ratelimit({
+  redis,
+  limiter:   Ratelimit.slidingWindow(10, '10 s'),
+  analytics: true,  // Tracks metrics in Upstash console
+  prefix:    '@construx/ratelimit',
+});
+```
+
+## Next.js API route
+
+```ts
+// app/api/contact/route.ts
+import { ratelimit } from '@/lib/ratelimit';
+import { headers } from 'next/headers';
+
+export async function POST(req: Request) {
+  // Identify by IP address
+  const headersList = await headers();
+  const ip = headersList.get('x-forwarded-for') ?? '127.0.0.1';
+  const identifier = ip.split(',')[0].trim();
+
+  const { success, limit, reset, remaining } = await ratelimit.limit(identifier);
+
+  if (!success) {
+    return Response.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit':     String(limit),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset':     String(reset),
+          'Retry-After':           String(Math.ceil((reset - Date.now()) / 1000)),
+        },
+      },
+    );
+  }
+
+  // Process request...
+  return Response.json({ received: true });
+}
+```
+
+## Multiple limiters for different endpoints
+
+```ts
+// lib/ratelimit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+// Strict limit for auth endpoints
+export const authRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '60 s'),
+  prefix:  '@construx/auth',
+});
+
+// Moderate limit for AI endpoints (expensive per call)
+export const aiRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, '60 s'),
+  prefix:  '@construx/ai',
+});
+
+// Generous limit for read endpoints
+export const readRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(100, '60 s'),
+  prefix:  '@construx/read',
+});
+```
+
+## Middleware-level rate limiting
+
+Apply rate limiting in Next.js middleware to protect all routes without duplicating logic:
+
+```ts
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis:   Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(60, '60 s'),
+  prefix:  '@construx/global',
+});
+
+export async function middleware(req: NextRequest) {
+  // Only rate limit API routes
+  if (!req.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
+  const ip = req.ip ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1';
+  const identifier = ip.split(',')[0].trim();
+
+  const { success, reset } = await ratelimit.limit(identifier);
+
+  if (!success) {
+    return new NextResponse('Too Many Requests', {
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)),
+      },
+    });
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: '/api/:path*',
+};
+```
+
+`Redis.fromEnv()` reads `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` automatically — no config object needed.
+
+## Algorithm choices
+
+**Sliding window** (`Ratelimit.slidingWindow`): counts requests in a rolling time window. No burst at window boundaries. Best for most use cases.
+
+**Fixed window** (`Ratelimit.fixedWindow`): counts in discrete time buckets (0:00–1:00, 1:00–2:00). Allows burst at boundary (50 requests at :59, 50 more at :00). Cheaper on Redis operations.
+
+**Token bucket** (`Ratelimit.tokenBucket`): fills at a constant rate, allows bursting up to the bucket size. Models API credit systems naturally. Requires two Redis operations per request.
+
+For contact forms and auth, sliding window is the right default. For AI API calls with credit-based billing, token bucket more accurately models the rate you want to enforce.
+
+## Per-user rate limiting with auth
+
+When you have an authenticated user, rate limit by user ID instead of IP — IPs are shared across NAT and can punish legitimate users:
+
+```ts
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+
+  // Rate limit by user ID for authenticated requests, IP for anonymous
+  const identifier = session?.user?.id
+    ? `user:${session.user.id}`
+    : `ip:${getClientIp(req)}`;
+
+  const { success } = await ratelimit.limit(identifier);
+
+  if (!success) {
+    return Response.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
+  // ...
+}
+```
+
+## Edge runtime
+
+Upstash Redis uses HTTP — no TCP connections, no connection pool, works in Edge Functions:
+
+```ts
+// app/api/edge-route/route.ts
+export const runtime = 'edge';
+
+import { ratelimit } from '@/lib/ratelimit';  // Same client, works at the edge
+```
+
+The first request to Upstash from an edge location is ~30–50ms (one HTTP round trip). Subsequent requests in the same location hit the nearest Upstash replica at ~5–15ms.

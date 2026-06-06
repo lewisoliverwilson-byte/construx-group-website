@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import ManifestoNav from '@/components/manifesto/ManifestoNav';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
+import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -209,6 +210,11 @@ export default function ManifestoPage() {
         {/* Methodology diff panel */}
         <div className="mt-4">
           <MethodologyDiffPanel />
+        </div>
+
+        {/* Systemd service status */}
+        <div className="mt-4">
+          <SystemdStatusPanel />
         </div>
 
         {/* Sign-off */}

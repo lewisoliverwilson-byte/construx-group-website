@@ -1,0 +1,236 @@
+---
+title: "Tailwind CSS animations: motion without a library"
+date: "2028-12-31"
+excerpt: "Tailwind ships with a small set of built-in animations but the real power is in the arbitrary value escape hatch and the @keyframes config. Here's the pattern for custom animations, scroll-triggered reveals, and the cases where you reach for Framer Motion instead."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Tailwind's animation utilities are deliberately minimal. The core set — `animate-spin`, `animate-ping`, `animate-pulse`, `animate-bounce` — handles loading states and attention cues. Everything else goes in `tailwind.config.ts`, where you define keyframes and animation shorthands alongside your design tokens.
+
+## Config-defined animations
+
+```ts
+// tailwind.config.ts
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  theme: {
+    extend: {
+      keyframes: {
+        'fade-in': {
+          '0%':   { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'fade-up': {
+          '0%':   { opacity: '0', transform: 'translateY(12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-down': {
+          '0%':   { opacity: '0', transform: 'translateY(-8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'slide-in-right': {
+          '0%':   { opacity: '0', transform: 'translateX(20px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%':      { transform: 'translateY(-8px)' },
+        },
+        'glow-pulse': {
+          '0%, 100%': { opacity: '0.4' },
+          '50%':      { opacity: '1' },
+        },
+        shimmer: {
+          '0%':   { backgroundPosition: '-200% center' },
+          '100%': { backgroundPosition: '200% center' },
+        },
+      },
+      animation: {
+        'fade-in':        'fade-in 0.4s ease both',
+        'fade-up':        'fade-up 0.5s ease both',
+        'fade-down':      'fade-down 0.4s ease both',
+        'slide-in-right': 'slide-in-right 0.4s ease both',
+        'float':          'float 4s ease-in-out infinite',
+        'glow-pulse':     'glow-pulse 2s ease-in-out infinite',
+        'shimmer':        'shimmer 2s linear infinite',
+      },
+    },
+  },
+};
+
+export default config;
+```
+
+Use in JSX:
+
+```tsx
+// Staggered reveal with inline animation-delay
+<div>
+  <h1 className="animate-fade-up" style={{ animationDelay: '0ms' }}>
+    Title
+  </h1>
+  <p className="animate-fade-up" style={{ animationDelay: '120ms' }}>
+    Subtitle
+  </p>
+  <div className="animate-fade-up" style={{ animationDelay: '240ms' }}>
+    CTA
+  </div>
+</div>
+```
+
+## Arbitrary value escape hatch
+
+For one-off animations, use the `[]` escape hatch rather than polluting the config:
+
+```tsx
+// Custom duration, delay, timing without config entry
+<div className="animate-[fade-in_0.3s_ease_both] [animation-delay:150ms]">
+  Content
+</div>
+
+// Named keyframe from config, custom timing
+<div className="animate-[float_6s_ease-in-out_infinite]">
+  Floating element
+</div>
+```
+
+## Scroll-triggered reveals with IntersectionObserver
+
+Tailwind animations run on mount. For scroll-triggered effects, combine IntersectionObserver with a CSS class toggle:
+
+```tsx
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
+interface RevealProps {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+}
+
+export function Reveal({ children, delay = 0, className = '' }: RevealProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className={`${visible ? 'animate-fade-up' : 'opacity-0'} ${className}`}
+      style={{ animationDelay: `${delay}ms`, animationFillMode: 'both' }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Usage — stagger a grid of cards
+<div className="grid grid-cols-3 gap-6">
+  {cards.map((card, i) => (
+    <Reveal key={card.id} delay={i * 80}>
+      <Card {...card} />
+    </Reveal>
+  ))}
+</div>
+```
+
+## Loading skeleton shimmer
+
+```tsx
+function Skeleton({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`rounded bg-gradient-to-r from-white/5 via-white/10 to-white/5 bg-[length:200%_100%] animate-shimmer ${className}`}
+    />
+  );
+}
+
+function ProductCardSkeleton() {
+  return (
+    <div className="space-y-3 p-4">
+      <Skeleton className="h-48 w-full" />
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-1/2" />
+      <Skeleton className="h-8 w-24 mt-2" />
+    </div>
+  );
+}
+```
+
+## Transition utilities
+
+For hover and focus states, Tailwind's `transition-*` utilities are more appropriate than animations:
+
+```tsx
+<button
+  className="
+    bg-orange-500 text-black
+    hover:bg-orange-400 hover:scale-[1.02]
+    active:scale-[0.98]
+    transition-all duration-150 ease-out
+  "
+>
+  Click me
+</button>
+
+<div
+  className="
+    opacity-0 translate-y-2
+    group-hover:opacity-100 group-hover:translate-y-0
+    transition-all duration-200
+  "
+>
+  Tooltip
+</div>
+```
+
+## When to use Framer Motion
+
+Tailwind animations cover most cases. Reach for Framer Motion when:
+
+1. **Exit animations** — animating elements as they leave the DOM. CSS animations can't target unmounted elements. Framer Motion's `AnimatePresence` handles this.
+2. **Physics-based spring animations** — `spring` easing with customisable stiffness/damping.
+3. **Gesture-driven motion** — drag-to-dismiss, swipe gestures with velocity tracking.
+4. **Layout animations** — `layoutId` transitions that animate between component positions on screen (shared element transitions).
+5. **Orchestrated sequences** — complex chains where one animation triggers the next.
+
+```tsx
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Exit animation (not possible with plain CSS)
+<AnimatePresence>
+  {isOpen && (
+    <motion.div
+      key="modal"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.15 }}
+    >
+      <Modal />
+    </motion.div>
+  )}
+</AnimatePresence>
+```
+
+For everything else — entrances, hovers, loading states, scroll reveals — the Tailwind + CSS approach is faster to write, smaller in bundle size, and easier to maintain.
