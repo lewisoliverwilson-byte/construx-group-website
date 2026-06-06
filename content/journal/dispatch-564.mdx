@@ -1,0 +1,131 @@
+---
+title: "SWR vs TanStack Query: choosing a data fetching library in 2029"
+date: "2029-08-01"
+excerpt: "SWR and TanStack Query (React Query) both manage server state in React. SWR is smaller and simpler. TanStack Query has more features: mutations with optimistic updates, infinite queries, prefetching, and a powerful DevTools. For most apps, TanStack Query is the right choice. Here's when SWR makes sense."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SWR and TanStack Query solve the same core problem: caching and synchronising server state in React without boilerplate. They diverge in scope and philosophy. SWR prioritises simplicity; TanStack Query prioritises completeness.
+
+## SWR: simple and minimal
+
+SWR (stale-while-revalidate) is Vercel's data fetching library. The API is intentionally minimal:
+
+```ts
+import useSWR from 'swr';
+
+async function fetcher(url: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+}
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data, error, isLoading } = useSWR(`/api/users/${userId}`, fetcher);
+
+  if (isLoading) return <Spinner />;
+  if (error)     return <Error />;
+  return <div>{data.name}</div>;
+}
+```
+
+SWR handles: caching, deduplication, revalidation on focus, polling, suspense. The API surface is small — there isn't much to learn.
+
+## TanStack Query: complete and explicit
+
+TanStack Query (formerly React Query) does everything SWR does and more:
+
+```ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data, error, isLoading } = useQuery({
+    queryKey: ['user', userId],
+    queryFn:  () => fetch(`/api/users/${userId}`).then(r => r.json()),
+    staleTime: 60 * 1000,
+  });
+
+  // ...
+}
+```
+
+The key differences:
+- **Query keys**: explicit arrays, enabling granular cache invalidation
+- **Mutations**: first-class, with `onMutate` for optimistic updates
+- **`staleTime` configuration**: fine-grained control over when data is considered stale
+- **Infinite queries**: built-in for pagination
+- **Prefetching**: prefetch on the server or on hover
+- **DevTools**: visual inspector for cache state
+- **SSR support**: `HydrationBoundary` for Next.js Server Components
+
+## The mutation difference
+
+This is where TanStack Query wins decisively. SWR's mutation story is limited to cache invalidation:
+
+```ts
+// SWR mutation — basic
+import { useSWRConfig } from 'swr';
+
+function DeleteButton({ postId }: { postId: string }) {
+  const { mutate } = useSWRConfig();
+
+  async function handleDelete() {
+    await fetch(`/api/posts/${postId}`, { method: 'DELETE' });
+    mutate('/api/posts'); // revalidate posts list
+  }
+}
+```
+
+```ts
+// TanStack Query mutation — optimistic update + rollback
+function DeleteButton({ postId }: { postId: string }) {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => fetch(`/api/posts/${postId}`, { method: 'DELETE' }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['posts'] });
+      const previous = queryClient.getQueryData(['posts']);
+      queryClient.setQueryData(['posts'], (old: Post[]) =>
+        old.filter(p => p.id !== postId)
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['posts'], context?.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+
+  return <button onClick={() => mutation.mutate()}>Delete</button>;
+}
+```
+
+TanStack Query's mutation with optimistic update removes the post immediately, then reconciles with the server. If the delete fails, it rolls back. The UX is noticeably better.
+
+## When SWR makes sense
+
+**Simple read-heavy apps**: if your app is mostly displaying data with minimal mutations, SWR's simplicity is an asset. Less code, smaller bundle.
+
+**Tight bundle size requirements**: SWR is ~4KB gzipped; TanStack Query is ~12KB. For apps where bundle size is critical, SWR is lighter.
+
+**Vercel's Next.js features**: SWR integrates tightly with Vercel's platform. For apps deployed on Vercel with heavy use of ISR and on-demand revalidation, SWR's tooling is well-suited.
+
+## When TanStack Query makes sense
+
+**Mutation-heavy apps**: any app where users create, update, or delete data frequently. The optimistic update and rollback patterns in TanStack Query are significantly easier to implement.
+
+**Complex caching requirements**: different `staleTime` values per query, tags-based invalidation, partial cache updates.
+
+**Prefetching**: server-side prefetching with `HydrationBoundary` avoids loading states for the initial render.
+
+**Teams**: the explicit query key structure in TanStack Query makes cache behaviour more legible across a team. SWR's string keys are less discoverable.
+
+## Our setup
+
+All Construx products use TanStack Query. The deciding factor wasn't any single feature — it was the mutation story. Scoutr has complex filter state and user-specific lists that update frequently. The optimistic update pattern in TanStack Query makes those interactions feel instant.
+
+SWR is a good library. If you're building a simple read-heavy dashboard on Vercel, it's the right choice. For anything beyond that, TanStack Query's depth pays off quickly.

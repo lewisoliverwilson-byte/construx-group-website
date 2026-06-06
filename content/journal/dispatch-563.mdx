@@ -1,0 +1,159 @@
+---
+title: "var, let, const: what actually changes between them"
+date: "2029-07-29"
+excerpt: "var, let, and const differ in scope, hoisting, and mutability. var is function-scoped, hoisted with an undefined value, and re-declarable. let and const are block-scoped, hoisted to the temporal dead zone, and not re-declarable. const adds the constraint that the binding cannot be reassigned — the value can still be mutated."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The recommendation "use const by default, let when you need reassignment, never var" is correct but doesn't explain why. Understanding the actual differences helps you reason about what happens when code runs — not just what to type.
+
+## var: function scope and full hoisting
+
+`var` is scoped to the enclosing function, not the enclosing block:
+
+```ts
+function example() {
+  if (true) {
+    var x = 1;
+  }
+  console.log(x); // 1 — x is function-scoped, not block-scoped
+}
+
+function blockExample() {
+  for (var i = 0; i < 3; i++) {}
+  console.log(i); // 3 — i escapes the for block
+}
+```
+
+`var` declarations are hoisted to the top of the function with a value of `undefined`. The declaration moves up; the assignment stays put:
+
+```ts
+console.log(x); // undefined (not ReferenceError)
+var x = 1;
+
+// This is what actually happens:
+var x;           // hoisted declaration
+console.log(x); // undefined
+x = 1;          // assignment stays here
+```
+
+The hoisting of `var` is why the classic closures-in-loops bug exists:
+
+```ts
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100); // logs 3, 3, 3 — not 0, 1, 2
+}
+// All callbacks share the same var i, which is 3 by the time they run
+```
+
+## let and const: block scope and the temporal dead zone
+
+`let` and `const` are block-scoped:
+
+```ts
+if (true) {
+  let x = 1;
+  const y = 2;
+}
+console.log(x); // ReferenceError: x is not defined
+console.log(y); // ReferenceError: y is not defined
+```
+
+They're also hoisted — but to the temporal dead zone (TDZ). The binding exists but is not initialised:
+
+```ts
+console.log(x); // ReferenceError: Cannot access 'x' before initialization
+let x = 1;
+```
+
+The TDZ lasts from the start of the block to the `let`/`const` declaration. Accessing the variable in this window throws a `ReferenceError`. This is intentional — it catches the class of bugs that hoisted-undefined `var` silently hides.
+
+## const: binding immutability, not value immutability
+
+`const` prevents reassignment of the binding — it does not make the value immutable:
+
+```ts
+const x = 1;
+x = 2; // TypeError: Assignment to constant variable
+
+const obj = { name: 'Construx' };
+obj.name = 'Different'; // OK — the object is mutated, not the binding
+obj = {}; // TypeError — the binding cannot be reassigned
+
+const arr = [1, 2, 3];
+arr.push(4); // OK — mutation
+arr = [];    // TypeError — reassignment
+```
+
+For immutable values, use `Object.freeze()`:
+
+```ts
+const obj = Object.freeze({ name: 'Construx' });
+obj.name = 'Different'; // silently fails in non-strict mode, throws in strict mode
+```
+
+`Object.freeze` is shallow — nested objects are not frozen:
+
+```ts
+const config = Object.freeze({
+  db: { host: 'localhost' },
+});
+config.db.host = 'remote'; // OK — only the top-level is frozen
+```
+
+## Why const by default
+
+Using `const` by default communicates intent: this value should not be reassigned. When a reader sees `let`, they know the variable will be reassigned — they look for where that happens. When they see `const`, they know the binding is stable.
+
+```ts
+// const — reader knows value won't change
+const userId = session.user.id;
+
+// let — reader looks for where this changes
+let retries = 0;
+while (retries < 3) {
+  try {
+    await fetchData();
+    break;
+  } catch {
+    retries++;
+  }
+}
+```
+
+The ESLint rule `prefer-const` enforces this automatically: if a `let` variable is never reassigned, ESLint flags it.
+
+## The for loop fix
+
+The closures-in-loops bug is fixed by using `let` instead of `var`:
+
+```ts
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100); // logs 0, 1, 2
+}
+// Each iteration creates a new binding for i
+```
+
+With `let`, each loop iteration creates a new lexical binding for `i`. The closure captures that iteration's `i`, not the shared one.
+
+## TypeScript and const
+
+In TypeScript, `const` on a primitive literal narrows the type:
+
+```ts
+let x = 1;    // type: number
+const y = 1;  // type: 1 (literal type)
+
+let s = 'hello';    // type: string
+const t = 'hello';  // type: "hello" (literal type)
+```
+
+This is why you sometimes need `as const` on objects:
+
+```ts
+const config = { mode: 'production' }; // type: { mode: string }
+const config = { mode: 'production' } as const; // type: { readonly mode: "production" }
+```
+
+`as const` makes all properties `readonly` and narrows string/number/boolean literals to their literal types. Useful when you want to use object values as discriminants in union types.

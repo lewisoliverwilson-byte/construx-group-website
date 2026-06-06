@@ -7,6 +7,7 @@ import ActivityHistogram from '@/components/journal/ActivityHistogram';
 import JournalStats from '@/components/journal/JournalStats';
 import DispatchCalendar from '@/components/journal/DispatchCalendar';
 import DispatchGitLog from '@/components/journal/DispatchGitLog';
+import JournalWcPanel from '@/components/JournalWcPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -161,6 +162,11 @@ export default async function JournalPage({ searchParams }: Props) {
             <DispatchGitLog posts={allPosts} total={allPosts.length} />
           )}
         </div>
+      </section>
+
+      {/* Word count analysis */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <JournalWcPanel />
       </section>
 
       {/* Posts */}
