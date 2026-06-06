@@ -1,0 +1,117 @@
+---
+title: "PostgreSQL connection pooling: why serverless functions need PgBouncer"
+date: "2026-12-10"
+excerpt: "PostgreSQL has a connection limit. Serverless functions create a new connection on every invocation. Without connection pooling, a burst of Lambda or Vercel/Amplify invocations will exhaust the database connection pool. Here's how we solved it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+PostgreSQL is a process-based server: each connection to Postgres spawns a new OS process. This is fine for a long-running application server that maintains a persistent pool of connections. It's a problem for serverless functions that create a new connection on every invocation.
+
+AWS Amplify's server functions (Next.js API routes) are serverless. In a burst, dozens of concurrent function invocations each try to open a new connection to Postgres. At modest scale, this exhausts the `max_connections` setting and produces the infamous `too many connections` error.
+
+## The math
+
+A typical PostgreSQL instance on a small VM has `max_connections = 100`. A production-ready setup allocates:
+- 3 for internal Postgres processes (autovacuum, wal writer, etc.)
+- 20 reserved for admin connections (`superuser_reserved_connections`)
+- ~77 available for application connections
+
+At peak, if 80 Amplify function instances spin up simultaneously (a real possibility during a traffic burst), all 77 available connections are gone. Any 81st function can't connect, throws an error, and the user sees a 500.
+
+## The solution: connection pooling with PgBouncer
+
+PgBouncer is a lightweight connection pooler for PostgreSQL. It sits between the application and the database, maintaining a pool of persistent connections to Postgres and multiplexing many application connections through them.
+
+```
+Amplify functions (many, short-lived, each "connecting")
+         ↓
+    PgBouncer (pooler)
+    - 50 server connections to Postgres
+    - 10,000 client connections from functions
+         ↓
+PostgreSQL (50 real connections)
+```
+
+Hundreds of function invocations share 50 real database connections. PgBouncer queues requests when all connections are in use, adds negligible latency for most operations, and prevents connection exhaustion.
+
+## PgBouncer modes
+
+PgBouncer offers three pooling modes:
+
+**Transaction mode (recommended for serverless):** A database connection is released back to the pool after each transaction. Functions that send multiple queries within a single request each get a connection per transaction.
+
+**Session mode:** A connection is held for the entire session (from connect to disconnect). Not useful for serverless since each function invocation creates a session.
+
+**Statement mode:** A connection is released after each SQL statement. Most aggressive pooling, but breaks transactions that span multiple statements. Incompatible with most application code.
+
+Transaction mode is the right choice for serverless workloads: connections are held only for the duration of a transaction (typically milliseconds) and returned to the pool immediately, enabling high concurrency with a small pool.
+
+## What PgBouncer breaks
+
+Transaction mode has a consequence: prepared statements, session-level settings, and advisory locks don't persist across transactions because the connection may be a different physical connection each time.
+
+```sql
+-- This doesn't work in transaction mode
+SET search_path TO my_schema;  -- Session setting, lost after transaction ends
+SELECT * FROM my_table;         -- Gets default search_path, not my_schema
+```
+
+Drizzle ORM with Postgres handles this correctly: it doesn't rely on session-level state between queries. But the connection string must include `pgbouncer=true` in some ORM configurations to disable prepared statements (which also don't work across pooled connections).
+
+```ts
+const db = drizzle(
+  postgres(process.env.DATABASE_URL!, {
+    max: 1,           // In a serverless function, 1 connection is enough
+    // PgBouncer handles the multiplexing
+  })
+);
+```
+
+Each function invocation needs only one connection — the pooler handles multiplexing. Setting `max: 1` prevents each function from trying to create its own pool (which defeats the purpose of PgBouncer).
+
+## Alternative: Neon or Supabase's built-in pooling
+
+Neon and Supabase (both PostgreSQL-as-a-service providers) include built-in connection pooling through their platforms. They use PgBouncer under the hood and expose a separate pooler connection string.
+
+The connection string distinction:
+```
+# Direct connection (no pooling)
+postgresql://user:pass@host:5432/dbname
+
+# Pooled connection (via PgBouncer)
+postgresql://user:pass@host:6543/dbname  # Different port
+```
+
+We use Railway for The Hyve's database. Railway doesn't include built-in PgBouncer. We run PgBouncer as a separate Railway service and connect through it.
+
+## Configuration
+
+```ini
+# pgbouncer.ini
+[databases]
+hyve_prod = host=postgres_host port=5432 dbname=hyve_prod
+
+[pgbouncer]
+listen_port = 6432
+listen_addr = 0.0.0.0
+auth_type = md5
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+max_client_conn = 10000
+default_pool_size = 50
+reserve_pool_size = 5
+server_idle_timeout = 600
+log_connections = 0
+log_disconnections = 0
+```
+
+The `default_pool_size = 50` means PgBouncer maintains 50 connections to Postgres. Even with 500 concurrent function invocations, they all multiplex through these 50 connections. Postgres sees 50 steady connections rather than 500 burst connections.
+
+## Monitoring
+
+Two things to monitor:
+1. **Pool saturation:** If all 50 connections are consistently busy, requests queue. High queue depth means the pool is too small. We watch the `pool_cl_waiting` metric from PgBouncer's stats.
+2. **Connection errors in Postgres logs:** `too many connections` errors mean PgBouncer isn't being used correctly (functions bypassing the pooler) or the pool is undersized.
+
+PgBouncer is one of those infrastructure components that seems like overhead until you hit the `too many connections` error in production. Better to set it up before launch than debug connection exhaustion during a traffic spike.

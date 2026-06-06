@@ -1,0 +1,110 @@
+---
+title: "Email deliverability: SPF, DKIM, DMARC, and why transactional email is its own discipline"
+date: "2026-12-08"
+excerpt: "Sending email programmatically is trivial. Having that email reliably arrive in inboxes — not spam folders — requires understanding SPF, DKIM, DMARC, and the ecosystem of email authentication standards. Here's what we set up for Construx products."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Transactional email — password resets, purchase confirmations, notifications — seems simple: call an API, email gets sent. In practice, getting email into inboxes (not spam) requires properly configured authentication records, a reputable sending infrastructure, and careful practices around list management and content.
+
+We use Resend for transactional email. Here's everything we configured beyond the basic API call.
+
+## The three email authentication standards
+
+**SPF (Sender Policy Framework):** A DNS record that lists the IP addresses authorized to send email on behalf of your domain. When a receiving mail server gets an email claiming to be from `@construxgroup.io`, it checks the SPF record to see if the sending IP is authorized.
+
+```
+# DNS TXT record for construxgroup.io
+v=spf1 include:_spf.resend.com ~all
+```
+
+The `include:_spf.resend.com` authorizes Resend's sending infrastructure. The `~all` is a softfail — emails from unauthorized IPs are accepted but marked as suspicious rather than rejected. (`-all` would reject them outright, but we use `~all` to avoid rejecting legitimate emails during transition periods.)
+
+**DKIM (DomainKeys Identified Mail):** A cryptographic signature scheme. When Resend sends an email, it signs it with a private key. The receiving server checks the signature against the public key in your DNS record. If the signature matches, the email hasn't been tampered with and came from an authorized sender.
+
+Resend provides the CNAME record to add:
+
+```
+# DNS CNAME record
+resend._domainkey.construxgroup.io → resend._domainkey.resend.com
+```
+
+**DMARC (Domain-based Message Authentication, Reporting, and Conformance):** A policy record that tells receiving mail servers what to do when SPF or DKIM fails — quarantine the email, reject it, or do nothing. It also specifies where to send aggregate reports about authentication failures.
+
+```
+# DNS TXT record
+_dmarc.construxgroup.io → "v=DMARC1; p=quarantine; rua=mailto:dmarc@construxgroup.io"
+```
+
+`p=quarantine` means: if the email fails DMARC alignment, put it in spam rather than the inbox. We started with `p=none` (monitor only, no action) to verify configuration before enforcing policy.
+
+## The DNS propagation problem
+
+DNS changes take time to propagate — up to 48 hours for global propagation. Testing email authentication before propagation is complete gives false results. We verified authentication using MXToolbox and Google's Admin Toolbox after the TTL expired.
+
+The checklist before going live with transactional email:
+1. Add SPF record
+2. Add DKIM CNAME records from Resend
+3. Add DMARC record (start with `p=none`)
+4. Wait for propagation (24-48h)
+5. Verify with MXToolbox / Google Admin Toolbox
+6. Send test emails and check headers for authentication pass
+7. Switch DMARC to `p=quarantine` after confirmed clean
+
+## The Resend configuration
+
+```ts
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export async function sendContactFormEmail({
+  name, email, topic, message
+}: ContactFormData) {
+  const { data, error } = await resend.emails.send({
+    from: 'Construx Group <hello@construxgroup.io>',
+    to: 'lewis.oliver.wilson@googlemail.com',
+    replyTo: email,
+    subject: `[Contact] ${topic} — from ${name}`,
+    text: `Name: ${name}\nEmail: ${email}\nTopic: ${topic}\n\nMessage:\n${message}`,
+    html: `
+      <div style="font-family: monospace; font-size: 13px; color: #333; max-width: 600px;">
+        <p style="color: #888; font-size: 11px;">From construxgroup.io contact form</p>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Topic:</strong> ${topic}</p>
+        <hr>
+        <p style="white-space: pre-wrap;">${message}</p>
+      </div>
+    `,
+  });
+  
+  if (error) throw new Error(`Email send failed: ${error.message}`);
+  return data;
+}
+```
+
+The `replyTo: email` field is critical — it means that replying to the notification email replies to the sender, not to the noreply address.
+
+## Content considerations
+
+Email content matters for deliverability, not just authentication. Spam filters evaluate the content:
+
+**Avoiding spam triggers:**
+- Avoid all-caps subject lines
+- Avoid excessive exclamation marks
+- Don't use spam keyword lists (free, urgent, act now, etc.)
+- Include a plain text version alongside HTML
+- Have a clear sender name and domain
+- Include a physical address (required by CAN-SPAM in the US, though we're UK-based)
+
+**Volume ramp-up:** A new sending domain that suddenly sends hundreds of emails per day looks suspicious. We started with low volume (contact form submissions only) before considering newsletters. This "warm-up" period establishes sender reputation.
+
+## The RESEND_API_KEY in Amplify
+
+The environment variable needs to be set in AWS Amplify for the contact form to actually send emails. Currently, submissions are accepted by the API route but the email send fails silently in production because the env var isn't configured.
+
+To fix: AWS Amplify console → App settings → Environment variables → Add `RESEND_API_KEY`. After this, rebuild and redeploy. The contact form will start delivering emails.
+
+This has been on the infrastructure backlog since launch. It's the mundane kind of configuration that's easy to overlook when building features — and irritating when you realise users have been submitting contact forms that went nowhere.
