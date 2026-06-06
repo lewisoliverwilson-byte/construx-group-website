@@ -1,0 +1,177 @@
+---
+title: "TypeScript strict mode: the rules that actually matter"
+date: "2027-05-24"
+excerpt: "TypeScript strict mode enables several compiler options at once. Some of them are essential. Others are less important. Here's what strict mode actually turns on, what the payoff is for each option, and which ones to enforce in practice."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+`"strict": true` in `tsconfig.json` is a single flag that activates eight separate compiler options. Not all of them have equal value. Some eliminate entire categories of bugs at zero cost. Others require occasional workarounds for little practical benefit.
+
+Understanding what each option does — and why — lets you make deliberate decisions rather than blindly enabling a flag and then fighting the compiler.
+
+## What strict mode enables
+
+**`strictNullChecks`** — The most important option in TypeScript. Without it, `null` and `undefined` are assignable to every type. With it, they're their own types and must be handled explicitly.
+
+```ts
+// Without strictNullChecks:
+const user: User = null; // Compiles fine. Crashes at runtime.
+
+// With strictNullChecks:
+const user: User = null; // Error: Type 'null' is not assignable to type 'User'
+const maybeUser: User | null = null; // Correct
+```
+
+If you could only enable one TypeScript option, this is it. The entire category of "Cannot read properties of null" runtime errors becomes a compile-time error.
+
+**`noImplicitAny`** — Variables and parameters must have an explicit type when TypeScript can't infer one.
+
+```ts
+// Without noImplicitAny:
+function transform(data) { /* data is any */ }
+
+// With noImplicitAny:
+function transform(data: unknown) { /* must be explicit */ }
+```
+
+The value here is removing the `any` escape hatch that developers reach for when they're unsure of a type. `any` is contagious — it disables type checking downstream of where it's used.
+
+**`strictFunctionTypes`** — Enables correct variance checking on function types. Functions are covariant in return types and contravariant in parameter types. Without this option, TypeScript allows unsound function type assignments.
+
+```ts
+type ClickHandler = (event: MouseEvent) => void;
+type AnyHandler = (event: Event) => void;
+
+// With strictFunctionTypes, this is an error:
+const handler: ClickHandler = (e: Event) => {}; // ClickHandler expects MouseEvent, not Event
+```
+
+Practical value: lower than `strictNullChecks`, but catches real bugs in callback patterns.
+
+**`strictBindCallApply`** — Types the `bind`, `call`, and `apply` methods correctly.
+
+```ts
+function add(a: number, b: number) { return a + b; }
+
+add.call(undefined, 1, '2'); // Error with strictBindCallApply
+add.call(undefined, 1, 2);   // OK
+```
+
+**`strictPropertyInitialization`** — Class properties must be initialised in the constructor or marked with a definite assignment assertion.
+
+```ts
+class Repository {
+  db: Database; // Error: Property 'db' has no initializer
+  
+  // Fix:
+  db!: Database; // Definite assignment (you're telling TS you'll initialise it)
+  // or:
+  db: Database = new Database();
+}
+```
+
+Useful for catching classes where you forgot to wire up a dependency. Occasionally annoying for dependency injection patterns where the framework initialises properties.
+
+**`noImplicitThis`** — `this` must be typed explicitly when it's not obvious from context.
+
+**`alwaysStrict`** — Adds `"use strict"` to emitted JavaScript files. Almost irrelevant for modern code that's already a module.
+
+**`useUnknownInCatchVariables`** — Catch clause variables are typed as `unknown` instead of `any`. Requires you to handle the error type before using it.
+
+```ts
+try {
+  await fetchData();
+} catch (err) {
+  // err is unknown, not any
+  if (err instanceof Error) {
+    console.error(err.message); // OK
+  }
+}
+```
+
+This is a good one. Unhandled catch clauses often swallow errors silently; forcing type checking makes error handling deliberate.
+
+## Additional options worth enabling separately
+
+These aren't part of `strict` but are worth adding:
+
+**`noUncheckedIndexedAccess`** — Array index access returns `T | undefined` instead of `T`.
+
+```ts
+const arr = ['a', 'b', 'c'];
+const item = arr[10]; // string | undefined with noUncheckedIndexedAccess; string without
+
+// Forces you to handle the out-of-bounds case:
+if (item !== undefined) {
+  console.log(item.toUpperCase());
+}
+```
+
+This is strict mode's most controversial addition. It's annoying in tight loops where you know the bounds; extremely valuable when accessing arrays from external data.
+
+**`exactOptionalPropertyTypes`** — Optional properties can be omitted but not explicitly set to `undefined`.
+
+```ts
+interface Config {
+  timeout?: number;
+}
+
+const config: Config = { timeout: undefined }; // Error with exactOptionalPropertyTypes
+const config2: Config = {}; // OK — omitting is fine
+```
+
+**`noPropertyAccessFromIndexSignature`** — Properties from index signatures must use `[]` syntax.
+
+```ts
+interface StringMap { [key: string]: string; }
+const map: StringMap = {};
+
+map.foo;   // Error: use map['foo'] instead
+map['foo']; // OK
+```
+
+Forces clarity about when you're doing typed property access vs. dynamic index access.
+
+## Our tsconfig
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true
+  }
+}
+```
+
+`noUnusedLocals` and `noUnusedParameters` catch dead code. `noFallthroughCasesInSwitch` prevents silent switch statement bugs. `forceConsistentCasingInFileNames` prevents cross-platform import issues.
+
+`skipLibCheck: true` skips type checking of declaration files in `node_modules`. Without it, type errors in third-party packages break your build — a frustrating and pointless failure mode.
+
+## Handling the escape hatches
+
+Strict mode catches real bugs but occasionally gets in the way of legitimate patterns. TypeScript provides explicit escape hatches that make the intent clear:
+
+```ts
+// When you know a value is non-null but TS doesn't:
+const element = document.getElementById('root')!; // Non-null assertion
+
+// When you know a type more specifically than TS can infer:
+const canvas = document.createElement('canvas') as HTMLCanvasElement;
+
+// When you're consuming untyped external data:
+const data = await fetch('/api/data').then(r => r.json()) as ApiResponse;
+```
+
+Use these deliberately, not habitually. Every `!` or `as` is a point where you're taking responsibility for type correctness — make sure you're right.
