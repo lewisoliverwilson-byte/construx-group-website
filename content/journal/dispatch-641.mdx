@@ -1,0 +1,215 @@
+---
+title: "GitHub Actions: CI/CD pipelines in YAML"
+date: "2030-03-20"
+excerpt: "GitHub Actions runs automated workflows triggered by repository events — push, pull request, release, schedule. A workflow is a YAML file in .github/workflows/ that defines jobs, steps, and the triggers. Each job runs in a fresh virtual machine. Steps run shell commands or call pre-built Actions from the marketplace. The free tier covers most open-source and small team usage."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Actions are the automation layer on top of your repository. Every push can trigger a type check, every PR can run tests, every merge to main can deploy. The trigger → job → step model is composable — workflows call other workflows, jobs depend on jobs, and steps share data via artifacts and outputs.
+
+## Basic CI: type check and test on push
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: Type check and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run type-check
+
+      - run: npm run lint
+
+      - run: npm test -- --coverage
+```
+
+## Deploy on merge to main
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.build.outputs.image-tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-west-2
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: build
+        name: Build and push Docker image
+        run: |
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: construx-api
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ecs-task-def.json
+          service:         construx-api
+          cluster:         construx-prod
+          image:           ${{ needs.build.outputs.image-tag }}
+          wait-for-service-stability: true
+```
+
+## Matrix builds: test across multiple versions
+
+```yaml
+jobs:
+  test:
+    strategy:
+      matrix:
+        node: ['20', '22']
+        os:   [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+```
+
+Four jobs run in parallel: Node 20/Ubuntu, Node 20/Windows, Node 22/Ubuntu, Node 22/Windows.
+
+## Reusable workflows
+
+```yaml
+# .github/workflows/reusable-test.yml
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+    secrets:
+      DATABASE_URL:
+        required: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NODE_ENV:     ${{ inputs.environment }}
+```
+
+```yaml
+# .github/workflows/ci.yml — call the reusable workflow
+jobs:
+  test:
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      environment: test
+    secrets:
+      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+```
+
+## Caching dependencies
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.npm
+    key:  ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+
+# Or use the built-in cache in setup-node
+- uses: actions/setup-node@v4
+  with:
+    node-version: '22'
+    cache: 'npm'   # or 'yarn', 'pnpm'
+```
+
+`hashFiles('**/package-lock.json')` creates a cache key based on the lockfile hash. If the lockfile changes, a new cache is created. Otherwise, `node_modules` from the previous run is restored.
+
+## Environment protection rules
+
+```yaml
+deploy:
+  environment: production   # requires approval before running
+  runs-on: ubuntu-latest
+  steps:
+    - run: ./deploy.sh
+```
+
+In the GitHub repository settings, configure `production` environment to require a reviewer before any job can proceed. Deployments to production get a manual approval gate.
+
+## Useful patterns
+
+```yaml
+# Run only on file changes
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'package.json'
+
+# Scheduled job (cron syntax)
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'   # 6am UTC, Mon-Fri
+
+# Conditional step
+- run: npm run deploy
+  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+# Pass data between steps
+- id: version
+  run: echo "tag=$(git describe --tags)" >> $GITHUB_OUTPUT
+- run: echo "Deploying ${{ steps.version.outputs.tag }}"
+```
