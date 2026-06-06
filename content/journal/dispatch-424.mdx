@@ -1,0 +1,210 @@
+---
+title: "Security headers and Content Security Policy: locking down your app"
+date: "2028-06-07"
+excerpt: "Security headers are the browser-level security controls that protect users from XSS, clickjacking, and data injection. A well-configured CSP stops injected scripts from running. Here's the full setup for Next.js."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Security headers are HTTP response headers that instruct the browser to enable specific security controls. They don't require application code changes — they're configuration. But they can break your app if set incorrectly, which is why most teams never set them.
+
+## The headers that matter
+
+**`Content-Security-Policy`** — whitelist where scripts, styles, fonts, and images can load from. The most powerful and most complex.
+
+**`Strict-Transport-Security`** — force HTTPS for a specified duration. Prevents protocol downgrade attacks.
+
+**`X-Frame-Options`** — prevent your site from being embedded in iframes. Stops clickjacking.
+
+**`X-Content-Type-Options`** — prevent MIME type sniffing. Stops browsers from guessing a file's type.
+
+**`Referrer-Policy`** — control what referrer information is sent on navigation.
+
+**`Permissions-Policy`** — restrict access to browser features (camera, microphone, geolocation).
+
+## Setting headers in Next.js
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const cspHeader = `
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.posthog.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  img-src 'self' blob: data: https://*.cloudfront.net https://lh3.googleusercontent.com;
+  font-src 'self' https://fonts.gstatic.com;
+  frame-src 'self' https://js.stripe.com https://hooks.stripe.com;
+  connect-src 'self' https://api.stripe.com https://eu.i.posthog.com;
+  object-src 'none';
+  base-uri 'self';
+  form-action 'self';
+  frame-ancestors 'none';
+  upgrade-insecure-requests;
+`.replace(/\n/g, ' ');
+
+const securityHeaders = [
+  {
+    key: 'Content-Security-Policy',
+    value: cspHeader,
+  },
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=31536000; includeSubDomains; preload',
+  },
+  {
+    key: 'X-Frame-Options',
+    value: 'DENY',
+  },
+  {
+    key: 'X-Content-Type-Options',
+    value: 'nosniff',
+  },
+  {
+    key: 'Referrer-Policy',
+    value: 'strict-origin-when-cross-origin',
+  },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=()',
+  },
+];
+
+const config: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: securityHeaders,
+      },
+    ];
+  },
+};
+
+export default config;
+```
+
+## CSP without `unsafe-inline`
+
+`unsafe-inline` allows any inline script to execute, which defeats the point of CSP for XSS. To remove it, use nonces:
+
+```ts
+// middleware.ts — generate a nonce per request
+import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
+
+export function middleware(req: NextRequest) {
+  const nonce = randomBytes(16).toString('base64');
+
+  const cspHeader = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://js.stripe.com`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' blob: data:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    `frame-ancestors 'none'`,
+  ].join('; ');
+
+  const response = NextResponse.next({
+    request: {
+      headers: new Headers({
+        ...Object.fromEntries(req.headers),
+        'x-nonce': nonce,
+      }),
+    },
+  });
+
+  response.headers.set('Content-Security-Policy', cspHeader);
+  return response;
+}
+```
+
+```tsx
+// app/layout.tsx — use nonce from headers
+import { headers } from 'next/headers';
+import Script from 'next/script';
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? '';
+
+  return (
+    <html>
+      <head>
+        <Script nonce={nonce} src="/analytics.js" strategy="afterInteractive" />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+## CSP reporting
+
+Before enforcing a CSP, run it in report-only mode to catch violations without blocking anything:
+
+```ts
+{
+  key: 'Content-Security-Policy-Report-Only',
+  value: `${cspHeader}; report-uri /api/csp-report`,
+}
+```
+
+```ts
+// app/api/csp-report/route.ts
+export async function POST(req: Request) {
+  const report = await req.json();
+  console.error('CSP violation:', JSON.stringify(report));
+  // Or send to your error tracking service
+  return new Response(null, { status: 204 });
+}
+```
+
+Run in report-only for a week, fix the violations, then switch to enforcing mode.
+
+## Verifying your headers
+
+```bash
+# Check headers with curl
+curl -I https://construxgroup.io
+
+# Security header grade
+# https://securityheaders.com
+```
+
+The target: an A+ on securityheaders.com. The main blockers are usually `unsafe-inline` in your CSP and `X-Frame-Options` missing. Fix both and you're there.
+
+## CORS for API routes
+
+If your API is called by other origins:
+
+```ts
+// app/api/webhooks/stripe/route.ts
+export async function POST(req: Request) {
+  return new Response(null, {
+    headers: {
+      'Access-Control-Allow-Origin': 'https://js.stripe.com',
+      'Access-Control-Allow-Methods': 'POST',
+    },
+  });
+}
+
+// Global API CORS (use carefully — prefer specific origins)
+// next.config.ts
+{
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: 'https://yourdomain.com' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+        ],
+      },
+    ];
+  },
+}
+```
+
+Never set `Access-Control-Allow-Origin: *` on endpoints that use authentication. The wildcard means any origin can read the response — cookies and auth headers still apply, but the response data is exposed.

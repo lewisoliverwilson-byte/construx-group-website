@@ -1,0 +1,260 @@
+---
+title: "tRPC: end-to-end type safety without code generation"
+date: "2028-06-13"
+excerpt: "tRPC makes your API layer fully type-safe by sharing types between server and client — no OpenAPI spec, no codegen, no REST. Your frontend knows the exact shape of every response at compile time. Here's how to set it up and use it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+tRPC is a TypeScript-first RPC framework. You define procedures on the server, call them from the client, and TypeScript ensures the types match — without any code generation or schema definitions. Change a return type on the server, the client shows a type error immediately.
+
+The tradeoff: it only works between TypeScript frontends and TypeScript backends. If you need a public API or non-TypeScript clients, use REST.
+
+## Setup
+
+```bash
+npm install @trpc/server @trpc/client @trpc/react-query @tanstack/react-query zod
+```
+
+```ts
+// server/trpc.ts — core setup
+import { initTRPC, TRPCError } from '@trpc/server';
+import { auth } from '@/auth';
+
+type Context = {
+  user: { id: string; email: string; role: string } | null;
+};
+
+export async function createContext(): Promise<Context> {
+  const session = await auth();
+  return { user: session?.user ?? null };
+}
+
+const t = initTRPC.context<Context>().create();
+
+export const router = t.router;
+export const publicProcedure = t.procedure;
+
+export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+  return next({ ctx: { user: ctx.user } });
+});
+```
+
+## Defining procedures
+
+```ts
+// server/routers/posts.ts
+import { router, protectedProcedure, publicProcedure } from '../trpc';
+import { z } from 'zod';
+import { db } from '@/lib/db';
+import { posts } from '@/db/schema';
+
+const createPostSchema = z.object({
+  title: z.string().min(3).max(200),
+  content: z.string().min(10),
+  tags: z.array(z.string()).max(5).default([]),
+});
+
+export const postsRouter = router({
+  // Public query
+  list: publicProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(20),
+      cursor: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const items = await db.query.posts.findMany({
+        where: input.cursor
+          ? lt(posts.createdAt, new Date(input.cursor))
+          : undefined,
+        limit: input.limit + 1,
+        orderBy: desc(posts.createdAt),
+      });
+
+      const hasMore = items.length > input.limit;
+      if (hasMore) items.pop();
+
+      return {
+        items,
+        nextCursor: hasMore ? items.at(-1)!.createdAt.toISOString() : null,
+      };
+    }),
+
+  // Protected mutation
+  create: protectedProcedure
+    .input(createPostSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [post] = await db.insert(posts)
+        .values({ ...input, authorId: ctx.user.id })
+        .returning();
+      return post;
+    }),
+
+  // Protected mutation with ID
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const post = await db.query.posts.findFirst({
+        where: and(eq(posts.id, input.id), eq(posts.authorId, ctx.user.id)),
+      });
+
+      if (!post) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Post not found' });
+      }
+
+      await db.delete(posts).where(eq(posts.id, input.id));
+      return { deleted: true };
+    }),
+});
+```
+
+## Root router
+
+```ts
+// server/routers/_app.ts
+import { router } from '../trpc';
+import { postsRouter } from './posts';
+import { usersRouter } from './users';
+import { analyticsRouter } from './analytics';
+
+export const appRouter = router({
+  posts: postsRouter,
+  users: usersRouter,
+  analytics: analyticsRouter,
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+## Next.js route handler
+
+```ts
+// app/api/trpc/[trpc]/route.ts
+import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import { appRouter } from '@/server/routers/_app';
+import { createContext } from '@/server/trpc';
+
+const handler = (req: Request) =>
+  fetchRequestHandler({
+    endpoint: '/api/trpc',
+    req,
+    router: appRouter,
+    createContext,
+    onError:
+      process.env.NODE_ENV === 'development'
+        ? ({ path, error }) => {
+            console.error(`tRPC error on ${path ?? '<no-path>'}:`, error);
+          }
+        : undefined,
+  });
+
+export { handler as GET, handler as POST };
+```
+
+## Client setup
+
+```tsx
+// lib/trpc.ts
+import { createTRPCReact } from '@trpc/react-query';
+import type { AppRouter } from '@/server/routers/_app';
+
+export const trpc = createTRPCReact<AppRouter>();
+```
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { httpBatchLink } from '@trpc/client';
+import { useState } from 'react';
+import { trpc } from '@/lib/trpc';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+  const [trpcClient] = useState(() =>
+    trpc.createClient({
+      links: [
+        httpBatchLink({ url: '/api/trpc' }),
+      ],
+    }),
+  );
+
+  return (
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+```
+
+## Using in components
+
+```tsx
+'use client';
+
+import { trpc } from '@/lib/trpc';
+
+export function PostList() {
+  // Fully typed — TS knows the exact shape of posts.list output
+  const { data, isPending, error } = trpc.posts.list.useQuery({ limit: 20 });
+
+  if (isPending) return <Skeleton />;
+  if (error) return <ErrorState message={error.message} />;
+
+  return (
+    <ul>
+      {data.items.map((post) => (
+        <li key={post.id}>
+          <h2>{post.title}</h2>  {/* TypeScript knows post.title exists */}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function CreatePost() {
+  const utils = trpc.useUtils();
+  const createMutation = trpc.posts.create.useMutation({
+    onSuccess: () => {
+      utils.posts.list.invalidate();  // type-safe cache invalidation
+    },
+  });
+
+  const submit = (data: { title: string; content: string }) => {
+    createMutation.mutate(data);  // TypeScript validates the input shape
+  };
+
+  return <PostForm onSubmit={submit} loading={createMutation.isPending} />;
+}
+```
+
+## Server-side calls (no HTTP overhead)
+
+In Server Components, call tRPC procedures directly without an HTTP round trip:
+
+```tsx
+// app/posts/page.tsx — Server Component
+import { appRouter } from '@/server/routers/_app';
+import { createContext } from '@/server/trpc';
+import { createCallerFactory } from '@trpc/server';
+
+const createCaller = createCallerFactory(appRouter);
+
+export default async function PostsPage() {
+  const ctx = await createContext();
+  const caller = createCaller(ctx);
+
+  // Direct function call — no HTTP, full type safety
+  const { items } = await caller.posts.list({ limit: 10 });
+
+  return <PostList initialPosts={items} />;
+}
+```
+
+tRPC's value: the type safety extends from DB schema to server procedure to client component. Rename a field anywhere in that chain and TypeScript shows every break immediately.
