@@ -25,9 +25,26 @@ const founders = [
   },
 ];
 
+const foundersSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  name: 'Founders — Construx Group',
+  url: 'https://construxgroup.io/founders',
+  mainEntity: founders.map((f) => ({
+    '@type': 'Person',
+    name: f.name,
+    jobTitle: f.role,
+    worksFor: { '@type': 'Organization', name: 'Construx Group', url: 'https://construxgroup.io' },
+  })),
+};
+
 export default function FoundersPage() {
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(foundersSchema) }}
+      />
       {/* Hero */}
       <section className="relative pt-36 pb-16 px-5 overflow-hidden grid-bg">
         <div className="absolute inset-0 bg-radial-orange pointer-events-none" />

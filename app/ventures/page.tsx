@@ -11,12 +11,30 @@ export const metadata: Metadata = {
     'The full portfolio of Construx Group ventures — live products, coming-soon launches, and ventures in incubation.',
 };
 
+const venturesListSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'Construx Group Ventures',
+  url: 'https://construxgroup.io/ventures',
+  itemListElement: ventures.map((v, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: v.name,
+    description: v.tagline,
+    url: `https://construxgroup.io/ventures/${v.slug}`,
+  })),
+};
+
 export default function VenturesPage() {
   const live = ventures.filter((v) => v.status === 'live');
   const other = ventures.filter((v) => v.status !== 'live');
 
   return (
     <div className="relative min-h-screen grid-bg overflow-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(venturesListSchema) }}
+      />
       <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
 
       {/* Hero */}
