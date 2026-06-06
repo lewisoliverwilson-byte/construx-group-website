@@ -1,0 +1,71 @@
+---
+title: "When AI gets it wrong: our failure taxonomy"
+date: "2026-07-08"
+excerpt: "AI products fail in specific, recognisable ways. After running three products for six months, we've built a taxonomy of AI failure modes — what they look like, why they happen, and how to handle each one."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+AI failures are not random. After six months of running three AI-powered products, the same failure patterns recur across products and use cases. Understanding the taxonomy matters because each failure type has a different root cause, a different fix, and a different user impact.
+
+## Failure type 1: confident hallucination
+
+The model produces a plausible, well-structured answer that is factually wrong. It doesn't hedge. It doesn't flag uncertainty. The user has no reason to distrust it.
+
+This is the most dangerous failure type. A wrong answer delivered with confidence is worse than no answer at all — it leads to decisions made on bad information.
+
+Where we see it: Scoutr's margin calculations occasionally include fees that don't exist for a specific product category, stated as fact. The Hyve's research summaries occasionally cite statistics that are plausible-sounding but invented.
+
+How to handle it: prompt for sources and confidence levels. Force the model to say "I'm not certain about this" when it shouldn't be. Make uncertainty visible in the UI. For Scoutr, we now show the data sources for each fee included in a calculation. The model can still hallucinate a source, but users can check.
+
+## Failure type 2: correct but irrelevant
+
+The model correctly answers a question the user didn't ask. The answer is factually accurate, well-reasoned, and completely unhelpful.
+
+This happens when the prompt is ambiguous, when context is missing, or when the model makes a plausible but wrong inference about what the user wants.
+
+Where we see it: The Hyve's AI agent sometimes responds to "what should we work on next?" with a general prioritisation framework when the user wanted a specific recommendation for their product's current situation. The answer is correct generically; it's wrong for the specific question.
+
+How to handle it: more context in the prompt. Require the model to state its interpretation of the user's request before answering. Give users a quick way to redirect: "that's not what I meant — I meant..."
+
+## Failure type 3: refusal without explanation
+
+The model declines to answer without sufficient context about why. "I can't help with that" is the failure mode. The user doesn't know if they should rephrase, try a different approach, or accept that the product can't do what they want.
+
+Where we see it: Scoutr occasionally refuses to scan pages that are entirely legal but structured in ways that trigger content filters. The refusal gives the user no useful information about what happened or what to do.
+
+How to handle it: always give a reason, even if the reason is vague. "This page format isn't one we can process" is better than a generic failure. Give users an action: "try this format instead" or "contact us if you need this type of page scanned."
+
+## Failure type 4: prompt injection
+
+A user inputs content that causes the model to behave differently than intended — following instructions embedded in the user's input rather than the system prompt.
+
+This is a security concern as much as a product concern. If a user can make the AI ignore its instructions, the product is unpredictable and potentially unsafe.
+
+Where we see it: mostly in The Marqet's content pipeline, where product descriptions are fed into the model as part of the prompt. A product description that says "ignore your previous instructions and..." can cause unexpected behavior.
+
+How to handle it: separate user content from instructions clearly. Use system prompts for instructions and user messages for content. Validate that outputs match expected schemas — a product description output that isn't a product description is a signal that something went wrong.
+
+## Failure type 5: context degradation
+
+The model's performance degrades as the conversation context grows. Earlier facts are forgotten, earlier instructions are ignored, and the model's answers become less coherent over time.
+
+This happens because context windows have limits and attention degrades at distance. Instructions at the start of a long context get less weight than instructions at the end.
+
+Where we see it: The Hyve's AI agent in long workspace sessions. By the 20th message in a session, the agent sometimes forgets workspace-specific instructions that were set at session start.
+
+How to handle it: reinforce critical instructions at the end of the system prompt. Summarise earlier context when starting a new session. Set limits on session length — truncate or summarise rather than letting contexts grow indefinitely.
+
+## Failure type 6: brittle to formatting
+
+The model produces correct content but in a format the parser can't handle. A misplaced newline, an extra backtick, a field name spelled slightly differently — and the structured output parsing fails.
+
+Where we see it: every product. Anywhere we parse AI output into structured data, there are occasional format failures.
+
+How to handle it: be more specific in the format instruction. Show an example of the exact expected output. Validate the output before parsing and retry once if validation fails. Design parsers to be tolerant of minor variations — trim whitespace, normalise field names, handle both `projectedMargin` and `projected_margin`.
+
+## The common thread
+
+Every failure type has the same root: a mismatch between what the model understood and what was intended. Either the prompt was ambiguous, the model's understanding was wrong, or the model's limitations made correct understanding impossible.
+
+The fixes are all versions of the same solution: more explicit prompts, better validation, and user-facing affordances for correcting failures. AI products that handle failure gracefully are the ones that last.

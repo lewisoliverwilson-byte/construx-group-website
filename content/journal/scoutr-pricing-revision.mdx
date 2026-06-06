@@ -1,0 +1,70 @@
+---
+title: "How we revised Scoutr's pricing after six months"
+date: "2026-07-10"
+excerpt: "We launched Scoutr with pricing based on assumptions. Six months of data showed which assumptions were right, which were wrong, and what we needed to change. A detailed account of a pricing revision done carefully."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Pricing a new product is guesswork dressed up as strategy. You make assumptions about who will buy, how much they'll use it, and what they'll pay. Six months later, the data tells you where the assumptions were right.
+
+Here's what we changed in Scoutr's pricing and why.
+
+## The original structure
+
+Scoutr launched with three tiers:
+
+- **Starter** — £19/month — 50 scans
+- **Pro** — £49/month — 200 scans  
+- **Scale** — £99/month — 1,000 scans
+
+The logic: casual resellers do a handful of scans per week, professionals do more, and high-volume operators do many. Price around usage volume with a significant step-up to capture the value difference between tiers.
+
+## What the data showed
+
+After six months of actual usage data, three things were clear.
+
+**Usage clustering at the edges.** Users were either very light (under 20 scans per month) or very heavy (over 300 scans). The middle tier — 50-200 scans — had almost no users. The 200-scan Pro tier was the least subscribed.
+
+This is a classic problem with usage-based tiers: they assume a normal distribution of usage, but real users cluster at the extremes. Our middle tier was priced for a user who doesn't exist.
+
+**Starter users weren't upgrading.** The theory was that Starter users would hit the 50-scan limit and upgrade to Pro. In practice, most Starter users stayed on Starter — either staying under the limit or reducing their scan frequency to avoid hitting it.
+
+Limits that don't feel painful don't drive upgrades. 50 scans sounds like a lot until you're doing product research, at which point it's less than a day's work.
+
+**Pro users needed a higher ceiling.** Our most engaged Pro users were consistently approaching the 200-scan limit and either pausing their research or finding workarounds. They were willing to pay more for more — but the Scale tier at £99/month felt like a large jump.
+
+## The revised structure
+
+We moved to two tiers plus a usage-based add-on:
+
+- **Starter** — £15/month — 25 scans — reduced limit, reduced price
+- **Pro** — £55/month — unlimited scans within fair use — simplified
+
+We dropped the Scale tier entirely and moved high-volume operators to a direct billing arrangement.
+
+**Why reduce Starter?** We found that the highest-value Starter signal was first-week activation, not scan count. Users who ran 5+ scans in their first week were significantly more likely to become paying Pro users. The 50-scan limit was giving too much runway to users who were never going to convert. Reducing the limit and the price makes Starter a true trial that pushes committed users toward Pro faster.
+
+**Why unlimited Pro?** Unlimited is a psychological unlock. Pro users who were counting scans and managing their usage friction spent cognitive energy on something that wasn't about the product. Removing the limit removed the friction. Our Pro retention improved after this change.
+
+## What we got wrong in the original
+
+Two things we'd do differently:
+
+**We should have launched with fewer tiers.** Three tiers assumes you have enough data to know what differentiates your users. We didn't. Two tiers — entry and professional — would have been simpler and probably produced the same revenue while generating clearer signal about which users exist.
+
+**We priced the middle wrong.** If you're going to have a middle tier, it should capture a real segment. Ours didn't. We defined the middle tier by what seemed like a logical usage gap, not by what real users needed.
+
+## The process of changing pricing
+
+The actual pricing change was more delicate than the strategy behind it. Existing subscribers need to be handled thoughtfully.
+
+We grandfathered all existing Starter subscribers at the old rate for six months. We sent a personal email explaining the change and giving existing subscribers a discounted path to Pro. Out of 94 Starter subscribers, 12 upgraded to Pro during the transition and 4 cancelled. The rest stayed on the grandfathered rate.
+
+We gave Pro subscribers the new unlimited plan at their existing price. This was a pure improvement for them — we chose not to price-increase at the same time as simplifying, even though the unlimited plan arguably justified a higher price. Making the transition feel like an improvement builds goodwill that's worth more than the incremental revenue.
+
+## The result
+
+Three months after the pricing revision: Pro tier conversion from Starter improved by 22%. Pro tier churn reduced by 8%. The average Starter subscriber's conversion path shortened by 12 days.
+
+Pricing is never finished. The revised structure will need revisiting when Scoutr's user base changes or when usage patterns shift. The lesson is to revisit pricing with data, not instinct, and to make changes deliberately and communicated clearly.

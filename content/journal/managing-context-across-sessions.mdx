@@ -1,0 +1,94 @@
+---
+title: "Managing AI context across long-running projects"
+date: "2026-07-16"
+excerpt: "Context windows reset. Projects don't. The gap between these two facts is one of the fundamental challenges of AI-assisted work. Here are the approaches we've developed for maintaining continuity across sessions."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+The context window is the AI's working memory. Everything the AI knows in a given session — the project background, the decisions made, the current task, the constraints — lives in the context window. When the session ends, the context resets.
+
+Projects span weeks or months. The context window resets every session. This gap is one of the real practical challenges of building with AI, and it doesn't get discussed enough.
+
+Here are the approaches we've developed for maintaining continuity across sessions.
+
+## The cost of the cold start
+
+A session that starts without context is slow. The first 10-15 minutes of an AI-assisted work session are often consumed by re-establishing context: explaining what the project is, what's been decided, what the current task is, what constraints apply.
+
+This isn't a failure of the AI — it can only know what's in the current context. The failure is in how the project's state is captured and restored.
+
+Cold starts are expensive in three ways: they consume time (yours and the AI's), they increase the chance that important context is omitted (and the AI makes decisions without it), and they reduce the quality of the AI's initial contributions (it's reasoning with less context than it should have).
+
+Reducing cold start cost is one of the highest-return improvements in AI-assisted workflow.
+
+## Persistent project documents
+
+The first and most important approach: maintain persistent project documents that contain the context a session needs.
+
+For each project, we maintain a `PROJECT.md` document that includes:
+- What the project is (one paragraph)
+- What decisions have been made and why (decision log)
+- What the current state is (what's built, what's in progress)
+- What constraints apply (technical, business, design)
+- What's explicitly out of scope
+
+At the start of each AI session, we include the relevant project document in the context. The AI reads it before we start working.
+
+This converts the cold start into a warm start. The AI begins with the context it needs. The time spent re-establishing context drops from 10-15 minutes to 2-3 minutes (reading the document and clarifying anything unclear).
+
+## The summary-at-end habit
+
+At the end of a productive AI session, before closing, we ask the AI to summarise what was accomplished and what the current state is. This summary becomes the starting point for updating the project document.
+
+The summary habit does two things: it captures what happened in a session that might not otherwise be documented, and it forces a useful review of whether the work accomplished what was intended.
+
+A summary at the end of a session typically takes 2-3 minutes. The alternative — trying to reconstruct what happened from memory at the start of the next session — is slower and less accurate.
+
+## Hierarchical context documents
+
+Not all context is equally important. The project's core decisions and constraints matter every session. The details of a specific implementation from three weeks ago matter only when working on that component.
+
+We use a hierarchical approach:
+
+**Project brief** (always loaded): vision, decisions, constraints, current status. ~500 words.
+
+**Component docs** (loaded when relevant): detailed documentation for specific features or modules. Loaded only when working on that component.
+
+**Session logs** (rarely loaded): records of specific sessions. Useful for debugging decisions from the distant past, rarely needed otherwise.
+
+The project brief is small enough to fit in context comfortably without consuming space that should be used for the actual work. Component docs are larger and loaded selectively.
+
+## Structured decision logging
+
+Decisions made during AI sessions need to be captured in a format that's useful when re-read later, by both humans and AI.
+
+A poor decision log entry: "decided to use webhooks"
+
+A good decision log entry: "DECISION: Use webhooks for payment status updates. Why: polling from the client introduced race conditions on slow connections. The Stripe webhook system is reliable and adds minimal complexity. Implication: requires a publicly accessible webhook endpoint in all environments, including local dev (use ngrok or similar). Date: 2026-07-15"
+
+The structured entry captures the decision, the rationale, the implications, and the date. When an AI session re-reads this in a month, it has enough context to understand and work within the decision — rather than potentially proposing the same alternative and going through the same evaluation.
+
+## The shared context problem in team settings
+
+When multiple people (or multiple AI sessions running in parallel) are working on the same project, context can diverge. Person A's AI session knows about a decision that Person B's AI session doesn't.
+
+This is the problem The Hyve's team mode is designed to solve — but even without dedicated tooling, the mitigation is the same: a shared, actively maintained project document that is the authoritative source of project state.
+
+The discipline is: any decision made in any session that affects the whole project goes into the shared document before the session ends. This is a habit, not a technical solution. The technical solution (like The Hyve's decision log with approval gate) makes the habit easier to maintain consistently.
+
+## Context economy: what to exclude
+
+Context windows have limits. Loading everything into context is as bad as loading nothing — the AI's attention dilutes across too much information and the relevant details get lost.
+
+The discipline of context economy: only load what's relevant to the current session. If you're working on the billing module, the detailed specs for the analytics dashboard don't belong in context. They'll take up space and introduce noise.
+
+This requires judgment about what's relevant, which requires knowing what you're trying to accomplish in the session before you start it. "I'm going to work on billing today" should be followed by "what context is relevant to billing?" rather than "load everything."
+
+## The meta-lesson
+
+Maintaining AI context across long-running projects is primarily a documentation discipline, not a technical problem. The AI can only know what's in the current context. Keeping the context current and relevant is a human responsibility.
+
+Products like The Hyve try to make this discipline easier — automated decision capture, shared context across a team, session summaries that flow into persistent documents. But the underlying discipline — consistently capturing state so it's available next session — remains. The tools just reduce the friction.
+
+The AI is most useful when it has the context to be useful. Investing in context maintenance is investing in the quality of every AI session that follows.

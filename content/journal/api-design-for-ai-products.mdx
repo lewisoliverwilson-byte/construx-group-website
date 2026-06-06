@@ -1,0 +1,98 @@
+---
+title: "API design patterns we use across three AI products"
+date: "2026-07-15"
+excerpt: "Building three products with a shared infrastructure mindset has produced a set of API design patterns that we apply consistently. They're not novel, but applying them consistently makes AI products significantly more robust."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+Across three AI products with a shared codebase foundation, certain API design patterns have proven their worth repeatedly. These aren't novel ideas — most are well-established in backend engineering. The value is in applying them consistently, especially when the API is wrapping AI inference, which fails in ways that normal APIs don't.
+
+## Idempotent operations wherever possible
+
+An idempotent operation produces the same result regardless of how many times it's called with the same inputs. This is a safety property: you can retry an idempotent operation after a failure without causing duplicate state.
+
+For AI product APIs, idempotency matters because:
+- AI inference can time out without the client knowing if the server received and processed the request
+- Network failures during streaming responses leave ambiguous state
+- Mobile and browser clients retry requests on connectivity loss
+
+For Scoutr's scan API, each scan request includes a `scan_id` (UUID generated on the client). If the client retries a timed-out request with the same `scan_id`, the server checks if it already processed that ID. If yes, it returns the cached result. If no, it processes fresh.
+
+This prevents users from being charged for duplicate scans and prevents the server from doing duplicate work. The implementation cost is a lookup table — cheap insurance.
+
+## Typed error responses
+
+Generic error responses are inadequate for AI APIs. A `500 Internal Server Error` tells the client nothing about what to do next. Was it a transient failure (retry works)? A permanent failure (retry won't work)? A client error (retry without changing the request won't help)?
+
+We define a consistent error schema across all three products:
+
+```typescript
+interface APIError {
+  code: string;        // machine-readable: 'RATE_LIMIT', 'PARSE_FAILED', 'CONTENT_FILTERED'
+  message: string;     // human-readable for display
+  retryable: boolean;  // can the client retry this request?
+  retryAfter?: number; // seconds to wait before retrying (rate limits)
+  details?: unknown;   // additional context for debugging
+}
+```
+
+The `retryable` field is the most important one. Clients use it to decide whether to show "try again" or "something is wrong — contact support." Without it, clients either always show "try again" (annoying when it won't help) or never show it (loses recoverable errors).
+
+The `code` field enables programmatic error handling: the client can silently retry `RATE_LIMIT` errors with backoff, surface `CONTENT_FILTERED` errors with a specific message about why the request can't be processed, and log `PARSE_FAILED` errors for investigation.
+
+## Request validation at the boundary
+
+Validate everything that enters your API — not just types, but values.
+
+For Scoutr's scan API, valid input is an Amazon product URL. Type validation catches that the input is a string. Value validation catches that it's a URL, that it's an Amazon URL, and that it points to a product page rather than a search or category page. All of this can be checked before making an API call.
+
+Catching invalid inputs at the boundary is cheaper than catching them after inference. An invalid URL doesn't need to be sent to the AI to know it's invalid. The user gets faster feedback, the server does less work, and the error message can be more specific.
+
+We use validation schemas (TypeScript types + runtime checks) for every API input. The rule: if the AI would fail or produce bad output for this input, reject it before reaching the AI.
+
+## Graceful degradation with partial results
+
+AI APIs sometimes return partial results — the response is interrupted before completion, the output is valid but truncated, or a component of a complex response succeeds while another fails.
+
+The naive approach is to return an error for any partial result. The better approach is to return what's available with clear indication that it's partial.
+
+For Scoutr's scan API, a product page might have data for some sections (fees, basic product info) but not others (competition density, if the data source is unavailable). We return the available data with a `partial: true` flag and a list of what's missing and why.
+
+Users who get partial data can make a decision with what's available. Users who get a complete error can't. Partial results are usually better than no results.
+
+## Rate limiting with per-endpoint granularity
+
+Rate limiting a single endpoint per user is standard. Per-endpoint rate limiting — different limits for different endpoints based on their cost — is more useful for AI products where endpoint costs vary widely.
+
+A Scoutr scan costs significantly more (in time, AI tokens, and server compute) than a Scoutr settings update. Rate-limiting both at the same level either over-restricts cheap operations or under-restricts expensive ones.
+
+We rate limit by endpoint, by user tier, and by time window. Starter tier: 5 scans per minute, 50 per day. Pro tier: 20 scans per minute, unlimited per day. Settings endpoints: 60 requests per minute for all tiers.
+
+The rate limit response includes the `retryAfter` field from our error schema, so clients can automatically respect the limit and retry at the right time.
+
+## Pagination with cursor-based navigation
+
+For any API endpoint that returns a list of results (scan history, listing inventory, workspace messages), we use cursor-based pagination rather than offset-based.
+
+Offset pagination (`page=3&per_page=20`) breaks when items are inserted or deleted between pages: page 3 might return items that were on page 2 when the user fetched it, or skip items that moved between pages.
+
+Cursor pagination returns a `next_cursor` opaque token. The client passes it as `after=cursor_value` to get the next page. Insertions and deletions don't affect cursor navigation — the cursor points to a specific position in the dataset, not an offset.
+
+For AI products where data is being actively created (scans running, messages arriving), stable pagination matters more than for static datasets.
+
+## Health checks that actually check health
+
+Health check endpoints that return `200 OK` regardless of actual health are worse than useless — they tell load balancers everything is fine when it isn't.
+
+Our health check endpoints verify the things that actually need to work: database connectivity, AI API reachability, and the availability of critical third-party services. If any dependency is unavailable, the health check returns an appropriate error code.
+
+For AI products, checking AI API reachability is especially important. If the Anthropic API is unreachable, Scoutr can't scan anything — returning `200 OK` from the health check would route traffic to a server that can't actually serve it.
+
+Health checks add a few milliseconds of latency to the check. That's worth it for accurate health state.
+
+## The consistent benefit
+
+These patterns don't individually make AI products dramatically better. They collectively make them significantly more reliable and debuggable. The AI layer introduces enough unpredictability that the infrastructure around it should be as robust and consistent as possible.
+
+Patterns applied consistently are documentation. A codebase where every API follows the same error schema, the same validation approach, and the same rate limiting conventions is a codebase that new contributors (human or AI) can work in confidently. Inconsistency is a maintenance tax.
