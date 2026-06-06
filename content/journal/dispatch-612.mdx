@@ -1,0 +1,153 @@
+---
+title: "CORS: how cross-origin requests actually work"
+date: "2029-12-23"
+excerpt: "CORS (Cross-Origin Resource Sharing) is the browser's mechanism for controlling which cross-origin requests are allowed. It's not a security feature for your server — it's enforced by the browser, and it only applies to requests made from browser JavaScript. Understanding the preflight, which headers to set, and what 'simple' vs 'complex' requests means prevents hours of debugging."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+CORS errors come from the browser, not the server. The server receives the request, processes it, and returns a response — the browser then decides whether to hand that response to JavaScript based on the response headers. This is the key insight: CORS is about browser access to responses, not about blocking requests at the server.
+
+## The same-origin policy
+
+By default, JavaScript running at `https://construxgroup.io` can only read responses from `https://construxgroup.io`. Any request to a different origin (different scheme, host, or port) is blocked by the browser — not by the server.
+
+A "different origin" means any of:
+- Different protocol: `http://` vs `https://`
+- Different host: `construxgroup.io` vs `api.construxgroup.io`
+- Different port: `:3000` vs `:3001`
+
+## Simple requests: no preflight
+
+Some requests are "simple" and don't trigger a preflight. They're sent directly:
+
+```js
+// Simple: GET with no custom headers
+fetch('https://api.construxgroup.io/posts');
+
+// Simple: POST with Content-Type: text/plain
+fetch('https://api.construxgroup.io/posts', {
+  method:  'POST',
+  headers: { 'Content-Type': 'text/plain' },
+  body:    'hello',
+});
+```
+
+For simple requests, the browser sends the request and checks the response for `Access-Control-Allow-Origin`:
+
+```http
+# Response header from the server
+Access-Control-Allow-Origin: https://construxgroup.io
+# or allow any origin
+Access-Control-Allow-Origin: *
+```
+
+If the header is missing or doesn't match, the browser blocks the response from JavaScript.
+
+## Preflight requests
+
+Requests with custom headers, `Content-Type: application/json`, or methods other than GET/POST trigger a preflight — an `OPTIONS` request the browser sends automatically before the real request:
+
+```http
+OPTIONS /api/posts HTTP/1.1
+Origin: https://construxgroup.io
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: Content-Type, Authorization
+```
+
+The server must respond to the preflight with the allowed methods and headers:
+
+```http
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin:  https://construxgroup.io
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Max-Age:       86400
+```
+
+`Access-Control-Max-Age` caches the preflight response — subsequent requests from the same origin skip the preflight for up to 86400 seconds (1 day).
+
+## Next.js API route CORS headers
+
+```ts
+// middleware.ts — add CORS headers to all API routes
+import { NextRequest, NextResponse } from 'next/server';
+
+const ALLOWED_ORIGINS = [
+  'https://construxgroup.io',
+  'https://www.construxgroup.io',
+  process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : '',
+].filter(Boolean);
+
+export function middleware(req: NextRequest) {
+  const origin = req.headers.get('origin') ?? '';
+  const allowed = ALLOWED_ORIGINS.includes(origin);
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin':  allowed ? origin : '',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Max-Age':       '86400',
+      },
+    });
+  }
+
+  const res = NextResponse.next();
+  if (allowed) {
+    res.headers.set('Access-Control-Allow-Origin', origin);
+  }
+  return res;
+}
+
+export const config = { matcher: '/api/:path*' };
+```
+
+## Credentials (cookies, auth headers)
+
+By default, cross-origin requests don't include cookies or `Authorization` headers. To include credentials:
+
+```js
+// Client
+fetch('https://api.construxgroup.io/me', {
+  credentials: 'include',  // send cookies
+});
+```
+
+```http
+# Server must respond with:
+Access-Control-Allow-Origin:      https://construxgroup.io  # must be specific, not *
+Access-Control-Allow-Credentials: true
+```
+
+When `credentials: 'include'` is used, `Access-Control-Allow-Origin: *` is rejected by the browser. You must specify the exact origin.
+
+## Exposed headers
+
+By default, JavaScript can only read a few "safe" response headers (like `Content-Type`). To expose custom headers:
+
+```http
+Access-Control-Expose-Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-Request-Id
+```
+
+Without this, `response.headers.get('X-RateLimit-Limit')` returns `null` in browser JavaScript, even if the header is present.
+
+## What CORS doesn't protect
+
+CORS only restricts browser JavaScript. It does not protect your API from:
+
+- Server-to-server requests (curl, fetch from Node.js, Postman)
+- Malicious JavaScript on your own origin
+- Mobile apps
+
+CORS is for preventing cross-origin browser JavaScript from reading your API responses — not for preventing unauthorized access. Authentication (JWT, session cookies) is the access control layer; CORS is an additional browser-specific constraint on top.
+
+## Common mistakes
+
+1. **Setting `Access-Control-Allow-Origin: *` with credentials** — rejected by the browser. Must be a specific origin when credentials are involved.
+2. **Forgetting the preflight** — your GET works, your POST with `Content-Type: application/json` doesn't. The preflight handler is missing.
+3. **Not exposing headers** — `res.headers.get('X-Request-Id')` returns null because `Access-Control-Expose-Headers` isn't set.
+4. **CORS won't fix authentication** — if the request returns 401, it returns 401 regardless of CORS headers. Fix auth first, CORS second.

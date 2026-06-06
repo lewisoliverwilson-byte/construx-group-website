@@ -1,0 +1,185 @@
+---
+title: "Inngest: durable functions and background jobs"
+date: "2029-12-17"
+excerpt: "Inngest is a serverless background job platform. You write TypeScript functions that run in response to events, on a schedule, or as multi-step workflows — with automatic retries, state persistence across steps, and a dashboard for debugging. It integrates with Next.js API routes and runs on your own infrastructure, not Inngest's servers."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Background jobs in serverless environments are painful: Lambda timeouts hit at 15 minutes, Vercel serverless functions timeout at 60 seconds, and there's no native retry mechanism. Inngest solves this with durable functions — long-running workflows that survive restarts, with each step checkpointed.
+
+## Setup
+
+```bash
+npm install inngest
+```
+
+```ts
+// inngest/client.ts
+import { Inngest } from 'inngest';
+
+export const inngest = new Inngest({ id: 'construx-app' });
+```
+
+```ts
+// app/api/inngest/route.ts — the endpoint Inngest calls
+import { serve } from 'inngest/next';
+import { inngest } from '@/inngest/client';
+import { sendWelcomeEmail } from '@/inngest/functions/welcome-email';
+import { processOrder }      from '@/inngest/functions/process-order';
+
+export const { GET, POST, PUT } = serve({
+  client: inngest,
+  functions: [sendWelcomeEmail, processOrder],
+});
+```
+
+Point Inngest at `https://your-app.com/api/inngest` in the dashboard to register your functions.
+
+## Simple function
+
+```ts
+// inngest/functions/welcome-email.ts
+import { inngest } from '../client';
+import { resend }  from '@/lib/resend';
+
+export const sendWelcomeEmail = inngest.createFunction(
+  {
+    id:      'send-welcome-email',
+    name:    'Send Welcome Email',
+    retries: 3,
+  },
+  { event: 'user.created' },  // trigger event
+  async ({ event, step }) => {
+    await step.run('send-email', async () => {
+      await resend.emails.send({
+        from:    'Construx <noreply@construxgroup.io>',
+        to:      [event.data.email],
+        subject: 'Welcome to Construx',
+        html:    welcomeHtml(event.data.username),
+      });
+    });
+  },
+);
+```
+
+```ts
+// Trigger it from anywhere in your app
+await inngest.send({
+  name: 'user.created',
+  data: { userId: user.id, email: user.email, username: user.name },
+});
+```
+
+## Multi-step functions with state
+
+Steps are the key feature. Each step's result is persisted — if the function fails after step 2, it resumes from step 3 on retry.
+
+```ts
+export const processOrder = inngest.createFunction(
+  { id: 'process-order', retries: 5 },
+  { event: 'order.placed' },
+  async ({ event, step }) => {
+    // Step 1: validate the order
+    const order = await step.run('validate-order', async () => {
+      return db.order.findUniqueOrThrow({ where: { id: event.data.orderId } });
+    });
+
+    // Step 2: charge the customer (result persisted — won't double-charge on retry)
+    const payment = await step.run('charge-customer', async () => {
+      return stripe.paymentIntents.create({
+        amount:   order.totalCents,
+        currency: 'gbp',
+        customer: order.stripeCustomerId,
+      });
+    });
+
+    // Step 3: fulfill the order
+    await step.run('fulfill-order', async () => {
+      await db.order.update({
+        where: { id: order.id },
+        data:  { status: 'fulfilled', paymentIntentId: payment.id },
+      });
+    });
+
+    // Step 4: send confirmation email
+    await step.run('send-confirmation', async () => {
+      await resend.emails.send({
+        from:    'Construx <noreply@construxgroup.io>',
+        to:      [order.customerEmail],
+        subject: `Order #${order.id} confirmed`,
+        html:    orderConfirmationHtml(order),
+      });
+    });
+
+    return { orderId: order.id, paymentIntentId: payment.id };
+  },
+);
+```
+
+If step 3 fails (say, a database timeout), Inngest retries from step 3. Steps 1 and 2 don't re-run — their results are replayed from the checkpoint.
+
+## Waiting for external events
+
+```ts
+export const onboardUser = inngest.createFunction(
+  { id: 'onboard-user' },
+  { event: 'user.created' },
+  async ({ event, step }) => {
+    // Wait up to 7 days for the user to verify their email
+    const emailVerified = await step.waitForEvent('email-verification', {
+      event:   'user.email.verified',
+      timeout: '7d',
+      match:   'data.userId',  // match on event.data.userId
+    });
+
+    if (!emailVerified) {
+      // Timed out — send a reminder
+      await step.run('send-reminder', async () => {
+        await resend.emails.send({ /* ... */ });
+      });
+      return;
+    }
+
+    // Continue onboarding...
+    await step.run('activate-account', async () => {
+      await db.user.update({ where: { id: event.data.userId }, data: { active: true } });
+    });
+  },
+);
+```
+
+`step.waitForEvent` pauses execution until a matching event arrives or the timeout expires. No polling, no database flags — Inngest manages the suspension.
+
+## Scheduled functions (cron)
+
+```ts
+export const weeklyDigest = inngest.createFunction(
+  { id: 'weekly-digest' },
+  { cron: '0 9 * * MON' },  // every Monday at 9am UTC
+  async ({ step }) => {
+    const users = await step.run('get-active-users', async () => {
+      return db.user.findMany({ where: { active: true, digestEnabled: true } });
+    });
+
+    // Process in batches of 50
+    for (const batch of chunk(users, 50)) {
+      await step.run(`send-batch-${batch[0].id}`, async () => {
+        await Promise.all(batch.map((u) => sendDigestEmail(u)));
+      });
+    }
+  },
+);
+```
+
+## Local development
+
+```bash
+npx inngest-cli@latest dev  # start local Inngest dev server
+```
+
+This tunnels to your local Next.js dev server, lets you trigger events from a UI, and shows all function runs with step-by-step traces.
+
+## When to use Inngest
+
+Inngest is the right tool when: you need background jobs in a serverless environment, you have multi-step workflows where partial failure is expensive (orders, onboarding), or you need scheduled jobs without a separate worker process. For simple fire-and-forget jobs that complete in < 30 seconds, a plain async function or a simple queue like BullMQ may be sufficient.

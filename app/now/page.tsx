@@ -7,6 +7,7 @@ import CrontabPanel from '@/components/CrontabPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import IostatPanel from '@/components/IostatPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
+import WhoPanel from '@/components/WhoPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -328,6 +329,11 @@ export default function NowPage() {
         {/* System journal */}
         <div className="mt-6">
           <JournalctlPanel />
+        </div>
+
+        {/* Active sessions */}
+        <div className="mt-6">
+          <WhoPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
