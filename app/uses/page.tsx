@@ -124,7 +124,7 @@ export default function UsesPage() {
           <h1 className="text-display-sm text-text-base mb-4 leading-tight">What we use</h1>
           <p className="text-text-muted leading-relaxed text-base max-w-2xl">
             The tools, services, and hardware behind Construx Group and its ventures.
-            Last updated November 2026.
+            Last updated May 2027.
           </p>
         </div>
       </section>
