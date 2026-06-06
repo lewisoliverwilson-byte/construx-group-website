@@ -87,13 +87,20 @@ export default function VenturesPage() {
                 borderRadius: '3px',
               }}
             >
-              {/* Top accent bar */}
+              {/* Terminal title bar */}
               <div
-                className="h-0.5 w-full"
-                style={{
-                  background: `linear-gradient(90deg, transparent, ${v.accent}, transparent)`,
-                }}
-              />
+                className="flex items-center gap-2 px-3 py-2 flex-shrink-0 select-none"
+                style={{ background: `${v.accent}0a`, borderBottom: `1px solid ${v.accent}18` }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: `${v.accent}55` }}>
+                  construx.{v.slug} — {v.category.toLowerCase()}
+                </span>
+              </div>
 
               <div className="flex flex-col flex-1 p-7">
                 {/* Planet + name */}
