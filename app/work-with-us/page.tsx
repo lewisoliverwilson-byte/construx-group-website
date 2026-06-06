@@ -155,32 +155,77 @@ export default function WorkWithUsPage() {
 
       {/* How it works */}
       <section className="px-5 py-12 pb-20 mx-auto max-w-4xl border-t border-border">
-        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-3">
+        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-8">
           // HOW IT WORKS
         </h2>
-        <h3 className="text-heading-xl text-text-base mb-10">
-          How an engagement works
-        </h3>
-        <div className="flex flex-col gap-0">
-          {process.map((p, i) => (
-            <div key={p.step} className="relative flex gap-7 pb-12 last:pb-0">
-              {i < process.length - 1 && (
-                <div className="absolute left-5 top-14 bottom-0 w-px bg-gradient-to-b from-construx/25 to-transparent" />
-              )}
-              <div className="flex-shrink-0">
-                <div
-                  className="h-10 w-10 flex items-center justify-center font-mono text-xs font-bold text-construx"
-                  style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.22)', borderRadius: '3px' }}
-                >
-                  {p.step}
+        <div
+          className="overflow-hidden"
+          style={{
+            background: 'rgba(3,3,14,0.88)',
+            border: '1px solid rgba(249,115,22,0.13)',
+            borderRadius: '4px',
+            boxShadow: '0 0 40px rgba(249,115,22,0.04)',
+          }}
+        >
+          {/* Terminal title bar */}
+          <div
+            className="flex items-center gap-3 px-4 py-2.5 select-none"
+            style={{ borderBottom: '1px solid rgba(249,115,22,0.08)', background: 'rgba(249,115,22,0.02)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+            </div>
+            <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim/50 flex-1 text-center">
+              construx.process — engagement.flow
+            </span>
+            <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.5)' }}>
+              ● ACTIVE
+            </span>
+          </div>
+          {/* Shell prompt */}
+          <div className="px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <span className="font-mono text-[10px]" style={{ color: 'rgba(249,115,22,0.5)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[10px] ml-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              construx engage --trace --steps=all
+            </span>
+          </div>
+          {/* Steps */}
+          <div className="flex flex-col" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            {process.map((p, i) => (
+              <div
+                key={p.step}
+                className="flex gap-5 px-5 py-5"
+                style={i < process.length - 1 ? { borderBottom: '1px solid rgba(255,255,255,0.04)' } : {}}
+              >
+                <div className="flex-shrink-0 font-mono text-[10px] pt-0.5 tabular-nums" style={{ color: 'rgba(249,115,22,0.45)' }}>
+                  [{p.step}]
+                </div>
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <div className="font-mono text-xs font-semibold text-construx">{p.title}</div>
+                  <p className="text-sm text-text-muted leading-relaxed">{p.body}</p>
+                </div>
+                <div className="flex-shrink-0 pt-0.5">
+                  <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.4)' }}>
+                    ● ok
+                  </span>
                 </div>
               </div>
-              <div className="pt-1.5">
-                <h3 className="text-base font-bold text-text-base mb-2">{p.title}</h3>
-                <p className="text-sm text-text-muted leading-relaxed">{p.body}</p>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          {/* Status footer */}
+          <div
+            className="flex items-center justify-between px-5 py-1.5"
+            style={{ background: 'rgba(0,0,0,0.3)' }}
+          >
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(249,115,22,0.3)' }}>
+              engagement.flow / {process.length} steps
+            </span>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>
+              exit: 0
+            </span>
+          </div>
         </div>
       </section>
 
@@ -280,34 +325,82 @@ export default function WorkWithUsPage() {
         <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-8">
           // TECHNICAL STACK
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: 'Next.js', category: 'Frontend' },
-            { label: 'React', category: 'Frontend' },
-            { label: 'TypeScript', category: 'Language' },
-            { label: 'Tailwind CSS', category: 'Styling' },
-            { label: 'Claude API', category: 'AI' },
-            { label: 'Claude Code', category: 'AI' },
-            { label: 'AWS Amplify', category: 'Infra' },
-            { label: 'Node.js', category: 'Backend' },
-            { label: 'PostgreSQL', category: 'Database' },
-            { label: 'React Three Fiber', category: '3D' },
-            { label: 'Framer Motion', category: 'Animation' },
-            { label: 'Resend', category: 'Email' },
-          ].map(({ label, category }) => (
-            <div
-              key={label}
-              className="flex flex-col px-3 py-3 gap-1"
-              style={{
-                background: 'rgba(5,5,18,0.6)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                borderRadius: '3px',
-              }}
-            >
-              <p className="font-mono text-[9px] font-medium uppercase tracking-widest text-construx/60">{category}</p>
-              <p className="text-sm font-semibold text-text-muted">{label}</p>
+        <div
+          className="overflow-hidden"
+          style={{
+            background: 'rgba(3,3,14,0.85)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: '4px',
+          }}
+        >
+          {/* Terminal title bar */}
+          <div
+            className="flex items-center gap-3 px-4 py-2.5 select-none"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
             </div>
-          ))}
+            <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim/40 flex-1 text-center">
+              construx.stack — sys.dependencies
+            </span>
+            <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(249,115,22,0.4)' }}>
+              12 modules
+            </span>
+          </div>
+          {/* Shell prompt */}
+          <div className="px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <span className="font-mono text-[10px]" style={{ color: 'rgba(249,115,22,0.5)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[10px] ml-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              cat /etc/construx/stack.json | jq .dependencies
+            </span>
+          </div>
+          {/* Stack grid */}
+          <div className="p-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { label: 'Next.js', category: 'Frontend' },
+                { label: 'React', category: 'Frontend' },
+                { label: 'TypeScript', category: 'Language' },
+                { label: 'Tailwind CSS', category: 'Styling' },
+                { label: 'Claude API', category: 'AI' },
+                { label: 'Claude Code', category: 'AI' },
+                { label: 'AWS Amplify', category: 'Infra' },
+                { label: 'Node.js', category: 'Backend' },
+                { label: 'PostgreSQL', category: 'Database' },
+                { label: 'React Three Fiber', category: '3D' },
+                { label: 'Framer Motion', category: 'Animation' },
+                { label: 'Resend', category: 'Email' },
+              ].map(({ label, category }) => (
+                <div
+                  key={label}
+                  className="flex flex-col px-3 py-3 gap-1"
+                  style={{
+                    background: 'rgba(5,5,18,0.6)',
+                    border: '1px solid rgba(255,255,255,0.07)',
+                    borderRadius: '3px',
+                  }}
+                >
+                  <p className="font-mono text-[9px] font-medium uppercase tracking-widest text-construx/60">{category}</p>
+                  <p className="text-sm font-semibold text-text-muted">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Status footer */}
+          <div
+            className="flex items-center justify-between px-5 py-1.5"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}
+          >
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.15)' }}>
+              stack.ver / production
+            </span>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.35)' }}>
+              ● all deps resolved
+            </span>
+          </div>
         </div>
       </section>
 
