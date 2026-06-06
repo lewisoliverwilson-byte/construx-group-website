@@ -1,0 +1,172 @@
+---
+title: "Scoutr's caching layer: when to cache and what to invalidate"
+date: "2027-01-30"
+excerpt: "Scoutr fetches live price data from Amazon and eBay. That data goes stale. Here's the caching strategy — per-product TTLs, stale-while-revalidate, and how we handle the invalidation problem without a background job queue."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Scoutr's core operation is fetching product data from external marketplaces and computing a margin. That fetch takes 2-5 seconds per product. Without caching, every scan is a 2-5 second wait. With caching, most scans return in under 200ms.
+
+The challenge is deciding what to cache, for how long, and when to invalidate.
+
+## What Scoutr caches
+
+Three layers of data have different freshness requirements:
+
+**Product metadata** — title, description, category, images. Changes rarely. A product's title doesn't change week to week. Cache for 24 hours.
+
+**Current buy price** — the Amazon lowest price for the ASIN. Changes frequently, especially for competitive categories. Cache for 30 minutes. After 30 minutes, data is stale — show it with a "prices updated N minutes ago" indicator and revalidate in the background.
+
+**Sell price** — the eBay sold price average for the product category. Changes daily. Cache for 6 hours.
+
+Different TTLs for different data types. Storing them in separate cache entries lets us invalidate independently.
+
+## The cache schema
+
+We use Upstash Redis for the cache (the same Redis instance used for rate limiting — see dispatch #236). The key structure:
+
+```
+scoutr:product:{asin}:meta        TTL: 86400s (24h)
+scoutr:product:{asin}:buy-price   TTL: 1800s (30m)
+scoutr:product:{asin}:sell-price  TTL: 21600s (6h)
+```
+
+```ts
+async function getCachedBuyPrice(asin: string): Promise<number | null> {
+  const key = `scoutr:product:${asin}:buy-price`;
+  const cached = await redis.get(key);
+
+  if (cached) {
+    return JSON.parse(cached).price;
+  }
+
+  return null;
+}
+
+async function setBuyPrice(asin: string, price: number): Promise<void> {
+  const key = `scoutr:product:${asin}:buy-price`;
+  await redis.setex(key, 1800, JSON.stringify({ price, cachedAt: Date.now() }));
+}
+```
+
+Redis `SETEX` sets the value with an expiry in one atomic operation. The key evicts automatically when the TTL expires.
+
+## Stale-while-revalidate
+
+A cached entry that's 29 minutes old is probably still accurate. A cached entry that's 31 minutes old isn't available — the TTL expired and the next request does a fresh fetch, which takes 2-5 seconds.
+
+The stale-while-revalidate pattern avoids this cliff. Instead of a hard TTL, we track freshness metadata:
+
+```ts
+interface CacheEntry {
+  value: number;
+  cachedAt: number; // Unix timestamp
+  staleAt: number;  // Becomes stale after this
+  expireAt: number; // Hard delete after this
+}
+
+async function getBuyPrice(asin: string): Promise<{ price: number; fresh: boolean }> {
+  const key = `scoutr:product:${asin}:buy-price`;
+  const raw = await redis.get(key);
+
+  if (!raw) {
+    // Cache miss — fetch fresh
+    const price = await fetchBuyPriceFromAmazon(asin);
+    await cacheBuyPrice(asin, price);
+    return { price, fresh: true };
+  }
+
+  const entry: CacheEntry = JSON.parse(raw);
+  const now = Date.now();
+  const stale = now > entry.staleAt;
+
+  if (stale) {
+    // Return stale data immediately, trigger background revalidation
+    revalidateBuyPrice(asin); // fire and forget
+    return { price: entry.value, fresh: false };
+  }
+
+  return { price: entry.value, fresh: true };
+}
+```
+
+The `revalidateBuyPrice` function fetches fresh data and updates the cache without blocking the current request. The user gets an instant response with slightly stale data; the next request gets fresh data.
+
+We surface the staleness to the user: if `fresh: false`, the UI shows "Prices last updated N minutes ago" with an orange indicator instead of the normal green. Users know the data is fresh-ish, not real-time.
+
+## Cache key design
+
+Keys include the ASIN, not the URL. Multiple URLs can resolve to the same ASIN — the cache is keyed on the canonical identifier, not the input. If you scan two different Amazon URLs for the same product, you get the cached result on the second scan regardless of URL.
+
+We also maintain a reverse mapping: `scoutr:asin-by-url:{url-hash}` → ASIN. This lets us skip the ASIN extraction for URLs we've seen before:
+
+```ts
+async function resolveAsin(url: string): Promise<string> {
+  const urlHash = hashUrl(url);
+  const cacheKey = `scoutr:asin-by-url:${urlHash}`;
+
+  const cachedAsin = await redis.get(cacheKey);
+  if (cachedAsin) return cachedAsin;
+
+  const asin = extractAmazonAsin(url) ?? await resolveViaRedirect(url);
+  if (asin) {
+    await redis.setex(cacheKey, 86400 * 7, asin); // Cache URL→ASIN for 7 days
+  }
+
+  return asin;
+}
+```
+
+URL→ASIN mapping is stable for weeks. A Keepa link to a specific product always resolves to the same ASIN.
+
+## Cache invalidation
+
+The hard case: a product's price changes significantly (a big sale, a stock-out). The cached data is fresh by TTL but stale in reality. How do we detect this?
+
+We don't, directly. But we surface it to users: the "prices updated N minutes ago" indicator creates a social contract that the data is approximate. Users who need real-time data click the "Refresh" button, which bypasses the cache and fetches fresh data:
+
+```ts
+// Forced refresh: skip cache read
+export async function POST(req: Request) {
+  const { asin, force } = await req.json();
+
+  if (force) {
+    // Delete cache entries and fetch fresh
+    await redis.del(`scoutr:product:${asin}:buy-price`);
+    await redis.del(`scoutr:product:${asin}:sell-price`);
+  }
+
+  return await runScan(asin);
+}
+```
+
+Forced refresh is rate-limited separately from regular scans — 5 forced refreshes per user per hour. This prevents abuse (someone triggering cache-miss loads repeatedly) while giving legitimate users the control they need.
+
+## Cache warming
+
+New ASINs have cold caches — the first scan takes 2-5 seconds. We warm popular ASINs overnight using a background task that fetches fresh data before cache TTLs expire.
+
+The "popular" list is the top 100 ASINs by scan count over the last 7 days:
+
+```sql
+SELECT asin, COUNT(*) as scan_count
+FROM scan_results
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY asin
+ORDER BY scan_count DESC
+LIMIT 100;
+```
+
+This runs every 25 minutes (just before the 30-minute TTL would expire), fetching fresh prices for the ASINs that users actually care about. Cold-cache latency only affects products no one has scanned recently — which is the correct trade-off.
+
+## Metrics
+
+Cache hit rate: we track `scoutr:cache:hit` and `scoutr:cache:miss` counters in Redis.
+
+Current hit rates:
+- Product metadata: 94% (most scans are repeat scans of popular products)
+- Buy price: 71% (price refreshes are frequent, but caching saves most fetches)
+- Sell price: 88% (sell price changes slowly, cache is almost always valid)
+
+The 71% buy price hit rate means 29% of price lookups go to the Amazon API. Without the cache it would be 100%. The caching layer reduces Amazon API calls by 3.4× — staying well within rate limits and reducing latency for the majority of users.

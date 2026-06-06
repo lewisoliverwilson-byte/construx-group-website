@@ -1,0 +1,210 @@
+---
+title: "Optimistic UI: the pattern that makes apps feel instant"
+date: "2027-01-29"
+excerpt: "Optimistic UI updates the interface before the server confirms the action. Done well, it makes the app feel instant. Done badly, it creates inconsistencies that confuse users. Here's the pattern we use across three products."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every action that requires a server round-trip has latency. When you click "mark as read" on a notification, your code sends a request, waits for the response, then updates the UI. If the request takes 300ms, the user watches a spinner for 300ms before anything changes.
+
+Optimistic UI inverts this: update the UI immediately, send the request in the background, and revert if it fails. The user sees an instant response. The server catches up.
+
+## When to use it
+
+Optimistic updates are appropriate when:
+- The action is likely to succeed (>99% success rate in normal conditions)
+- The failure path is recoverable (you can revert the UI)
+- The latency is noticeable (>100ms round trip)
+
+They're not appropriate when:
+- The action might legitimately fail with user-meaningful errors (payment processing, inventory checks, duplicate detection)
+- The UI state after success depends on server-computed data (a generated ID, a computed price)
+- The action is irreversible and high-stakes
+
+## The base pattern
+
+```tsx
+function useOptimisticAction<T>(
+  asyncFn: () => Promise<T>,
+  options: {
+    onOptimistic: () => void;    // Update UI immediately
+    onRevert: () => void;        // Revert if the action fails
+    onSuccess?: (result: T) => void; // Optional: handle server response
+  }
+) {
+  const [pending, setPending] = useState(false);
+
+  const execute = useCallback(async () => {
+    setPending(true);
+    options.onOptimistic();
+
+    try {
+      const result = await asyncFn();
+      options.onSuccess?.(result);
+    } catch {
+      options.onRevert();
+      // Show error toast
+    } finally {
+      setPending(false);
+    }
+  }, [asyncFn, options]);
+
+  return { execute, pending };
+}
+```
+
+## Notification mark-as-read
+
+The notification panel in The Hyve marks notifications read when the panel opens. The user doesn't wait for this:
+
+```tsx
+function NotificationPanel({ notifications: initialNotifications }) {
+  const [notifications, setNotifications] = useState(initialNotifications);
+  const [unread, setUnread] = useState(
+    initialNotifications.filter((n) => !n.read).length
+  );
+
+  const markAllRead = useCallback(async () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length === 0) return;
+
+    // Optimistic: mark all read in state immediately
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnread(0);
+
+    try {
+      await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationIds: unreadIds }),
+      });
+    } catch {
+      // Revert: restore original read states
+      setNotifications(initialNotifications);
+      setUnread(initialNotifications.filter((n) => !n.read).length);
+    }
+  }, [notifications, initialNotifications]);
+
+  // Mark as read when panel opens
+  useEffect(() => {
+    markAllRead();
+  }, []);
+
+  return (/* panel UI */);
+}
+```
+
+The notification bell count drops to zero the moment the panel opens. Users never see a stale unread count.
+
+## Kanban card moves
+
+The Hyve's kanban board uses optimistic updates for card moves (covered in dispatch #256). The pattern is the same: update state, fire the API, revert on failure.
+
+The tricky part with kanban is that the revert needs to restore the card's original position, not just its column. We capture the full previous state before the optimistic update:
+
+```tsx
+const handleDrop = useCallback(async (e, targetColumnId) => {
+  const cardId = e.dataTransfer.getData('cardId');
+  const card = cards.find((c) => c.id === cardId);
+  if (!card) return;
+
+  // Capture state before any changes
+  const prevCards = cards;
+
+  // Optimistic update
+  const newPosition = /* calculate new position */;
+  setCards((prev) => prev.map((c) =>
+    c.id === cardId ? { ...c, columnId: targetColumnId, position: newPosition } : c
+  ));
+
+  try {
+    await fetch('/api/kanban/move-card', {
+      method: 'POST',
+      body: JSON.stringify({ cardId, targetColumnId, position: newPosition }),
+    });
+  } catch {
+    // Revert to the full captured state
+    setCards(prevCards);
+    toast.error('Failed to move card. Try again.');
+  }
+}, [cards]);
+```
+
+Capturing `prevCards` before the optimistic update ensures the revert is always to a known-good state, regardless of any concurrent updates that might have happened.
+
+## The server response dilemma
+
+Some optimistic updates need to reconcile with server-computed data. For example, when you create a kanban card, the server generates the card's UUID. Your optimistic card has a temporary client-side ID.
+
+The pattern is to use a temporary ID that you swap when the server responds:
+
+```tsx
+const createCard = async (columnId: string, title: string) => {
+  const tempId = `temp-${Date.now()}`;
+
+  // Optimistic: add card with temp ID
+  setCards((prev) => [
+    ...prev,
+    { id: tempId, columnId, title, position: maxPosition + 1000 },
+  ]);
+
+  try {
+    const response = await fetch('/api/kanban/create-card', {
+      method: 'POST',
+      body: JSON.stringify({ columnId, title }),
+    });
+    const { card } = await response.json();
+
+    // Swap temp ID for real ID from server
+    setCards((prev) => prev.map((c) => c.id === tempId ? card : c));
+  } catch {
+    // Remove the optimistic card
+    setCards((prev) => prev.filter((c) => c.id !== tempId));
+    toast.error('Failed to create card.');
+  }
+};
+```
+
+The temporary ID approach is only safe if no operations can target the card until the real ID is confirmed. In practice, card creation is fast enough that users don't interact with a card before the ID swap happens.
+
+## React 19's useOptimistic
+
+React 19 ships `useOptimistic`, a built-in hook for this pattern:
+
+```tsx
+import { useOptimistic } from 'react';
+
+function LikeButton({ post }) {
+  const [optimisticLikes, addOptimisticLike] = useOptimistic(
+    post.likeCount,
+    (state, amount) => state + amount
+  );
+
+  const handleLike = async () => {
+    addOptimisticLike(1);
+    await fetch(`/api/posts/${post.id}/like`, { method: 'POST' });
+  };
+
+  return (
+    <button onClick={handleLike}>
+      ♥ {optimisticLikes}
+    </button>
+  );
+}
+```
+
+`useOptimistic` integrates with React transitions. While the server action is pending, the optimistic value is shown. When the action completes (or fails), React reverts to the true state.
+
+We haven't fully adopted this across all three products yet — it works best with React Server Actions, and our API routes are a mix of REST and RSC patterns. It's on the migration list.
+
+## The toast rule
+
+When an optimistic action reverts, always show a toast notification. Silent reverts are worse than no optimistic update — the UI changes and then snaps back for no apparent reason. The toast explains what happened and gives the user confidence to retry.
+
+The toast message should be specific:
+- "Failed to move card — try again" (not "Something went wrong")
+- "Couldn't mark as read — your notifications are unchanged" (not "Error")
+- "Card wasn't saved — check your connection" (not "Save failed")
+
+Specific messages reduce support requests and don't destroy user trust.
