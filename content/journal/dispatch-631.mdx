@@ -1,0 +1,170 @@
+---
+title: "HTTP caching: Cache-Control, ETags, and stale-while-revalidate"
+date: "2030-02-18"
+excerpt: "HTTP caching is the fastest optimisation you can make to a web app — responses that never leave the cache cost nothing on the server. Cache-Control directives tell browsers and CDNs exactly how long to hold a response and when to revalidate. ETag and Last-Modified headers make conditional requests work. Understanding the model lets you cache aggressively and invalidate precisely."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The cache sits between the client and your server. A response with the right Cache-Control headers is stored by the browser, CDN, or reverse proxy. Subsequent requests for the same URL are served from cache — no network, no server compute, instant response.
+
+## The Cache-Control model
+
+```
+Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+```
+
+- `public` — any cache (browser, CDN, proxy) can store this response
+- `private` — only the user's browser can store it (not CDN)
+- `max-age=3600` — fresh for 3600 seconds (1 hour)
+- `stale-while-revalidate=86400` — serve stale for up to 1 day while revalidating in the background
+- `no-cache` — always revalidate before serving (cache stores but doesn't serve without checking)
+- `no-store` — never cache this response
+
+## Response headers in Next.js
+
+```ts
+// app/api/posts/route.ts
+export async function GET() {
+  const posts = await getPosts();
+
+  return Response.json(posts, {
+    headers: {
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
+    },
+  });
+}
+```
+
+```ts
+// app/posts/[slug]/page.tsx
+export async function generateMetadata({ params }: Props) {
+  return {};
+}
+
+// Next.js App Router: control caching at the route level
+export const revalidate = 3600;  // ISR: revalidate every hour
+
+// Or: force static generation
+export const dynamic = 'force-static';
+
+// Or: never cache
+export const dynamic = 'force-dynamic';
+```
+
+## ETags: conditional validation
+
+An ETag is a fingerprint of the response content. The server sends it; the client sends it back on the next request. If the content hasn't changed, the server responds 304 Not Modified with no body.
+
+```ts
+// app/api/posts/route.ts
+import { createHash } from 'crypto';
+
+export async function GET(req: Request) {
+  const posts = await getPosts();
+  const body  = JSON.stringify(posts);
+  const etag  = `"${createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
+
+  const ifNoneMatch = req.headers.get('if-none-match');
+  if (ifNoneMatch === etag) {
+    return new Response(null, { status: 304, headers: { ETag: etag } });
+  }
+
+  return new Response(body, {
+    headers: {
+      'Content-Type':  'application/json',
+      'Cache-Control': 'public, max-age=60',
+      'ETag':          etag,
+    },
+  });
+}
+```
+
+The client receives the ETag on the first request. On subsequent requests it sends `If-None-Match: "abc123"`. If the content is unchanged, the server sends 304 — saving the full response body transfer.
+
+## Stale-while-revalidate
+
+```
+Cache-Control: max-age=60, stale-while-revalidate=600
+```
+
+After 60 seconds the response is stale. Without `stale-while-revalidate`, the next request would wait for a fresh response. With it: the stale response is served immediately, and a background request revalidates silently. Users never wait.
+
+This is the right setting for most content: content is current within 60 seconds, but users never hit cold cache.
+
+## Vary header
+
+```ts
+headers: {
+  'Cache-Control': 'public, max-age=3600',
+  'Vary':          'Accept-Language, Accept-Encoding',
+}
+```
+
+`Vary` tells caches to key on request headers. Two requests for the same URL with different `Accept-Language` values get different cached responses. Without it, a French user could receive an English cached response.
+
+## CDN cache invalidation
+
+Cloudflare: tag resources and purge by tag.
+
+```ts
+// Tag responses at the CDN layer
+headers: {
+  'Cache-Tag': 'posts,post-123',
+}
+
+// Purge by tag when content changes (Cloudflare API)
+await fetch(`https://api.cloudflare.com/client/v4/zones/${ZONE}/purge_cache`, {
+  method:  'POST',
+  headers: { Authorization: `Bearer ${CF_TOKEN}` },
+  body:    JSON.stringify({ tags: ['post-123'] }),
+});
+```
+
+Next.js: use `revalidateTag`.
+
+```ts
+import { revalidateTag } from 'next/cache';
+
+export async function POST(req: Request) {
+  const { slug } = await req.json();
+  await updatePost(slug);
+  revalidateTag(`post-${slug}`);     // purge Next.js cache for this post
+  return Response.json({ ok: true });
+}
+```
+
+## Service Worker cache
+
+```ts
+// public/sw.js
+const CACHE = 'construx-v1';
+const PRECACHE = ['/', '/journal', '/uses'];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(PRECACHE)),
+  );
+});
+
+self.addEventListener('fetch', (e) => {
+  e.respondWith(
+    caches.match(e.request).then(
+      (cached) => cached ?? fetch(e.request),
+    ),
+  );
+});
+```
+
+Service Worker cache lives in the browser, separate from the HTTP cache. It gives you offline support and full control over cache strategy per URL pattern.
+
+## Cache-Control cheatsheet
+
+| Directive | Use for |
+|---|---|
+| `public, max-age=31536000, immutable` | Fingerprinted assets (CSS, JS with hash in filename) |
+| `public, max-age=3600, stale-while-revalidate=86400` | Mostly-static pages |
+| `public, max-age=60, stale-while-revalidate=600` | Frequently updated content |
+| `private, max-age=300` | User-specific responses |
+| `no-cache` | Always revalidate (auth pages, dashboards) |
+| `no-store` | Sensitive data — never cache |
