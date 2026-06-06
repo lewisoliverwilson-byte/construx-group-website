@@ -1,0 +1,263 @@
+---
+title: "Vercel AI SDK: streaming LLM responses in Next.js"
+date: "2028-10-14"
+excerpt: "The Vercel AI SDK handles the hard parts of LLM integration: streaming, tool calls, multi-step agentic loops, and React hooks that manage loading and error state. Here's the setup that actually works for chat UIs and background generation tasks."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Integrating an LLM into a Next.js app has three hard parts: streaming responses without blocking the UI, handling tool calls mid-stream, and managing state across a conversation. The Vercel AI SDK handles all three without requiring you to implement chunked transfer encoding or parse SSE events yourself.
+
+## Setup
+
+```bash
+npm install ai @ai-sdk/anthropic
+```
+
+```ts
+// lib/ai.ts
+import { createAnthropic } from '@ai-sdk/anthropic';
+
+export const anthropic = createAnthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+export const model = anthropic('claude-sonnet-4-6');
+```
+
+## Streaming chat endpoint
+
+```ts
+// app/api/chat/route.ts
+import { streamText } from 'ai';
+import { model } from '@/lib/ai';
+
+export const maxDuration = 30;
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = streamText({
+    model,
+    system: 'You are a helpful assistant for the Construx platform.',
+    messages,
+    maxTokens: 1024,
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+## React hook for chat UI
+
+```tsx
+// components/Chat.tsx
+'use client';
+
+import { useChat } from 'ai/react';
+
+export default function Chat() {
+  const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
+    api: '/api/chat',
+  });
+
+  return (
+    <div className="flex flex-col h-screen max-w-2xl mx-auto">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-100'
+              }`}
+            >
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-zinc-800 rounded-lg px-4 py-2 text-zinc-400 text-sm">
+              Thinking...
+            </div>
+          </div>
+        )}
+        {error && (
+          <div className="text-red-400 text-sm">{error.message}</div>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} className="p-4 border-t border-zinc-800">
+        <div className="flex gap-2">
+          <input
+            value={input}
+            onChange={handleInputChange}
+            placeholder="Ask anything..."
+            className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-white"
+          />
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="px-4 py-2 bg-blue-600 rounded text-sm text-white disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+```
+
+## Tool calls
+
+Tools let the model call functions mid-generation. The SDK handles the tool call loop automatically.
+
+```ts
+// app/api/chat/route.ts
+import { streamText, tool } from 'ai';
+import { z } from 'zod';
+import { model } from '@/lib/ai';
+import { db } from '@/lib/db';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = streamText({
+    model,
+    system: 'You can look up product scan data when asked.',
+    messages,
+    tools: {
+      getScanResults: tool({
+        description: 'Get the latest price scan results for a product',
+        parameters: z.object({
+          productId: z.string().describe('The product ID to look up'),
+        }),
+        execute: async ({ productId }) => {
+          const scan = await db.query.scans.findFirst({
+            where: (s, { eq }) => eq(s.productId, productId),
+            orderBy: (s, { desc }) => desc(s.createdAt),
+          });
+          return scan ?? { error: 'Product not found' };
+        },
+      }),
+    },
+    maxSteps: 5,  // Allow up to 5 tool call rounds
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+The `maxSteps: 5` setting allows the model to call tools, receive results, and continue generating — repeating up to 5 times. Without it, tool calls return the tool result and stop.
+
+## Non-streaming text generation
+
+For background tasks where you don't need streaming:
+
+```ts
+import { generateText } from 'ai';
+import { model } from '@/lib/ai';
+
+export async function generateProductDescription(product: Product) {
+  const { text } = await generateText({
+    model,
+    prompt: `Write a 2-sentence product description for: ${product.title}. 
+    Category: ${product.category}. Price: £${product.price}.
+    Be specific and focus on key features.`,
+    maxTokens: 150,
+  });
+
+  return text;
+}
+```
+
+## Structured output with generateObject
+
+When you need structured data back, `generateObject` forces the model to return valid JSON matching your schema:
+
+```ts
+import { generateObject } from 'ai';
+import { z } from 'zod';
+import { model } from '@/lib/ai';
+
+const ProductAnalysisSchema = z.object({
+  sentiment: z.enum(['positive', 'negative', 'neutral']),
+  keyFeatures: z.array(z.string()).max(5),
+  competitivePosition: z.string(),
+  priceSuggestion: z.number().optional(),
+});
+
+export async function analyseProduct(description: string) {
+  const { object } = await generateObject({
+    model,
+    schema: ProductAnalysisSchema,
+    prompt: `Analyse this product listing: ${description}`,
+  });
+
+  return object;  // Typed as z.infer<typeof ProductAnalysisSchema>
+}
+```
+
+## Streaming text to the UI without a chat UI
+
+For non-chat use cases (streaming a generated report, long-form content):
+
+```tsx
+'use client';
+
+import { useCompletion } from 'ai/react';
+
+export function ReportGenerator({ productId }: { productId: string }) {
+  const { completion, complete, isLoading } = useCompletion({
+    api: '/api/generate-report',
+  });
+
+  return (
+    <div>
+      <button
+        onClick={() => complete(productId)}
+        disabled={isLoading}
+        className="px-4 py-2 bg-violet-600 rounded text-sm text-white"
+      >
+        {isLoading ? 'Generating...' : 'Generate report'}
+      </button>
+
+      {completion && (
+        <div className="mt-4 prose prose-invert text-sm whitespace-pre-wrap">
+          {completion}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Rate limiting and cost control
+
+```ts
+// app/api/chat/route.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(10, '1 m'),  // 10 requests per minute
+});
+
+export async function POST(req: Request) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'anonymous';
+  const { success } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return new Response('Too many requests', { status: 429 });
+  }
+
+  // ... rest of handler
+}
+```
+
+The SDK's token counting helps with cost estimation — `result.usage` returns `promptTokens`, `completionTokens`, and `totalTokens` after the stream completes. Log these per request if you need to track per-user spend.

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, Zap, Layers, Code2, Rocket, BookOpen, ExternalLink } from 'lucide-react';
+import CIPipelinePanel from '@/components/CIPipelinePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -538,6 +539,11 @@ export default function WorkWithUsPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* CI pipeline status */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CIPipelinePanel />
       </section>
 
       {/* CTA */}
