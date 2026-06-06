@@ -1,0 +1,163 @@
+---
+title: "React 19's new hooks: use(), useOptimistic(), useFormStatus()"
+date: "2029-10-06"
+excerpt: "React 19 shipped three new hooks that change how you handle async data and form state: use() for reading promises and context in render, useOptimistic() for optimistic UI updates, and useFormStatus() for form submission states without prop drilling. Here's what each one does and when to reach for it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React 19 introduced three hooks that address long-standing patterns that previously required workarounds. They're specifically designed for use with Server Actions and the App Router, but the patterns apply more broadly.
+
+## use(): reading promises in render
+
+`use()` is a new primitive for reading the value of a Promise or Context inside a component. Unlike `await`, it can be called conditionally and inside loops.
+
+```tsx
+import { use } from 'react';
+
+// Promise created outside the component (e.g., from a Server Component)
+async function fetchUser(id: string) {
+  const res = await fetch(`/api/users/${id}`);
+  return res.json();
+}
+
+function UserProfile({ userPromise }: { userPromise: Promise<User> }) {
+  const user = use(userPromise); // suspends until promise resolves
+  return <div>{user.name}</div>;
+}
+
+// Usage with Suspense
+export default async function Page({ params }: { params: { id: string } }) {
+  const userPromise = fetchUser(params.id); // start fetching
+
+  return (
+    <Suspense fallback={<Spinner />}>
+      <UserProfile userPromise={userPromise} />
+    </Suspense>
+  );
+}
+```
+
+The promise is created in the Server Component and passed to the Client Component. Fetching starts immediately; `use()` suspends the Client Component until the data arrives. The Suspense boundary shows a fallback in the meantime.
+
+`use()` also works with Context:
+
+```tsx
+const ThemeContext = createContext<'light' | 'dark'>('light');
+
+function Button() {
+  const theme = use(ThemeContext); // same as useContext but callable conditionally
+  return <button className={theme}>{...}</button>;
+}
+```
+
+The difference from `useContext`: `use()` can be called inside conditionals and loops, whereas `useContext` must be at the top level.
+
+## useOptimistic(): declarative optimistic updates
+
+`useOptimistic()` manages optimistic state alongside the real state. It's designed to work with Server Actions.
+
+```tsx
+'use client';
+
+import { useOptimistic } from 'react';
+import { toggleLikeAction } from './actions';
+
+function LikeButton({ postId, initialLiked }: { postId: string; initialLiked: boolean }) {
+  const [optimisticLiked, setOptimisticLiked] = useOptimistic(initialLiked);
+
+  async function handleLike() {
+    setOptimisticLiked(!optimisticLiked); // update UI immediately
+    await toggleLikeAction(postId);       // server action — updates DB
+    // when action completes, optimistic state resets to server truth
+  }
+
+  return (
+    <button onClick={handleLike}>
+      {optimisticLiked ? '♥' : '♡'}
+    </button>
+  );
+}
+```
+
+`useOptimistic(initialState)` returns `[currentState, setOptimisticState]`. When you call `setOptimisticState`, the UI updates immediately. While the Server Action is pending, the optimistic state is shown. When the action completes (or errors), the state reverts to the server-provided value.
+
+For list operations:
+
+```tsx
+const [optimisticMessages, addOptimisticMessage] = useOptimistic(
+  messages,
+  (currentMessages, newMessage: Message) => [...currentMessages, newMessage],
+);
+```
+
+The second argument is a reducer that computes the optimistic state from the current state and the optimistic value.
+
+## useFormStatus(): form state without prop drilling
+
+`useFormStatus()` provides the pending state of the nearest parent `<form>` without having to pass props down. It works with Server Actions.
+
+```tsx
+// actions.ts
+'use server';
+
+export async function submitContact(formData: FormData) {
+  const email = formData.get('email') as string;
+  await sendEmail(email);
+}
+```
+
+```tsx
+// ContactForm.tsx
+'use client';
+
+import { useFormStatus } from 'react-dom';
+import { submitContact } from './actions';
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button type="submit" disabled={pending}>
+      {pending ? 'Sending...' : 'Send'}
+    </button>
+  );
+}
+
+export function ContactForm() {
+  return (
+    <form action={submitContact}>
+      <input name="email" type="email" />
+      <SubmitButton />  {/* reads pending state from the parent form */}
+    </form>
+  );
+}
+```
+
+`useFormStatus` must be called in a component that's a child of the `<form>`. It can't be in the same component as the form itself. This is why `SubmitButton` is a separate component.
+
+The `pending` flag is true while the Server Action is running. `useFormStatus` also returns `data` (the form data being submitted) and `method`/`action` for the form's attributes.
+
+## The Server Action pattern
+
+All three hooks work best with Server Actions — async functions marked `'use server'` that run exclusively on the server.
+
+```tsx
+// app/posts/actions.ts
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { db } from '@/lib/db';
+
+export async function createPost(formData: FormData) {
+  const title   = formData.get('title') as string;
+  const content = formData.get('content') as string;
+
+  await db.post.create({ data: { title, content } });
+  revalidatePath('/posts');
+}
+```
+
+Server Actions integrate with the form's `action` attribute — no JavaScript event handler needed. The form submits the Server Action, which runs on the server, and `revalidatePath` refreshes the Next.js cache for the affected route.
+
+Together, `use()`, `useOptimistic()`, and `useFormStatus()` give you the building blocks for fast, optimistic, server-connected UI without the boilerplate that previously required external libraries.

@@ -1,0 +1,111 @@
+---
+title: "Semantic versioning and the npm package lifecycle"
+date: "2029-10-12"
+excerpt: "Semantic versioning (semver) is a contract between package authors and consumers. MAJOR.MINOR.PATCH encodes whether a release breaks the API, adds features, or only fixes bugs. npm's version ranges (^, ~, exact) control which releases consumers automatically accept. Understanding the contract prevents surprise breakages and helps you version your own packages correctly."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every npm package version follows the `MAJOR.MINOR.PATCH` format. The numbers aren't arbitrary — they encode a contract about compatibility.
+
+## The semver contract
+
+**PATCH (1.0.0 → 1.0.1)**: bug fix. API is unchanged. Any consumer of 1.0.0 can safely upgrade to 1.0.1 without changing their code.
+
+**MINOR (1.0.0 → 1.1.0)**: new feature, backwards-compatible. Existing code still works; new functionality is available. Consumers of 1.0.x can upgrade to 1.1.0 without breaking changes.
+
+**MAJOR (1.0.0 → 2.0.0)**: breaking change. Existing code may not work with the new version. Consumers must review the changelog and update their usage.
+
+The contract is a promise, not a guarantee — package authors can make mistakes. But when semver is followed correctly, automated version management is safe.
+
+## npm version ranges
+
+When you install a package, npm records a range in `package.json`:
+
+**`^1.2.3` (caret)**: accepts `>=1.2.3 <2.0.0`. Any compatible minor or patch release. The most common range. Assumes any 1.x.x release is safe.
+
+**`~1.2.3` (tilde)**: accepts `>=1.2.3 <1.3.0`. Patch releases only. More conservative — useful when a package has a history of unintentionally breaking changes in minor releases.
+
+**`1.2.3` (exact)**: only this version. No automatic updates. Maximum predictability, maximum maintenance burden (you update manually when needed).
+
+**`>=1.0.0 <2.0.0`**: explicit range. Equivalent to `^1.0.0` but more readable for complex constraints.
+
+**`*`**: any version. Don't use this in published packages.
+
+## package-lock.json and npm ci
+
+`npm install` resolves ranges and writes the exact resolved versions to `package-lock.json`. `package-lock.json` pins every direct and transitive dependency.
+
+`npm ci` installs exactly what's in `package-lock.json`, ignoring the ranges in `package.json`. It's faster and deterministic — every `npm ci` produces identical `node_modules`. Use it in CI and production deploys.
+
+```bash
+npm install  # resolve ranges, update lockfile
+npm ci       # install from lockfile exactly (CI/production)
+```
+
+Commit `package-lock.json` to version control. Never delete it.
+
+## Versioning your own package
+
+```bash
+npm version patch  # 1.0.0 → 1.0.1
+npm version minor  # 1.0.0 → 1.1.0
+npm version major  # 1.0.0 → 2.0.0
+
+npm publish        # publish to registry
+```
+
+`npm version` updates `package.json`, creates a git commit, and tags the release. Then `npm publish` uploads to npm.
+
+For private packages in a monorepo, use a version tool like `changesets`:
+
+```bash
+npx changeset       # describe what changed
+npx changeset version # bump versions based on changes
+npx changeset publish # publish
+```
+
+Changesets tracks which packages changed and what kind of change (major/minor/patch), then calculates the correct version bump and generates a changelog.
+
+## Pre-release versions
+
+Pre-release tags signal that a version is not production-ready:
+
+```
+1.0.0-alpha.1     # early, unstable
+1.0.0-beta.2      # feature-complete, testing
+1.0.0-rc.1        # release candidate
+```
+
+npm only installs pre-release versions when explicitly requested:
+
+```bash
+npm install some-package@beta    # install latest beta
+npm install some-package@1.0.0-beta.2  # exact pre-release
+```
+
+`^1.0.0` will not install `1.0.0-beta.2` — the caret range excludes pre-releases.
+
+## The 0.x special case
+
+When `MAJOR` is 0, the semver contract is relaxed: any version change may break the API. `^0.1.0` only accepts `>=0.1.0 <0.2.0` — the caret behaves like a tilde for pre-1.0 packages.
+
+This is the convention for packages under active development where the API hasn't stabilised. Once the API is stable and you're ready to commit to the breaking-change contract, publish `1.0.0`.
+
+## Reading a changelog
+
+When you upgrade a package with a breaking change, the changelog tells you what broke and how to migrate. Look for:
+
+- A "Breaking Changes" or "Migration Guide" section
+- Changes to function signatures, removed exports, renamed options
+- The minimum version of peer dependencies
+
+`npm outdated` shows which packages have updates available and how far behind you are:
+
+```
+Package         Current   Wanted  Latest  Location
+react           18.2.0    18.3.1  19.0.0  node_modules/react
+typescript      5.1.0     5.5.4   5.6.0   node_modules/typescript
+```
+
+`Current` is what's installed. `Wanted` is the latest version matching your `package.json` range. `Latest` is the most recent release. When `Latest` is a major bump, check the changelog before upgrading.

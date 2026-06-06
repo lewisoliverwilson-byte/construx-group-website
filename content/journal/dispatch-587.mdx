@@ -1,0 +1,178 @@
+---
+title: "SSH hardening: securing remote access"
+date: "2029-10-09"
+excerpt: "SSH is the primary attack surface on any internet-facing server. The default configuration accepts password authentication, allows root login, and listens on port 22 — all of which are exploited constantly by automated scanners. Six configuration changes close most of the attack surface. Here's each one and why it matters."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every server exposed to the internet sees constant SSH brute-force attempts within minutes. The default OpenSSH configuration is permissive — it works out of the box but leaves several attack vectors open. These six changes harden the configuration without breaking legitimate access.
+
+## 1. Disable password authentication
+
+Passwords can be guessed or brute-forced. Public key authentication cannot be (with reasonable key lengths).
+
+```
+# /etc/ssh/sshd_config
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+```
+
+Before applying this: make sure your public key is in `~/.ssh/authorized_keys` on the server and you can log in without a password. If you lock yourself out, you'll need console access.
+
+## 2. Disable root login
+
+Direct root login means a successful attack immediately grants full server control. Use a non-privileged user and `sudo` instead.
+
+```
+PermitRootLogin no
+```
+
+Create a non-root user with sudo access:
+
+```bash
+adduser deploy
+usermod -aG sudo deploy
+# Copy your public key to the new user
+su - deploy
+mkdir -p ~/.ssh
+echo "ssh-ed25519 AAAA... your-key" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+```
+
+Verify you can log in as the deploy user before disabling root.
+
+## 3. Change the listening port
+
+Automated scanners target port 22 by default. Changing to a non-standard port (e.g., 2222, 4822) reduces log noise and eliminates the least sophisticated attacks — though it's not security through obscurity, just noise reduction.
+
+```
+Port 2222
+```
+
+Update your firewall and any existing SSH config entries (`~/.ssh/config`) when changing the port.
+
+## 4. Restrict to specific users
+
+Allow only specific users to log in via SSH:
+
+```
+AllowUsers deploy lewis
+```
+
+Or restrict by group:
+
+```
+AllowGroups sshusers
+```
+
+Any user not in this list is denied even if they have a valid key.
+
+## 5. Use ed25519 keys
+
+ed25519 keys are faster, shorter, and more secure than RSA-2048. If your existing keys are RSA, generate new ed25519 keys and replace them.
+
+```bash
+ssh-keygen -t ed25519 -C "lewis@construxgroup.io"
+```
+
+On the server, add the ed25519 public key to `authorized_keys` and remove any old RSA keys.
+
+Restrict which key algorithms the server accepts:
+
+```
+HostKeyAlgorithms ssh-ed25519
+PubkeyAcceptedAlgorithms ssh-ed25519
+```
+
+## 6. Set connection timeouts and limits
+
+```
+LoginGraceTime 20s    # Time to authenticate before disconnecting
+MaxAuthTries 3        # Disconnect after 3 failed attempts
+MaxSessions 5         # Limit simultaneous connections per connection
+ClientAliveInterval 300
+ClientAliveCountMax 2
+```
+
+`ClientAliveInterval` and `ClientAliveCountMax` disconnect idle sessions after 10 minutes (300s × 2). This prevents orphaned sessions accumulating.
+
+## The complete hardened config
+
+```
+# /etc/ssh/sshd_config
+Port 2222
+PermitRootLogin no
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+AllowUsers deploy lewis
+
+HostKeyAlgorithms ssh-ed25519
+PubkeyAcceptedAlgorithms ssh-ed25519
+
+LoginGraceTime 20s
+MaxAuthTries 3
+MaxSessions 5
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+```
+
+Apply the change:
+
+```bash
+sshd -t                      # test config for errors
+systemctl reload sshd         # apply without dropping current connections
+```
+
+Never `systemctl restart sshd` — it drops all active sessions. `reload` applies the new config to new connections while keeping existing sessions alive.
+
+## Fail2ban
+
+Even with key-only auth, scanners still hit the SSH port and fill logs. Fail2ban blocks IPs after repeated failures:
+
+```bash
+apt install fail2ban
+
+# /etc/fail2ban/jail.local
+[sshd]
+enabled  = true
+port     = 2222  # match your SSH port
+maxretry = 3
+bantime  = 1h
+findtime = 10m
+```
+
+```bash
+systemctl enable fail2ban
+systemctl start fail2ban
+fail2ban-client status sshd  # check bans
+```
+
+With key-only auth and fail2ban, SSH brute-force becomes essentially moot. The remaining attack surface is zero-day vulnerabilities in OpenSSH itself — kept to a minimum by running security updates promptly.
+
+## ~/.ssh/config on the client
+
+A client-side config simplifies connecting to hardened servers:
+
+```
+Host construx-prod
+  HostName 82.27.x.x
+  User deploy
+  Port 2222
+  IdentityFile ~/.ssh/id_ed25519
+  ServerAliveInterval 60
+```
+
+```bash
+ssh construx-prod  # expands to: ssh -p 2222 -i ~/.ssh/id_ed25519 deploy@82.27.x.x
+```
+
+`ServerAliveInterval` sends keepalives to prevent the connection being dropped by NAT timeouts on long sessions.
