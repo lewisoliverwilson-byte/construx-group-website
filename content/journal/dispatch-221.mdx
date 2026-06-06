@@ -1,0 +1,113 @@
+---
+title: "Clerk vs. rolling your own auth: why we outsourced authentication entirely"
+date: "2026-12-22"
+excerpt: "Authentication is one of those problems where building your own solution is technically straightforward and strategically foolish. Here's why we use Clerk for all three Construx products instead of rolling our own auth system."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Authentication is not the core problem any Construx product is solving. Scoutr solves product research. The Marqet solves service marketplace trust. The Hyve solves team communication. None of them solve "how do you securely identify a user."
+
+Yet auth is a prerequisite for all of them. And getting auth wrong has consequences that no other bug category matches: compromised accounts, data breaches, session hijacking. The stakes are higher than most engineering decisions.
+
+We use Clerk across all three products. Here's the decision.
+
+## What rolling your own auth looks like
+
+A complete auth system requires:
+
+**Credential storage:** Hash passwords with bcrypt (cost factor 12+). Never store plaintext. Salt automatically (bcrypt does this). This is the part most tutorials get wrong.
+
+**Session management:** Generate cryptographically random session tokens. Store them in httpOnly cookies. Implement session expiry, rotation, and revocation. Handle concurrent sessions from multiple devices.
+
+**Email verification:** Send verification emails. Track verification status. Implement token expiry for verification links. Handle the case where users sign up with a typo in their email address.
+
+**Password reset:** Secure reset flow with time-limited tokens. Prevent token reuse. Notify the account owner of password changes.
+
+**Rate limiting:** Prevent brute force attacks on login endpoints. Implement account lockout. Handle the case where a legitimate user locks themselves out.
+
+**Multi-factor authentication:** TOTP (Google Authenticator, Authy). SMS (requires a Twilio integration). Recovery codes. This one alone is weeks of work.
+
+**OAuth:** GitHub, Google, Apple sign-in. Each has its own OAuth flow, scoping model, and token refresh logic. OAuth is not hard in isolation; OAuth plus session management plus your existing user model is a non-trivial integration.
+
+**Security maintenance:** Track CVEs in your auth dependencies. Apply security patches. Keep up with changes in browser security models. This is ongoing, indefinite work.
+
+You can build all of this correctly. It takes 4-6 weeks for an experienced engineer. It then requires ongoing maintenance for as long as the product exists.
+
+## What Clerk provides
+
+Clerk is an authentication and user management platform. It provides:
+
+- Password auth with bcrypt and email verification
+- OAuth (GitHub, Google, Apple, and 15 others)
+- Multi-factor authentication (TOTP, SMS, passkeys)
+- Session management with device tracking
+- Rate limiting and brute force protection
+- User management dashboard
+- Webhooks for user lifecycle events
+- SDKs for Next.js, React, and Node.js
+
+Integration is straightforward:
+
+```tsx
+// app/layout.tsx
+import { ClerkProvider } from '@clerk/nextjs';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ClerkProvider>
+      <html>
+        <body>{children}</body>
+      </html>
+    </ClerkProvider>
+  );
+}
+```
+
+```tsx
+// app/protected/page.tsx
+import { auth } from '@clerk/nextjs/server';
+import { redirect } from 'next/navigation';
+
+export default async function ProtectedPage() {
+  const { userId } = await auth();
+  if (!userId) redirect('/sign-in');
+  return <div>Protected content</div>;
+}
+```
+
+The entire auth implementation is 3 environment variables and 2 components. What would have taken weeks to build correctly is done in an afternoon.
+
+## The cost consideration
+
+Clerk is priced per monthly active user (MAU). The free tier covers 10,000 MAUs — more than enough for early-stage products. Paid tiers start at a rate that's reasonable relative to engineering time cost.
+
+The break-even calculation: if Clerk costs X per month and a senior engineer costs Y per month, Clerk saves roughly Y/2 in the initial build (6 weeks of engineering time) plus ongoing maintenance costs. At any realistic staff cost, Clerk is cheaper than building your own auth system unless you have millions of users.
+
+## What we don't get from Clerk
+
+**Full control over the auth flow.** Clerk handles the session state. We can't arbitrarily modify how sessions work. In practice, this hasn't been a constraint — Clerk's session behaviour is sensible and configurable.
+
+**Complete flexibility on the user data model.** Clerk has its own user model. We sync relevant user data to our own database (userId, email, metadata) but the canonical user record lives in Clerk.
+
+**Custom MFA methods.** We can't add a proprietary second factor. The supported methods (TOTP, SMS, passkeys) cover all practical use cases.
+
+## When you should roll your own
+
+There are cases where Clerk or similar solutions aren't the right choice:
+
+**Regulatory requirements.** Some compliance regimes require you to control your auth infrastructure. Healthcare (HIPAA), government, and certain financial services contexts may have requirements that vendor-managed auth can't satisfy.
+
+**Extremely high scale.** At very large user counts, per-MAU pricing becomes significant. A product with 10M MAUs might find the economics favour a self-hosted solution.
+
+**Deeply custom auth flows.** If your product requires auth logic that no vendor supports (unusual credential types, hardware tokens, bespoke federation), custom auth may be unavoidable.
+
+None of these apply to Construx products at current scale.
+
+## The principle
+
+Don't build what you can buy. Auth is a solved problem with excellent vendor solutions. The engineering time saved by using Clerk is available for problems that are actually unique to our products.
+
+This principle applies more broadly: email delivery (Resend), background jobs (BullMQ/Redis), file storage (S3), monitoring (PostHog). The decision to buy vs. build in each case is the same calculation: what's the cost of ownership versus the strategic value of control?
+
+For auth, the answer is consistently: buy. Authentication is infrastructure, not differentiation.
