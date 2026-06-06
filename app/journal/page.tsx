@@ -12,6 +12,7 @@ import TechFreqPanel from '@/components/TechFreqPanel';
 import SitemapIndexPanel from '@/components/SitemapIndexPanel';
 import RssFeedPanel from '@/components/RssFeedPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
+import WebVitalsPanel from '@/components/WebVitalsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -191,6 +192,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* HTTP archive / request waterfall */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <HttpArchivePanel />
+      </section>
+
+      {/* Core Web Vitals */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <WebVitalsPanel />
       </section>
 
       {/* Posts */}
