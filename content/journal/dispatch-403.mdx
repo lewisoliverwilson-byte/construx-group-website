@@ -1,0 +1,183 @@
+---
+title: "Logging, monitoring, and observability in production"
+date: "2028-04-05"
+excerpt: "Logging is what you read to understand what happened. Monitoring is what alerts you that something is wrong. Observability is the combination of both. Here's how to set up structured logging, Sentry error tracking, and meaningful alerts in a Next.js app."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+In development, `console.log` is fine. In production, you need structured logs you can query, errors you can trace, and alerts that fire before users notice. These are different problems with different solutions.
+
+## Structured logging
+
+Plain string logs are unsearchable. Structured logs (JSON objects) are filterable, sortable, and aggregatable:
+
+```ts
+// lib/logger.ts
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+interface LogEntry {
+  level: LogLevel;
+  message: string;
+  timestamp: string;
+  requestId?: string;
+  userId?: string;
+  [key: string]: unknown;
+}
+
+function log(level: LogLevel, message: string, meta: Record<string, unknown> = {}) {
+  const entry: LogEntry = {
+    level,
+    message,
+    timestamp: new Date().toISOString(),
+    ...meta,
+  };
+  console.log(JSON.stringify(entry));
+}
+
+export const logger = {
+  debug: (message: string, meta?: Record<string, unknown>) => log('debug', message, meta),
+  info: (message: string, meta?: Record<string, unknown>) => log('info', message, meta),
+  warn: (message: string, meta?: Record<string, unknown>) => log('warn', message, meta),
+  error: (message: string, meta?: Record<string, unknown>) => log('error', message, meta),
+};
+```
+
+```ts
+// Usage
+logger.info('Payment processed', { userId, amount, plan, duration: Date.now() - start });
+logger.error('Stripe webhook failed', { event: event.type, error: err.message, digest: err.stack });
+```
+
+## Request context with AsyncLocalStorage
+
+Thread-per-request doesn't exist in Node.js async code. Use `AsyncLocalStorage` to carry request context through async boundaries:
+
+```ts
+// lib/request-context.ts
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+type RequestContext = {
+  requestId: string;
+  userId?: string;
+  pathname: string;
+};
+
+export const requestContext = new AsyncLocalStorage<RequestContext>();
+
+export function getContext(): RequestContext | undefined {
+  return requestContext.getStore();
+}
+```
+
+```ts
+// middleware.ts — set context at request boundary
+export function middleware(req: NextRequest) {
+  const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID();
+  const response = NextResponse.next();
+  response.headers.set('x-request-id', requestId);
+
+  // Context flows through the request automatically
+  requestContext.run({ requestId, pathname: req.nextUrl.pathname }, () => {
+    // All async code started here shares this context
+  });
+
+  return response;
+}
+```
+
+## Sentry for error tracking
+
+```bash
+npx @sentry/wizard@latest -i nextjs
+```
+
+```ts
+// sentry.server.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  environment: process.env.NODE_ENV,
+});
+```
+
+```ts
+// Capture with context
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.withScope((scope) => {
+  scope.setUser({ id: userId, email });
+  scope.setTag('plan', user.plan);
+  scope.setContext('payment', { amount, currency, stripeEventId });
+  Sentry.captureException(error);
+});
+```
+
+Set the user context in middleware so all errors carry user information automatically:
+
+```ts
+// middleware.ts
+export function middleware(req: NextRequest) {
+  const userId = getUserIdFromCookie(req);
+  if (userId) {
+    Sentry.setUser({ id: userId });
+  }
+  return NextResponse.next();
+}
+```
+
+## Performance monitoring
+
+```ts
+// Track slow operations
+function withTiming<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  const span = Sentry.startInactiveSpan({ name, op: 'db.query' });
+  const start = Date.now();
+
+  return fn()
+    .then((result) => {
+      const duration = Date.now() - start;
+      span.end();
+      if (duration > 500) {
+        logger.warn('Slow operation', { name, duration });
+      }
+      return result;
+    })
+    .catch((err) => {
+      span.setStatus({ code: 2, message: err.message });
+      span.end();
+      throw err;
+    });
+}
+
+// Usage
+const posts = await withTiming('db.posts.findMany', () =>
+  db.query.posts.findMany({ where: eq(posts.published, true) })
+);
+```
+
+## Alerts you actually need
+
+Most monitoring setups alert too much (page on every error) or too little (only alert on downtime). The useful alerts:
+
+**P95 latency > 2s** — something is slow. Not necessarily down, but degraded.
+
+**Error rate > 1%** — not individual errors, but the proportion. A spike in 500s means something broke, not just background noise.
+
+**Successful payment webhooks stopped** — `customer.subscription.updated` not firing is a billing bug. Silent revenue impact.
+
+**No requests in 5 minutes** — your app might be down, or your load balancer might have dropped the target group.
+
+```ts
+// lib/heartbeat.ts — periodic health signal
+export async function recordHeartbeat() {
+  await redis.set('app:heartbeat', Date.now(), { ex: 300 });  // 5 min TTL
+}
+
+// cron job or background task calls this every 60s
+// External monitor checks the key exists — if it expires, alert fires
+```
+
+The principle: log everything, alert on meaningful patterns, trace errors to a user and a request. The alternative is debugging production with intuition.
