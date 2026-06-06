@@ -1,0 +1,166 @@
+---
+title: "Docker Compose for development: the stack in one file"
+date: "2031-06-22"
+excerpt: "Docker Compose lets you define every service your application needs — database, cache, message queue, reverse proxy, observability stack — in a single YAML file. One command starts everything. The development environment matches production closely enough to catch configuration errors before they reach CI. This post covers the compose patterns we use across all Construx products, including health checks, named volumes, depends_on ordering, and profile-based service grouping."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The entire dev stack in one file. One command to start it.
+
+## Base compose file
+
+```yaml
+# compose.yml
+name: construx
+
+services:
+  api:
+    build: { context: ., dockerfile: Dockerfile.api }
+    ports: ['3001:3001']
+    environment:
+      DATABASE_URL: postgresql://postgres:secret@postgres:5432/construx
+      REDIS_URL:    redis://redis:6379
+      NODE_ENV:     development
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+    volumes:
+      - ./:/app
+      - /app/node_modules  # Anonymous volume — don't mount host node_modules
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB:       construx
+    ports: ['127.0.0.1:5432:5432']
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:     ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout:  5s
+      retries:  5
+
+  redis:
+    image: redis:7-alpine
+    ports: ['127.0.0.1:6379:6379']
+    volumes: [redis-data:/data]
+    command: redis-server --appendonly yes
+
+volumes:
+  postgres-data:
+  redis-data:
+```
+
+## Health checks — don't start until ready
+
+```yaml
+services:
+  api:
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    healthcheck:
+      test:     ['CMD', 'curl', '-f', 'http://localhost:3001/health']
+      interval: 10s
+      timeout:  5s
+      retries:  3
+      start_period: 30s  # Give the app time to start before checking
+
+  postgres:
+    healthcheck:
+      test:     ['CMD-SHELL', 'pg_isready -U postgres -d construx']
+      interval: 5s
+      timeout:  5s
+      retries:  5
+
+  redis:
+    healthcheck:
+      test:     ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout:  3s
+      retries:  5
+```
+
+## Profiles — optional services
+
+```yaml
+services:
+  # Always started
+  api:      { ... }
+  postgres: { ... }
+  redis:    { ... }
+
+  # Only with --profile observability
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: [observability]
+    ports: ['127.0.0.1:9090:9090']
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: [observability]
+    ports: ['127.0.0.1:3003:3000']
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+
+  # Only with --profile email
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: [email]
+    ports:
+      - '127.0.0.1:8025:8025'  # Web UI
+      - '127.0.0.1:1025:1025'  # SMTP
+```
+
+```bash
+# Start everything
+docker compose --profile observability --profile email up -d
+
+# Just the core stack
+docker compose up -d
+```
+
+## Override file — local customization
+
+```yaml
+# compose.override.yml — git-ignored, personal dev settings
+services:
+  api:
+    environment:
+      LOG_LEVEL: debug
+    volumes:
+      - ~/.construx/secrets:/run/secrets:ro
+
+  postgres:
+    ports: ['5432:5432']  # Expose on all interfaces locally
+```
+
+Docker Compose merges `compose.override.yml` automatically. Useful for team member-specific overrides without polluting `compose.yml`.
+
+## Commands
+
+```bash
+# Start all services in background
+docker compose up -d
+
+# Follow logs for a specific service
+docker compose logs -f api
+
+# Run a one-off command in the api container
+docker compose exec api bun run migrate
+
+# Rebuild a specific service
+docker compose build api && docker compose up -d api
+
+# Reset everything — stop, remove containers, volumes
+docker compose down -v
+```
+
+Docker Compose vs Podman Compose: Podman is daemonless and rootless, which is better for security but has more compatibility gaps with the compose spec. The Construx default: Docker Compose for all development environments; Kubernetes for production workloads that need horizontal scaling.

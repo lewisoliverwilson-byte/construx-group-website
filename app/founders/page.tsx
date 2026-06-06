@@ -14,6 +14,7 @@ import CurlJwtPanel from '@/components/CurlJwtPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
+import DockerComposePanel from '@/components/DockerComposePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -504,8 +505,13 @@ export default function FoundersPage() {
         </div>
 
         {/* pnpm workspace */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PnpmWorkspacePanel />
+        </div>
+
+        {/* Docker Compose services */}
+        <div className="mt-6 pb-10">
+          <DockerComposePanel />
         </div>
 
         {/* CTA */}
