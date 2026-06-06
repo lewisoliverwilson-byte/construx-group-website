@@ -1,0 +1,129 @@
+---
+title: "Bun: the JavaScript runtime and toolkit"
+date: "2029-11-20"
+excerpt: "Bun is a JavaScript runtime built on WebKit's JavaScriptCore instead of V8. It's also a package manager, bundler, and test runner — all in one binary, all dramatically faster than the Node.js equivalents. Most Node.js code runs on Bun without changes. Here's what's worth switching for and what the tradeoffs are."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Bun ships as a single binary that replaces: Node.js (runtime), npm/pnpm/yarn (package manager), esbuild (bundler), and Jest (test runner). The claim: faster at all of them. In benchmarks, it mostly holds up.
+
+## Installation and basic usage
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+
+# Run a file
+bun run index.ts    # TypeScript natively, no compilation step
+
+# Package management
+bun install         # faster than npm install
+bun add zod         # add a dependency
+bun remove zod
+
+# Run package.json scripts
+bun run dev
+bun run build
+```
+
+Bun reads `package.json` and supports both CommonJS and ESM. It transpiles TypeScript natively — no `ts-node` needed.
+
+## Speed numbers
+
+Package install: Bun is 10-25x faster than npm on a cold install, 3-5x faster with a lockfile. It parallelizes downloads aggressively and symlinks packages from a global cache.
+
+Runtime: Bun starts faster than Node.js (JavaScriptCore has a faster startup time) and runs some workloads faster due to lower-level optimisations. HTTP server benchmarks show 2-4x higher throughput. For I/O-bound work, the difference is smaller.
+
+## Built-in APIs
+
+Bun ships APIs that replace common npm packages:
+
+```ts
+// HTTP server (no express needed)
+const server = Bun.serve({
+  port: 3000,
+  fetch(req) {
+    const url = new URL(req.url);
+    if (url.pathname === '/api/health') {
+      return Response.json({ ok: true });
+    }
+    return new Response('Not found', { status: 404 });
+  },
+});
+
+console.log(`Listening on http://localhost:${server.port}`);
+```
+
+```ts
+// File I/O
+const file    = Bun.file('./data.json');
+const content = await file.json();
+await Bun.write('./output.json', JSON.stringify(content, null, 2));
+
+// SQLite (built-in, no better-sqlite3 needed)
+import { Database } from 'bun:sqlite';
+const db = new Database('construx.db');
+const posts = db.query('SELECT * FROM posts WHERE status = ?').all('published');
+```
+
+```ts
+// Hashing (no crypto import needed)
+const hash = Bun.password.hashSync('password123', 'bcrypt');
+const ok   = Bun.password.verifySync('password123', hash);
+```
+
+## Bun test runner
+
+```ts
+// counter.test.ts
+import { describe, expect, test } from 'bun:test';
+import { increment } from './counter';
+
+describe('counter', () => {
+  test('increments', () => {
+    expect(increment(0)).toBe(1);
+    expect(increment(9)).toBe(10);
+  });
+});
+```
+
+```bash
+bun test               # run all tests
+bun test --watch       # watch mode
+bun test counter.test  # run one file
+```
+
+The API is Jest-compatible. Most test suites run on Bun's runner without changes.
+
+## Bundler
+
+```ts
+// Bundle for the browser
+await Bun.build({
+  entrypoints: ['./src/index.ts'],
+  outdir:      './dist',
+  minify:      true,
+  target:      'browser',
+  sourcemap:   'external',
+});
+```
+
+The bundler handles TypeScript, JSX, tree-shaking, and code splitting. For most frontend projects it's fast enough; for complex webpack configs with many plugins, esbuild or webpack are still more capable.
+
+## Node.js compatibility
+
+Bun implements most of Node's built-in modules (`fs`, `path`, `http`, `crypto`, etc.) and aims for drop-in compatibility. Most Express, Fastify, and Next.js code runs unchanged. Exceptions:
+
+- Native modules (`.node` files) — not supported
+- Some `vm` and `worker_threads` APIs — partial support
+- Some obscure `net` and `tls` edge cases
+
+Run `bun --version` in your Next.js project — if the package scripts work, you're compatible.
+
+## When to use Bun vs Node.js
+
+**Use Bun for**: scripts, CLI tools, backend services where you control the runtime, projects where cold start time matters, teams who want a single tool instead of node + npm + ts-node + jest.
+
+**Stick with Node.js for**: projects with native module dependencies, production deployments on managed platforms that don't support Bun (AWS Lambda, Cloud Run), or projects deep enough in the Node ecosystem that compatibility unknowns are a risk.
+
+Bun is stable for most workloads. The ecosystem gaps are narrowing every release. For a new greenfield service, it's worth evaluating.

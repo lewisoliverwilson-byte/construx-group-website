@@ -1,0 +1,177 @@
+---
+title: "HTMX: HTML-driven interactivity without a JavaScript framework"
+date: "2029-11-26"
+excerpt: "HTMX extends HTML with attributes that trigger HTTP requests and swap responses into the DOM — no JavaScript required. A button can fetch a URL and replace part of the page on click. A form can submit to an endpoint and update a div with the response. The server returns HTML, not JSON. For server-rendered applications, this is often simpler than a JavaScript SPA."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+HTMX is 14kB of JavaScript that gives you Ajax, CSS transitions, WebSockets, and server-sent events using HTML attributes. The mental model: HTML extended to handle more verbs and targets. The server returns fragments of HTML. HTMX swaps them into the DOM.
+
+## Core attributes
+
+```html
+<!-- On click, GET /posts and replace #post-list with the response -->
+<button hx-get="/posts" hx-target="#post-list" hx-swap="innerHTML">
+  Load posts
+</button>
+
+<div id="post-list">
+  <!-- posts go here -->
+</div>
+```
+
+`hx-get` triggers a GET request. `hx-target` specifies which element to update. `hx-swap` controls how the response HTML is inserted.
+
+## Swap strategies
+
+```html
+<!-- Replace the element's inner HTML (default) -->
+hx-swap="innerHTML"
+
+<!-- Replace the entire element -->
+hx-swap="outerHTML"
+
+<!-- Prepend to the element's children -->
+hx-swap="afterbegin"
+
+<!-- Append to the element's children -->
+hx-swap="beforeend"
+
+<!-- Delete the element -->
+hx-swap="delete"
+
+<!-- Do nothing with the response (useful for side effects) -->
+hx-swap="none"
+```
+
+## Form submission
+
+```html
+<form hx-post="/api/posts" hx-target="#result" hx-swap="innerHTML">
+  <input name="title" type="text" placeholder="Post title" />
+  <textarea name="content" placeholder="Content…"></textarea>
+  <button type="submit">Publish</button>
+</form>
+
+<div id="result">
+  <!-- Server returns success message or error HTML here -->
+</div>
+```
+
+The server receives a normal form POST and returns HTML. No JSON, no client-side state management.
+
+## Triggers
+
+```html
+<!-- On input (with 500ms debounce) -->
+<input
+  hx-get="/api/search"
+  hx-target="#results"
+  hx-trigger="input delay:500ms"
+  name="q"
+  placeholder="Search…"
+/>
+
+<!-- On every 2 seconds -->
+<div hx-get="/api/status" hx-trigger="every 2s" hx-swap="outerHTML">
+  <!-- Live status updates -->
+</div>
+
+<!-- On intersection (when scrolled into view) -->
+<div hx-get="/api/more-posts" hx-trigger="intersect once" hx-swap="beforeend" hx-target="#feed">
+</div>
+```
+
+`delay:500ms` debounces the trigger. `every 2s` polls. `intersect once` fires when the element enters the viewport — useful for infinite scroll.
+
+## HTMX with Next.js (API routes as HTML endpoints)
+
+```ts
+// app/api/posts/route.ts
+export async function GET() {
+  const posts = await db.post.findMany({ where: { status: 'published' } });
+
+  const html = posts
+    .map(
+      (p) => `
+        <article class="post-card">
+          <h2>${escapeHtml(p.title)}</h2>
+          <p>${escapeHtml(p.excerpt)}</p>
+        </article>
+      `,
+    )
+    .join('');
+
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html' },
+  });
+}
+```
+
+The API route returns HTML. HTMX swaps it in. No JSON serialization, no client-side rendering.
+
+## Out-of-band swaps
+
+Sometimes a response needs to update multiple parts of the page. OOB swaps let the server return HTML for several targets at once:
+
+```html
+<!-- Server response includes OOB elements -->
+<div id="notification-count" hx-swap-oob="true">
+  <span>3</span>
+</div>
+
+<article>
+  <!-- main response content -->
+</article>
+```
+
+HTMX inserts the `<article>` at the target, then finds `#notification-count` in the DOM and replaces it with the OOB element — all from one response.
+
+## CSS transitions
+
+```html
+<div hx-get="/api/posts" hx-swap="innerHTML transition:true">
+  Loading…
+</div>
+```
+
+```css
+.htmx-swapping {
+  opacity: 0;
+  transition: opacity 200ms;
+}
+.htmx-settling {
+  opacity: 1;
+  transition: opacity 200ms;
+}
+```
+
+HTMX adds CSS classes during swap phases. Add transitions to `htmx-swapping` and `htmx-settling` for fade effects without JavaScript.
+
+## When HTMX fits
+
+HTMX works best for server-rendered applications where: the server owns the state, interactions are mostly navigation + form submission, and you don't need complex client-side state (shopping carts with real-time totals, collaborative editing, etc.).
+
+It's the right tool for: admin dashboards, content management UIs, internal tools, and applications where a React SPA would be overkill. It's the wrong tool for: rich interactive UIs with complex client state, real-time collaborative features, or anything that genuinely benefits from a virtual DOM.
+
+The mental model shift: the server is the source of truth, the browser is a rendering layer. If your application is already server-rendered (Next.js pages router, Rails, Django), HTMX adds interactivity with minimal JavaScript overhead.
+
+## Setup
+
+```html
+<script src="https://unpkg.com/htmx.org@2.0.0"></script>
+```
+
+Or with npm:
+
+```bash
+npm install htmx.org
+```
+
+```ts
+// In your entry point
+import 'htmx.org';
+```
+
+HTMX has no dependencies and works with any server-side language. It doesn't replace React for complex applications — it replaces unnecessary React for simple ones.

@@ -8,6 +8,7 @@ import JournalStats from '@/components/journal/JournalStats';
 import DispatchCalendar from '@/components/journal/DispatchCalendar';
 import DispatchGitLog from '@/components/journal/DispatchGitLog';
 import JournalWcPanel from '@/components/JournalWcPanel';
+import TechFreqPanel from '@/components/TechFreqPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -167,6 +168,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* Word count analysis */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <JournalWcPanel />
+      </section>
+
+      {/* Tech term frequency */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <TechFreqPanel />
       </section>
 
       {/* Posts */}
