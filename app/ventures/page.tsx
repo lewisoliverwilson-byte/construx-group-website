@@ -252,42 +252,103 @@ export default function VenturesPage() {
         </section>
       )}
 
-      {/* Incubation teaser */}
+      {/* Incubation teaser — classified intel terminal */}
       <section className="relative px-5 pb-28 mx-auto max-w-6xl">
         <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
           // IN INCUBATION
         </h2>
         <div
-          className="px-8 py-8 flex flex-col sm:flex-row items-start sm:items-center gap-6"
+          className="overflow-hidden"
           style={{
-            background: 'rgba(5,5,18,0.5)',
-            border: '1px dashed rgba(255,255,255,0.07)',
-            borderRadius: '3px',
+            background: 'rgba(2,2,12,0.97)',
+            border: '1px solid rgba(168,85,247,0.2)',
+            borderRadius: '4px',
+            boxShadow: '0 0 40px rgba(168,85,247,0.05)',
           }}
         >
-          <div className="flex -space-x-3">
-            {[0.35, 0.25, 0.15, 0.08].map((o, i) => (
-              <div
-                key={i}
-                className="h-10 w-10 rounded-full border border-border"
-                style={{ background: `rgba(200,180,255,${o})` }}
-              />
-            ))}
-          </div>
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-text-muted">
-              More ventures in the asteroid belt.
-            </p>
-            <p className="font-mono text-[9px] uppercase tracking-widest text-text-dim opacity-60 mt-1">
-              Orbiting into view when ready.
-            </p>
-          </div>
-          <Link
-            href="/journal"
-            className="flex-shrink-0 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-construx hover:text-orange-400 transition-colors"
+          {/* Title bar */}
+          <div
+            className="flex items-center gap-3 px-4 py-2.5 select-none"
+            style={{ borderBottom: '1px solid rgba(168,85,247,0.12)', background: 'rgba(168,85,247,0.04)' }}
           >
-            Journal <ChevronRight size={12} />
-          </Link>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+            </div>
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: 'rgba(168,85,247,0.55)' }}>
+              construx.classified — venture.registry — clearance: INTERNAL
+            </span>
+            <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.4)' }}>
+              ◈ RESTRICTED
+            </span>
+          </div>
+
+          {/* Terminal body */}
+          <div className="font-mono p-6" style={{ fontSize: '11px', lineHeight: '1.9', color: 'rgba(240,239,255,0.5)' }}>
+            {/* Shell prompt */}
+            <div style={{ marginBottom: '14px' }}>
+              <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@internal</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$ </span>
+              <span style={{ color: 'rgba(240,239,255,0.3)' }}>cat /var/construx/ventures/incubation.json | jq .</span>
+            </div>
+
+            {/* Access notice */}
+            <div className="mb-5 px-4 py-3" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.14)', borderRadius: '2px' }}>
+              <p style={{ color: 'rgba(168,85,247,0.8)' }}>{'// ACCESS LEVEL: CONSTRUX-INTERNAL'}</p>
+              <p style={{ color: 'rgba(240,239,255,0.22)' }}>{'// VENTURE DATA REDACTED PENDING ORBITAL INSERTION'}</p>
+              <p style={{ color: 'rgba(240,239,255,0.22)' }}>{'// CLEARANCE REQUIRED FOR UNREDACTED VIEW'}</p>
+            </div>
+
+            {/* Redacted venture entries */}
+            {[
+              { codename: 'LATTICE', category: 'Social', orbit: '∿ DEMAND.TESTING', phase: 'D+30', color: '#a78bfa' },
+              { codename: '[REDACTED]', category: '██████', orbit: '∿ ARCHITECTURE', phase: 'D+??', color: 'rgba(168,85,247,0.3)' },
+              { codename: '[REDACTED]', category: '██████', orbit: '∿ CONCEPT', phase: 'D+??', color: 'rgba(168,85,247,0.2)' },
+              { codename: '[REDACTED]', category: '██████', orbit: '∿ STEALTH', phase: 'D+??', color: 'rgba(168,85,247,0.15)' },
+            ].map((entry, i) => (
+              <div key={i} className="flex items-center gap-5 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: entry.color }} />
+                <span className="w-28 flex-shrink-0" style={{ color: entry.color, fontWeight: 600 }}>{entry.codename}</span>
+                <span className="w-20 flex-shrink-0" style={{ color: 'rgba(240,239,255,0.2)' }}>{entry.category}</span>
+                <span className="flex-1" style={{ color: 'rgba(240,239,255,0.3)' }}>{entry.orbit}</span>
+                <span style={{ color: 'rgba(168,85,247,0.5)', letterSpacing: '0.1em' }}>{entry.phase}</span>
+              </div>
+            ))}
+
+            {/* Footer prompt */}
+            <div style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              <p style={{ color: 'rgba(240,239,255,0.15)', marginBottom: '8px' }}>{'// 4 VENTURES IN ASTEROID BELT — ORBITING INTO VIEW WHEN READY'}</p>
+              <p>
+                <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@internal</span>
+                <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$ </span>
+                <Link
+                  href="/journal"
+                  style={{ color: 'rgba(168,85,247,0.6)' }}
+                  className="hover:text-purple-400 transition-colors"
+                >
+                  {'→ WATCH THE JOURNAL FOR LAUNCH SIGNALS'}
+                </Link>
+              </p>
+            </div>
+          </div>
+
+          {/* Status bar */}
+          <div
+            className="flex items-center justify-between px-4 py-1.5"
+            style={{ borderTop: '1px solid rgba(168,85,247,0.1)', background: 'rgba(0,0,0,0.3)' }}
+          >
+            <div className="flex items-center gap-4">
+              <span className="font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'rgba(168,85,247,0.6)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(168,85,247,0.8)' }} />
+                INCUBATION.ACTIVE
+              </span>
+              <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.15)' }}>4 VENTURES</span>
+            </div>
+            <span className="font-mono text-[8px]" style={{ color: 'rgba(168,85,247,0.3)' }}>
+              construx.classified
+            </span>
+          </div>
         </div>
       </section>
     </div>

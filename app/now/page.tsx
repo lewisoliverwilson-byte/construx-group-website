@@ -51,8 +51,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '294 dispatches and continuing',
-        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover rate limiting without Redis, Content Security Policy in Next.js, distributed tracing with OpenTelemetry, background jobs in serverless, multi-tenant data isolation, structured outputs from Claude, webhook ingestion patterns, prompt caching, and Drizzle ORM. The journal compounds.',
+        title: '300 dispatches and continuing',
+        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Dispatch 300 shipped in May 2027 — a milestone post on what compounding looks like across 300 technical entries. Recent entries cover TypeScript strict mode, Stripe billing patterns, presigned URL uploads, Next.js middleware, pgvector semantic search, and structured outputs from Claude. The journal compounds.',
         status: 'ONGOING',
       },
     ],
