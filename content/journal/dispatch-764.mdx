@@ -1,0 +1,195 @@
+---
+title: "Lucia Auth: authentication without the magic"
+date: "2031-03-24"
+excerpt: "Lucia is an authentication library for TypeScript that handles sessions, password hashing, and OAuth without abstracting the database layer. You write the database queries; Lucia handles the session lifecycle. This means you understand exactly what's in your database and can extend it freely. Unlike NextAuth/Auth.js (which owns the schema) or Clerk (which owns the user), Lucia gives you full control with no black boxes."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Authentication you can read, understand, and extend without fighting the library.
+
+## Install
+
+```bash
+npm install lucia arctic  # arctic = OAuth providers
+```
+
+## Initialize Lucia with Drizzle adapter
+
+```ts
+// src/lib/auth.ts
+import { Lucia }         from 'lucia';
+import { DrizzleAdapter } from '@lucia-auth/adapter-drizzle';
+import { db }            from './db';
+import { sessions, users } from './schema';
+
+export const lucia = new Lucia(
+  new DrizzleAdapter(db, {
+    userTable:    users,
+    sessionTable: sessions,
+  }),
+  {
+    sessionCookie: {
+      attributes: {
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    getUserAttributes(attrs) {
+      return {
+        email:       attrs.email,
+        name:        attrs.name,
+        onboardedAt: attrs.onboarded_at,
+      };
+    },
+  },
+);
+
+declare module 'lucia' {
+  interface Register {
+    Lucia: typeof lucia;
+    DatabaseUserAttributes: {
+      email:        string;
+      name:         string | null;
+      onboarded_at: Date | null;
+    };
+  }
+}
+```
+
+## Schema — you own it
+
+```ts
+// src/lib/schema.ts
+import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id:          text('id').primaryKey(),
+  email:       text('email').notNull().unique(),
+  name:        text('name'),
+  passwordHash: text('password_hash'),  // null for OAuth users
+  onboardedAt: timestamp('onboarded_at'),
+  createdAt:   timestamp('created_at').notNull().defaultNow(),
+});
+
+export const sessions = pgTable('sessions', {
+  id:        text('id').primaryKey(),
+  userId:    text('user_id').notNull().references(() => users.id),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+});
+```
+
+## Password sign-up
+
+```ts
+// src/app/api/auth/signup/route.ts
+import { lucia }    from '@/lib/auth';
+import { db }       from '@/lib/db';
+import { users }    from '@/lib/schema';
+import { hash }     from '@node-rs/argon2';
+import { generateId } from 'lucia';
+import { cookies }  from 'next/headers';
+
+export async function POST(request: Request) {
+  const { email, password } = await request.json();
+
+  const passwordHash = await hash(password, {
+    memoryCost: 19456, timeCost: 2, outputLen: 32, parallelism: 1,
+  });
+
+  const userId = generateId(15);
+  await db.insert(users).values({ id: userId, email, passwordHash });
+
+  const session      = await lucia.createSession(userId, {});
+  const sessionCookie = lucia.createSessionCookie(session.id);
+
+  const jar = await cookies();
+  jar.set(sessionCookie.name, sessionCookie.value, sessionCookie.attributes);
+
+  return Response.json({ userId }, { status: 201 });
+}
+```
+
+## Session validation in Next.js
+
+```ts
+// src/lib/session.ts
+import { lucia } from './auth';
+import { cookies } from 'next/headers';
+import { cache } from 'react';
+
+export const getSession = cache(async () => {
+  const jar          = await cookies();
+  const sessionId    = jar.get(lucia.sessionCookieName)?.value ?? null;
+  if (!sessionId) return { user: null, session: null };
+
+  const { session, user } = await lucia.validateSession(sessionId);
+
+  // Refresh session cookie if close to expiry
+  if (session?.fresh) {
+    const fresh = lucia.createSessionCookie(session.id);
+    jar.set(fresh.name, fresh.value, fresh.attributes);
+  }
+  if (!session) {
+    const blank = lucia.createBlankSessionCookie();
+    jar.set(blank.name, blank.value, blank.attributes);
+  }
+
+  return { session, user };
+});
+```
+
+## OAuth with Arctic (GitHub)
+
+```ts
+// src/lib/oauth.ts
+import { GitHub } from 'arctic';
+
+export const github = new GitHub(
+  process.env.GITHUB_CLIENT_ID!,
+  process.env.GITHUB_CLIENT_SECRET!,
+);
+```
+
+```ts
+// src/app/api/auth/github/route.ts — redirect to GitHub
+import { github } from '@/lib/oauth';
+import { generateState } from 'arctic';
+import { cookies } from 'next/headers';
+
+export async function GET() {
+  const state = generateState();
+  const url   = await github.createAuthorizationURL(state, { scopes: ['user:email'] });
+
+  const jar = await cookies();
+  jar.set('github_oauth_state', state, { httpOnly: true, secure: true, maxAge: 600 });
+
+  return Response.redirect(url.toString());
+}
+```
+
+```ts
+// src/app/api/auth/github/callback/route.ts — handle callback
+import { github } from '@/lib/oauth';
+import { lucia }  from '@/lib/auth';
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const code  = searchParams.get('code')!;
+  const state = searchParams.get('state')!;
+
+  const tokens      = await github.validateAuthorizationCode(code);
+  const githubUser  = await fetchGitHubUser(tokens.accessToken);
+  const existingUser = await findUserByGitHubId(githubUser.id);
+
+  const userId = existingUser?.id ?? await createUserFromGitHub(githubUser);
+  const session = await lucia.createSession(userId, {});
+  const cookie  = lucia.createSessionCookie(session.id);
+
+  const jar = await cookies();
+  jar.set(cookie.name, cookie.value, cookie.attributes);
+
+  return Response.redirect('/dashboard');
+}
+```
+
+Lucia vs Auth.js vs Clerk: Lucia gives full ownership of users and schema. Auth.js provides a higher-level API with more providers out of the box but owns the session model. Clerk is fully managed with excellent DX but users live on Clerk's servers. The Construx default: Lucia for internal tools where data ownership matters; Clerk for product prototypes where setup speed matters more.

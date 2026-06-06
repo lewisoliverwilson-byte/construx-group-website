@@ -1,0 +1,161 @@
+---
+title: "Conform: progressively enhanced forms with server validation"
+date: "2031-03-27"
+excerpt: "Conform is a form validation library designed for React Server Actions. It validates on both client and server using the same schema, works without JavaScript enabled (progressive enhancement), and integrates directly with Zod. Unlike react-hook-form (client-only) or Formik (client-only), Conform treats the server action as the source of truth and layers client-side UX on top."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Forms that work without JavaScript and get better when JavaScript loads.
+
+## Install
+
+```bash
+npm install @conform-to/react @conform-to/zod
+```
+
+## Define schema
+
+```ts
+// src/lib/schemas.ts
+import { z } from 'zod';
+
+export const CreateWorkspaceSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(64),
+  slug: z.string()
+    .min(2)
+    .max(32)
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers, and hyphens'),
+  plan: z.enum(['free', 'pro']).default('free'),
+});
+```
+
+## Server action
+
+```ts
+// src/app/dashboard/actions.ts
+'use server';
+import { parseWithZod }            from '@conform-to/zod';
+import { CreateWorkspaceSchema }   from '@/lib/schemas';
+import { db }                      from '@/lib/db';
+import { workspaces }              from '@/lib/schema';
+import { redirect }                from 'next/navigation';
+
+export async function createWorkspace(prevState: unknown, formData: FormData) {
+  const submission = parseWithZod(formData, { schema: CreateWorkspaceSchema });
+
+  if (submission.status !== 'success') {
+    return submission.reply();
+  }
+
+  const { name, slug, plan } = submission.value;
+
+  try {
+    await db.insert(workspaces).values({ name, slug, plan, ownerId: getCurrentUserId() });
+  } catch {
+    return submission.reply({
+      formErrors: ['A workspace with this slug already exists.'],
+    });
+  }
+
+  redirect('/dashboard');
+}
+```
+
+## Client form with useForm
+
+```tsx
+// src/app/dashboard/CreateWorkspaceForm.tsx
+'use client';
+import { useForm, getFormProps, getInputProps, getSelectProps } from '@conform-to/react';
+import { parseWithZod }          from '@conform-to/zod';
+import { useActionState }        from 'react';
+import { createWorkspace }       from './actions';
+import { CreateWorkspaceSchema } from '@/lib/schemas';
+
+export function CreateWorkspaceForm() {
+  const [lastResult, action, isPending] = useActionState(createWorkspace, null);
+
+  const [form, fields] = useForm({
+    lastResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: CreateWorkspaceSchema });
+    },
+    shouldValidate: 'onBlur',
+    shouldRevalidate: 'onInput',
+  });
+
+  return (
+    <form {...getFormProps(form)} action={action}>
+      {/* Form-level errors */}
+      {form.errors && (
+        <p className="text-red-500 text-sm">{form.errors}</p>
+      )}
+
+      <div>
+        <label htmlFor={fields.name.id}>Workspace name</label>
+        <input
+          {...getInputProps(fields.name, { type: 'text' })}
+          placeholder="Construx"
+        />
+        {fields.name.errors && (
+          <p className="text-red-500 text-xs">{fields.name.errors}</p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor={fields.slug.id}>Slug</label>
+        <input
+          {...getInputProps(fields.slug, { type: 'text' })}
+          placeholder="construx"
+        />
+        {fields.slug.errors && (
+          <p className="text-red-500 text-xs">{fields.slug.errors}</p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor={fields.plan.id}>Plan</label>
+        <select {...getSelectProps(fields.plan)}>
+          <option value="free">Free</option>
+          <option value="pro">Pro</option>
+        </select>
+      </div>
+
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Creating...' : 'Create workspace'}
+      </button>
+    </form>
+  );
+}
+```
+
+## Nested objects and lists
+
+```tsx
+const [form, fields] = useForm({ ... });
+const members = fields.members.getFieldList();
+
+return (
+  <form>
+    {members.map((member, index) => {
+      const memberFields = member.getFieldset();
+      return (
+        <div key={member.key}>
+          <input {...getInputProps(memberFields.email, { type: 'email' })} />
+          <input {...getInputProps(memberFields.role,  { type: 'text' })} />
+        </div>
+      );
+    })}
+    <button {...form.insert.getButtonProps({ name: fields.members.name })}>
+      Add member
+    </button>
+  </form>
+);
+```
+
+## No-JavaScript fallback
+
+Without JavaScript, the form submits to the server action directly via native form POST. `parseWithZod` validates the raw `FormData` and returns errors via the redirect chain. Conform's `lastResult` picks them up when JavaScript loads. The form works in all cases — the progressive enhancement is additive.
+
+Conform vs react-hook-form vs Formik: Conform is the only library that works with React Server Actions and progressive enhancement by design. react-hook-form is excellent for client-only SPA forms. Formik is older, heavier, and less maintained. The Construx default: Conform for any form that submits to a Server Action; react-hook-form for complex client-side form state.

@@ -14,6 +14,7 @@ import StraceProcPanel from '@/components/StraceProcPanel';
 import TcpdumpPanel from '@/components/TcpdumpPanel';
 import SarPanel from '@/components/SarPanel';
 import RedisCLIPanel from '@/components/RedisCLIPanel';
+import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -404,8 +405,13 @@ export default function StatsPage() {
       </div>
 
       {/* Redis live stats */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <RedisCLIPanel />
+      </div>
+
+      {/* ClickHouse analytics query */}
+      <div className="mt-6 pb-10">
+        <ClickhouseQueryPanel />
       </div>
     </div>
   );
