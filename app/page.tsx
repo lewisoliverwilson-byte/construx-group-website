@@ -409,23 +409,94 @@ export default function HomePage() {
       <SystemLog posts={allPosts.slice(0, 8)} totalPosts={allPosts.length} />
 
       {/* CTA strip */}
-      <section className="py-24 px-5 text-center" aria-labelledby="cta-heading">
+      <section className="py-24 px-5" aria-labelledby="cta-heading">
         <div className="mx-auto max-w-2xl">
-          <Zap className="mx-auto mb-5 text-construx animate-glow-pulse" size={28} />
-          <h2 id="cta-heading" className="text-display-sm text-text-base mb-4">
-            Build with us.
-          </h2>
-          <p className="text-text-muted mb-8 leading-relaxed">
-            If you need something built properly at the frontier of what AI can do,
-            we should talk.
-          </p>
-          <Link
-            href="/contact"
-            className="inline-flex items-center gap-2 px-7 py-3.5 font-mono text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02] uppercase tracking-wider"
-            style={{ borderRadius: '3px' }}
+          {/* Terminal window */}
+          <div
+            className="overflow-hidden"
+            style={{
+              background: 'rgba(3,3,14,0.97)',
+              border: '1px solid rgba(249,115,22,0.18)',
+              borderRadius: '6px',
+              boxShadow: '0 0 60px rgba(249,115,22,0.07), 0 20px 60px rgba(0,0,0,0.7)',
+            }}
           >
-            Get in touch <ArrowRight size={16} />
-          </Link>
+            {/* Title bar */}
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 select-none"
+              style={{ borderBottom: '1px solid rgba(249,115,22,0.1)', background: 'rgba(249,115,22,0.025)' }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-3 h-3 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-3 h-3 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-dim/50 flex-1 text-center">
+                construx.contact — handshake.init
+              </span>
+              <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.5)' }}>
+                ● READY
+              </span>
+            </div>
+
+            {/* Body */}
+            <div className="px-8 py-10">
+              {/* Shell lines */}
+              <div className="font-mono text-[11px] flex flex-col gap-1 mb-8">
+                <div className="flex gap-3">
+                  <span style={{ color: 'rgba(249,115,22,0.6)' }}>$</span>
+                  <span style={{ color: 'rgba(255,255,255,0.5)' }}>construx contact --intent=build --priority=high</span>
+                </div>
+                <div className="flex gap-3">
+                  <span style={{ color: 'rgba(255,255,255,0.15)' }}>{'>'}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.25)' }}>Verifying AI stack alignment... OK</span>
+                </div>
+                <div className="flex gap-3">
+                  <span style={{ color: 'rgba(255,255,255,0.15)' }}>{'>'}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.25)' }}>Checking venture capacity... OK</span>
+                </div>
+                <div className="flex gap-3">
+                  <span style={{ color: 'rgba(74,222,128,0.6)' }}>✓</span>
+                  <span style={{ color: 'rgba(74,222,128,0.85)' }}>Handshake ready. Awaiting contact.</span>
+                </div>
+              </div>
+
+              {/* Headline */}
+              <div className="text-center mb-6">
+                <Zap className="mx-auto mb-4 text-construx animate-glow-pulse" size={24} />
+                <h2 id="cta-heading" className="text-display-sm text-text-base mb-3">
+                  Build with us.
+                </h2>
+                <p className="text-text-muted leading-relaxed max-w-md mx-auto">
+                  If you need something built properly at the frontier of what AI can do,
+                  we should talk.
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 font-mono text-sm font-semibold bg-construx text-black hover:bg-orange-400 transition-all shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)] hover:scale-[1.02] uppercase tracking-wider"
+                  style={{ borderRadius: '3px' }}
+                >
+                  Get in touch <ArrowRight size={16} />
+                </Link>
+              </div>
+            </div>
+
+            {/* Status bar */}
+            <div
+              className="flex items-center justify-between px-4 py-1.5"
+              style={{ borderTop: '1px solid rgba(249,115,22,0.08)', background: 'rgba(0,0,0,0.3)' }}
+            >
+              <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.35)' }}>
+                construx@sys
+              </span>
+              <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>
+                session:active
+              </span>
+            </div>
+          </div>
         </div>
       </section>
     </>
