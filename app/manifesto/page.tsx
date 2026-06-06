@@ -113,49 +113,93 @@ export default function ManifestoPage() {
 
       {/* Manifesto body */}
       <section className="relative px-5 py-20 mx-auto max-w-3xl">
-        <div className="flex flex-col gap-0">
+        <div className="flex flex-col gap-6">
           {sections.map((s, i) => (
             <div
               key={s.number}
               id={s.number}
-              className="relative group scroll-mt-24"
+              className="scroll-mt-24 overflow-hidden"
+              style={{
+                background: 'rgba(3,3,14,0.88)',
+                border: '1px solid rgba(249,115,22,0.13)',
+                borderRadius: '4px',
+                boxShadow: '0 0 40px rgba(249,115,22,0.04)',
+              }}
             >
-              {/* Connector line — left-5 = 20px = center of h-10 w-10 number box */}
-              {i < sections.length - 1 && (
-                <div className="absolute left-5 top-14 bottom-0 w-px bg-gradient-to-b from-construx/20 to-transparent pointer-events-none" />
-              )}
+              {/* Terminal title bar */}
+              <div
+                className="flex items-center gap-3 px-4 py-2.5 select-none"
+                style={{ borderBottom: '1px solid rgba(249,115,22,0.1)', background: 'rgba(249,115,22,0.03)' }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <a
+                  href={`#${s.number}`}
+                  className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center transition-colors hover:opacity-80"
+                  style={{ color: 'rgba(249,115,22,0.4)' }}
+                  aria-label={`Section ${s.number}`}
+                >
+                  construx.manifesto — principle.{s.number}
+                </a>
+                <span
+                  className="font-mono text-[9px] font-bold tabular-nums"
+                  style={{ color: 'rgba(249,115,22,0.55)' }}
+                >
+                  {s.number}/{sections.length}
+                </span>
+              </div>
 
-              <div className="flex gap-7 pb-20">
-                {/* Number */}
-                <div className="flex-shrink-0 pt-1">
-                  <a
-                    href={`#${s.number}`}
-                    className="h-10 w-10 flex items-center justify-center font-mono text-xs font-bold text-construx hover:bg-construx/15 transition-colors"
-                    style={{
-                      background: 'rgba(249,115,22,0.08)',
-                      border: '1px solid rgba(249,115,22,0.2)',
-                      borderRadius: '3px',
-                    }}
-                    aria-label={`Section ${s.number}`}
+              {/* Shell prompt line */}
+              <div
+                className="flex items-center gap-2 px-5 py-2 font-mono text-[10px]"
+                style={{ borderBottom: '1px solid rgba(249,115,22,0.07)', background: 'rgba(0,0,6,0.35)' }}
+              >
+                <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@sys</span>
+                <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+                <span style={{ color: 'rgba(240,239,255,0.28)' }}>
+                  cat /etc/construx/manifesto/principle-{s.number}.md
+                </span>
+              </div>
+
+              {/* Content */}
+              <div className="px-8 py-8">
+                <h2 className="text-heading-xl text-text-base mb-5 leading-tight">
+                  {s.heading}
+                </h2>
+                {s.paragraphs.map((para, pi) => (
+                  <p
+                    key={pi}
+                    className="text-text-muted leading-relaxed text-base mb-4 last:mb-0"
                   >
-                    {s.number}
-                  </a>
-                </div>
+                    {para}
+                  </p>
+                ))}
+              </div>
 
-                {/* Content */}
-                <div className="flex-1">
-                  <h2 className="text-heading-xl text-text-base mb-5 leading-tight">
-                    {s.heading}
-                  </h2>
-                  {s.paragraphs.map((para, pi) => (
-                    <p
-                      key={pi}
-                      className="text-text-muted leading-relaxed text-base mb-4 last:mb-0"
-                    >
-                      {para}
-                    </p>
-                  ))}
-                </div>
+              {/* Status footer */}
+              <div
+                className="flex items-center justify-between px-4 py-1.5"
+                style={{ borderTop: '1px solid rgba(249,115,22,0.07)', background: 'rgba(0,0,0,0.25)' }}
+              >
+                <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(249,115,22,0.25)' }}>
+                  principle.{s.number}
+                </span>
+                {i < sections.length - 1 ? (
+                  <a
+                    href={`#${sections[i + 1].number}`}
+                    className="font-mono text-[8px] uppercase tracking-widest transition-colors hover:opacity-80"
+                    style={{ color: 'rgba(249,115,22,0.3)' }}
+                  >
+                    next: {sections[i + 1].number} ↓
+                  </a>
+                ) : (
+                  <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.35)' }}>
+                    ● EOF
+                  </span>
+                )}
               </div>
             </div>
           ))}
