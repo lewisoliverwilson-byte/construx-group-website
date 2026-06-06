@@ -18,6 +18,7 @@ import GhCliPanel from '@/components/GhCliPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import TrivyScanPanel from '@/components/TrivyScanPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
+import BunBuildPanel from '@/components/BunBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -225,8 +226,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* Drizzle migration status */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DbMigrationPanel />
+      </section>
+
+      {/* Bun build output */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <BunBuildPanel />
       </section>
 
       {/* Posts */}

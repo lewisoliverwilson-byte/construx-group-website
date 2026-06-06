@@ -1,0 +1,181 @@
+---
+title: "OpenTelemetry: instrument once, export anywhere"
+date: "2031-05-20"
+excerpt: "OpenTelemetry is the standard for distributed tracing, metrics, and logs. You instrument your code once with the OTel SDK, then point the exporter at any backend — Grafana Tempo, Honeycomb, Datadog, Jaeger. No vendor lock-in, no re-instrumentation when you switch backends. For services that need production observability without committing to a specific vendor's SDK, OTel is the right foundation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Instrument once. Send anywhere. Switch backends without touching application code.
+
+## SDK setup — Node.js
+
+```ts
+// instrumentation.ts — loaded before anything else
+import { NodeSDK }         from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { Resource }        from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+
+const sdk = new NodeSDK({
+  resource: new Resource({
+    [ATTR_SERVICE_NAME]:    'construx-api',
+    [ATTR_SERVICE_VERSION]: process.env.npm_package_version,
+    environment:            process.env.NODE_ENV,
+  }),
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318/v1/traces',
+    headers: {
+      Authorization: `Bearer ${process.env.OTEL_AUTH_TOKEN}`,
+    },
+  }),
+  instrumentations: [
+    getNodeAutoInstrumentations({
+      '@opentelemetry/instrumentation-http':     { enabled: true },
+      '@opentelemetry/instrumentation-express':  { enabled: true },
+      '@opentelemetry/instrumentation-pg':       { enabled: true },
+      '@opentelemetry/instrumentation-redis':    { enabled: true },
+      '@opentelemetry/instrumentation-dns':      { enabled: false },
+    }),
+  ],
+});
+
+sdk.start();
+process.on('SIGTERM', () => sdk.shutdown());
+```
+
+## Manual spans
+
+```ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('construx-api', '1.0.0');
+
+async function processPayment(orderId: string, amount: number) {
+  return tracer.startActiveSpan('payment.process', async (span) => {
+    span.setAttributes({
+      'payment.order_id':  orderId,
+      'payment.amount':    amount,
+      'payment.currency': 'GBP',
+    });
+
+    try {
+      const result = await stripe.paymentIntents.create({
+        amount,
+        currency: 'gbp',
+        metadata: { orderId },
+      });
+
+      span.setAttributes({ 'payment.intent_id': result.id });
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.recordException(err as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+## Metrics
+
+```ts
+import { metrics } from '@opentelemetry/api';
+
+const meter = metrics.getMeter('construx-api');
+
+// Counter
+const requestCounter = meter.createCounter('http.requests', {
+  description: 'Number of HTTP requests',
+});
+
+// Histogram (latency)
+const latencyHistogram = meter.createHistogram('http.request.duration', {
+  description: 'HTTP request latency in ms',
+  unit:        'ms',
+});
+
+// Observable gauge (live measurement)
+const activeConnections = meter.createObservableGauge('db.connections.active', {
+  description: 'Active database connections',
+});
+activeConnections.addCallback((result) => {
+  result.observe(pool.totalCount - pool.idleCount, { pool: 'primary' });
+});
+
+// Record in middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const labels = { method: req.method, route: req.route?.path ?? 'unknown', status: String(res.statusCode) };
+    requestCounter.add(1, labels);
+    latencyHistogram.record(Date.now() - start, labels);
+  });
+  next();
+});
+```
+
+## Logs with trace correlation
+
+```ts
+import { trace }  from '@opentelemetry/api';
+import { pino }   from 'pino';
+
+const logger = pino({
+  formatters: {
+    log(obj) {
+      const span = trace.getActiveSpan();
+      if (!span) return obj;
+      const ctx = span.spanContext();
+      return {
+        ...obj,
+        trace_id: ctx.traceId,
+        span_id:  ctx.spanId,
+        trace_flags: ctx.traceFlags,
+      };
+    },
+  },
+});
+```
+
+Logs now carry `trace_id` — Grafana can pivot from a log line to the full trace.
+
+## Collector config
+
+```yaml
+# otel-collector.yaml
+receivers:
+  otlp:
+    protocols:
+      http: { endpoint: 0.0.0.0:4318 }
+      grpc: { endpoint: 0.0.0.0:4317 }
+
+processors:
+  batch:       { timeout: 5s }
+  memory_limiter:
+    check_interval: 1s
+    limit_mib:      256
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+service:
+  pipelines:
+    traces:  { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlp/tempo] }
+    metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [prometheusremotewrite] }
+    logs:    { receivers: [otlp], processors: [memory_limiter, batch], exporters: [loki] }
+```
+
+One collector, three backends: Tempo for traces, Prometheus for metrics, Loki for logs. Change backends by editing the exporter config — application code unchanged.
+
+OTel vs Datadog agent: Datadog agent is simpler to set up and has a polished UI, but you're locked in. OTel is more work upfront but lets you switch backends and self-host. The Construx default: OTel SDK everywhere; Grafana stack (Tempo + Prometheus + Loki) self-hosted for full control.

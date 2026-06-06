@@ -1,0 +1,165 @@
+---
+title: "Cloudflare R2: S3-compatible object storage with zero egress fees"
+date: "2031-05-23"
+excerpt: "Cloudflare R2 is S3-compatible object storage that charges zero egress fees. For applications that serve files to users — images, videos, build artifacts, backups — the egress cost on S3 can exceed the storage cost. R2 eliminates that entirely. The S3-compatible API means existing S3 SDK code works with a one-line endpoint change. For static assets, user uploads, or any large-file serving use case, R2 cuts the bill significantly."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+S3 API, zero egress. One config change.
+
+## Setup
+
+```bash
+# Install the AWS SDK — R2 is S3-compatible
+bun add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+```ts
+// lib/r2.ts
+import { S3Client } from '@aws-sdk/client-s3';
+
+export const r2 = new S3Client({
+  region:   'auto',
+  endpoint: `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+export const BUCKET = process.env.R2_BUCKET_NAME!;
+```
+
+Same S3Client, different endpoint. Existing S3 code works immediately.
+
+## Upload
+
+```ts
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { r2, BUCKET }       from '@/lib/r2';
+
+async function uploadFile(key: string, body: Buffer | ReadableStream, contentType: string) {
+  await r2.send(new PutObjectCommand({
+    Bucket:      BUCKET,
+    Key:         key,
+    Body:        body,
+    ContentType: contentType,
+    CacheControl: 'public, max-age=31536000, immutable',
+  }));
+
+  return `https://assets.construxgroup.io/${key}`;
+}
+
+// Upload a user avatar
+const buffer = Buffer.from(await file.arrayBuffer());
+const url = await uploadFile(`avatars/${userId}.webp`, buffer, 'image/webp');
+```
+
+## Presigned URLs — direct browser upload
+
+```ts
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl }     from '@aws-sdk/s3-request-presigner';
+import { r2, BUCKET }       from '@/lib/r2';
+
+// API route: POST /api/upload/presign
+export async function POST(req: Request) {
+  const { filename, contentType } = await req.json();
+
+  const key = `uploads/${crypto.randomUUID()}-${filename}`;
+
+  const url = await getSignedUrl(
+    r2,
+    new PutObjectCommand({
+      Bucket:      BUCKET,
+      Key:         key,
+      ContentType: contentType,
+    }),
+    { expiresIn: 300 },  // 5 minutes
+  );
+
+  return Response.json({ url, key });
+}
+
+// Browser-side: PUT directly to R2
+const { url, key } = await fetch('/api/upload/presign', {
+  method: 'POST',
+  body:   JSON.stringify({ filename: file.name, contentType: file.type }),
+}).then((r) => r.json());
+
+await fetch(url, {
+  method:  'PUT',
+  body:    file,
+  headers: { 'Content-Type': file.type },
+});
+```
+
+No server-side streaming, no memory pressure. Files go browser → R2 directly.
+
+## Cloudflare Worker binding — zero-latency access
+
+```ts
+// wrangler.toml
+// [[r2_buckets]]
+// binding = "ASSETS"
+// bucket_name = "construx-assets"
+
+// Worker
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    const key = url.pathname.slice(1);  // Strip leading /
+
+    const obj = await env.ASSETS.get(key);
+    if (!obj) return new Response('Not found', { status: 404 });
+
+    const headers = new Headers();
+    obj.writeHttpMetadata(headers);
+    headers.set('Cache-Control', 'public, max-age=31536000');
+    headers.set('ETag', obj.httpEtag);
+
+    return new Response(obj.body, { headers });
+  },
+};
+```
+
+From a Worker, R2 access has zero egress cost and sub-millisecond latency — it's local to Cloudflare's network.
+
+## Custom domain — serve from your own hostname
+
+```bash
+# In Cloudflare dashboard: R2 → Bucket → Settings → Custom Domains
+# Domain: assets.construxgroup.io
+# R2 bucket: construx-assets
+```
+
+Files at `https://<account>.r2.cloudflarestorage.com/construx-assets/key` are now also at `https://assets.construxgroup.io/key` — full HTTPS, served from Cloudflare's edge.
+
+## Lifecycle rules
+
+```ts
+import { PutBucketLifecycleConfigurationCommand } from '@aws-sdk/client-s3';
+
+await r2.send(new PutBucketLifecycleConfigurationCommand({
+  Bucket: BUCKET,
+  LifecycleConfiguration: {
+    Rules: [
+      {
+        ID:     'expire-temp-uploads',
+        Status: 'Enabled',
+        Filter: { Prefix: 'temp/' },
+        Expiration: { Days: 1 },
+      },
+      {
+        ID:     'expire-old-logs',
+        Status: 'Enabled',
+        Filter: { Prefix: 'logs/' },
+        Expiration: { Days: 90 },
+      },
+    ],
+  },
+}));
+```
+
+R2 vs S3: R2 has no egress fees, is 2-3x cheaper on storage, and has the same API. S3 has more features (replication, storage classes, more lifecycle options) and a larger ecosystem. The Construx default: R2 for all user-facing assets and uploads; S3 only if a specific S3-only feature is required.
