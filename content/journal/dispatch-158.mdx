@@ -1,0 +1,187 @@
+---
+title: "Working with AI APIs at scale: batching, streaming, and managing latency"
+date: "2026-10-20"
+excerpt: "The Hyve makes dozens of AI API calls per hour per active workspace. Here's how we handle batching, streaming responses to users, managing p95 latency, and the cost implications of different patterns."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The Hyve's AI agent is a first-class participant in workspace conversations. It responds to @mentions, answers questions, synthesises documents, and takes actions. At scale, this means many concurrent AI API calls with different latency requirements.
+
+Here's what we've learned about working with AI APIs at production scale.
+
+## The latency spectrum
+
+Not all AI calls have the same latency requirement:
+
+**Interactive (< 2s expected):** @mention responses in a channel. The user is waiting, watching the typing indicator. Every second of latency degrades the experience.
+
+**Background (< 30s acceptable):** Channel summary generation, document drafting, research queries. The user triggered the action but isn't blocked by it — they're doing something else while waiting.
+
+**Batch (minutes acceptable):** Weekly workspace digest, analytics summaries, training data extraction. These run as scheduled jobs; latency doesn't affect the user experience.
+
+We use different strategies for each tier.
+
+## Streaming for interactive responses
+
+For @mention responses, we stream the AI response to the client in real-time. The user sees tokens appearing as they're generated, which makes a 4-second response feel like 1 second because they get feedback immediately.
+
+```ts
+// API route: /api/workspaces/[id]/ai-respond
+export async function POST(req: Request) {
+  const { message, channelId, workspaceId } = await req.json();
+  const context = await buildContext(workspaceId, channelId, message);
+
+  const stream = await anthropic.messages.stream({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 1024,
+    messages: [
+      { role: 'user', content: `${context}\n\n${message}` },
+    ],
+  });
+
+  // Return a ReadableStream so the client gets tokens as they arrive
+  const readable = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          controller.enqueue(new TextEncoder().encode(chunk.delta.text));
+        }
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-cache',
+    },
+  });
+}
+```
+
+On the client, we consume the stream and append tokens to the message as they arrive:
+
+```ts
+const response = await fetch('/api/workspaces/.../ai-respond', {
+  method: 'POST',
+  body: JSON.stringify({ message, channelId, workspaceId }),
+});
+
+const reader = response.body!.getReader();
+const decoder = new TextDecoder();
+let text = '';
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  text += decoder.decode(value, { stream: true });
+  updateMessageContent(messageId, text); // Update UI in real-time
+}
+```
+
+The streaming pattern adds implementation complexity but the UX improvement is significant. Users perceive the response as faster because they're reading while it generates.
+
+## Model selection by tier
+
+We use different models for different latency tiers:
+
+| Tier | Model | Why |
+|------|-------|-----|
+| Interactive | `claude-haiku-4-5-20251001` | Fastest time-to-first-token, lowest cost, sufficient quality |
+| Background | `claude-sonnet-4-6` | Better quality for summarisation and drafting |
+| Batch/complex | `claude-opus-4-8` | Highest quality for complex reasoning tasks |
+
+This isn't just about cost — it's about matching model capability to task complexity. Using Opus for a quick @mention response is both expensive and slower than necessary. Using Haiku for a complex document synthesis produces worse output.
+
+## Context window management
+
+The Hyve's workspace has message history, documents, and channel context. Naively including all of this would exceed context windows and produce slow, expensive calls.
+
+We use a tiered context system:
+
+```ts
+async function buildContext(workspaceId: string, channelId: string, query: string) {
+  // Always include: last 10 messages in the channel
+  const recentMessages = await getRecentMessages(channelId, 10);
+  
+  // Semantic retrieval: top-k relevant messages from the past 30 days
+  const embedding = await embed(query);
+  const relevantMessages = await retrieveSimilar(workspaceId, embedding, 5);
+  
+  // Workspace facts: name, description, pinned context
+  const workspaceFacts = await getWorkspaceFacts(workspaceId);
+  
+  const contextTokens = estimateTokens([
+    workspaceFacts,
+    ...recentMessages.map(m => m.content),
+    ...relevantMessages.map(m => m.content),
+  ]);
+  
+  // Hard cap at 6k tokens for context (leaves room for response + system prompt)
+  if (contextTokens > 6000) {
+    // Drop oldest relevant messages first
+    return buildTruncatedContext(workspaceFacts, recentMessages, relevantMessages, 6000);
+  }
+  
+  return formatContext(workspaceFacts, recentMessages, relevantMessages);
+}
+```
+
+The token estimation uses a simple rule of thumb (4 chars ≈ 1 token for English text) rather than running the full tokenizer — it's fast enough and accurate enough for a cap guard.
+
+## Rate limit handling
+
+Claude's API has per-workspace and per-minute rate limits. Under high load (a large workspace where many users @mention the agent simultaneously), we can hit these.
+
+Our handling:
+
+```ts
+async function callWithRateLimit(fn: () => Promise<Response>): Promise<Response> {
+  let attempt = 0;
+  while (true) {
+    const response = await fn();
+    
+    if (response.status !== 429) return response;
+    
+    // Parse the rate limit reset time from headers
+    const resetMs = parseInt(response.headers.get('x-ratelimit-reset-requests') ?? '5') * 1000;
+    const backoff = Math.max(resetMs, 1000 * Math.pow(2, attempt));
+    
+    if (++attempt > 3) throw new Error('Rate limit exceeded after retries');
+    await new Promise((r) => setTimeout(r, Math.min(backoff, 30_000)));
+  }
+}
+```
+
+For interactive calls, we also show the user a "thinking..." state with a longer timeout indicator if the call is taking longer than expected. Users are tolerant of latency when they have feedback; they're not tolerant of silent waiting.
+
+## Cost accounting
+
+At scale, AI API costs are real. We track token usage per workspace per day:
+
+```sql
+CREATE TABLE ai_usage_logs (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid REFERENCES workspaces(id),
+  model        text NOT NULL,
+  input_tokens  int NOT NULL,
+  output_tokens int NOT NULL,
+  cost_usd     numeric(10,6) NOT NULL,
+  created_at   timestamptz DEFAULT now()
+);
+```
+
+This lets us see which workspaces are high-value (active users who justify the cost) vs. high-cost-low-value (automated usage or abuse patterns).
+
+The current p50 cost per active workspace per day is $0.04. At scale, this is manageable and factored into the subscription pricing model.
+
+## The hard lessons
+
+**Don't include the full conversation history in every call.** We did this initially. A workspace with 10,000 messages would send 50,000 tokens of context per call, most of it irrelevant. Semantic retrieval for relevant context is the right pattern.
+
+**Stream everything interactive.** The first time we showed a loading spinner while waiting for a complete AI response, users reported the interaction felt slow even when the actual latency was 2 seconds. Streaming the same response token-by-token felt instant.
+
+**Budget for p95, not p50.** Our p50 interactive latency is 1.4s. Our p95 is 5.8s. We design the UX for the p95 case — loading indicators, graceful degradation, timeouts — because 5% of users will experience the slow case.
