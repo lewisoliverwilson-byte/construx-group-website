@@ -1,0 +1,194 @@
+---
+title: "State management in 2028: Zustand, Jotai, and when to skip libraries"
+date: "2028-01-08"
+excerpt: "React's built-in state is enough for most apps. When it's not, Zustand and Jotai are the modern answer. Here's how to choose, and how to use each one well."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The state management landscape in 2028 is simpler than it was. Redux is legacy. Context is fine for slow-moving state. Zustand handles most complex cases in a fraction of the boilerplate. Jotai excels at fine-grained, atomic updates. Here's when to reach for each.
+
+## Start with `useState` and `useReducer`
+
+Before adding any library, check if the built-ins suffice:
+
+```ts
+// Simple counter: useState
+const [count, setCount] = useState(0);
+
+// Form state with multiple fields: useReducer
+type State = { name: string; email: string; loading: boolean };
+type Action =
+  | { type: 'SET_FIELD'; field: keyof Omit<State, 'loading'>; value: string }
+  | { type: 'SUBMIT' }
+  | { type: 'DONE' };
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_FIELD': return { ...state, [action.field]: action.value };
+    case 'SUBMIT': return { ...state, loading: true };
+    case 'DONE': return { ...state, loading: false };
+  }
+}
+
+const [state, dispatch] = useReducer(reducer, { name: '', email: '', loading: false });
+```
+
+Add React Query or SWR for server state (API data, database reads). Add Zustand or Jotai only for client state that needs to be shared across components that aren't parent-child.
+
+## Zustand: stores that feel like useState
+
+```bash
+npm install zustand
+```
+
+```ts
+// store/user.ts
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface UserState {
+  user: User | null;
+  theme: 'light' | 'dark';
+  setUser: (user: User | null) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
+  logout: () => void;
+}
+
+export const useUserStore = create<UserState>()(
+  persist(
+    (set) => ({
+      user: null,
+      theme: 'dark',
+      setUser: (user) => set({ user }),
+      setTheme: (theme) => set({ theme }),
+      logout: () => set({ user: null }),
+    }),
+    { name: 'user-store' },  // persists to localStorage
+  ),
+);
+```
+
+```tsx
+// Using the store — any component, anywhere
+function Navbar() {
+  const { user, logout } = useUserStore();
+  return user ? <button onClick={logout}>Sign out</button> : null;
+}
+```
+
+Zustand doesn't need a Provider. The store is a module-level singleton. Subscribe only to what you need:
+
+```ts
+// Prevents re-renders when `theme` changes — only subscribes to `user`
+const user = useUserStore((state) => state.user);
+```
+
+## Slices: splitting large stores
+
+For complex apps, split state into slices:
+
+```ts
+// store/slices/cart.ts
+interface CartSlice {
+  items: CartItem[];
+  addItem: (item: CartItem) => void;
+  removeItem: (id: string) => void;
+  total: number;
+}
+
+export const createCartSlice = (set: any, get: any): CartSlice => ({
+  items: [],
+  addItem: (item) => set((s: any) => ({ items: [...s.items, item] })),
+  removeItem: (id) => set((s: any) => ({ items: s.items.filter((i: any) => i.id !== id) })),
+  get total() {
+    return get().items.reduce((sum: number, item: CartItem) => sum + item.price * item.quantity, 0);
+  },
+});
+
+// store/index.ts
+export const useStore = create<CartSlice & UserSlice>()((...a) => ({
+  ...createCartSlice(...a),
+  ...createUserSlice(...a),
+}));
+```
+
+## Jotai: atomic state
+
+Jotai models state as atoms — the smallest unit of state. Components subscribe to exactly what they need, and only re-render when their specific atoms change:
+
+```bash
+npm install jotai
+```
+
+```ts
+// atoms/filters.ts
+import { atom } from 'jotai';
+import { atomWithStorage } from 'jotai/utils';
+
+export const searchQueryAtom = atom('');
+export const selectedTagAtom = atom<string | null>(null);
+export const sortOrderAtom = atomWithStorage<'asc' | 'desc'>('sort-order', 'desc');
+
+// Derived atom — computed from other atoms
+export const filteredPostsAtom = atom((get) => {
+  const query = get(searchQueryAtom).toLowerCase();
+  const tag = get(selectedTagAtom);
+  const sort = get(sortOrderAtom);
+
+  return allPosts
+    .filter((p) => !query || p.title.toLowerCase().includes(query))
+    .filter((p) => !tag || p.tag === tag)
+    .sort((a, b) => sort === 'desc'
+      ? new Date(b.date).getTime() - new Date(a.date).getTime()
+      : new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+});
+```
+
+```tsx
+// Components subscribe to specific atoms
+function SearchInput() {
+  const [query, setQuery] = useAtom(searchQueryAtom);
+  return <input value={query} onChange={(e) => setQuery(e.target.value)} />;
+}
+
+function PostList() {
+  const posts = useAtomValue(filteredPostsAtom);  // read-only
+  return posts.map((p) => <PostCard key={p.slug} post={p} />);
+}
+```
+
+Jotai's advantage: `PostList` only re-renders when `filteredPostsAtom` changes. `SearchInput` only re-renders when `searchQueryAtom` changes. They don't interfere.
+
+## When to use each
+
+| Scenario | Choice |
+|----------|--------|
+| Local component state | `useState` / `useReducer` |
+| Shared UI state (theme, sidebar, modal) | Zustand |
+| Complex client state with actions | Zustand |
+| Fine-grained, reactive derived state | Jotai |
+| Server data (fetching, caching, mutations) | React Query / TanStack Query |
+| Auth state in Next.js | next-auth session + Zustand |
+
+The wrong choice: adding a state library to avoid prop drilling when you should restructure components, or using global state for data that's only needed in one subtree.
+
+## Devtools
+
+Both libraries have excellent devtools:
+
+```ts
+// Zustand devtools
+import { devtools } from 'zustand/middleware';
+export const useStore = create<State>()(devtools(/* ... */));
+
+// Jotai devtools — install jotai-devtools
+import { useAtomsDevtools } from 'jotai-devtools';
+function App() {
+  useAtomsDevtools('my-app');
+  return <>{/* ... */}</>;
+}
+```
+
+The Redux DevTools browser extension works with both. Time-travel debugging, action history, state snapshots — all available without Redux itself.

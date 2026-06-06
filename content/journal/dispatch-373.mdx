@@ -1,0 +1,210 @@
+---
+title: "Turborepo: monorepos that actually scale"
+date: "2028-01-05"
+excerpt: "Turborepo makes monorepos fast by caching build outputs and only running what changed. Here's the setup for a Next.js app with shared packages, how caching works, and the task pipeline configuration that keeps CI under two minutes."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A monorepo puts all your code in one repository — your Next.js app, your design system, your shared utilities, your email templates. The problem is running one command rebuilds everything, every time. Turborepo fixes that by caching build outputs and tracing what actually changed.
+
+## Why a monorepo?
+
+Three problems it solves:
+1. **Shared code without npm publish** — `@acme/ui` imports in your app update immediately as you change the package
+2. **Atomic changes** — a PR can update the API types and the client code that uses them together, with a single review
+3. **Consistent tooling** — one ESLint config, one TypeScript config, one CI pipeline
+
+One problem it creates: slow builds. Turborepo solves that.
+
+## Setup
+
+```bash
+npx create-turbo@latest my-monorepo
+```
+
+Or add to an existing repo:
+
+```bash
+npm install turbo --save-dev
+```
+
+Structure:
+```
+my-monorepo/
+  apps/
+    web/          ← Next.js app
+    docs/         ← docs site
+  packages/
+    ui/           ← React component library
+    config-eslint/ ← shared ESLint config
+    config-ts/    ← shared TypeScript config
+    utils/        ← shared utilities
+  turbo.json
+  package.json
+```
+
+## turbo.json: the task pipeline
+
+```json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    }
+  }
+}
+```
+
+`"dependsOn": ["^build"]` means: run this task's dependencies' builds first. If `web` depends on `ui`, `ui` builds before `web` builds. The `^` means "in dependency order". Without it, tasks run in parallel regardless of what depends on what.
+
+## Package setup
+
+```json
+// packages/ui/package.json
+{
+  "name": "@acme/ui",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+With Next.js 15's `transpilePackages`, the app can import TypeScript source directly — no build step needed for the UI package in development:
+
+```js
+// apps/web/next.config.ts
+export default {
+  transpilePackages: ['@acme/ui'],
+};
+```
+
+```ts
+// apps/web/app/page.tsx
+import { Button } from '@acme/ui';  // points to packages/ui/src/index.ts
+```
+
+## Caching
+
+Turborepo hashes:
+- Source files (defined by `inputs`)
+- Dependencies' outputs
+- Environment variables
+- The task's configuration
+
+If the hash matches a previous run, it restores the outputs from cache instead of running the task. First run: 3 minutes. Second run with no changes: 2 seconds.
+
+Remote caching shares the cache across team members and CI:
+
+```bash
+# Authenticate with Vercel's remote cache
+npx turbo login
+npx turbo link
+```
+
+Now when your CI runs, it checks the remote cache. If your colleague already built the same commit, CI skips it entirely.
+
+```json
+// turbo.json — enable remote caching
+{
+  "remoteCache": {
+    "enabled": true
+  }
+}
+```
+
+Self-host with Turborepo's open-source remote cache server if you don't want Vercel's:
+
+```bash
+npx @turborepo/remote-cache
+```
+
+## Filtering
+
+Run tasks for specific apps or packages:
+
+```bash
+# Only build the web app and its dependencies
+turbo build --filter=web
+
+# Build everything that changed since main branch
+turbo build --filter=[main...HEAD]
+
+# Build web, but not its dependencies
+turbo build --filter=web^...
+```
+
+The `--filter` flag is the key to fast local development — you only run what you need.
+
+## Shared configs
+
+```js
+// packages/config-eslint/index.js
+module.exports = {
+  extends: ['next', 'prettier'],
+  rules: {
+    'no-console': 'warn',
+  },
+};
+```
+
+```json
+// apps/web/.eslintrc.json
+{
+  "root": true,
+  "extends": ["@acme/config-eslint"]
+}
+```
+
+```json
+// packages/config-ts/base.json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "skipLibCheck": true
+  }
+}
+```
+
+```json
+// apps/web/tsconfig.json
+{
+  "extends": "@acme/config-ts/nextjs.json",
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+```
+
+## The rule
+
+Turborepo pays off when you have at least two apps sharing code, or when your CI is slow and the same unchanged packages are rebuilding every run. Below that threshold, a single Next.js app is simpler to operate and simpler to understand.

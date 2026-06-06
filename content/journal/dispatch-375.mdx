@@ -1,0 +1,259 @@
+---
+title: "Testing Next.js apps: unit, integration, and end-to-end"
+date: "2028-01-11"
+excerpt: "Three testing layers, each catching different bugs. Vitest for fast unit tests, React Testing Library for component integration, Playwright for end-to-end. Here's the setup and the philosophy for knowing what to test at each layer."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Testing a Next.js app means three distinct layers: unit tests for pure logic, component tests for UI behavior, and end-to-end tests for critical user flows. Each layer has a different cost-to-confidence ratio. The mistake is either testing nothing or testing everything at the wrong layer.
+
+## The testing pyramid for Next.js
+
+```
+        [E2E — Playwright]
+           critical flows
+        [Integration — RTL]
+          component behavior
+     [Unit — Vitest]
+      pure functions, hooks, utils
+```
+
+- **Unit**: fast, cheap, narrow. Test one function with one responsibility.
+- **Integration (component)**: test a component as a user would interact with it.
+- **E2E**: slow, expensive, high-confidence. Cover the paths that matter most.
+
+## Vitest: unit and component tests
+
+Vitest is the fast Vite-based test runner — compatible with Jest's API but significantly faster:
+
+```bash
+npm install -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/user-event
+```
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+  },
+  resolve: {
+    alias: { '@': path.resolve(__dirname, './') },
+  },
+});
+```
+
+```ts
+// src/test/setup.ts
+import '@testing-library/jest-dom';
+```
+
+### Unit tests for pure functions
+
+```ts
+// lib/pricing.test.ts
+import { describe, it, expect } from 'vitest';
+import { calculateTier, applyDiscount, formatPrice } from './pricing';
+
+describe('calculateTier', () => {
+  it('returns starter for usage under 10k', () => {
+    expect(calculateTier(5000)).toBe('starter');
+  });
+
+  it('returns pro at exactly 10k', () => {
+    expect(calculateTier(10000)).toBe('pro');
+  });
+
+  it('returns enterprise over 100k', () => {
+    expect(calculateTier(150000)).toBe('enterprise');
+  });
+});
+
+describe('applyDiscount', () => {
+  it('applies annual discount of 20%', () => {
+    expect(applyDiscount(100, 'annual')).toBe(80);
+  });
+
+  it('applies no discount for monthly', () => {
+    expect(applyDiscount(100, 'monthly')).toBe(100);
+  });
+});
+```
+
+### Component tests with React Testing Library
+
+Test what the user sees and does, not implementation details:
+
+```tsx
+// components/ContactForm.test.tsx
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { ContactForm } from './ContactForm';
+import { vi } from 'vitest';
+
+describe('ContactForm', () => {
+  it('shows validation errors on empty submit', async () => {
+    const user = userEvent.setup();
+    render(<ContactForm onSubmit={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /send/i }));
+
+    expect(screen.getByText(/name is required/i)).toBeInTheDocument();
+    expect(screen.getByText(/email is required/i)).toBeInTheDocument();
+  });
+
+  it('calls onSubmit with form data when valid', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<ContactForm onSubmit={onSubmit} />);
+
+    await user.type(screen.getByLabelText(/your name/i), 'Alice Smith');
+    await user.type(screen.getByLabelText(/email/i), 'alice@example.com');
+    await user.type(screen.getByLabelText(/message/i), 'Hello, I have a question about working together.');
+
+    await user.click(screen.getByRole('button', { name: /send/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        name: 'Alice Smith',
+        email: 'alice@example.com',
+        message: 'Hello, I have a question about working together.',
+      });
+    });
+  });
+
+  it('shows success state after submit', async () => {
+    const user = userEvent.setup();
+    render(<ContactForm onSubmit={vi.fn().mockResolvedValue(undefined)} />);
+
+    // fill and submit...
+    // then:
+    expect(screen.getByText(/message sent/i)).toBeInTheDocument();
+  });
+});
+```
+
+The rule: query by role, label, or text — not by CSS class or data-testid. If you can't query it the way a user would find it, the component may have an accessibility problem.
+
+## Playwright: end-to-end tests
+
+```bash
+npm install -D @playwright/test
+npx playwright install
+```
+
+```ts
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  retries: process.env.CI ? 2 : 0,
+  use: {
+    baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile', use: { ...devices['iPhone 14'] } },
+  ],
+  webServer: {
+    command: 'npm run build && npm start',
+    port: 3000,
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+```ts
+// e2e/contact.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('contact form', () => {
+  test('submits successfully', async ({ page }) => {
+    await page.goto('/contact');
+
+    await page.getByLabel('Your name').fill('Alice Smith');
+    await page.getByLabel('Email address').fill('alice@example.com');
+    await page.getByLabel('Message').fill('I am interested in working together on a project.');
+
+    await page.getByRole('button', { name: /send message/i }).click();
+
+    await expect(page.getByText('Message sent.')).toBeVisible();
+  });
+
+  test('shows error state on API failure', async ({ page }) => {
+    // Intercept the API call and return an error
+    await page.route('/api/contact', (route) => route.fulfill({ status: 500 }));
+
+    await page.goto('/contact');
+    await page.getByLabel('Your name').fill('Alice');
+    await page.getByLabel('Email address').fill('alice@example.com');
+    await page.getByLabel('Message').fill('Test message that is long enough to pass validation.');
+    await page.getByRole('button', { name: /send message/i }).click();
+
+    await expect(page.getByText(/something went wrong/i)).toBeVisible();
+  });
+});
+```
+
+## Testing Server Actions and Route Handlers
+
+Server Actions and Route Handlers are just functions — test them directly:
+
+```ts
+// app/api/contact/route.test.ts
+import { POST } from './route';
+import { vi } from 'vitest';
+
+vi.mock('@/lib/email', () => ({
+  sendEmail: vi.fn().mockResolvedValue({ id: 'email-123' }),
+}));
+
+describe('POST /api/contact', () => {
+  it('returns 200 with valid data', async () => {
+    const req = new Request('http://localhost/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Alice',
+        email: 'alice@example.com',
+        message: 'Test message that is long enough',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 400 with missing fields', async () => {
+    const req = new Request('http://localhost/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice' }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+});
+```
+
+## What to test at each layer
+
+**Unit**: pure functions, business logic, utilities, custom hooks that don't interact with the DOM.
+
+**Component**: form behavior, conditional rendering, user interactions, error states. Mock API calls; don't test network behavior here.
+
+**E2E**: the paths that would break the business if broken — sign up, sign in, checkout, the core product loop. Keep this suite small. 20 E2E tests that cover the critical paths beats 200 tests that duplicate component test coverage.
+
+The number to optimize is E2E count, not total test count. A slow, brittle E2E suite is worse than no suite.
