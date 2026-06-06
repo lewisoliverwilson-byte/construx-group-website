@@ -1,0 +1,110 @@
+---
+title: "LLM prompting patterns we use in production"
+date: "2026-08-31"
+excerpt: "Across three AI products, we've converged on a small set of prompting patterns that reliably produce high-quality outputs. Here are the patterns and the reasoning behind them."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+Prompting language models is not magic. It's a craft with learnable patterns, common failure modes, and techniques that reliably improve output quality. After 18 months of building AI products on Claude, here are the patterns we use in production.
+
+## Pattern 1: Role assignment with context depth
+
+Assigning a specific role to the model produces more consistent, domain-appropriate outputs than an open-ended prompt.
+
+Weak: "Analyse this product and calculate the profit margin."
+
+Better: "You are an expert Amazon FBA fee analyst. Your job is to calculate the net profit margin for a product being sold by a retail arbitrage reseller. You understand all Amazon referral fee categories, FBA fulfilment fee tiers, and the eBay final value fee structure."
+
+The role assignment does three things: it sets the model's domain expertise frame, it establishes the perspective from which to evaluate the input, and it primes the model with vocabulary relevant to the domain.
+
+## Pattern 2: Few-shot examples for structured output
+
+When you need output in a specific format, examples are more reliable than format instructions alone.
+
+Weak: "Return the product analysis as JSON with fields: category, fees, margin."
+
+Better: Provide one or two examples of the expected input/output pair:
+```
+Input: {title: "Bosch Cordless Drill GSR 12V", category: "Tools & Home Improvement", price: £89.99}
+Output: {
+  "category": "Tools & Home Improvement",
+  "referral_fee_pct": 0.15,
+  "referral_fee_amount": 13.50,
+  "fba_fee": 4.20,
+  "total_fees": 17.70,
+  "margin_at_30_markup": 0.14
+}
+```
+
+Few-shot examples reduce format errors significantly. The model has seen what you want rather than read instructions about it.
+
+## Pattern 3: Chain of thought for reasoning tasks
+
+For tasks that require reasoning (not just retrieval or classification), prompting the model to show its work produces better outputs.
+
+Weak: "Is this product profitable to resell on Amazon?"
+
+Better: "Think through the profitability calculation step by step. First, identify the product category. Then, look up the referral fee for that category. Then, estimate the FBA fulfilment fee based on the product dimensions and weight. Then, add any other relevant fees. Finally, calculate the net margin at the proposed resale price. Show each step."
+
+Chain of thought ("show your work") is especially valuable for numerical calculations, multi-step logic, and decisions that depend on multiple conditions. The intermediate steps also make errors easier to identify and correct.
+
+## Pattern 4: Explicit constraint specification
+
+Specify what the model should NOT do as explicitly as what it should do.
+
+Weak: "Write a product listing description."
+
+Better: "Write a product listing description for this Scoutr scan result. Do NOT include: specific price predictions, guarantees of profitability, legal disclaimers, or marketing language unrelated to the product's actual characteristics. ONLY include: product name, category, key features, and estimated resale fee structure."
+
+Negative constraints prevent a specific class of hallucination where the model fills gaps in the specification with plausible-sounding but incorrect content.
+
+## Pattern 5: Structured output with explicit schema
+
+When integrating LLM output into application code, provide an explicit JSON schema and instruct the model to conform to it.
+
+```typescript
+const schema = `{
+  "title": "string (product name)",
+  "category": "string (Amazon category)",
+  "referral_fee_pct": "number (0 to 1)",
+  "fba_fee_estimate": "number (in GBP)",
+  "confidence": "LOW | MEDIUM | HIGH"
+}`;
+
+const prompt = `Analyse the following product. Return ONLY valid JSON conforming to this schema: ${schema}`;
+```
+
+Combined with `JSON.parse()` and type validation (we use Zod), this produces reliably parseable output. The `confidence` field is a useful addition — it makes the model communicate its uncertainty explicitly, which you can use to decide whether to show the result or request human review.
+
+## Pattern 6: Grounding with retrieved context
+
+For retrieval-augmented generation (The Hyve's AI agent context pipeline), the prompt structure matters as much as the retrieved content.
+
+Effective structure:
+```
+You are an AI team member for [workspace name]. Your role is to help the team with [domain].
+
+RELEVANT CONTEXT FROM PROJECT HISTORY:
+{retrieved_segments}
+
+RECENT CONVERSATION:
+{recent_messages}
+
+CURRENT MESSAGE:
+{new_message}
+
+Respond based on the context above. If the context doesn't contain relevant information, say so rather than guessing.
+```
+
+The "rather than guessing" instruction is important. Without it, models fill context gaps with plausible-sounding fabrications. With it, they're more likely to acknowledge uncertainty, which is more useful for a team AI than confident hallucination.
+
+## Common failure modes
+
+**Too long system prompts.** A 2000-word system prompt is worse than a 300-word one. The model's attention is diluted across a large prompt; specific instructions get less weight. Be ruthless about removing instructions that aren't load-bearing.
+
+**Contradictory instructions.** Prompts that include conflicting instructions (e.g., "be brief" and "be comprehensive") produce inconsistent outputs. Audit your prompts for contradictions.
+
+**No output format specification.** If you don't specify a format, you'll get different formats on different calls. Always specify format explicitly, especially for production use where the output feeds application code.
+
+**Testing on easy examples.** A prompt that works for a simple test case may fail on complex real-world inputs. Test on the hardest examples you can construct, not the ones most likely to succeed.
