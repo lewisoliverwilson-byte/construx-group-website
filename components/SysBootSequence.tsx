@@ -81,9 +81,9 @@ export default function SysBootSequence() {
           className="flex items-center gap-2 px-4 py-2.5"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
         >
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: 'rgba(255,95,87,0.8)' }} />
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: 'rgba(255,189,46,0.8)' }} />
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: 'rgba(40,200,64,0.8)' }} />
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#FF5F57' }} />
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#FFBD2E' }} />
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#28C840' }} />
           <span className="flex-1 text-center font-mono text-[9px] uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.2)' }}>
             construx — runtime boot — bash
           </span>

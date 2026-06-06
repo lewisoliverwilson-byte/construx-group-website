@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://construxgroup.io/now' },
 };
 
-const LAST_UPDATED = 'January 2027';
+const LAST_UPDATED = 'March 2027';
 
 const nowItems = [
   {
@@ -50,8 +50,8 @@ const nowItems = [
     category: 'JOURNAL',
     items: [
       {
-        title: '260 dispatches and continuing',
-        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover Zod schema design, React Server Components, optimistic UI patterns, Scoutr caching strategy, Hyve real-time channels, Drizzle migrations, and The Marqet seller onboarding. The journal compounds.',
+        title: '270 dispatches and continuing',
+        body: 'Writing consistently about what we build and why — build logs, methodology posts, product thinking, and strategy. Recent entries cover webhook ingestion, background job patterns, multi-tenancy with Row Level Security, connection pooling, environment variable structure, pagination strategies, and AI-powered semantic search. The journal compounds.',
         status: 'ONGOING',
       },
     ],
