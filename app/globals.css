@@ -420,6 +420,13 @@
 }
 .status-blink { animation: statusBlink 2.4s ease-in-out infinite; }
 
+/* TOC live indicator */
+@keyframes glowPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px 1px rgba(74,222,128,0.4); }
+  50% { opacity: 0.5; box-shadow: 0 0 2px 0px rgba(74,222,128,0.1); }
+}
+.animate-glow-pulse { animation: glowPulse 2.8s ease-in-out infinite; }
+
 /* Boot sequence line appear */
 @keyframes bootLine {
   from { opacity: 0; transform: translateX(-4px); }
