@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react';
 import ManifestoNav from '@/components/manifesto/ManifestoNav';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import SystemdStatusPanel from '@/components/SystemdStatusPanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -215,6 +216,11 @@ export default function ManifestoPage() {
         {/* Systemd service status */}
         <div className="mt-4">
           <SystemdStatusPanel />
+        </div>
+
+        {/* Git commit history */}
+        <div className="mt-4">
+          <GitGraphPanel />
         </div>
 
         {/* Sign-off */}

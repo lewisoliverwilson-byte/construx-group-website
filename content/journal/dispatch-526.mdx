@@ -1,0 +1,180 @@
+---
+title: "E2E testing with Playwright: the right level of test coverage"
+date: "2029-04-09"
+excerpt: "Playwright tests the real browser behaviour — navigation, form submission, auth flows, and UI interactions — against a running application. The right coverage is narrow: critical paths only, not exhaustive. Here's the setup and the patterns."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Playwright spins up a real browser (Chromium, Firefox, or WebKit) and runs tests against your running application. Unlike unit tests that mock everything, Playwright tests what the user actually sees. The cost is speed — browser tests are slower. The payoff is confidence that the critical paths actually work end-to-end.
+
+## Setup
+
+```bash
+npm init playwright@latest
+```
+
+This creates `playwright.config.ts`, a `tests/` directory, and installs browser binaries.
+
+```ts
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir:      './tests/e2e',
+  fullyParallel: true,
+  retries:       process.env.CI ? 2 : 0,
+  workers:       process.env.CI ? 1 : undefined,
+
+  use: {
+    baseURL:   'http://localhost:3000',
+    trace:     'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'Mobile Safari', use: { ...devices['iPhone 14'] } },
+  ],
+
+  // Start the dev server before tests
+  webServer: {
+    command:  'npm run dev',
+    url:      'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+## Testing a critical path: sign-up and onboarding
+
+```ts
+// tests/e2e/auth.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Authentication', () => {
+  test('new user can sign up and reach dashboard', async ({ page }) => {
+    await page.goto('/sign-up');
+
+    await page.getByLabel('Email').fill('test@example.com');
+    await page.getByLabel('Password').fill('securepassword123');
+    await page.getByRole('button', { name: 'Create account' }).click();
+
+    // Wait for redirect to dashboard
+    await expect(page).toHaveURL('/dashboard');
+    await expect(page.getByText('Welcome')).toBeVisible();
+  });
+
+  test('wrong password shows error', async ({ page }) => {
+    await page.goto('/sign-in');
+
+    await page.getByLabel('Email').fill('user@example.com');
+    await page.getByLabel('Password').fill('wrongpassword');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page.getByText('Invalid credentials')).toBeVisible();
+    await expect(page).toHaveURL('/sign-in');
+  });
+});
+```
+
+## Testing forms and mutations
+
+```ts
+test('contact form submits and shows confirmation', async ({ page }) => {
+  await page.goto('/contact');
+
+  await page.getByLabel('Name').fill('Lewis Wilson');
+  await page.getByLabel('Email').fill('lewis@construxgroup.io');
+  await page.getByLabel('Message').fill('Test message');
+  await page.getByRole('button', { name: 'Send message' }).click();
+
+  await expect(page.getByText('Message sent')).toBeVisible({ timeout: 10000 });
+});
+```
+
+## Page object model
+
+For complex flows, extract the interactions into page objects:
+
+```ts
+// tests/e2e/pages/DashboardPage.ts
+import { Page, Locator } from '@playwright/test';
+
+export class DashboardPage {
+  readonly heading:      Locator;
+  readonly newProjectBtn: Locator;
+
+  constructor(private page: Page) {
+    this.heading       = page.getByRole('heading', { name: 'Dashboard' });
+    this.newProjectBtn = page.getByRole('button', { name: 'New project' });
+  }
+
+  async goto() {
+    await this.page.goto('/dashboard');
+  }
+
+  async createProject(name: string) {
+    await this.newProjectBtn.click();
+    await this.page.getByLabel('Project name').fill(name);
+    await this.page.getByRole('button', { name: 'Create' }).click();
+  }
+}
+
+// Usage in test
+test('user can create a project', async ({ page }) => {
+  const dashboard = new DashboardPage(page);
+  await dashboard.goto();
+  await dashboard.createProject('My project');
+
+  await expect(page.getByText('My project')).toBeVisible();
+});
+```
+
+## Authenticated test fixture
+
+Avoid re-signing-in for every test with a saved auth state:
+
+```ts
+// tests/e2e/fixtures.ts
+import { test as base, expect } from '@playwright/test';
+
+export const test = base.extend({
+  authenticatedPage: async ({ browser }, use) => {
+    const context = await browser.newContext({
+      storageState: 'tests/e2e/.auth/user.json',  // Saved session
+    });
+    const page = await context.newPage();
+    await use(page);
+    await context.close();
+  },
+});
+```
+
+```bash
+# Run once to save auth state
+npx playwright test tests/e2e/setup/auth.setup.ts
+```
+
+## Running in CI
+
+```yaml
+# .github/workflows/e2e.yml
+- name: Install Playwright
+  run: npx playwright install --with-deps chromium
+
+- name: Run E2E tests
+  run: npx playwright test
+  env:
+    BASE_URL: ${{ vars.STAGING_URL }}
+
+- uses: actions/upload-artifact@v4
+  if: failure()
+  with:
+    name: playwright-report
+    path: playwright-report/
+```
+
+## What to cover
+
+Critical paths only: sign-up, sign-in, the core action the product exists to do (a search, a purchase, posting content), and payment flows. Don't write E2E tests for everything — they're slow and brittle on implementation details. Unit tests cover logic. E2E tests cover journeys.
