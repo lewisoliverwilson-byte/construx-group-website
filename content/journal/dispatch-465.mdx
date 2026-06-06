@@ -1,0 +1,173 @@
+---
+title: "Drizzle migrations: schema changes in production without downtime"
+date: "2028-10-08"
+excerpt: "Database migrations are where things go wrong. Drizzle generates SQL from your schema diff, but the generated SQL isn't always safe to run on a live table. Here's the discipline: how to review migrations, make them backwards-compatible, and execute them without downtime."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Drizzle generates migrations by diffing your current schema against your previous schema. The generated SQL is correct but not always safe to run on a production database with live traffic. A migration that adds a NOT NULL column without a default, or drops a column still referenced by app code, will cause downtime.
+
+## The migration workflow
+
+```bash
+# 1. Generate migration SQL from schema changes
+npx drizzle-kit generate
+
+# 2. Review the generated SQL before applying (ALWAYS)
+cat drizzle/0042_add_user_scan_limit.sql
+
+# 3. Apply in development
+npx drizzle-kit migrate
+
+# 4. Apply in production (via CI/CD, with review)
+node scripts/migrate.js
+```
+
+## Reviewing generated migrations
+
+```sql
+-- Example: Drizzle generated this — is it safe?
+ALTER TABLE "users" ADD COLUMN "scan_limit" integer NOT NULL DEFAULT 100;
+```
+
+This is safe. The `DEFAULT 100` means Postgres fills existing rows before the constraint is enforced.
+
+```sql
+-- This is NOT safe for a large live table
+ALTER TABLE "users" ADD COLUMN "scan_limit" integer NOT NULL;
+-- Error: existing rows violate NOT NULL constraint
+```
+
+Always check: if a new column is NOT NULL, it must have a DEFAULT.
+
+## Safe patterns for common changes
+
+### Adding a column (safe)
+```sql
+-- Add with a default first
+ALTER TABLE users ADD COLUMN scan_limit integer NOT NULL DEFAULT 100;
+
+-- If you don't want a permanent default, remove it after
+-- (Postgres stores the default in the schema, not per-row, so this is fast)
+ALTER TABLE users ALTER COLUMN scan_limit DROP DEFAULT;
+```
+
+### Renaming a column (requires multiple deployments)
+```sql
+-- ❌ NOT SAFE: app code still uses the old column name
+ALTER TABLE users RENAME COLUMN "name" TO "full_name";
+
+-- ✓ SAFE APPROACH:
+-- Deploy 1: Add new column alongside old
+ALTER TABLE users ADD COLUMN "full_name" text;
+UPDATE users SET full_name = name WHERE full_name IS NULL;
+-- Deploy 2: Update app to write to both columns
+-- Deploy 3: Update app to read from new column
+-- Deploy 4: Drop old column
+ALTER TABLE users DROP COLUMN "name";
+```
+
+### Removing a column
+```sql
+-- ❌ NOT SAFE: app code still references the column
+ALTER TABLE users DROP COLUMN "legacy_field";
+
+-- ✓ SAFE APPROACH:
+-- Deploy 1: Remove all references to the column from app code
+-- Deploy 2: Drop the column
+ALTER TABLE users DROP COLUMN "legacy_field";
+```
+
+### Changing a column type
+```sql
+-- ❌ NOT SAFE on large tables: locks the table during type cast
+ALTER TABLE posts ALTER COLUMN "view_count" TYPE bigint;
+
+-- ✓ SAFE APPROACH for large tables:
+-- Add new column, backfill, switch, drop old
+ALTER TABLE posts ADD COLUMN "view_count_new" bigint;
+UPDATE posts SET view_count_new = view_count;
+ALTER TABLE posts RENAME COLUMN "view_count" TO "view_count_old";
+ALTER TABLE posts RENAME COLUMN "view_count_new" TO "view_count";
+-- (after verification)
+ALTER TABLE posts DROP COLUMN "view_count_old";
+```
+
+## Migration script
+
+```ts
+// scripts/migrate.ts
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import postgres from 'postgres';
+
+const connectionString = process.env.DATABASE_URL!;
+
+async function runMigrations() {
+  const client = postgres(connectionString, { max: 1 });
+  const db = drizzle(client);
+
+  console.log('[migrate] running migrations...');
+
+  try {
+    await migrate(db, { migrationsFolder: './drizzle' });
+    console.log('[migrate] ✓ all migrations applied');
+  } catch (error) {
+    console.error('[migrate] ✗ migration failed:', error);
+    process.exit(1);
+  } finally {
+    await client.end();
+  }
+}
+
+runMigrations();
+```
+
+## Adding indexes safely
+
+Adding an index locks the table by default. On a large table, this causes downtime.
+
+```sql
+-- ❌ NOT SAFE: locks the table
+CREATE INDEX posts_search_idx ON posts USING GIN(search_vector);
+
+-- ✓ SAFE: builds the index without locking
+CREATE INDEX CONCURRENTLY posts_search_idx ON posts USING GIN(search_vector);
+```
+
+Drizzle's migration generator doesn't add `CONCURRENTLY` by default. Check and add it manually to any `CREATE INDEX` on a table with significant data.
+
+## Zero-downtime deployment checklist
+
+Before applying a migration to production:
+
+1. **Is the migration backwards-compatible?**
+   App code (old and new version) should work with both the old and new schema. During deployment, both versions run simultaneously.
+
+2. **Does it lock the table?**
+   Check for: `ALTER TABLE` on large tables, `CREATE INDEX` without `CONCURRENTLY`, `DROP COLUMN`
+
+3. **Is there a fallback?**
+   Can you revert the migration if the deployment fails? NOT NULL constraints and dropped columns are hard to revert.
+
+4. **Is it idempotent?**
+   Drizzle migrations are tracked in `drizzle/__drizzle_migrations`, so they won't re-run. But if you run a migration manually, ensure it can be re-applied safely.
+
+## Using Drizzle schema for validation
+
+The Drizzle schema is your source of truth. Keep the TypeScript schema in sync with the actual database:
+
+```ts
+// After schema changes, type-check to catch mismatches
+import { users } from './db/schema';
+
+// If you add a new required column, TypeScript will error at insertion sites
+// that don't provide it — catching the gap between schema and app code
+const newUser = await db.insert(users).values({
+  email: 'test@example.com',
+  // TypeScript error if 'scan_limit' is now required but not provided
+});
+```
+
+The schema-as-code approach means TypeScript catches many migration mistakes before they reach production. The ones it doesn't catch are the backwards-compatibility issues — those require code review.

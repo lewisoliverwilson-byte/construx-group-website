@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import RecentCommitsPanel from '@/components/RecentCommitsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -294,7 +295,12 @@ export default function NowPage() {
           </div>
         </div>
 
-        <div className="mt-10 pt-8 border-t border-border">
+        {/* Recent commits across all repos */}
+        <div className="mt-10">
+          <RecentCommitsPanel />
+        </div>
+
+        <div className="mt-6 pt-8 border-t border-border">
           <p className="font-mono text-[10px] text-text-dim uppercase tracking-widest">
             Want to know more?{' '}
             <Link href="/journal" className="text-construx hover:text-orange-400 transition-colors">
