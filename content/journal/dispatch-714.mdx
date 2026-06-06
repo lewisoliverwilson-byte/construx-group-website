@@ -1,0 +1,164 @@
+---
+title: "SWR: stale-while-revalidate data fetching for React"
+date: "2030-10-25"
+excerpt: "SWR is a React data-fetching library from Vercel. It returns cached (stale) data immediately, then revalidates in the background and updates the UI when fresh data arrives. This means your app feels fast — it shows something instantly — while always eventually showing fresh data. It deduplices requests, handles focus revalidation, polling, optimistic mutations, and infinite scroll with minimal setup."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The stale-while-revalidate pattern is simple: show what you have, fetch what's fresh, update the UI. SWR encodes this pattern into a hook you call with a key and a fetcher.
+
+## Install
+
+```bash
+npm install swr
+```
+
+## Basic usage
+
+```tsx
+'use client';
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+function PostList() {
+  const { data: posts, error, isLoading } = useSWR<Post[]>('/api/posts', fetcher);
+
+  if (isLoading) return <Skeleton />;
+  if (error)     return <p>Failed to load</p>;
+
+  return (
+    <ul>
+      {posts?.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+First render: returns `{ data: undefined, isLoading: true }`. If the key was fetched before in the same session, returns `{ data: cachedValue, isLoading: false }` immediately, then revalidates silently.
+
+## Global configuration
+
+```tsx
+// app/providers.tsx
+import { SWRConfig } from 'swr';
+
+const globalFetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+};
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <SWRConfig
+      value={{
+        fetcher:            globalFetcher,
+        revalidateOnFocus:  true,   // refresh when user switches tabs
+        revalidateOnMount:  true,
+        dedupingInterval:   2000,   // dedupe same-key requests within 2s
+        errorRetryCount:    3,
+        errorRetryInterval: 5000,
+      }}
+    >
+      {children}
+    </SWRConfig>
+  );
+}
+```
+
+## Mutations and optimistic updates
+
+```tsx
+'use client';
+import useSWR, { useSWRConfig } from 'swr';
+
+function LikeButton({ postId }: { postId: string }) {
+  const { mutate } = useSWRConfig();
+  const { data: post } = useSWR<Post>(`/api/posts/${postId}`);
+
+  const handleLike = async () => {
+    // Optimistic update — update cache immediately
+    mutate(
+      `/api/posts/${postId}`,
+      { ...post!, likeCount: post!.likeCount + 1 },
+      { revalidate: false },
+    );
+
+    try {
+      await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    } catch {
+      // Roll back on error
+      mutate(`/api/posts/${postId}`);
+    }
+  };
+
+  return <button onClick={handleLike}>♥ {post?.likeCount}</button>;
+}
+```
+
+## Conditional fetching
+
+```tsx
+// Only fetch when userId is available
+const { data: user } = useSWR(userId ? `/api/users/${userId}` : null, fetcher);
+
+// Only fetch when the user is an admin
+const { data: adminData } = useSWR(
+  user?.role === 'admin' ? '/api/admin/stats' : null,
+  fetcher,
+);
+```
+
+## Polling
+
+```tsx
+// Poll every 5 seconds for live metrics
+const { data: metrics } = useSWR('/api/metrics', fetcher, {
+  refreshInterval: 5000,
+});
+
+// Poll while the page is visible, stop when hidden
+const { data } = useSWR('/api/status', fetcher, {
+  refreshInterval:       3000,
+  refreshWhenHidden:     false,
+  refreshWhenOffline:    false,
+});
+```
+
+## Infinite scroll (useSWRInfinite)
+
+```tsx
+import useSWRInfinite from 'swr/infinite';
+
+function InfinitePostList() {
+  const { data, size, setSize, isValidating } = useSWRInfinite(
+    (pageIndex, previousPage) => {
+      if (previousPage && !previousPage.length) return null;  // end
+      return `/api/posts?page=${pageIndex + 1}&limit=20`;
+    },
+    fetcher,
+  );
+
+  const posts = data?.flat() ?? [];
+
+  return (
+    <div>
+      {posts.map((post) => <PostCard key={post.id} post={post} />)}
+      <button
+        onClick={() => setSize(size + 1)}
+        disabled={isValidating}
+      >
+        {isValidating ? 'Loading…' : 'Load more'}
+      </button>
+    </div>
+  );
+}
+```
+
+## SWR vs TanStack Query
+
+SWR: simpler API, smaller bundle, Vercel-maintained, good for most cases. TanStack Query: more features (mutations with server state sync, query invalidation, background refetch strategies, prefetching), more complex setup. Prefer SWR for straightforward data fetching without mutations. Prefer TanStack Query when you need tight mutation/cache integration or are already using it via tRPC.

@@ -1,0 +1,173 @@
+---
+title: "AWS S3 presigned URLs: secure direct uploads without proxying"
+date: "2030-10-28"
+excerpt: "Presigned URLs let clients upload files directly to S3 without passing them through your server. Your server generates a short-lived signed URL, the client uploads directly to S3 using that URL, and S3 enforces the size limit, content type, and expiry. No file ever touches your server memory. This is how large file uploads should work — it scales to any file size without increasing your server resources."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Uploading files through your API server is fine for small files and low volume. For user-generated content (images, documents, videos), you want direct browser→S3 uploads. The server only generates the credential.
+
+## Install
+
+```bash
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+## Generate a presigned upload URL (server)
+
+```ts
+// app/api/upload/route.ts
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl }               from '@aws-sdk/s3-request-presigner';
+import { randomUUID }                  from 'crypto';
+import { z }                           from 'zod';
+
+const s3 = new S3Client({
+  region:      process.env.AWS_REGION!,
+  credentials: {
+    accessKeyId:     process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+const UploadSchema = z.object({
+  filename:    z.string().max(200),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+  size:        z.number().max(10 * 1024 * 1024),  // 10 MB max
+});
+
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session) return new Response('Unauthorized', { status: 401 });
+
+  const body   = await req.json();
+  const parsed = UploadSchema.safeParse(body);
+  if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+
+  const { filename, contentType, size } = parsed.data;
+  const key    = `uploads/${session.user.id}/${randomUUID()}/${filename}`;
+
+  const command = new PutObjectCommand({
+    Bucket:        process.env.S3_BUCKET!,
+    Key:           key,
+    ContentType:   contentType,
+    ContentLength: size,
+    Metadata:      { userId: session.user.id, originalName: filename },
+  });
+
+  const url = await getSignedUrl(s3, command, { expiresIn: 300 });  // 5 minutes
+
+  return Response.json({ url, key });
+}
+```
+
+## Upload from the client
+
+```tsx
+'use client';
+import { useState } from 'react';
+
+export function FileUploader({ onComplete }: { onComplete: (key: string) => void }) {
+  const [status, setStatus] = useState('');
+  const [progress, setProgress] = useState(0);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setStatus('Getting upload URL…');
+
+    // 1. Get presigned URL from your server
+    const res = await fetch('/api/upload', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        filename:    file.name,
+        contentType: file.type,
+        size:        file.size,
+      }),
+    });
+
+    const { url, key } = await res.json();
+    setStatus('Uploading…');
+
+    // 2. Upload directly to S3 using the presigned URL
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      xhr.open('PUT', url);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.onload   = () => xhr.status === 200 ? resolve() : reject(new Error(`S3 ${xhr.status}`));
+      xhr.onerror  = () => reject(new Error('Upload failed'));
+      xhr.send(file);
+    });
+
+    setStatus('Done');
+    onComplete(key);
+  };
+
+  return (
+    <div>
+      <input type="file" accept="image/*,application/pdf" onChange={handleFile} />
+      {status && <p>{status} {progress > 0 && progress < 100 ? `${progress}%` : ''}</p>}
+    </div>
+  );
+}
+```
+
+## S3 bucket CORS configuration
+
+```json
+[
+  {
+    "AllowedHeaders": ["Content-Type", "Content-Length"],
+    "AllowedMethods": ["PUT"],
+    "AllowedOrigins": ["https://construxgroup.io"],
+    "ExposeHeaders":  ["ETag"],
+    "MaxAgeSeconds":  3600
+  }
+]
+```
+
+## Post-upload: store the key
+
+```ts
+// After the upload completes, store the S3 key in your database
+await db.userFiles.create({
+  data: {
+    userId:      session.user.id,
+    s3Key:       key,
+    filename:    file.name,
+    contentType: file.type,
+    size:        file.size,
+    uploadedAt:  new Date(),
+  },
+});
+
+// Generate a readable URL for the stored file
+const fileUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+// Or via CloudFront: `https://cdn.construxgroup.io/${key}`
+```
+
+## Cloudflare R2 (S3-compatible)
+
+```ts
+// R2 uses the same SDK — just change the endpoint
+const r2 = new S3Client({
+  region:      'auto',
+  endpoint:    `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+// Same getSignedUrl call works unchanged
+```
+
+## S3 vs Cloudflare R2 vs Uploadthing
+
+S3: standard, all ecosystem tools support it, egress fees. R2: S3-compatible, zero egress fees, Cloudflare CDN native. Uploadthing: managed upload service, hooks for Next.js, no S3 config needed, more expensive at scale. Use R2 if you are on Cloudflare and egress cost is a concern. Use S3 when you need the broadest ecosystem compatibility. Use Uploadthing for a fast-moving project where you do not want to configure S3 policies.

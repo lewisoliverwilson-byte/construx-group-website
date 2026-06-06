@@ -11,6 +11,7 @@ import WhoPanel from '@/components/WhoPanel';
 import TimezoneClockPanel from '@/components/TimezoneClockPanel';
 import PsAuxPanel from '@/components/PsAuxPanel';
 import UfwStatusPanel from '@/components/UfwStatusPanel';
+import SystemdTimersPanel from '@/components/SystemdTimersPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -350,8 +351,13 @@ export default function NowPage() {
         </div>
 
         {/* Firewall rules */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <UfwStatusPanel />
+        </div>
+
+        {/* Scheduled timers */}
+        <div className="mt-6 pb-10">
+          <SystemdTimersPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
