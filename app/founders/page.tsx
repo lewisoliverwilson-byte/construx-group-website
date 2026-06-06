@@ -104,11 +104,29 @@ export default function FoundersPage() {
                 borderRadius: '3px',
               }}
             >
-              {/* Top gradient line */}
+              {/* Terminal title bar */}
               <div
-                className="h-px w-full"
-                style={{ background: `linear-gradient(90deg, transparent, ${f.accent}, transparent)` }}
-              />
+                className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0 select-none"
+                style={{ borderBottom: `1px solid ${f.accent}18`, background: `${f.accent}06` }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+                </div>
+                <span
+                  className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center truncate"
+                  style={{ color: `${f.accent}60` }}
+                >
+                  construx.{f.handle.toLowerCase()} — {f.role.toLowerCase()}
+                </span>
+                <span
+                  className="font-mono text-[8px] uppercase tracking-widest"
+                  style={{ color: 'rgba(74,222,128,0.5)' }}
+                >
+                  ● ONLINE
+                </span>
+              </div>
 
               <div className="p-8">
                 {/* ID panel */}

@@ -258,20 +258,46 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stat strip */}
-      <section className="border-y border-border py-10 px-5" aria-label="Key facts" style={{ background: 'rgba(3,3,14,0.6)' }}>
-        <div className="mx-auto max-w-5xl grid grid-cols-2 md:grid-cols-4 gap-8">
-          {[
-            { node: <CountUp to={3} pad={3} />, label: 'Live ventures' },
-            { node: <CountUp to={167} suffix="+" />, label: 'Marketplace listings' },
-            { node: <>{'<5s'}</>, label: 'Avg. scan time' },
-            { node: <CountUp to={2} pad={3} />, label: 'Founders' },
-          ].map(({ node, label }) => (
-            <div key={label} className="text-center">
-              <p className="font-mono text-heading-xl font-bold text-gradient-orange mb-1">{node}</p>
-              <p className="font-mono text-[10px] text-text-dim uppercase tracking-[0.2em]">{label}</p>
+      {/* Stat strip — HUD terminal panel */}
+      <section className="px-5 py-8" aria-label="Key facts" style={{ background: 'rgba(3,3,14,0.6)', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="mx-auto max-w-5xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}>
+          {/* Terminal header */}
+          <div
+            className="flex items-center gap-3 px-4 py-2 select-none"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,8,0.5)' }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
             </div>
-          ))}
+            <span className="font-mono text-[8px] uppercase tracking-[0.22em] text-text-dim/40 flex-1">
+              construx.metrics — portfolio.overview
+            </span>
+            <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.45)' }}>
+              ● LIVE
+            </span>
+          </div>
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4">
+            {[
+              { node: <CountUp to={3} pad={3} />, label: 'Live ventures', key: 'ventures' },
+              { node: <CountUp to={167} suffix="+" />, label: 'Marketplace listings', key: 'listings' },
+              { node: <span>&lt;5s</span>, label: 'Avg. scan time', key: 'scan' },
+              { node: <CountUp to={2} pad={3} />, label: 'Founders', key: 'founders' },
+            ].map(({ node, label, key }, i) => (
+              <div
+                key={key}
+                className="text-center py-8 px-4"
+                style={{
+                  borderRight: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                }}
+              >
+                <p className="font-mono text-heading-xl font-bold text-gradient-orange mb-1">{node}</p>
+                <p className="font-mono text-[10px] text-text-dim uppercase tracking-[0.2em]">{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -296,28 +322,43 @@ export default function HomePage() {
           {/* Featured latest dispatch */}
           <Link
             href={`/journal/${recentPosts[0].slug}`}
-            className="group relative block px-6 py-7 mb-1 transition-all hover:bg-subtle border border-construx/15 hover:border-construx/30"
+            className="group relative block mb-1 overflow-hidden transition-all border border-construx/15 hover:border-construx/30"
             style={{ borderRadius: '3px', background: 'rgba(249,115,22,0.04)' }}
           >
-            <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(249,115,22,0.35), transparent)' }} />
-            <div className="flex items-center gap-3 mb-3">
-              <span className="font-mono text-[9px] text-construx/50 tracking-widest uppercase">LATEST DISPATCH</span>
-              <span
-                className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
-                style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
-              >
-                {recentPosts[0].tag}
+            {/* Terminal title bar */}
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 select-none"
+              style={{ borderBottom: '1px solid rgba(249,115,22,0.12)', background: 'rgba(249,115,22,0.03)' }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-construx/50 flex-1">
+                journal.latest — {recentPosts[0].tag.toLowerCase()}
               </span>
-              <span className="font-mono text-[10px] text-text-dim">{recentPosts[0].readingTime} min read</span>
+              <span className="font-mono text-[9px] text-text-dim">{recentPosts[0].readingTime} min</span>
             </div>
-            <h3 className="text-base font-bold text-text-base group-hover:text-white transition-colors mb-2 leading-snug">
-              {recentPosts[0].title}
-            </h3>
-            <p className="text-sm text-text-muted leading-relaxed line-clamp-2 mb-3">
-              {recentPosts[0].excerpt}
-            </p>
-            <div className="flex items-center gap-2 font-mono text-[10px] text-construx group-hover:text-orange-400 transition-colors">
-              Read dispatch <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+            <div className="px-6 py-6">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="font-mono text-[9px] text-construx/50 tracking-widest uppercase">LATEST DISPATCH</span>
+                <span
+                  className="font-mono text-[9px] font-medium px-2 py-0.5 text-construx uppercase tracking-widest"
+                  style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: '2px' }}
+                >
+                  {recentPosts[0].tag}
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-text-base group-hover:text-white transition-colors mb-2 leading-snug">
+                {recentPosts[0].title}
+              </h3>
+              <p className="text-sm text-text-muted leading-relaxed line-clamp-2 mb-4">
+                {recentPosts[0].excerpt}
+              </p>
+              <div className="flex items-center gap-2 font-mono text-[10px] text-construx group-hover:text-orange-400 transition-colors">
+                Read dispatch <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+              </div>
             </div>
           </Link>
 
