@@ -120,6 +120,18 @@ export default function ContactPage() {
                 construx.contact — transmission.ok
               </span>
             </div>
+            {/* Shell prompt */}
+            <div
+              className="px-4 py-1.5 select-none"
+              style={{ borderBottom: '1px solid rgba(16,185,129,0.12)', background: 'rgba(16,185,129,0.02)' }}
+            >
+              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.5)' }}>
+                construx@sys:~$
+              </span>
+              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>
+                construx contact --status
+              </span>
+            </div>
             <div className="px-8 py-12">
               <CheckCircle className="mx-auto mb-5 text-emerald-400" size={32} />
               <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-emerald-400 mb-3">TRANSMISSION.OK</p>
@@ -160,6 +172,18 @@ export default function ContactPage() {
                 style={{ color: form.name && form.email && form.message.length >= 20 ? 'rgba(40,200,64,0.6)' : 'rgba(255,255,255,0.15)' }}
               >
                 {form.name && form.email && form.message.length >= 20 ? 'READY' : 'DRAFT'}
+              </span>
+            </div>
+            {/* Shell prompt */}
+            <div
+              className="px-4 py-1.5 border-b border-border select-none"
+              style={{ background: 'rgba(255,255,255,0.01)' }}
+            >
+              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
+                construx@sys:~$
+              </span>
+              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>
+                construx contact --compose
               </span>
             </div>
             <div className="p-8 flex flex-col gap-6">
