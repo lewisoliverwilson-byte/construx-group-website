@@ -94,6 +94,11 @@ export default function Error({
             </span>
           </div>
 
+          {/* Shell prompt */}
+          <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,80,70,0.08)', background: 'rgba(255,80,70,0.02)' }}>
+            <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.35)' }}>construx@sys:~$</span>
+            <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.18)' }}>next start --env production --capture-stderr</span>
+          </div>
           {/* Terminal body */}
           <div className="p-5 font-mono text-[11px] leading-relaxed flex flex-col gap-0.5">
             {errorLines.map((line, i) => (

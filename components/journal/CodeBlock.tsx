@@ -107,6 +107,11 @@ export default function CodeBlock({ children, ...props }: React.HTMLAttributes<H
         </button>
       </div>
 
+      {/* Shell prompt */}
+      <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
+        <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
+        <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{lang ? `cat --syntax=${lang.toLowerCase()}` : 'cat snippet'}</span>
+      </div>
       {/* Code area */}
       <pre
         ref={preRef}
