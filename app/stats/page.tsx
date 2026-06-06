@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getAllPostMeta } from '@/lib/posts';
 import { ventures } from '@/lib/ventures';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
+import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -340,6 +341,11 @@ export default function StatsPage() {
       {/* Build output panel */}
       <div className="mt-6">
         <BuildOutputPanel />
+      </div>
+
+      {/* HTTP response headers panel */}
+      <div className="mt-6">
+        <CurlHeadersPanel />
       </div>
     </div>
   );

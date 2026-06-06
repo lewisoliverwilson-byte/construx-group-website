@@ -1,0 +1,212 @@
+---
+title: "TypeScript utility types: the ones worth knowing"
+date: "2028-11-22"
+excerpt: "TypeScript's built-in utility types transform existing types without duplication. Partial, Required, Pick, Omit, Record, Exclude, Extract, ReturnType, Parameters — each one solves a specific problem. Here's when to use each and the patterns that compose them."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript's utility types transform existing types without you having to rewrite them. Rather than duplicating a type and manually removing a field, you use `Omit`. Rather than writing the same interface twice — once with all required fields and once with all optional — you use `Partial`. These types keep your codebase DRY at the type level.
+
+## Partial and Required
+
+```ts
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'user';
+  scanLimit: number;
+}
+
+// All fields optional — for update payloads
+type UserUpdate = Partial<User>;
+// { id?: string; email?: string; name?: string; role?: 'admin' | 'user'; scanLimit?: number }
+
+// All fields required — useful when you have a type with optional fields
+type StrictUser = Required<User>;
+
+// Usage
+async function updateUser(id: string, data: Partial<Omit<User, 'id'>>) {
+  return db.update(users).set(data).where(eq(users.id, id));
+}
+```
+
+## Pick and Omit
+
+```ts
+// Keep only specific fields
+type UserPreview = Pick<User, 'id' | 'name' | 'email'>;
+// { id: string; name: string; email: string }
+
+// Remove specific fields
+type PublicUser = Omit<User, 'scanLimit' | 'role'>;
+// { id: string; email: string; name: string }
+
+// Common patterns
+type CreateUser = Omit<User, 'id'>;              // No id — DB generates it
+type UpdateUser = Partial<Omit<User, 'id'>>;     // All optional except id
+type UserCard = Pick<User, 'id' | 'name'>;       // Display-only subset
+```
+
+## Record
+
+```ts
+// Map string keys to a specific value type
+type FeatureFlags = Record<string, boolean>;
+
+// More precise — known keys
+type AlertLevel = 'high' | 'medium' | 'low';
+type AlertConfig = Record<AlertLevel, { color: string; threshold: number }>;
+
+const config: AlertConfig = {
+  high:   { color: '#ef4444', threshold: 20 },
+  medium: { color: '#f59e0b', threshold: 10 },
+  low:    { color: '#22c55e', threshold: 5 },
+};
+
+// Indexed collection by ID
+type ProductMap = Record<string, Product>;
+const productById: ProductMap = products.reduce(
+  (acc, p) => ({ ...acc, [p.id]: p }),
+  {} as ProductMap,
+);
+```
+
+## Exclude and Extract
+
+```ts
+type Status = 'pending' | 'active' | 'cancelled' | 'refunded';
+
+// Remove types from a union
+type ActiveStatus = Exclude<Status, 'cancelled' | 'refunded'>;
+// 'pending' | 'active'
+
+// Keep only specific types from a union
+type FinalStatus = Extract<Status, 'cancelled' | 'refunded'>;
+// 'cancelled' | 'refunded'
+
+// Remove null/undefined
+type NonNullableUser = NonNullable<User | null | undefined>;
+// User
+```
+
+## ReturnType and Parameters
+
+```ts
+// Infer the return type of a function
+async function getScan(id: string) {
+  return db.query.scans.findFirst({ where: (s, { eq }) => eq(s.id, id) });
+}
+
+type ScanResult = Awaited<ReturnType<typeof getScan>>;
+// typeof scans.$inferSelect | undefined
+
+// Infer function parameter types
+type GetScanParams = Parameters<typeof getScan>;
+// [id: string]
+
+// Useful for higher-order function wrappers
+function withLogging<T extends (...args: Parameters<T>) => ReturnType<T>>(
+  fn: T,
+  label: string,
+): T {
+  return ((...args: Parameters<T>) => {
+    console.time(label);
+    const result = fn(...args);
+    console.timeEnd(label);
+    return result;
+  }) as T;
+}
+```
+
+## Mapped types
+
+When built-in utility types don't cover your case:
+
+```ts
+// Make all fields readonly
+type Immutable<T> = {
+  readonly [K in keyof T]: T[K];
+};
+
+// Deep partial
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
+};
+
+// Nullable fields
+type Nullable<T> = {
+  [K in keyof T]: T[K] | null;
+};
+
+// Extract only string-valued fields
+type StringFields<T> = {
+  [K in keyof T as T[K] extends string ? K : never]: string;
+};
+
+type UserStringFields = StringFields<User>;
+// { email: string; name: string; role: string }
+```
+
+## Template literal types
+
+```ts
+// Generate event names from entity names
+type EntityEvent<T extends string> = `${T}:created` | `${T}:updated` | `${T}:deleted`;
+
+type UserEvent = EntityEvent<'user'>;
+// 'user:created' | 'user:updated' | 'user:deleted'
+
+// Generate getter names
+type Getter<T extends string> = `get${Capitalize<T>}`;
+
+type ProductGetter = Getter<'product'>;
+// 'getProduct'
+
+// CSS properties with units
+type PixelValue = `${number}px`;
+type RemValue = `${number}rem`;
+type CSSLength = PixelValue | RemValue | '0' | 'auto';
+```
+
+## Discriminated unions
+
+```ts
+// Type-safe state machines
+type RequestState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: string };
+
+function ScanResults({ state }: { state: RequestState<Scan[]> }) {
+  switch (state.status) {
+    case 'idle':    return <p>Enter a URL to scan</p>;
+    case 'loading': return <Skeleton />;
+    case 'success': return <ScanList scans={state.data} />;
+    case 'error':   return <p className="text-red-400">{state.error}</p>;
+  }
+}
+```
+
+Discriminated unions with `switch` give you exhaustiveness checking — if you add a new `status` variant, TypeScript will tell you every place that doesn't handle it.
+
+## Conditional types
+
+```ts
+// Type depends on another type's value
+type IsArray<T> = T extends unknown[] ? true : false;
+
+// Unwrap array elements
+type ElementType<T> = T extends (infer E)[] ? E : never;
+
+type ProductArray = Product[];
+type SingleProduct = ElementType<ProductArray>;
+// Product
+
+// Unwrap Promise
+type UnwrapPromise<T> = T extends Promise<infer U> ? U : T;
+```
+
+The pattern for well-typed code: use the built-in utility types for common transformations, compose them for complex cases, and only write custom mapped types when the combination doesn't cover your case.
