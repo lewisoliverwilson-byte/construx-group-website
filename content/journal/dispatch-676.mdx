@@ -1,0 +1,132 @@
+---
+title: "Neon: serverless Postgres with branching"
+date: "2030-07-03"
+excerpt: "Neon is a serverless Postgres service that separates compute from storage. It scales to zero when idle, starts in milliseconds, and supports database branching — create an instant copy of your production database for a feature branch, test a migration, then delete it. No provisioning, no connection limits in the traditional sense, and a generous free tier that doesn't expire."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Traditional Postgres hosting gives you a single persistent instance. Neon separates the storage layer from the compute layer — storage is replicated separately, compute starts on demand and pauses when unused. The result is a database that costs nothing when you're not using it and branches like a git repo.
+
+## Setup
+
+```bash
+npm install @neondatabase/serverless
+```
+
+```ts
+// lib/db.ts
+import { neon, neonConfig } from '@neondatabase/serverless';
+import { drizzle }           from 'drizzle-orm/neon-http';
+import * as schema           from './schema';
+
+// Edge-compatible HTTP driver (no persistent connection needed)
+neonConfig.fetchConnectionCache = true;
+
+const sql = neon(process.env.DATABASE_URL!);
+
+export const db = drizzle(sql, { schema });
+```
+
+For WebSocket connections (long-lived, like in Node.js servers):
+
+```ts
+import { Pool } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const db = drizzle(pool, { schema });
+```
+
+## Drizzle + Neon
+
+```ts
+// lib/schema.ts
+import { pgTable, text, integer, boolean, timestamp, uuid } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id:        uuid('id').defaultRandom().primaryKey(),
+  email:     text('email').unique().notNull(),
+  name:      text('name').notNull(),
+  plan:      text('plan', { enum: ['free', 'pro', 'enterprise'] }).default('free').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const posts = pgTable('posts', {
+  id:        uuid('id').defaultRandom().primaryKey(),
+  title:     text('title').notNull(),
+  content:   text('content').notNull(),
+  authorId:  uuid('author_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  published: boolean('published').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+```
+
+```ts
+// Queries
+import { db } from '@/lib/db';
+import { users, posts } from '@/lib/schema';
+import { eq, desc, and } from 'drizzle-orm';
+
+// Select with join
+const result = await db
+  .select({ post: posts, author: users })
+  .from(posts)
+  .innerJoin(users, eq(posts.authorId, users.id))
+  .where(and(eq(posts.published, true)))
+  .orderBy(desc(posts.createdAt))
+  .limit(10);
+
+// Insert
+const [user] = await db.insert(users).values({ email, name }).returning();
+```
+
+## Database branching
+
+```bash
+# Install Neon CLI
+npm install -g neonctl
+neonctl auth
+
+# Create a branch from main (instant — no data copy)
+neonctl branches create --name feature/new-schema --parent main
+
+# Run migrations on the branch
+DATABASE_URL=$(neonctl connection-string feature/new-schema) npx drizzle-kit push
+
+# Test your feature against the branch
+DATABASE_URL=$(neonctl connection-string feature/new-schema) npm run test
+
+# Delete the branch when done
+neonctl branches delete feature/new-schema
+```
+
+Branches are copy-on-write — they don't duplicate data, they share storage pages with the parent until data is written.
+
+## Point-in-time restore
+
+```bash
+# Restore to a specific timestamp (up to 7 days for free tier, 30 days paid)
+neonctl branches create \
+  --name recovery-branch \
+  --parent main \
+  --point-in-time 2030-07-01T14:30:00Z
+
+# Inspect the restored data
+neonctl connection-string recovery-branch
+```
+
+## Autoscaling and scale-to-zero
+
+Neon compute scales automatically from 0.25 CU to 8 CU based on load. Scale-to-zero kicks in after the idle timeout (default 5 minutes on free tier, configurable on paid). The first query after scale-to-zero takes ~500ms to wake up — use connection warming for latency-sensitive applications.
+
+```ts
+// Warm the connection on server startup
+export async function warmDatabase() {
+  await db.execute(sql`SELECT 1`);
+}
+```
+
+## Neon vs PlanetScale vs Supabase vs Railway
+
+Neon: serverless Postgres, branching, scale-to-zero, generous free tier. Best for teams that want Postgres with git-like workflow. PlanetScale: MySQL-compatible, schema branching, vitess-based — excellent for horizontal scale, no foreign keys. Supabase: Postgres plus auth, realtime, storage — more batteries included. Railway: simple deployment platform with Postgres, MySQL, Redis — good for colocated app + database. For modern TypeScript projects that need Postgres and branching, Neon is the strongest choice.

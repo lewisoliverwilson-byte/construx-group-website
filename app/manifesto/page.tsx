@@ -11,6 +11,7 @@ import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import CoverageReportPanel from '@/components/CoverageReportPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -249,8 +250,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* Lighthouse audit */}
-        <div className="mt-4">
+        <div className="mt-4 pb-4">
           <LighthousePanel />
+        </div>
+
+        {/* Coverage report */}
+        <div className="mt-4 pb-6">
+          <CoverageReportPanel />
         </div>
 
         {/* Sign-off */}

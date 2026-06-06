@@ -1,0 +1,110 @@
+---
+title: "Linear: issue tracking built for modern software teams"
+date: "2030-07-09"
+excerpt: "Linear is an issue tracker designed for speed — every action is keyboard-first, every view renders instantly, syncs offline, and has a structured data model that doesn't degrade into a noise generator over time. It has cycles (sprints), projects, roadmaps, and Git integration that automatically transitions issues from In Progress to Done when a PR merges. It's the first issue tracker that doesn't feel like a tax."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Jira is a project management platform masquerading as an issue tracker. The cognitive overhead of navigating boards, epics, sprints, and custom fields accumulates until the tool exists to serve itself. Linear makes the opposite bet: a fast, opinionated tracker where the workflow serves the engineer.
+
+## Core model
+
+**Issues**: atomic work items. State: Backlog → Todo → In Progress → In Review → Done. Each has a priority (Urgent/High/Medium/Low), assignee, estimate, due date, and label.
+
+**Cycles**: time-boxed iterations (two weeks by default). Issues are added to a cycle; scope creep is visible immediately as the cycle gains and loses scope.
+
+**Projects**: groups of issues with a start and end date, a lead, and a status update stream. A project is a feature, a migration, or a launch — not a team.
+
+**Roadmaps**: projects on a timeline. The roadmap view shows what's coming, what's shipping, and what's blocked — without living in a spreadsheet.
+
+## Keyboard shortcuts
+
+Linear's keyboard model is its primary interface:
+
+```
+C           → Create new issue
+/           → Search everything
+G then I    → Go to Issues
+G then P    → Go to Projects
+G then M    → Go to My Issues
+Ctrl+K      → Command palette
+Shift+C     → Cycle view
+Shift+P     → Project view
+T           → Team switcher
+```
+
+An experienced Linear user never touches the mouse. Speed compounds — the faster the tool, the more you use it, the more signal it captures.
+
+## Git integration
+
+```
+# Branch naming convention
+git checkout -b lewis/CON-142-add-stripe-webhook
+
+# Linear detects the issue ID (CON-142) in the branch name
+# Issue automatically moves to "In Progress" when you push the branch
+
+# When the PR merges:
+# Issue automatically moves to "Done"
+# PR is linked to the issue
+# Comment is added with the merge commit
+```
+
+The integration works with GitHub, GitLab, and Bitbucket. No manual status updates required — the git workflow drives issue state.
+
+## Linear API
+
+```ts
+// Automate issue creation from your own workflows
+const LINEAR_API_KEY = process.env.LINEAR_API_KEY;
+
+async function createIssue(title: string, description: string) {
+  const res = await fetch('https://api.linear.app/graphql', {
+    method:  'POST',
+    headers: {
+      'Authorization': LINEAR_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: `
+        mutation CreateIssue($title: String!, $description: String!, $teamId: String!) {
+          issueCreate(input: {
+            title:       $title,
+            description: $description,
+            teamId:      $teamId,
+            priority:    2
+          }) {
+            success
+            issue { id identifier url }
+          }
+        }
+      `,
+      variables: { title, description, teamId: process.env.LINEAR_TEAM_ID },
+    }),
+  });
+  return res.json();
+}
+
+// Create an issue from a Sentry error alert
+await createIssue(
+  `Error: ${error.title}`,
+  `Sentry: ${error.url}\n\n\`\`\`\n${error.stacktrace}\n\`\`\``,
+);
+```
+
+## Triage workflow
+
+```
+Inbox → Review → Assign or Backlog → Prioritise → Cycle
+
+1. New issues land in Inbox (from integrations, team members, or customers)
+2. Triage: read, categorise, set priority, assign or move to Backlog
+3. Weekly: pull Backlog items into the active Cycle
+4. Daily standup: check My Issues, move blockers to the surface
+5. EOW: cycle retrospective — what completed, what carried over, why
+```
+
+## Linear vs Jira vs GitHub Issues
+
+Linear: fast, keyboard-first, opinionated — works best with 2-50 engineers. Jira: configurable to any workflow, scales to thousands of users, but the flexibility creates complexity that teams spend time managing. GitHub Issues: good for open source and small projects, lacks structured workflows and roadmaps. For product engineering teams up to 100 people, Linear is the right default.
