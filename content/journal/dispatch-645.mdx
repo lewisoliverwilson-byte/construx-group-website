@@ -1,0 +1,158 @@
+---
+title: "Linux process management: signals, jobs, and systemd"
+date: "2030-04-01"
+excerpt: "Every process on Linux has a PID, a parent, a set of open file descriptors, and a signal mask. Signals are the OS's IPC primitive — a way to tell a process to terminate, reload, pause, or handle a custom event. Understanding signals and job control makes you more effective in the terminal. Understanding systemd makes you more effective in production."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A process is a running instance of a program. It has a PID (process ID), inherits environment from its parent, and communicates with the OS via system calls. Signals are how the OS (or another process) interrupts it.
+
+## Common signals
+
+```bash
+kill -l          # list all signals
+kill -9 <pid>    # SIGKILL: terminate immediately (unblockable, no cleanup)
+kill -15 <pid>   # SIGTERM: request graceful shutdown (default for `kill`)
+kill -1 <pid>    # SIGHUP: reload config (convention for daemons)
+kill -2 <pid>    # SIGINT: interrupt (same as Ctrl+C)
+kill -19 <pid>   # SIGSTOP: pause (same as Ctrl+Z, unblockable)
+kill -18 <pid>   # SIGCONT: resume a stopped process
+```
+
+Signal 9 (SIGKILL) cannot be caught or ignored — the kernel kills the process immediately. Use it as a last resort: the process has no chance to flush buffers, close database connections, or complete in-flight requests.
+
+## Job control
+
+```bash
+Ctrl+Z           # suspend the foreground process (SIGSTOP)
+bg               # resume it in the background
+fg               # bring the background job to foreground
+jobs             # list background jobs
+jobs -l          # include PIDs
+
+# Run a process in the background from the start
+npm run dev &
+
+# Prevent the process from dying when you close the terminal
+nohup npm run dev &
+disown -h %1     # disown the job — detaches from the shell's job table
+```
+
+## Graceful shutdown in Node.js
+
+```ts
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully');
+
+  // Stop accepting new requests
+  server.close(() => console.log('HTTP server closed'));
+
+  // Close database connections
+  await db.$disconnect();
+
+  // Close message queue
+  await queue.close();
+
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received (Ctrl+C)');
+  process.exit(0);
+});
+
+// Catch unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+```
+
+systemd sends SIGTERM before stopping a service. You have `TimeoutStopSec` seconds (default 90s) to finish in-flight requests. After that, it sends SIGKILL.
+
+## systemd service units
+
+```ini
+# /etc/systemd/system/construx-api.service
+[Unit]
+Description=Construx API (Node.js)
+After=network.target postgresql.service redis.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=construx
+WorkingDirectory=/opt/construx-api
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=5s
+TimeoutStopSec=30s
+
+# Environment
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/construx-api/.env
+
+# Resource limits
+LimitNOFILE=65536      # max open file descriptors
+MemoryMax=512M
+CPUQuota=200%          # max 2 CPUs
+
+# Security
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/construx-api/logs
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl daemon-reload                  # reload unit files after editing
+systemctl enable construx-api            # start on boot
+systemctl start construx-api             # start now
+systemctl status construx-api            # check status + recent logs
+systemctl restart construx-api           # restart (sends SIGTERM, waits, starts)
+systemctl stop construx-api              # stop (sends SIGTERM)
+
+journalctl -u construx-api -f            # follow logs
+journalctl -u construx-api --since today # logs since midnight
+journalctl -u construx-api -n 100        # last 100 lines
+```
+
+## Watching processes
+
+```bash
+# Find processes by name
+pgrep -la node           # pgrep with process name listing
+pidof construx-api       # PID of a specific command
+
+# Process tree
+pstree -p $(pgrep node)  # show process tree for node processes
+
+# Open files and sockets for a process
+lsof -p <pid>            # everything a process has open
+lsof -p <pid> -i         # only network connections
+lsof -i :3000            # which process is listening on port 3000
+
+# Resource usage
+/proc/<pid>/status       # memory, threads, signal mask
+/proc/<pid>/fd/          # open file descriptors
+/proc/<pid>/net/tcp      # TCP connections from process perspective
+```
+
+## Cgroups: resource control
+
+```bash
+# Check which cgroup a process is in
+cat /proc/<pid>/cgroup
+
+# systemd manages cgroups automatically — view resource usage
+systemd-cgtop                # top-like view of cgroup resource usage
+
+# Set memory limit for a transient service
+systemd-run --unit=test-job --property=MemoryMax=256M npm run build
+```
+
+systemd puts each service in its own cgroup. Resource limits (`MemoryMax`, `CPUQuota`) are enforced by the kernel via cgroups — no application-level cooperation needed.

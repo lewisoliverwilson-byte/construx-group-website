@@ -1,0 +1,181 @@
+---
+title: "WebSockets: real-time bidirectional communication"
+date: "2030-03-26"
+excerpt: "WebSockets give you a persistent, bidirectional channel between client and server. Once the connection is open, either side can send messages at any time — no polling, no HTTP overhead per message. The right choice for chat, live collaboration, game state, financial tickers, and anything that needs sub-second updates. The wrong choice for request-response patterns where HTTP suffices."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+WebSockets upgrade an HTTP connection into a persistent TCP channel. The handshake is HTTP; everything after is a frame-based binary protocol. Messages flow both ways simultaneously with minimal overhead — a WebSocket frame adds only 2-14 bytes of header.
+
+## Server with Node.js (ws library)
+
+```ts
+import { WebSocketServer, WebSocket } from 'ws';
+import { createServer }               from 'http';
+
+const httpServer = createServer();
+const wss        = new WebSocketServer({ server: httpServer });
+
+const clients = new Set<WebSocket>();
+
+wss.on('connection', (ws, req) => {
+  clients.add(ws);
+  console.log(`Client connected. Total: ${clients.size}`);
+
+  ws.on('message', (data) => {
+    const message = JSON.parse(data.toString());
+
+    // Broadcast to all connected clients
+    for (const client of clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type:    'message',
+          payload: message,
+          ts:      Date.now(),
+        }));
+      }
+    }
+  });
+
+  ws.on('close', () => {
+    clients.delete(ws);
+    console.log(`Client disconnected. Total: ${clients.size}`);
+  });
+
+  ws.on('error', (err) => {
+    console.error('WebSocket error:', err);
+    clients.delete(ws);
+  });
+
+  // Send welcome message
+  ws.send(JSON.stringify({ type: 'welcome', clients: clients.size }));
+});
+
+httpServer.listen(3001);
+```
+
+## Client in the browser
+
+```ts
+class RealtimeClient {
+  private ws:          WebSocket | null = null;
+  private reconnectMs: number           = 1000;
+  private handlers:    Map<string, (payload: unknown) => void> = new Map();
+
+  connect(url: string) {
+    this.ws = new WebSocket(url);
+
+    this.ws.onopen = () => {
+      console.log('Connected');
+      this.reconnectMs = 1000;  // reset backoff
+    };
+
+    this.ws.onmessage = (event) => {
+      const { type, payload } = JSON.parse(event.data);
+      this.handlers.get(type)?.(payload);
+    };
+
+    this.ws.onclose = () => {
+      console.log(`Disconnected. Reconnecting in ${this.reconnectMs}ms`);
+      setTimeout(() => this.connect(url), this.reconnectMs);
+      this.reconnectMs = Math.min(this.reconnectMs * 2, 30_000);  // exponential backoff
+    };
+
+    this.ws.onerror = (err) => console.error('WS error:', err);
+  }
+
+  on(type: string, handler: (payload: unknown) => void) {
+    this.handlers.set(type, handler);
+  }
+
+  send(type: string, payload: unknown) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type, payload }));
+    }
+  }
+
+  disconnect() { this.ws?.close(); }
+}
+
+const client = new RealtimeClient();
+client.connect('wss://api.construxgroup.io/ws');
+client.on('message', (msg) => console.log('New message:', msg));
+client.send('join', { room: 'general' });
+```
+
+Exponential backoff on reconnect: start at 1s, double on each failure, cap at 30s. Prevents thundering herd when a server restarts.
+
+## React hook
+
+```tsx
+import { useEffect, useRef, useCallback } from 'react';
+
+export function useWebSocket(url: string) {
+  const ws     = useRef<WebSocket | null>(null);
+  const onMsg  = useRef<(data: unknown) => void>(() => {});
+
+  const send = useCallback((data: unknown) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify(data));
+    }
+  }, []);
+
+  useEffect(() => {
+    const socket = new WebSocket(url);
+    ws.current = socket;
+
+    socket.onmessage = (e) => onMsg.current(JSON.parse(e.data));
+
+    return () => socket.close();
+  }, [url]);
+
+  return { send, onMessage: (fn: (data: unknown) => void) => { onMsg.current = fn; } };
+}
+```
+
+## With Socket.IO (rooms, namespaces, fallback)
+
+```ts
+// server
+import { Server } from 'socket.io';
+
+const io = new Server(httpServer, {
+  cors: { origin: 'https://construxgroup.io' },
+});
+
+io.on('connection', (socket) => {
+  socket.on('join-room', (roomId) => {
+    socket.join(roomId);
+    socket.to(roomId).emit('user-joined', { id: socket.id });
+  });
+
+  socket.on('message', ({ roomId, text }) => {
+    io.to(roomId).emit('message', { text, from: socket.id, ts: Date.now() });
+  });
+});
+```
+
+```ts
+// client
+import { io } from 'socket.io-client';
+
+const socket = io('https://api.construxgroup.io');
+socket.emit('join-room', 'general');
+socket.on('message', ({ text, from }) => console.log(from, text));
+socket.emit('message', { roomId: 'general', text: 'Hello' });
+```
+
+Socket.IO adds rooms, namespaces, automatic reconnection, and HTTP long-poll fallback for environments where WebSockets are blocked.
+
+## WebSockets vs Server-Sent Events
+
+| WebSocket | Server-Sent Events |
+|---|---|
+| Bidirectional | Server → client only |
+| Binary or text | Text (UTF-8) only |
+| Custom protocol | Built on HTTP |
+| Manual reconnect | Automatic reconnect |
+| Good for: chat, gaming | Good for: feeds, dashboards |
+
+SSE is simpler to implement and works through HTTP/2 multiplexing. Use it when you only need server-to-client messages. Use WebSockets when the client needs to send messages too.

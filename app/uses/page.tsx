@@ -8,6 +8,7 @@ import LshwPanel from '@/components/LshwPanel';
 import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
 import SshConfigPanel from '@/components/SshConfigPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import GitConfigPanel from '@/components/GitConfigPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -352,6 +353,11 @@ export default function UsesPage() {
         {/* Global npm packages */}
         <div className="mt-6">
           <NpmGlobalPanel />
+        </div>
+
+        {/* Git global config */}
+        <div className="mt-6">
+          <GitConfigPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
