@@ -1,0 +1,158 @@
+---
+title: "Cloudflare Workers: edge computing without the cold start"
+date: "2029-04-18"
+excerpt: "Cloudflare Workers run on V8 isolates at Cloudflare's edge — sub-millisecond cold starts, global distribution, and a runtime model that's different from Node.js or Vercel Edge. Here's what Workers are good at and how to deploy them."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Cloudflare Workers are different from AWS Lambda and Vercel Edge Functions in one important way: they use V8 isolates, not containers or VMs. Cold start time is essentially zero — isolates are created in microseconds, not milliseconds. Workers run at Cloudflare's network edge, which spans 300+ cities worldwide.
+
+## The runtime model
+
+Workers use the same Web APIs as browsers — `fetch`, `Request`, `Response`, `Headers`, `URL`, `crypto.subtle` — plus Cloudflare-specific APIs like KV, R2, Durable Objects, and D1 (SQLite at the edge). Node.js APIs are not available (no `fs`, no `path`, no native modules).
+
+```ts
+// worker.ts — the basic entrypoint
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/api/health') {
+      return Response.json({ status: 'ok', region: request.cf?.region });
+    }
+
+    return new Response('Not found', { status: 404 });
+  },
+};
+
+interface Env {
+  KV_STORE:    KVNamespace;
+  R2_BUCKET:   R2Bucket;
+  DB:          D1Database;
+  SECRET_KEY:  string;
+}
+```
+
+The `env` parameter gives type-safe access to bound resources (KV, R2, D1, environment variables).
+
+## Setup
+
+```bash
+npm create cloudflare@latest my-worker
+cd my-worker
+npm install
+```
+
+```toml
+# wrangler.toml
+name = "construx-api"
+main = "src/worker.ts"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id      = "your-kv-namespace-id"
+
+[[r2_buckets]]
+binding    = "ASSETS"
+bucket_name = "construx-assets"
+
+[[d1_databases]]
+binding  = "DB"
+database_name = "construx"
+database_id   = "your-d1-database-id"
+```
+
+## KV for edge caching
+
+Cloudflare KV is eventually consistent, globally replicated key-value storage. Reads are fast everywhere, writes propagate globally in ~60 seconds.
+
+```ts
+// Cache an API response in KV
+const cacheKey = `products:${query}`;
+const cached = await env.KV_STORE.get(cacheKey, { type: 'json' });
+
+if (cached) {
+  return Response.json(cached, {
+    headers: { 'CF-Cache-Status': 'HIT' },
+  });
+}
+
+const products = await fetchFromDatabase(query);
+await env.KV_STORE.put(cacheKey, JSON.stringify(products), {
+  expirationTtl: 300,  // 5 minutes
+});
+
+return Response.json(products);
+```
+
+## D1: SQLite at the edge
+
+D1 is Cloudflare's managed SQLite — reads served from the nearest edge location, writes go to a primary region and replicate.
+
+```ts
+// Query D1
+const { results } = await env.DB.prepare(
+  'SELECT * FROM products WHERE category = ? ORDER BY created_at DESC LIMIT 20'
+).bind('electronics').all();
+
+return Response.json(results);
+```
+
+D1 works with Drizzle:
+
+```ts
+import { drizzle } from 'drizzle-orm/d1';
+import * as schema  from './schema';
+
+const db = drizzle(env.DB, { schema });
+
+const products = await db
+  .select()
+  .from(schema.products)
+  .where(eq(schema.products.category, 'electronics'))
+  .limit(20);
+```
+
+## Deploying
+
+```bash
+# Preview locally
+wrangler dev
+
+# Deploy to Cloudflare
+wrangler deploy
+```
+
+Workers deploy in seconds. There's no container to build or push. Cloudflare distributes the worker to all 300+ edge locations automatically.
+
+## Durable Objects for stateful edge logic
+
+Durable Objects are the answer to "how do I coordinate state at the edge" — WebSocket connections, rate limiting per user, real-time collaborative sessions:
+
+```ts
+export class RoomObject implements DurableObject {
+  private sessions: Map<string, WebSocket> = new Map();
+
+  constructor(private state: DurableObjectState) {}
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/ws' && request.headers.get('Upgrade') === 'websocket') {
+      const pair = new WebSocketPair();
+      this.sessions.set(crypto.randomUUID(), pair[1]);
+      return new Response(null, { status: 101, webSocket: pair[0] });
+    }
+
+    return new Response('Not found', { status: 404 });
+  }
+}
+```
+
+Durable Objects give you globally unique, stateful instances at the edge — useful for The Hyve's real-time channel rooms.
+
+## When Workers fit
+
+Workers are the right choice when: you need sub-millisecond response times globally, you're proxying or transforming requests, you need a persistent WebSocket server at the edge, or you want SQLite-speed reads without a regional database hop. They're not the right choice for heavy computation, Node.js-specific libraries, or when your database is in one region and latency to it dominates anyway.

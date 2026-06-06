@@ -12,6 +12,7 @@ import SysBootSequence from '@/components/SysBootSequence';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import UptimePanel from '@/components/UptimePanel';
+import PingPanel from '@/components/PingPanel';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -154,8 +155,13 @@ export default function HomePage() {
       </div>
 
       {/* Uptime monitor */}
-      <div className="pb-10">
+      <div className="pb-6">
         <UptimePanel />
+      </div>
+
+      {/* Global ping latency */}
+      <div className="pb-10">
+        <PingPanel />
       </div>
 
       {/* Below-fold: What is Construx */}
