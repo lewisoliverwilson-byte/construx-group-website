@@ -1,0 +1,163 @@
+---
+title: "Postgres row-level security: data isolation at the database layer"
+date: "2029-11-08"
+excerpt: "Row-level security (RLS) in Postgres lets you write policies that control which rows a database user can see, insert, update, or delete — enforced at the database engine level, not in application code. It's the right tool for multi-tenant applications where data isolation must hold regardless of application bugs. Here's the pattern, the policies, and the tradeoffs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Row-level security moves data isolation into the database. Instead of `WHERE user_id = $currentUser` in every query, you define a policy once: the database engine filters rows automatically, for every query, for every client.
+
+## Enabling RLS
+
+```sql
+-- Enable RLS on a table
+ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+
+-- Force RLS even for the table owner (critical — without this,
+-- the owner bypasses all policies)
+ALTER TABLE posts FORCE ROW LEVEL SECURITY;
+```
+
+Once enabled, no rows are accessible by default — the table is completely locked until you add at least one permissive policy.
+
+## Policies
+
+```sql
+-- Users can only see their own posts
+CREATE POLICY posts_select
+  ON posts
+  FOR SELECT
+  USING (author_id = current_setting('app.current_user_id')::uuid);
+
+-- Users can only insert posts as themselves
+CREATE POLICY posts_insert
+  ON posts
+  FOR INSERT
+  WITH CHECK (author_id = current_setting('app.current_user_id')::uuid);
+
+-- Users can only update their own posts
+CREATE POLICY posts_update
+  ON posts
+  FOR UPDATE
+  USING     (author_id = current_setting('app.current_user_id')::uuid)
+  WITH CHECK (author_id = current_setting('app.current_user_id')::uuid);
+
+-- Users can only delete their own posts
+CREATE POLICY posts_delete
+  ON posts
+  FOR DELETE
+  USING (author_id = current_setting('app.current_user_id')::uuid);
+```
+
+`USING` filters rows for reads (SELECT, UPDATE, DELETE). `WITH CHECK` validates rows for writes (INSERT, UPDATE). `current_setting('app.current_user_id')` reads a session-level variable set by the application.
+
+## Setting the current user in application code
+
+```ts
+// Prisma: set the session variable before queries
+async function withRLS<T>(
+  userId: string,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`;
+    return fn(tx);
+  });
+}
+
+// Usage
+const posts = await withRLS(session.userId, (tx) =>
+  tx.post.findMany()  // RLS filters to only this user's posts
+);
+```
+
+`set_config('app.current_user_id', userId, true)` — the third argument `true` scopes the setting to the current transaction. It resets when the transaction ends. Never set it to `false` (session scope) on a pooled connection — the value persists across requests.
+
+## Multi-tenant: organisation isolation
+
+```sql
+-- Organisation membership table
+CREATE TABLE org_members (
+  org_id  uuid NOT NULL,
+  user_id uuid NOT NULL,
+  role    text NOT NULL,  -- 'owner', 'admin', 'member'
+  PRIMARY KEY (org_id, user_id)
+);
+
+-- RLS policy: can only see data for organisations you belong to
+CREATE POLICY workspace_data_select
+  ON workspace_data
+  FOR SELECT
+  USING (
+    org_id IN (
+      SELECT org_id FROM org_members
+      WHERE user_id = current_setting('app.current_user_id')::uuid
+    )
+  );
+```
+
+The subquery runs inside the policy. It's evaluated per row, so index on `org_members(user_id)` is critical for performance.
+
+## Admin bypass
+
+```sql
+-- Create a separate role for admin queries that bypass RLS
+CREATE ROLE app_admin;
+ALTER TABLE posts DISABLE ROW LEVEL SECURITY;  -- only for app_admin
+
+-- Or: a specific bypass policy
+CREATE POLICY admin_all
+  ON posts
+  AS PERMISSIVE
+  FOR ALL
+  TO app_admin
+  USING (true)
+  WITH CHECK (true);
+```
+
+Better: use `BYPASSRLS` privilege on the admin role, and use a separate connection string for admin operations. Never use the admin connection for user-facing queries.
+
+## Policy types: PERMISSIVE vs RESTRICTIVE
+
+Postgres evaluates policies with OR (permissive, default) or AND (restrictive) logic:
+
+```sql
+-- Restrictive: row must pass ALL policies that apply
+CREATE POLICY published_only
+  ON posts
+  AS RESTRICTIVE
+  FOR SELECT
+  USING (status = 'published' OR author_id = current_setting('app.current_user_id')::uuid);
+```
+
+Multiple `PERMISSIVE` policies: row is accessible if any policy allows it.  
+A `RESTRICTIVE` policy: row must also pass this, regardless of permissive policies.
+
+Use restrictive policies for invariants that must always hold — "deleted rows are never visible to anyone" — on top of permissive user-scoped policies.
+
+## Performance
+
+RLS adds a predicate to every query. On indexed columns, the cost is negligible. On unindexed columns or complex subqueries, it can tank performance.
+
+```sql
+-- EXPLAIN shows the RLS predicate
+EXPLAIN SELECT * FROM posts;
+-- Filter: (author_id = (current_setting('app.current_user_id'))::uuid)
+
+-- Index this column
+CREATE INDEX idx_posts_author_id ON posts (author_id);
+
+-- For org-level isolation, index the membership lookup
+CREATE INDEX idx_org_members_user_id ON org_members (user_id);
+```
+
+Run `EXPLAIN ANALYZE` after adding RLS policies. If you see a seq scan on a table that should be indexed, the RLS predicate is the likely cause.
+
+## When to use RLS
+
+RLS is not a replacement for application-level access control — it's a second layer. Application code is still responsible for authentication and authorization logic. RLS ensures that even if a bug in application code constructs a wrong query, the database returns no rows it shouldn't.
+
+Use RLS when: you have a multi-tenant application where tenant data isolation is non-negotiable, you use a shared database user for all tenants (common with connection poolers like PgBouncer), or you want defense in depth against application bugs.
+
+Skip RLS when: you use row-level isolation purely via application logic, you have a single-tenant application, or the policy subqueries would be prohibitively expensive with your access patterns.

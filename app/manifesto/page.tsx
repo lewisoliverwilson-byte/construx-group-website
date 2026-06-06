@@ -8,6 +8,7 @@ import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
 import StraceSummaryPanel from '@/components/StraceSummaryPanel';
+import TypeCheckPanel from '@/components/TypeCheckPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -233,6 +234,11 @@ export default function ManifestoPage() {
         {/* Syscall summary */}
         <div className="mt-4">
           <StraceSummaryPanel />
+        </div>
+
+        {/* Type check */}
+        <div className="mt-4">
+          <TypeCheckPanel />
         </div>
 
         {/* Sign-off */}
