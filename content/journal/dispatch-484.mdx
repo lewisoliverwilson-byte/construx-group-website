@@ -1,0 +1,193 @@
+---
+title: "Optimistic updates: making UIs feel instant"
+date: "2028-12-04"
+excerpt: "Optimistic updates apply state changes immediately, before the server confirms them, then reconcile if the request fails. Done correctly, the UI feels instant for 99% of interactions. Here's the pattern with TanStack Query, Server Actions, and manual state management."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Most server requests succeed. Waiting 200-400ms for confirmation before updating the UI is a choice — one that makes your app feel slower than it is. Optimistic updates apply the change immediately and roll back if the server disagrees. Users experience instant feedback; failures are rare and handleable.
+
+## With TanStack Query
+
+TanStack Query has built-in optimistic update support via `onMutate`, `onError`, and `onSettled`:
+
+```ts
+// hooks/useUpdateProduct.ts
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+interface Product {
+  id: string;
+  title: string;
+  price: number;
+  isActive: boolean;
+}
+
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Product> }) => {
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Update failed');
+      return response.json() as Promise<Product>;
+    },
+
+    onMutate: async ({ id, data }) => {
+      // Cancel any outgoing refetches — prevent race conditions
+      await queryClient.cancelQueries({ queryKey: ['products', id] });
+
+      // Snapshot the previous value for rollback
+      const previousProduct = queryClient.getQueryData<Product>(['products', id]);
+
+      // Optimistically update the cache
+      queryClient.setQueryData<Product>(['products', id], (old) =>
+        old ? { ...old, ...data } : old
+      );
+
+      // Also update the list cache if it exists
+      queryClient.setQueryData<Product[]>(['products'], (old) =>
+        old?.map((p) => (p.id === id ? { ...p, ...data } : p)) ?? old
+      );
+
+      // Return context for rollback
+      return { previousProduct };
+    },
+
+    onError: (error, { id }, context) => {
+      // Rollback on failure
+      if (context?.previousProduct) {
+        queryClient.setQueryData(['products', id], context.previousProduct);
+        // Also rollback the list
+        queryClient.setQueryData<Product[]>(['products'], (old) =>
+          old?.map((p) => (p.id === id ? context.previousProduct! : p)) ?? old
+        );
+      }
+    },
+
+    onSettled: (data, error, { id }) => {
+      // Always refetch after settle to ensure server state
+      queryClient.invalidateQueries({ queryKey: ['products', id] });
+    },
+  });
+}
+```
+
+```tsx
+// Using the mutation
+function ProductRow({ product }: { product: Product }) {
+  const { mutate: updateProduct, isPending } = useUpdateProduct();
+
+  return (
+    <div>
+      <span>{product.title}</span>
+      <button
+        onClick={() => updateProduct({ id: product.id, data: { isActive: !product.isActive } })}
+        disabled={isPending}
+        className={product.isActive ? 'text-green-400' : 'text-zinc-500'}
+      >
+        {product.isActive ? 'Active' : 'Inactive'}
+      </button>
+    </div>
+  );
+}
+```
+
+The toggle state updates immediately on click. If the request fails, it reverts. The user experiences a snappy toggle with a rare rollback instead of a 300ms delay on every interaction.
+
+## With Server Actions and useOptimistic
+
+React 19's `useOptimistic` is built for this pattern with Server Actions:
+
+```tsx
+'use client';
+
+import { useOptimistic, useTransition } from 'react';
+import { toggleProductActive } from '@/app/products/actions';
+
+export function ProductList({ initialProducts }: { initialProducts: Product[] }) {
+  const [isPending, startTransition] = useTransition();
+  const [optimisticProducts, updateOptimistic] = useOptimistic(
+    initialProducts,
+    (state, { id, isActive }: { id: string; isActive: boolean }) =>
+      state.map((p) => (p.id === id ? { ...p, isActive } : p)),
+  );
+
+  const handleToggle = (product: Product) => {
+    startTransition(async () => {
+      // Apply optimistic update immediately
+      updateOptimistic({ id: product.id, isActive: !product.isActive });
+      // Server action runs in the background
+      await toggleProductActive(product.id, !product.isActive);
+      // On success: Server Component re-renders with real data
+      // On failure: optimistic state reverts automatically
+    });
+  };
+
+  return (
+    <ul>
+      {optimisticProducts.map((p) => (
+        <li key={p.id}>
+          <span>{p.title}</span>
+          <button onClick={() => handleToggle(p)} disabled={isPending}>
+            {p.isActive ? 'Active' : 'Inactive'}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+`useOptimistic` returns state that shows the optimistic value during the transition and reverts to the underlying state when the transition completes (success or failure).
+
+## Manual optimistic state
+
+For simple cases, local state is enough:
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+
+export function LikeButton({ postId, initialLikes }: { postId: string; initialLikes: number }) {
+  const [likes, setLikes] = useState(initialLikes);
+  const [liked, setLiked] = useState(false);
+
+  const handleLike = async () => {
+    if (liked) return;
+
+    // Optimistic update
+    setLiked(true);
+    setLikes((n) => n + 1);
+
+    try {
+      await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    } catch {
+      // Rollback on failure
+      setLiked(false);
+      setLikes((n) => n - 1);
+    }
+  };
+
+  return (
+    <button onClick={handleLike} disabled={liked}>
+      ♥ {likes}
+    </button>
+  );
+}
+```
+
+## When not to use optimistic updates
+
+Optimistic updates are wrong when:
+- **The outcome is uncertain** — "does this user have permission to do X?" requires server confirmation
+- **Precision matters** — financial transactions, inventory management, seat booking
+- **The optimistic state is hard to compute** — if you can't predict what the server will return, you can't fake it
+- **The operation is rare** — don't optimise delete or archive actions that run once per session
+
+The heuristic: if the operation succeeds 99%+ of the time and the optimistic state is straightforward to compute, optimistic updates make sense. If either condition fails, wait for the server.
