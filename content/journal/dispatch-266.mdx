@@ -1,0 +1,139 @@
+---
+title: "How we structure environment variables across the Construx portfolio"
+date: "2027-02-17"
+excerpt: "Environment variables are the configuration layer between your code and the world. How you name them, validate them, and manage them across environments determines whether configuration is something you think about once or constantly. Here's the system we use."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Environment variables sound simple. They're not. A sprawling set of untyped, unvalidated string values accessed at runtime is a source of subtle bugs, production incidents, and deployment delays. Here's how we make it not that.
+
+## Naming conventions
+
+Every variable in the Construx portfolio follows a prefix convention:
+
+- `NEXT_PUBLIC_` — variables exposed to the browser. Next.js inlines these at build time. If it doesn't have this prefix, it stays server-side only.
+- `DATABASE_` — database connection strings, prefixed to make them obvious at a glance
+- `RESEND_` — Resend API credentials
+- `CLERK_` — Clerk authentication secrets
+- `ANTHROPIC_` — Anthropic API keys
+- `CRON_` — internal secrets for cron route authentication
+
+The prefix tells you at a glance what the variable is for. When you see `CLERK_SECRET_KEY`, you know it's an authentication secret and you treat it accordingly.
+
+Variables are UPPER_SNAKE_CASE. No abbreviations that require knowledge to decode. `RESEND_API_KEY` not `RESEND_K`.
+
+## Validation at startup
+
+Variables are validated at startup using Zod, in a single `env.ts` file:
+
+```ts
+// lib/env.ts
+import { z } from 'zod';
+
+const envSchema = z.object({
+  // Database
+  DATABASE_URL: z.string().url('DATABASE_URL must be a valid URL'),
+  DATABASE_URL_DIRECT: z.string().url().optional(),
+
+  // Auth
+  CLERK_SECRET_KEY: z.string().startsWith('sk_'),
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().startsWith('pk_'),
+  CLERK_WEBHOOK_SECRET: z.string().startsWith('whsec_'),
+
+  // Email
+  RESEND_API_KEY: z.string().startsWith('re_'),
+
+  // AI
+  ANTHROPIC_API_KEY: z.string().startsWith('sk-ant-'),
+
+  // Internal
+  CRON_SECRET: z.string().min(32, 'CRON_SECRET must be at least 32 characters'),
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+  NODE_ENV: z.enum(['development', 'test', 'production']),
+});
+
+export const env = envSchema.parse(process.env);
+```
+
+At startup, if any required variable is missing or malformed, the application throws immediately with a clear error message. `Database connection to 'undefined'` is not a clear error message. `DATABASE_URL must be a valid URL, received: undefined` is.
+
+The format checks (`.startsWith('sk_')`, `.startsWith('re_')`) add a second line of defence against accidentally using a development key in production or vice versa.
+
+## Consuming env safely
+
+Instead of `process.env.DATABASE_URL` throughout the codebase, everything imports from `env.ts`:
+
+```ts
+// ✓ Type-safe, validated at startup
+import { env } from '@/lib/env';
+
+const db = postgres(env.DATABASE_URL);
+```
+
+```ts
+// ✗ Runtime string, possibly undefined, unchecked at startup
+const db = postgres(process.env.DATABASE_URL!);
+```
+
+The `!` assertion is a red flag. You're telling TypeScript to trust you that the value exists. `env.ts` makes this actually true.
+
+`env` is fully typed by Zod inference: `env.DATABASE_URL` is `string`, not `string | undefined`. You don't need null checks at call sites.
+
+## Environment files for local development
+
+Three files:
+
+**`.env.local`** — local development secrets. Never committed. In `.gitignore`.
+
+**`.env.example`** — a template committed to the repo with every key listed and fake values. When a new developer (or a new machine) starts on the project, they copy this to `.env.local` and fill in the real values.
+
+**`.env.test`** — test environment values. May be committed if the values are non-sensitive (test database, mock API keys).
+
+The pattern for `.env.example`:
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/construx_dev
+DATABASE_URL_DIRECT=  # Only needed for migrations
+
+# Auth — get from Clerk dashboard
+CLERK_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...
+
+# Email — get from Resend dashboard
+RESEND_API_KEY=re_...
+
+# AI — get from Anthropic console
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Internal — generate with: openssl rand -hex 32
+CRON_SECRET=
+
+# Optional
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+Comments explain where to get each secret. The `openssl rand -hex 32` command is documented inline — no guessing.
+
+## Amplify environment management
+
+AWS Amplify stores environment variables in the console, encrypted at rest. We set variables at the app level (shared across branches) or the branch level (environment-specific).
+
+Branch-level overrides allow the `production` branch to use production Clerk keys while `staging` uses test keys. The code is identical; the configuration differs.
+
+The deployment checklist for a new product includes:
+
+1. Add all variables from `.env.example` to Amplify (with real values)
+2. Verify `NEXT_PUBLIC_SITE_URL` is set to the production domain
+3. Run a test build and check the startup validation passes
+4. Confirm the Clerk webhook URL is pointing at the Amplify domain
+
+We learned item 4 the hard way: deploying to a new domain and forgetting to update the Clerk webhook endpoint causes silent authentication failures.
+
+## Variables that aren't secrets
+
+Not all environment variables are secrets. `NODE_ENV`, `NEXT_PUBLIC_SITE_URL` — these aren't sensitive. They still go in the Amplify environment config (not hardcoded in code) because they change between environments.
+
+The rule: if it changes between development, staging, and production, it's an environment variable even if it's not a secret. Hardcoding `https://construxgroup.io` in source code means you can't run the same code against a staging domain without a code change.

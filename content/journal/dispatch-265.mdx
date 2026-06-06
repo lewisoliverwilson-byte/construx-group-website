@@ -1,0 +1,99 @@
+---
+title: "Database connection pooling: why we run PgBouncer and what we learned"
+date: "2027-02-14"
+excerpt: "Serverless functions create and destroy database connections on every invocation. Without pooling, this exhausts your connection limit fast. Here's how we run PgBouncer in front of PostgreSQL and what we got wrong the first time."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Serverless functions have a pathological relationship with databases. Each invocation opens a connection, runs a query, and closes the connection. When you have 50 concurrent invocations, you have 50 open connections. When you have 500, you have 500 — or rather, you have a connection exhaustion error because PostgreSQL has a hard limit.
+
+The fix is a connection pool. Here's how we run one and what it took to get it right.
+
+## The problem in numbers
+
+PostgreSQL's default maximum connections is 100. AWS Amplify runs each route handler as a serverless function. A busy minute can produce hundreds of invocations. Without pooling, the error looks like this:
+
+```
+too many connections for role "construx_prod"
+FATAL: remaining connection slots are reserved
+```
+
+The application starts returning 500s. The database is fine — it's just not accepting new connections. The fix isn't more hardware; it's pooling.
+
+## PgBouncer: session vs transaction mode
+
+PgBouncer sits between the application and PostgreSQL, maintaining a fixed number of backend connections and multiplexing many client connections across them.
+
+Two modes matter:
+
+**Session pooling:** one backend connection per client connection. Only useful if your client connections are long-lived. In a serverless context, this doesn't help — you still open a new client connection per invocation.
+
+**Transaction pooling:** one backend connection is shared across multiple client connections. The connection is held for the duration of a transaction, then returned to the pool. This is the mode that actually solves the serverless problem.
+
+The catch with transaction pooling: you cannot use session-level features — `SET` statements, advisory locks, `LISTEN/NOTIFY`, prepared statements. The connection might be served by a different backend on the next transaction.
+
+We don't use prepared statements (Drizzle uses parameterised queries without preparing them) and we don't use advisory locks or `LISTEN/NOTIFY`. Transaction pooling works.
+
+## The configuration
+
+PgBouncer runs on Railway alongside our PostgreSQL instance. The config:
+
+```ini
+[databases]
+construx = host=postgres_host port=5432 dbname=construx_prod
+
+[pgbouncer]
+pool_mode = transaction
+max_client_conn = 500
+default_pool_size = 20
+min_pool_size = 5
+reserve_pool_size = 5
+reserve_pool_timeout = 3
+server_reset_query = DISCARD ALL
+```
+
+`max_client_conn = 500` is the limit of incoming connections PgBouncer will accept. This can be much higher than PostgreSQL's limit because PgBouncer handles these connections efficiently.
+
+`default_pool_size = 20` means PgBouncer maintains 20 backend PostgreSQL connections. 500 client connections are multiplexed across 20 backends. This keeps PostgreSQL's connection count well under its limit.
+
+`server_reset_query = DISCARD ALL` runs between client sessions in transaction mode, clearing any session state that might have leaked.
+
+## The connection string change
+
+Connecting to PgBouncer instead of PostgreSQL directly means changing the connection string host and port. The application code doesn't need to change — PgBouncer presents as a standard PostgreSQL endpoint.
+
+We use separate connection strings for pooled and direct connections:
+
+```
+# Pooled (via PgBouncer) — used by all application code
+DATABASE_URL=postgresql://user:pass@pgbouncer-host:5432/construx
+
+# Direct (bypasses pooling) — used only for migrations
+DATABASE_URL_DIRECT=postgresql://user:pass@postgres-host:5432/construx_prod
+```
+
+Migrations need the direct connection because they use `CREATE INDEX CONCURRENTLY` and other session-level operations that don't work with transaction pooling.
+
+## What we got wrong the first time
+
+**Using the pooled connection for migrations.** The first time we ran `drizzle-kit push` through PgBouncer, it failed halfway through. Transaction pooling doesn't support the session state that Drizzle's migration runner expects. Fix: direct connection for migrations.
+
+**Not setting `PGGSSENCMODE=disable`.** Some PostgreSQL clients default to GSSAPI authentication, which PgBouncer doesn't support. The connection fails silently. Fix: `?sslmode=require&gssencmode=disable` appended to the connection string.
+
+**Pool size too large.** We initially set `default_pool_size = 50`, thinking more connections = more throughput. This put PostgreSQL under more load than necessary. At 20 connections, throughput was the same and PostgreSQL CPU usage dropped. Connection count and throughput aren't linearly related — queries that take 5ms each can be served by 20 connections at thousands of queries per second.
+
+## Monitoring
+
+PgBouncer exposes statistics via a pseudo-database called `pgbouncer`. Querying it directly:
+
+```sql
+SHOW POOLS;
+SHOW CLIENTS;
+SHOW SERVERS;
+SHOW STATS;
+```
+
+`SHOW POOLS` shows wait time per pool. If `sv_idle` (servers waiting for a client) is consistently 0 and `cl_waiting` (clients waiting for a server) is non-zero, the pool is undersized.
+
+We watch `max_wait` (the maximum time any client waited) via our monitoring pipeline. Spikes indicate pool saturation — usually caused by a slow query holding a connection for longer than expected.
