@@ -1,0 +1,139 @@
+---
+title: "Web Crypto API: cryptography without a library"
+date: "2031-02-01"
+excerpt: "The Web Crypto API provides cryptographic operations — hashing, signing, encryption, key generation — built into the browser, Node.js, Deno, Bun, and Cloudflare Workers. No library dependency, no native module compilation, works identically across all modern runtimes. For JWT signing, HMAC verification, password hashing, and AES encryption in edge functions, the Web Crypto API is the right tool."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The platform has had cryptography for years. Most developers still reach for a library out of habit.
+
+## HMAC — request signing and verification
+
+```ts
+// Sign a value with a secret key (e.g., webhook signatures)
+async function sign(payload: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+  return btoa(String.fromCharCode(...new Uint8Array(signature)));
+}
+
+// Verify a signature (constant-time comparison — no timing attacks)
+async function verify(payload: string, signature: string, secret: string): Promise<boolean> {
+  const encoder  = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify'],
+  );
+
+  const expected = Uint8Array.from(atob(signature), (c) => c.charCodeAt(0));
+  return crypto.subtle.verify('HMAC', key, expected, encoder.encode(payload));
+}
+
+// Usage: verify Stripe webhook
+const isValid = await verify(rawBody, req.headers.get('stripe-signature')!, process.env.STRIPE_WEBHOOK_SECRET!);
+```
+
+## SHA-256 hashing
+
+```ts
+async function sha256(input: string): Promise<string> {
+  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+const hash = await sha256('hello world');
+// → b94d27b9934d3e08a52e52d7da7dabfac484efe04294e576f4c6f9fc19d3c8a9
+```
+
+## JWT without a library
+
+```ts
+function base64UrlEncode(data: Uint8Array): string {
+  return btoa(String.fromCharCode(...data))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function createJWT(payload: object, secret: string): Promise<string> {
+  const header  = { alg: 'HS256', typ: 'JWT' };
+  const encoder = new TextEncoder();
+
+  const headerB64  = btoa(JSON.stringify(header)).replace(/=/g, '');
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '');
+  const data       = `${headerB64}.${payloadB64}`;
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  return `${data}.${base64UrlEncode(new Uint8Array(sig))}`;
+}
+```
+
+## AES-GCM encryption
+
+```ts
+async function encrypt(plaintext: string, password: string): Promise<string> {
+  const enc   = new TextEncoder();
+  const salt  = crypto.getRandomValues(new Uint8Array(16));
+  const iv    = crypto.getRandomValues(new Uint8Array(12));
+
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt'],
+  );
+
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+
+  // Return salt + iv + ciphertext as base64
+  const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+  combined.set(salt, 0);
+  combined.set(iv, 16);
+  combined.set(new Uint8Array(ciphertext), 28);
+
+  return btoa(String.fromCharCode(...combined));
+}
+```
+
+## Secure random values
+
+```ts
+// Cryptographically secure random bytes
+const random = crypto.getRandomValues(new Uint8Array(32));
+
+// Random ID (URL-safe base64)
+function nanoid(size = 21): string {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(size))).slice(0, size);
+}
+
+// Random hex string
+function randomHex(bytes = 32): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+```
+
+Use `crypto.getRandomValues` for anything security-sensitive. `Math.random()` is not cryptographically secure.
