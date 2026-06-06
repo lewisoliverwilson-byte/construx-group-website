@@ -1,0 +1,183 @@
+---
+title: "Astro: content-first static sites with islands"
+date: "2030-04-22"
+excerpt: "Astro builds fast static sites by default and only ships JavaScript for the parts that need it — interactive islands. Pages are rendered to HTML at build time. Astro components are HTML templates with a JavaScript frontmatter section for data fetching. You can drop React, Vue, Svelte, or Solid components anywhere and Astro hydrates only those components in the browser."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Astro's principle: ship as little JavaScript as possible. Everything that can be pre-rendered to HTML is. React components that need interactivity get hydrated in the browser — but only the component, not a full React app. A page with one interactive dropdown ships one React component's worth of JavaScript, not the whole bundle.
+
+## Project structure
+
+```
+src/
+  pages/          # file-based routing
+    index.astro
+    blog/
+      [slug].astro
+      index.astro
+  layouts/
+    Base.astro
+  components/
+    Header.astro
+    Counter.tsx   # React island
+  content/
+    blog/
+      hello-world.md
+  styles/
+    global.css
+astro.config.mjs
+```
+
+## Astro component syntax
+
+```astro
+---
+// Component script (runs on server at build time)
+import Header from '@/components/Header.astro';
+import { getCollection } from 'astro:content';
+
+const posts = await getCollection('blog');
+const title = 'Latest Posts';
+---
+
+<!-- Template: plain HTML with Astro expressions -->
+<html lang="en">
+  <head>
+    <title>{title}</title>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <h1>{title}</h1>
+      <ul>
+        {posts.map((post) => (
+          <li>
+            <a href={`/blog/${post.slug}`}>{post.data.title}</a>
+          </li>
+        ))}
+      </ul>
+    </main>
+  </body>
+</html>
+```
+
+The `---` fences contain server-only JavaScript. It runs at build time (or request time in SSR mode), never in the browser. No client bundle for this logic.
+
+## Content Collections
+
+```ts
+// src/content/config.ts
+import { defineCollection, z } from 'astro:content';
+
+const blog = defineCollection({
+  type: 'content',
+  schema: z.object({
+    title:       z.string(),
+    date:        z.coerce.date(),
+    excerpt:     z.string(),
+    author:      z.string().default('Lewis Wilson'),
+    draft:       z.boolean().default(false),
+  }),
+});
+
+export const collections = { blog };
+```
+
+```astro
+---
+// src/pages/blog/[slug].astro
+import { getCollection, getEntry } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog', ({ data }) => !data.draft);
+  return posts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await post.render();
+---
+
+<article>
+  <h1>{post.data.title}</h1>
+  <time>{post.data.date.toLocaleDateString()}</time>
+  <Content />
+</article>
+```
+
+Content Collections validate frontmatter at build time — a missing required field is a build error, not a runtime bug.
+
+## Islands: React components with selective hydration
+
+```astro
+---
+import Counter from '@/components/Counter.tsx';
+import VideoPlayer from '@/components/VideoPlayer.tsx';
+---
+
+<!-- No hydration: static HTML, no JavaScript -->
+<Counter />
+
+<!-- Hydrate immediately when page loads -->
+<Counter client:load />
+
+<!-- Hydrate when component becomes visible -->
+<VideoPlayer client:visible />
+
+<!-- Hydrate on first user interaction -->
+<Counter client:idle />
+
+<!-- Hydrate when media query matches -->
+<Counter client:media="(max-width: 768px)" />
+
+<!-- Never hydrate (SSR-only component, no client JS) -->
+<Counter client:only="react" />
+```
+
+The `client:` directive controls when hydration happens. `client:visible` is the most common for below-the-fold content — it avoids hydrating components the user never scrolls to.
+
+## Server-side rendering
+
+```ts
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+import node             from '@astrojs/node';
+
+export default defineConfig({
+  output:  'server',  // or 'hybrid' for mostly-static with some SSR pages
+  adapter: node({ mode: 'standalone' }),
+});
+```
+
+```astro
+---
+// SSR page: runs on every request
+const { id } = Astro.params;
+const post    = await fetchPost(id);
+
+if (!post) return Astro.redirect('/404');
+---
+
+<h1>{post.title}</h1>
+```
+
+In hybrid mode, pages are static by default. Add `export const prerender = false` to opt a specific page into SSR.
+
+## Data fetching
+
+```astro
+---
+// Parallel fetch at build time
+const [posts, products] = await Promise.all([
+  fetch('https://api.construxgroup.io/posts').then((r) => r.json()),
+  fetch('https://api.construxgroup.io/products').then((r) => r.json()),
+]);
+---
+```
+
+Build-time fetch is cached by default. In SSR mode, it runs per-request. The pattern is the same — Astro determines when it runs based on the output mode.
+
+## Astro vs Next.js
+
+Astro wins for: content-heavy sites (documentation, blogs, marketing), where maximum performance matters and interactivity is limited. Next.js wins for: full-stack applications, complex data fetching, authenticated experiences, apps that need React's full ecosystem deeply integrated. Astro ships less JavaScript by default; Next.js gives you more React surface area.

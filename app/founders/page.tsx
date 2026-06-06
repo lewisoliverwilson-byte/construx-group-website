@@ -9,6 +9,7 @@ import IpAddrPanel from '@/components/IpAddrPanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import UlimitPanel from '@/components/UlimitPanel';
 import VarLogAuthPanel from '@/components/VarLogAuthPanel';
+import SshAuditPanel from '@/components/SshAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -476,6 +477,11 @@ export default function FoundersPage() {
         {/* Auth log */}
         <div className="mt-6">
           <VarLogAuthPanel />
+        </div>
+
+        {/* SSH audit */}
+        <div className="mt-6">
+          <SshAuditPanel />
         </div>
 
         {/* CTA */}

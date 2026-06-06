@@ -1,0 +1,108 @@
+---
+title: "Cursor rules and AI-assisted development workflows"
+date: "2030-04-25"
+excerpt: "Cursor rules are instruction files that shape how the AI assistant behaves in your project. They specify conventions, constraints, and context that would otherwise require repetitive prompting. A well-written rules file means you stop explaining the same things every session — the AI already knows your stack, your patterns, and what you won't accept."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Cursor rules are project-specific instructions the AI reads on every conversation. They're analogous to a technical onboarding document for a new developer — except this developer needs to be told things every time it starts fresh.
+
+## .cursor/rules format
+
+```markdown
+# .cursor/rules (or .cursorrules at project root)
+
+## Stack
+- Next.js 15 App Router, React 19, TypeScript strict
+- Drizzle ORM with PostgreSQL, Bun runtime
+- Tailwind CSS v4, shadcn/ui components
+- Zod for validation, tRPC for type-safe APIs
+- Deployed on AWS via CDK, Cloudflare for DNS/CDN
+
+## Code style
+- TypeScript strict mode — no `any`, no `as` casts without comment
+- Prefer named exports over default exports (except pages and layouts)
+- Use `const` for everything that isn't reassigned
+- No `var`, no CommonJS (require/module.exports)
+- Arrow functions for callbacks, `function` declarations for components and utilities
+- No semicolons in TypeScript (Prettier handles it)
+
+## File structure
+- Server logic in `lib/` (database, auth, external APIs)
+- Shared types in `types/` — no barrel exports from types
+- Components in `components/` — one file per component
+- Server actions in `app/actions/` — named exports, `'use server'` at top
+- Database schema in `db/schema.ts` — Drizzle schema only
+
+## Patterns to follow
+- Use Drizzle ORM — no raw `db.execute` unless the query can't be expressed in the builder
+- All API routes validate input with Zod before touching the database
+- Server Actions use `revalidatePath` or `revalidateTag` after mutations
+- Error handling: use `try/catch` in Server Actions; propagate errors to clients as `{ error: string }`
+- Authentication: always call `getSession()` at the top of protected routes
+
+## Patterns to avoid
+- No `useEffect` for data fetching — use React Server Components or React Query
+- No `useState` for server state — mutations go through Server Actions or tRPC mutations
+- No inline styles — use Tailwind classes exclusively
+- No `any` types — use `unknown` and narrow, or define a proper type
+- No `console.log` in committed code — use structured logging in lib/logger.ts
+- No direct database access in Client Components — all DB work happens on the server
+
+## Testing
+- Unit tests with Vitest, integration tests with Playwright
+- Test files co-located: `Button.tsx` → `Button.test.tsx`
+- Mock external services (Stripe, Resend, S3) in tests — never real credentials
+- Integration tests use a test database, seeded in `tests/fixtures/`
+```
+
+## Making rules specific
+
+Generic rules ("write clean code") are useless. Specific rules that reflect your actual decisions are valuable:
+
+```markdown
+## Specific project decisions
+
+### Auth
+- We use Lucia v3 with Drizzle adapter, not NextAuth
+- Session cookie name is `construx_session`
+- `getSession()` is in `lib/auth/session.ts` — import from there, not from Lucia directly
+- Protected pages redirect to `/login?redirect={pathname}`
+
+### Database
+- All timestamps are `timestamp with time zone` — never `timestamp` or `date`
+- IDs are `text` using `cuid2` — never `serial` or `uuid`
+- Soft deletes use `deleted_at timestamp`, not a `status` field or hard delete
+- Foreign keys always have `onDelete: 'cascade'` unless there's a reason not to
+
+### API
+- Public API endpoints are prefixed `/api/public/`
+- Authenticated endpoints are prefixed `/api/`
+- Admin endpoints are prefixed `/api/admin/` and check for `role === 'admin'`
+- All API responses are `{ data: T }` or `{ error: string }` — never bare values
+```
+
+## CLAUDE.md vs .cursor/rules
+
+The same pattern applies to Claude Code (CLAUDE.md) and any AI assistant that reads project-level instruction files. The content should be:
+
+- **Stack and dependencies**: what's installed, what version, what you chose and why
+- **Patterns in use**: the specific approach for auth, DB access, error handling, testing
+- **Patterns to avoid**: things that look reasonable but are wrong for this codebase
+- **File locations**: where things live so the AI finds them without asking
+- **Non-obvious constraints**: legal requirements, performance budgets, deployment limits
+
+## What not to put in rules
+
+Anything that changes frequently (current sprint goals, open bugs), anything that's already in code (your TypeScript types already document themselves), and anything aspirational rather than actual ("we aim for 100% test coverage" — if you don't have it, don't say it, it misleads the AI).
+
+## The maintenance habit
+
+Rules drift. After a refactor or dependency change, update the rules file in the same commit. A stale rules file is worse than no rules file — the AI confidently does the wrong thing.
+
+```bash
+# Check rules file into version control
+git add .cursor/rules CLAUDE.md
+git commit -m "chore: update AI assistant rules for Drizzle migration"
+```
