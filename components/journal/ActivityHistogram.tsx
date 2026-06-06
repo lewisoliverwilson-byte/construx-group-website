@@ -15,16 +15,38 @@ export default function ActivityHistogram({ bars, total }: { bars: Bar[]; total:
   const peakBar = bars.reduce((a, b) => (b.count > a.count ? b : a), bars[0]);
 
   return (
-    <div className="mt-8 animate-fade-up" style={{ animationDelay: '520ms', animationFillMode: 'both' }}>
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-3">
-        <p className="font-mono text-[9px] text-text-dim uppercase tracking-[0.2em]">
-          // DISPATCH FREQUENCY
-        </p>
-        <span className="font-mono text-[9px] tabular-nums" style={{ color: 'rgba(249,115,22,0.4)' }}>
-          {String(total).padStart(3, '0')} TOTAL
+    <div
+      className="mt-8 overflow-hidden animate-fade-up"
+      style={{
+        animationDelay: '520ms',
+        animationFillMode: 'both',
+        background: 'rgba(0,0,6,0.65)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: '3px',
+      }}
+    >
+      {/* Title bar */}
+      <div
+        className="flex items-center gap-2.5 px-3 py-2 border-b"
+        style={{ borderColor: 'rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
+      >
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+          <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+          <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+        </div>
+        <span className="font-mono text-[8px] uppercase tracking-[0.18em] flex-1 text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          dispatch.frequency
         </span>
-        <span className="font-mono text-[9px] tabular-nums ml-auto" style={{ color: 'rgba(255,255,255,0.18)' }}>
+        <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(249,115,22,0.4)' }}>
+          {String(total).padStart(3, '0')}
+        </span>
+      </div>
+
+      <div className="px-4 pt-4 pb-3">
+      {/* Peak label */}
+      <div className="flex items-center justify-end mb-2">
+        <span className="font-mono text-[8px] tabular-nums" style={{ color: 'rgba(255,255,255,0.15)' }}>
           PEAK {peakBar.label.toUpperCase()}: {peakBar.count}
         </span>
       </div>
@@ -103,6 +125,7 @@ export default function ActivityHistogram({ bars, total }: { bars: Bar[]; total:
             );
           })}
         </div>
+      </div>
       </div>
     </div>
   );
