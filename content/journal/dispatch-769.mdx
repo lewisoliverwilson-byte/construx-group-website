@@ -1,0 +1,164 @@
+---
+title: "shadcn/ui: component code you own"
+date: "2031-04-08"
+excerpt: "shadcn/ui is not a component library you install — it's a CLI that copies component source code into your project. Each component is a file in your codebase that you read, modify, and own. Built on Radix UI primitives for accessibility and styled with Tailwind CSS, the components are accessible by default and fully customizable. When you need to change the behavior of a button or dialog, you open the file and edit it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Components as source code, not a locked dependency. Read it, edit it, own it.
+
+## Install
+
+```bash
+npx shadcn@latest init
+```
+
+This creates a `components.json` config and a `components/ui/` directory. It does not install a component library package.
+
+## Add components individually
+
+```bash
+# Add the components you need — one at a time
+npx shadcn@latest add button
+npx shadcn@latest add dialog
+npx shadcn@latest add input
+npx shadcn@latest add form
+npx shadcn@latest add table
+npx shadcn@latest add command
+```
+
+Each command copies source into `components/ui/`. No npm package is added — the component is a file you own.
+
+## What the code looks like
+
+```tsx
+// components/ui/button.tsx — this is in YOUR codebase
+import * as React    from 'react';
+import { Slot }      from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn }        from '@/lib/utils';
+
+const buttonVariants = cva(
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        default:     'bg-primary text-primary-foreground hover:bg-primary/90',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        outline:     'border border-input bg-background hover:bg-accent',
+        ghost:       'hover:bg-accent hover:text-accent-foreground',
+        link:        'text-primary underline-offset-4 hover:underline',
+      },
+      size: {
+        default: 'h-10 px-4 py-2',
+        sm:      'h-9 rounded-md px-3',
+        lg:      'h-11 rounded-md px-8',
+        icon:    'h-10 w-10',
+      },
+    },
+    defaultVariants: { variant: 'default', size: 'default' },
+  },
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+    return (
+      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+    );
+  },
+);
+Button.displayName = 'Button';
+
+export { Button, buttonVariants };
+```
+
+## Usage
+
+```tsx
+import { Button } from '@/components/ui/button';
+import {
+  Dialog, DialogContent, DialogHeader,
+  DialogTitle, DialogDescription,
+} from '@/components/ui/dialog';
+
+export function WorkspaceDialog() {
+  return (
+    <Dialog>
+      <Button variant="outline">Open dialog</Button>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create workspace</DialogTitle>
+          <DialogDescription>Give your workspace a name and slug.</DialogDescription>
+        </DialogHeader>
+        {/* form here */}
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+## Custom theme
+
+```css
+/* app/globals.css */
+@layer base {
+  :root {
+    --background:   0 0% 100%;
+    --foreground:   222.2 84% 4.9%;
+    --primary:      24 95% 53%;    /* Construx orange */
+    --primary-foreground: 210 40% 98%;
+    --ring:         24 95% 53%;
+    --radius:       0.5rem;
+  }
+  .dark {
+    --background:   222.2 84% 4.9%;
+    --foreground:   210 40% 98%;
+    --primary:      24 95% 53%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+  }
+}
+```
+
+All colors are CSS variables — change the theme by changing the variables, not by overriding component styles.
+
+## Form with react-hook-form + Zod
+
+```tsx
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
+import { Input }  from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { z } from 'zod';
+
+const schema = z.object({ name: z.string().min(2), slug: z.string().min(2) });
+
+export function CreateWorkspaceForm() {
+  const form = useForm({ resolver: zodResolver(schema) });
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(console.log)}>
+        <FormField control={form.control} name="name" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Name</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <Button type="submit">Create</Button>
+      </form>
+    </Form>
+  );
+}
+```
+
+shadcn/ui vs MUI vs Mantine: shadcn/ui gives you source ownership and Tailwind integration. MUI has the largest component set and design system coverage but requires its own styling approach. Mantine is a complete component library with excellent DX. The Construx default: shadcn/ui for new projects — having the source code in the repo means we can adjust any component without fighting a library API.

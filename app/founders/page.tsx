@@ -13,6 +13,7 @@ import SshAuditPanel from '@/components/SshAuditPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
+import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -498,8 +499,13 @@ export default function FoundersPage() {
         </div>
 
         {/* Docker multi-stage build */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DockerBuildPanel />
+        </div>
+
+        {/* pnpm workspace */}
+        <div className="mt-6 pb-10">
+          <PnpmWorkspacePanel />
         </div>
 
         {/* CTA */}
