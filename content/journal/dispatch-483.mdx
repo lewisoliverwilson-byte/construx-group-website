@@ -1,0 +1,196 @@
+---
+title: "Web Workers: CPU-heavy work off the main thread"
+date: "2028-12-01"
+excerpt: "JavaScript is single-threaded. If you parse a large JSON response, run a complex calculation, or process an image on the main thread, you block the UI. Web Workers run JavaScript in a background thread — same code, different thread, no UI impact."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The main thread runs your React rendering, event handlers, animations, and scroll listeners. Block it for more than 16ms and frames drop — the UI feels janky. Web Workers give you a separate thread for CPU-heavy operations, with a message-passing interface between the two.
+
+## The basic pattern
+
+```ts
+// workers/parser.worker.ts
+self.onmessage = (event: MessageEvent<{ raw: string }>) => {
+  const { raw } = event.data;
+
+  // This runs in a background thread — no UI impact
+  const parsed = parseHeavyData(raw);
+
+  self.postMessage({ result: parsed });
+};
+
+function parseHeavyData(raw: string) {
+  // Simulate heavy parsing: JSON with 10,000 entries, complex transforms
+  const data = JSON.parse(raw);
+  return data.map((item: Record<string, unknown>) => ({
+    id: item.id,
+    score: computeScore(item),
+    category: classify(item),
+  }));
+}
+```
+
+```ts
+// Using the worker in a component
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
+export function DataProcessor({ rawData }: { rawData: string }) {
+  const workerRef = useRef<Worker>(null);
+  const [result, setResult] = useState<ProcessedData[] | null>(null);
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    workerRef.current = new Worker(
+      new URL('../workers/parser.worker.ts', import.meta.url),
+    );
+
+    workerRef.current.onmessage = (event: MessageEvent<{ result: ProcessedData[] }>) => {
+      setResult(event.data.result);
+      setProcessing(false);
+    };
+
+    return () => workerRef.current?.terminate();
+  }, []);
+
+  const process = () => {
+    setProcessing(true);
+    workerRef.current?.postMessage({ raw: rawData });
+  };
+
+  return (
+    <div>
+      <button onClick={process} disabled={processing}>
+        {processing ? 'Processing...' : 'Process data'}
+      </button>
+      {result && <pre>{JSON.stringify(result.slice(0, 3), null, 2)}</pre>}
+    </div>
+  );
+}
+```
+
+Next.js supports `new Worker(new URL(...))` with Webpack's worker import syntax automatically.
+
+## Worker communication with Comlink
+
+Raw `postMessage` requires you to handle message routing manually. Comlink wraps a worker in a Proxy that looks like a normal async function call:
+
+```bash
+npm install comlink
+```
+
+```ts
+// workers/scanner.worker.ts
+import * as Comlink from 'comlink';
+
+const scanner = {
+  async analyseProducts(products: RawProduct[]): Promise<AnalysedProduct[]> {
+    return products.map((p) => ({
+      ...p,
+      profitability: calculateProfitability(p),
+      riskScore: calculateRisk(p),
+      recommendation: generateRecommendation(p),
+    }));
+  },
+
+  async filterByThreshold(
+    products: AnalysedProduct[],
+    minProfit: number,
+  ): Promise<AnalysedProduct[]> {
+    return products.filter((p) => p.profitability >= minProfit);
+  },
+};
+
+Comlink.expose(scanner);
+```
+
+```ts
+// Using the Comlink worker
+import * as Comlink from 'comlink';
+
+type ScannerWorker = typeof import('./scanner.worker');
+
+export function useScannerWorker() {
+  const workerRef = useRef<Comlink.Remote<ScannerWorker> | null>(null);
+
+  useEffect(() => {
+    const worker = new Worker(new URL('./scanner.worker.ts', import.meta.url));
+    workerRef.current = Comlink.wrap<ScannerWorker>(worker);
+    return () => worker.terminate();
+  }, []);
+
+  const analyse = async (products: RawProduct[]) => {
+    if (!workerRef.current) throw new Error('Worker not ready');
+    // Looks like a regular async function — handles the message passing
+    return workerRef.current.analyseProducts(products);
+  };
+
+  return { analyse };
+}
+```
+
+## Shared memory with SharedArrayBuffer
+
+For high-frequency data (real-time trading data, audio processing), `postMessage` copying is too slow. `SharedArrayBuffer` lets both threads read and write the same memory:
+
+```ts
+// Producer (main thread)
+const buffer = new SharedArrayBuffer(4 * 1024);  // 1KB of floats
+const view = new Float32Array(buffer);
+
+// Pass the buffer to the worker — no copying
+worker.postMessage({ buffer }, []);
+
+// Update the shared buffer — worker reads it directly
+view[0] = latestPrice;
+view[1] = timestamp;
+
+// Worker (background thread)
+self.onmessage = (event: MessageEvent<{ buffer: SharedArrayBuffer }>) => {
+  const view = new Float32Array(event.data.buffer);
+
+  setInterval(() => {
+    const price = view[0];
+    const ts = view[1];
+    // Process the latest value — no postMessage needed
+  }, 16);  // 60fps
+};
+```
+
+`SharedArrayBuffer` requires the page to be cross-origin isolated (`COOP` and `COEP` headers). It's the right choice for real-time data streams where copying overhead matters.
+
+## Use cases in practice
+
+**Good candidates for workers:**
+- Parsing large JSON or CSV payloads (>1MB)
+- Image manipulation (resize, compress, filter)
+- Cryptographic operations (hashing, key generation)
+- Data aggregation over large arrays
+- PDF generation or rendering
+- Machine learning inference in WASM
+
+**Bad candidates:**
+- DOM manipulation (not available in workers)
+- Simple async operations (use `useEffect` + fetch)
+- Operations that take <5ms (overhead isn't worth it)
+- Anything that requires shared mutable state (use context or Zustand instead)
+
+The break-even point is roughly: if the operation blocks the main thread for >50ms and is triggered frequently enough to notice, move it to a worker.
+
+## Transferable objects for zero-copy
+
+```ts
+// Transferring ownership instead of copying — for large ArrayBuffers
+const buffer = new ArrayBuffer(10 * 1024 * 1024);  // 10MB
+
+// ✓ Zero-copy transfer — buffer is no longer accessible on main thread
+worker.postMessage({ buffer }, [buffer]);
+
+// ✗ Structured clone — copies 10MB
+worker.postMessage({ buffer });
+```
+
+The second argument to `postMessage` is the transferables list. Transferred objects are moved to the worker thread — the main thread loses access. Use this for large buffers where copying would be slow.

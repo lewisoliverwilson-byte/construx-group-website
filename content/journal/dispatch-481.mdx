@@ -1,0 +1,231 @@
+---
+title: "Redis patterns: caching, rate limiting, and pub/sub"
+date: "2028-11-25"
+excerpt: "Redis is not just a cache. The data structures — hashes, sorted sets, lists, streams — each suit a specific pattern. Here's the setup for the cases that actually come up: response caching, distributed rate limiting, session storage, and real-time pub/sub."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redis is used as a cache by default, but the right mental model is a versatile data structure server. Different structures suit different problems, and choosing the wrong one costs you either memory or latency. Here's the breakdown by use case.
+
+## Setup with Upstash
+
+Upstash is Redis over HTTP — no persistent TCP connections, works in serverless and edge environments:
+
+```bash
+npm install @upstash/redis
+```
+
+```ts
+// lib/redis.ts
+import { Redis } from '@upstash/redis';
+
+export const redis = Redis.fromEnv();
+// Reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from process.env
+```
+
+For a traditional Redis connection (self-hosted or Railway):
+
+```ts
+import { createClient } from 'redis';
+
+const client = createClient({ url: process.env.REDIS_URL });
+await client.connect();
+export const redis = client;
+```
+
+## Response caching
+
+```ts
+// lib/cache.ts
+import { redis } from '@/lib/redis';
+
+export async function withCache<T>(
+  key: string,
+  ttlSeconds: number,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  const cached = await redis.get<T>(key);
+  if (cached !== null) return cached;
+
+  const fresh = await fetcher();
+  await redis.setex(key, ttlSeconds, JSON.stringify(fresh));
+  return fresh;
+}
+
+// Usage
+const products = await withCache(
+  `products:category:${category}`,
+  300,  // 5 minutes
+  () => db.query.products.findMany({ where: eq(products.category, category) }),
+);
+```
+
+For cache invalidation after mutations:
+
+```ts
+// After updating a product, invalidate all related cache keys
+await redis.del(`products:${productId}`);
+await redis.del(`products:category:${product.category}`);
+
+// Or use a pattern delete (not available in Upstash — use a set of keys)
+const keysToDelete = await redis.keys(`products:category:*`);
+if (keysToDelete.length > 0) await redis.del(...keysToDelete);
+```
+
+## Distributed rate limiting
+
+Redis is ideal for rate limiting because counters are atomic — no race conditions across multiple server instances:
+
+```ts
+// lib/ratelimit.ts
+import { redis } from '@/lib/redis';
+
+export async function rateLimit(
+  identifier: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<{ allowed: boolean; remaining: number; reset: number }> {
+  const key = `ratelimit:${identifier}`;
+  const now = Date.now();
+  const windowStart = now - windowSeconds * 1000;
+
+  // Sliding window using a sorted set
+  const pipeline = redis.pipeline();
+  pipeline.zremrangebyscore(key, 0, windowStart);         // Remove old entries
+  pipeline.zadd(key, { score: now, member: `${now}` });   // Add current request
+  pipeline.zcount(key, windowStart, now);                 // Count in window
+  pipeline.expire(key, windowSeconds);                    // TTL cleanup
+
+  const results = await pipeline.exec();
+  const count = results[2] as number;
+
+  return {
+    allowed: count <= limit,
+    remaining: Math.max(0, limit - count),
+    reset: Math.ceil((now + windowSeconds * 1000) / 1000),
+  };
+}
+
+// Usage in an API route
+const { allowed, remaining } = await rateLimit(
+  `scan:${userId}`,
+  10,   // 10 requests
+  60,   // per minute
+);
+
+if (!allowed) {
+  return Response.json({ error: 'Rate limit exceeded' }, { status: 429 });
+}
+```
+
+## Session storage
+
+Redis sessions are faster than database sessions and handle expiry automatically:
+
+```ts
+import { redis } from '@/lib/redis';
+import { nanoid } from 'nanoid';
+
+interface Session {
+  userId: string;
+  role: 'admin' | 'user';
+  createdAt: number;
+}
+
+export async function createSession(userId: string, role: Session['role']): Promise<string> {
+  const sessionId = nanoid(32);
+  const session: Session = { userId, role, createdAt: Date.now() };
+
+  await redis.setex(
+    `session:${sessionId}`,
+    60 * 60 * 24 * 7,  // 7 days
+    JSON.stringify(session),
+  );
+
+  return sessionId;
+}
+
+export async function getSession(sessionId: string): Promise<Session | null> {
+  return redis.get<Session>(`session:${sessionId}`);
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await redis.del(`session:${sessionId}`);
+}
+```
+
+## Sorted sets for leaderboards
+
+```ts
+// Track scan counts by user — sorted set is perfect for leaderboards
+export async function incrementScanCount(userId: string): Promise<void> {
+  await redis.zincrby('scan_leaderboard', 1, userId);
+}
+
+export async function getTopScanners(limit: number) {
+  // Returns [member, score] pairs sorted by score descending
+  return redis.zrange('scan_leaderboard', 0, limit - 1, {
+    rev: true,
+    withScores: true,
+  });
+}
+
+export async function getUserRank(userId: string): Promise<number | null> {
+  const rank = await redis.zrevrank('scan_leaderboard', userId);
+  return rank !== null ? rank + 1 : null;  // 1-indexed
+}
+```
+
+## Pub/sub for real-time events
+
+```ts
+// Publisher
+import { createClient } from 'redis';
+
+const publisher = createClient({ url: process.env.REDIS_URL });
+await publisher.connect();
+
+export async function publishScanComplete(userId: string, scanId: string) {
+  await publisher.publish(
+    `scans:${userId}`,
+    JSON.stringify({ event: 'scan_complete', scanId, timestamp: Date.now() }),
+  );
+}
+
+// Subscriber (in a long-running process — not serverless)
+const subscriber = createClient({ url: process.env.REDIS_URL });
+await subscriber.connect();
+
+await subscriber.subscribe('scans:*', (message, channel) => {
+  const { event, scanId } = JSON.parse(message);
+
+  if (event === 'scan_complete') {
+    // Notify connected WebSocket clients for this user
+    const userId = channel.split(':')[1];
+    wsServer.broadcast(userId, { type: 'SCAN_COMPLETE', scanId });
+  }
+});
+```
+
+## Lists for job queues (simple case)
+
+For lightweight job queuing without BullMQ:
+
+```ts
+// Producer
+await redis.lpush('scan_queue', JSON.stringify({ productId, userId, priority: 'high' }));
+
+// Consumer (poll-based — use BullMQ for production queues)
+async function processQueue() {
+  while (true) {
+    const item = await redis.brpop('scan_queue', 5);  // Block up to 5s
+    if (!item) continue;
+
+    const job = JSON.parse(item[1]);
+    await processScan(job.productId, job.userId);
+  }
+}
+```
+
+For anything beyond simple FIFO queuing, use BullMQ — it handles retries, concurrency, rate limiting, scheduled jobs, and priority queues on top of Redis.

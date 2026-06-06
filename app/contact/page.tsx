@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Send, CheckCircle, AlertCircle } from 'lucide-react';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
+import TraceroutePanel from '@/components/TraceroutePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -317,8 +318,13 @@ export default function ContactPage() {
       </section>
 
       {/* Latency map */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <LatencyMapPanel />
+      </section>
+
+      {/* Traceroute */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TraceroutePanel />
       </section>
     </div>
   );
