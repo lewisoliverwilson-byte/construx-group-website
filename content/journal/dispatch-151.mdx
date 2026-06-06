@@ -1,0 +1,97 @@
+---
+title: "Production incident retrospective: when The Marqet went dark for 47 minutes"
+date: "2026-10-13"
+excerpt: "On a Tuesday afternoon, The Marqet returned 500s for 47 minutes due to a database connection pool exhaustion we'd never seen before. Here's the full retrospective: what happened, why, and what we changed."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every production system eventually has an incident. Here's ours.
+
+**Date:** Tuesday, 14 October 2025  
+**Duration:** 47 minutes  
+**Impact:** The Marqet API returning 500s site-wide; new listing creation, search, and buyer enquiries all failing  
+**Root cause:** Database connection pool exhaustion caused by a slow query introduced in a deployment six hours earlier
+
+## Timeline
+
+**14:22** — Deployment to production. Included a new seller analytics query added to the listing detail page.
+
+**17:41** — First 500 error. Our uptime monitor caught it within 60 seconds and sent a Slack notification. (At this point we were away from desks.)
+
+**18:09** — We noticed the Slack notification. The monitor showed continuous failures since 17:41.
+
+**18:11** — Initial investigation. Checked Amplify deployment logs — no deployment had happened since 14:22. Checked the database dashboard — connection count at ceiling: 20/20 connections active.
+
+**18:14** — Attempted to restart the Amplify function instances by redeploying. This didn't help — the new instances immediately hit the same connection ceiling.
+
+**18:19** — Identified the slow query. The seller analytics query on listing detail was joining across four tables without an index on the `created_at` filter column. Under moderate traffic, each request held a connection open for 4-8 seconds instead of the usual ~50ms. With enough concurrent requests, the pool was saturated.
+
+**18:23** — Added the missing index:
+
+```sql
+CREATE INDEX CONCURRENTLY idx_orders_seller_created_at 
+ON orders(seller_id, created_at DESC);
+```
+
+**18:28** — Index creation completed. Query time dropped from 4-8s to ~12ms. Connections freed. 500s stopped.
+
+**18:29** — All-clear confirmed by uptime monitor.
+
+Total downtime: 47 minutes. Notice-to-resolution: 20 minutes.
+
+## What went wrong
+
+**The query.** The analytics query was correct in intent — it calculated a seller's listing performance over the trailing 30 days. The problem was the execution plan. Without an index on `(seller_id, created_at)`, PostgreSQL was doing a sequential scan of the orders table for every request.
+
+In development, with hundreds of orders, this was fast enough. In production, with tens of thousands of orders, it was slow enough to exhaust the connection pool.
+
+**We didn't test with production-scale data.** Our development database has a fraction of the production data volume. Queries that are performant at small scale can be catastrophic at production scale.
+
+**We didn't review the query plan.** We reviewed the query logic but didn't run `EXPLAIN ANALYZE` on it against production-scale data.
+
+**The connection pool was too small.** 20 connections is the default for Supabase's free tier. We were still on this limit despite the traffic volume having grown significantly.
+
+## What we changed
+
+**Immediate:**
+- Added the missing index
+- Upgraded the database connection pool limit to 60
+
+**Short-term:**
+- Added `EXPLAIN ANALYZE` output to our PR template checklist for any new database queries
+- Added a connection pool utilisation alert (fires at 70% — before it becomes a problem)
+- Added a query duration alert (fires if p95 query time exceeds 500ms)
+
+**Structural:**
+- We now run load testing against a staging database with production-scale data before deploying queries that touch large tables
+- We run `EXPLAIN ANALYZE` on all new queries during code review using a snapshot of the production schema
+
+```sql
+-- Development now has a production-scale test script
+-- that seeds the orders table with 50k rows for query testing
+INSERT INTO orders (seller_id, created_at, ...)
+SELECT 
+  (ARRAY['seller-1','seller-2','seller-3'])[floor(random()*3+1)],
+  NOW() - (random() * INTERVAL '180 days'),
+  ...
+FROM generate_series(1, 50000);
+```
+
+## What we didn't change
+
+**We didn't add more aggressive caching.** The seller analytics data could be cached. But the correct fix was the index — caching was unnecessary overhead that would have masked the underlying problem.
+
+**We didn't reduce query complexity.** The query was doing the right thing; it just needed the right index. Over-engineering a simpler query would have lost useful data.
+
+**We didn't add a circuit breaker for database queries.** This was considered. A circuit breaker would have failed fast when the pool was exhausted rather than queuing requests. It's on the backlog but not critical — the alerts and pool size increase address the same failure mode earlier.
+
+## The meta-lesson
+
+The incident was recoverable and had a clear root cause. The real risk in production incidents isn't the 47 minutes of downtime — it's the compound risk: incidents that cascade, that are hard to diagnose, that require rollbacks, or that corrupt data.
+
+This one didn't cascade. The fix was a single SQL command. But the conditions that caused it — a query added without load testing, a pool size never reviewed — are conditions that produce harder incidents over time.
+
+The changes we made weren't just about the specific failure. They were about closing the class of failures that this incident represents: performance regressions introduced in code review that only manifest at production scale.
+
+The incident is in the git history. The retrospective is in the journal. Both are useful.
