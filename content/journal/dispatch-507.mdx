@@ -1,0 +1,263 @@
+---
+title: "Monorepo with Turborepo: sharing code across multiple Next.js apps"
+date: "2029-02-11"
+excerpt: "A monorepo puts all your apps and packages in one repo with shared tooling. Turborepo adds a task runner that caches build outputs and runs tasks in parallel. Here's the setup for sharing a UI component library, config packages, and TypeScript types across multiple Next.js apps."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+When you're building multiple products that share code — design tokens, auth utilities, type definitions, UI components — a monorepo prevents drift. The alternative is duplicating code across repos and manually keeping them in sync. Turborepo makes the monorepo toolchain fast: builds are cached locally and on CI, unchanged packages don't rebuild, and tasks run in parallel where the dependency graph allows.
+
+## Structure
+
+```
+construx-monorepo/
+├── apps/
+│   ├── scoutr/           # Next.js app
+│   ├── marqet/           # Next.js app
+│   └── hyve/             # Next.js app
+├── packages/
+│   ├── ui/               # Shared React components
+│   ├── auth/             # Auth utilities (getServerSession wrappers)
+│   ├── db/               # Drizzle schemas and client
+│   ├── tsconfig/         # Shared TypeScript configs
+│   └── eslint-config/    # Shared ESLint config
+├── turbo.json
+└── package.json
+```
+
+## Root setup
+
+```bash
+npx create-turbo@latest construx-monorepo
+cd construx-monorepo
+```
+
+```json
+// package.json (root)
+{
+  "name": "construx-monorepo",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build":   "turbo run build",
+    "dev":     "turbo run dev",
+    "lint":    "turbo run lint",
+    "test":    "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  }
+}
+```
+
+```json
+// turbo.json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],          // Build dependencies first
+      "inputs":    ["$TURBO_DEFAULT$"],
+      "outputs":   [".next/**", "dist/**"]
+    },
+    "dev": {
+      "cache":     false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    }
+  }
+}
+```
+
+## Shared TypeScript config package
+
+```json
+// packages/tsconfig/package.json
+{
+  "name": "@construx/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "files": ["*.json"]
+}
+```
+
+```json
+// packages/tsconfig/base.json
+{
+  "compilerOptions": {
+    "target":          "ES2022",
+    "lib":             ["dom", "dom.iterable", "ES2022"],
+    "strict":          true,
+    "esModuleInterop": true,
+    "skipLibCheck":    true,
+    "moduleResolution": "bundler"
+  }
+}
+```
+
+```json
+// packages/tsconfig/nextjs.json
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "next" }],
+    "jsx":     "preserve"
+  }
+}
+```
+
+```json
+// apps/scoutr/tsconfig.json
+{
+  "extends": "@construx/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths":   { "@/*": ["./src/*"] }
+  }
+}
+```
+
+## Shared UI package
+
+```json
+// packages/ui/package.json
+{
+  "name": "@construx/ui",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types":  "./src/index.ts"
+    }
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}
+```
+
+```ts
+// packages/ui/src/index.ts
+export { Button }   from './Button';
+export { Card }     from './Card';
+export { Badge }    from './Badge';
+export { Input }    from './Input';
+export type { ButtonProps } from './Button';
+```
+
+```tsx
+// packages/ui/src/Button.tsx
+import type { ButtonHTMLAttributes } from 'react';
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?:    'sm' | 'md' | 'lg';
+}
+
+export function Button({
+  variant = 'primary',
+  size    = 'md',
+  className = '',
+  ...props
+}: ButtonProps) {
+  const base = 'inline-flex items-center justify-center font-medium transition-colors focus:outline-none disabled:opacity-50';
+  const variants = {
+    primary:   'bg-orange-500 text-black hover:bg-orange-400',
+    secondary: 'border border-white/20 text-white hover:bg-white/5',
+    ghost:     'text-white/70 hover:text-white',
+  };
+  const sizes = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-3 text-base',
+  };
+
+  return (
+    <button
+      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
+      {...props}
+    />
+  );
+}
+
+export type { ButtonProps };
+```
+
+## Using shared packages in apps
+
+```json
+// apps/scoutr/package.json
+{
+  "dependencies": {
+    "@construx/ui":       "*",
+    "@construx/tsconfig": "*"
+  }
+}
+```
+
+```tsx
+// apps/scoutr/src/app/page.tsx
+import { Button, Card } from '@construx/ui';
+
+export default function Page() {
+  return (
+    <Card>
+      <Button variant="primary">Scan products</Button>
+    </Card>
+  );
+}
+```
+
+## Shared DB package
+
+```ts
+// packages/db/src/index.ts
+export { db }     from './client';
+export * as schema from './schema';
+export type { Database } from './client';
+
+// packages/db/src/client.ts
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool }    from 'pg';
+import * as schema from './schema';
+
+export const db = drizzle(
+  new Pool({ connectionString: process.env.DATABASE_URL! }),
+  { schema }
+);
+```
+
+## Running in development
+
+```bash
+# Start all apps simultaneously
+pnpm dev  # Turborepo runs dev for all apps in parallel
+
+# Start a specific app
+pnpm --filter scoutr dev
+
+# Build only changed packages
+pnpm build  # Turborepo skips unchanged packages using cache
+```
+
+## CI with remote caching
+
+Turborepo's remote cache shares build artifacts across CI runs:
+
+```bash
+# Link to Vercel's remote cache (free for Turborepo)
+npx turbo link
+
+# CI workflow — cache is shared between PR runs
+turbo run build --filter=[HEAD^1]  # Only build what changed since last commit
+```
+
+The cache key is a hash of the file contents and environment variables. An unchanged package that was built in a previous CI run restores from cache in seconds rather than minutes.

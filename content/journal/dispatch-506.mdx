@@ -1,0 +1,212 @@
+---
+title: "Vector search with pgvector: semantic similarity in Postgres"
+date: "2029-02-08"
+excerpt: "pgvector adds a vector column type and cosine similarity search to Postgres. Combined with embedding models, it enables semantic search — find documents by meaning rather than exact keyword match. Here's the setup for embedding generation, storage, and similarity queries with Drizzle."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Semantic search answers 'what is similar to this?' rather than 'what contains this keyword?'. A keyword search for 'laptop stand' misses 'monitor riser' even though they're the same product. A semantic search finds both because their embeddings are close in vector space. pgvector brings this capability inside Postgres — no separate vector database to manage.
+
+## How it works
+
+An embedding model maps text to a fixed-length vector of floats (typically 1536 dimensions for OpenAI's `text-embedding-3-small`). Similar text produces similar vectors. pgvector stores these vectors and supports efficient nearest-neighbour queries with a cosine distance operator.
+
+```
+"laptop stand" → [0.42, -0.18, 0.71, ...]  ←→ close
+"monitor riser" → [0.40, -0.20, 0.69, ...]  ←→ close
+"coffee beans" → [-0.82, 0.34, -0.61, ...]  ←→ far
+```
+
+## Setup
+
+```bash
+# Enable pgvector extension
+psql -d your_database -c 'CREATE EXTENSION IF NOT EXISTS vector'
+
+npm install @neondatabase/serverless drizzle-orm
+# or
+npm install pg drizzle-orm
+```
+
+## Schema with Drizzle
+
+```ts
+// db/schema.ts
+import { pgTable, uuid, text, integer, timestamp, index } from 'drizzle-orm/pg-core';
+import { vector } from 'drizzle-orm/pg-core';  // pgvector column type
+
+export const products = pgTable(
+  'products',
+  {
+    id:          uuid('id').primaryKey().defaultRandom(),
+    title:       text('title').notNull(),
+    description: text('description').notNull(),
+    category:    text('category').notNull(),
+    price:       integer('price').notNull(),  // pence
+    embedding:   vector('embedding', { dimensions: 1536 }),
+    createdAt:   timestamp('created_at').defaultNow(),
+  },
+  (table) => [
+    // HNSW index for fast approximate nearest-neighbour search
+    index('products_embedding_hnsw_idx')
+      .using('hnsw', table.embedding.op('vector_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+  ],
+);
+```
+
+The HNSW index (`Hierarchical Navigable Small World`) trades a small amount of recall for dramatically faster query performance on large datasets. For datasets under 100k rows, an IVFFlat index or even a brute-force scan works fine.
+
+## Generating embeddings
+
+```ts
+// lib/embeddings.ts
+import OpenAI from 'openai';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+export async function embedText(text: string): Promise<number[]> {
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',  // 1536 dimensions, cheap
+    input: text.slice(0, 8000),       // Trim to model's token limit
+  });
+  return response.data[0].embedding;
+}
+
+// Batch embedding — more efficient than individual calls
+export async function embedBatch(texts: string[]): Promise<number[][]> {
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: texts.map((t) => t.slice(0, 8000)),
+  });
+  return response.data.map((d) => d.embedding);
+}
+```
+
+Or use Anthropic's Voyage models for higher quality embeddings:
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+export async function embedText(text: string): Promise<number[]> {
+  const response = await anthropic.messages.create({
+    model:   'voyage-3',  // 1024 dimensions
+    // Voyage is a separate API — use their SDK directly
+  });
+  // See Voyage AI docs for the actual SDK usage
+}
+```
+
+## Storing embeddings
+
+```ts
+// When indexing a product
+import { db }        from '@/lib/db';
+import { products }  from '@/db/schema';
+import { embedText } from '@/lib/embeddings';
+
+async function indexProduct(product: NewProduct) {
+  const embeddingText = `${product.title}\n${product.description}`;
+  const embedding     = await embedText(embeddingText);
+
+  await db.insert(products).values({
+    ...product,
+    embedding,
+  });
+}
+```
+
+## Similarity search
+
+```ts
+// lib/search.ts
+import { db }       from '@/lib/db';
+import { products } from '@/db/schema';
+import { sql }      from 'drizzle-orm';
+import { embedText } from './embeddings';
+
+export async function semanticSearch(query: string, limit = 10) {
+  const queryEmbedding = await embedText(query);
+
+  // Cosine similarity search — lower distance = more similar
+  const results = await db
+    .select({
+      id:          products.id,
+      title:       products.title,
+      description: products.description,
+      price:       products.price,
+      similarity:  sql<number>`1 - (${products.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+    })
+    .from(products)
+    .orderBy(sql`${products.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
+    .limit(limit);
+
+  return results;
+}
+```
+
+The `<=>` operator is pgvector's cosine distance. Subtracting from 1 gives similarity (1 = identical, 0 = unrelated, negative values are possible).
+
+## Hybrid search: semantic + keyword
+
+Combine semantic and keyword search for better results:
+
+```ts
+export async function hybridSearch(query: string, limit = 10) {
+  const queryEmbedding = await embedText(query);
+
+  // Reciprocal rank fusion of semantic and full-text search
+  const results = await db.execute(sql`
+    WITH semantic AS (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector) AS rank
+      FROM products
+      LIMIT 50
+    ),
+    fulltext AS (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (ORDER BY ts_rank(to_tsvector('english', title || ' ' || description), plainto_tsquery(${query})) DESC) AS rank
+      FROM products
+      WHERE to_tsvector('english', title || ' ' || description) @@ plainto_tsquery(${query})
+      LIMIT 50
+    )
+    SELECT
+      p.id, p.title, p.price,
+      COALESCE(1.0 / (60 + s.rank), 0) + COALESCE(1.0 / (60 + f.rank), 0) AS score
+    FROM products p
+    LEFT JOIN semantic  s ON p.id = s.id
+    LEFT JOIN fulltext  f ON p.id = f.id
+    WHERE s.id IS NOT NULL OR f.id IS NOT NULL
+    ORDER BY score DESC
+    LIMIT ${limit}
+  `);
+
+  return results.rows;
+}
+```
+
+The constant 60 in the denominator is the RRF constant — it prevents very high ranks from dominating. Both semantic and keyword rankings contribute to the final score.
+
+## Incremental reindexing
+
+When product content changes, regenerate the embedding:
+
+```ts
+async function reindexProduct(productId: string) {
+  const product = await db.select().from(products).where(eq(products.id, productId)).limit(1);
+  if (!product[0]) return;
+
+  const embedding = await embedText(`${product[0].title}\n${product[0].description}`);
+
+  await db.update(products)
+    .set({ embedding })
+    .where(eq(products.id, productId));
+}
+```
+
+For bulk reindexing, process in batches of 100 to stay within embedding API rate limits.
