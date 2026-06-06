@@ -1,0 +1,206 @@
+---
+title: "WebAssembly in the browser: when to use it and how to ship it"
+date: "2027-11-11"
+excerpt: "WebAssembly gives you near-native performance in the browser for compute-heavy work. The compilation target, not the language, is what matters. Here's when it's worth it and how to integrate it with a Next.js app."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+WebAssembly (Wasm) is a compilation target — a binary instruction format that runs at near-native speed in all major browsers. You write code in Rust, C, C++, Go, or AssemblyScript, compile it to `.wasm`, and load it from JavaScript. The browser executes it in a sandboxed environment alongside your JavaScript.
+
+The key constraint: Wasm has no direct DOM access. It runs compute, returns results, JavaScript handles the UI.
+
+## When Wasm is worth it
+
+**Good candidates:**
+- Image/video processing (resizing, filters, compression)
+- Audio processing (encoding, effects, analysis)
+- Cryptography (hashing, encryption, key derivation)
+- Scientific computing (simulations, ML inference)
+- Code compilation/execution (in-browser compilers, playgrounds)
+- Game engines
+
+**Bad candidates:**
+- Anything that spends most time on DOM manipulation
+- Simple data transformation
+- Work that's already fast in JavaScript
+- Anything network-bound
+
+The break-even for Wasm overhead is roughly 10ms of computation. Below that, the load cost and JS/Wasm interop overhead often costs more than you save.
+
+## Rust to Wasm with wasm-pack
+
+Rust has the best Wasm toolchain. `wasm-pack` compiles Rust to Wasm and generates JavaScript bindings automatically.
+
+```bash
+# Install wasm-pack
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+# Create a Rust library
+cargo new --lib image-processor
+```
+
+```toml
+# Cargo.toml
+[package]
+name = "image-processor"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+image = "0.25"
+```
+
+```rust
+// src/lib.rs
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn grayscale(pixels: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let mut output = vec![0u8; (width * height * 4) as usize];
+
+    for (i, chunk) in pixels.chunks(4).enumerate() {
+        let r = chunk[0] as f32;
+        let g = chunk[1] as f32;
+        let b = chunk[2] as f32;
+        let gray = (0.299 * r + 0.587 * g + 0.114 * b) as u8;
+
+        let base = i * 4;
+        output[base] = gray;
+        output[base + 1] = gray;
+        output[base + 2] = gray;
+        output[base + 3] = chunk[3]; // preserve alpha
+    }
+
+    output
+}
+```
+
+```bash
+wasm-pack build --target web
+```
+
+This generates a `pkg/` directory with the `.wasm` file and JavaScript bindings.
+
+## Loading Wasm in Next.js
+
+```ts
+// lib/wasm.ts
+let wasmModule: typeof import('../pkg/image_processor') | null = null;
+
+export async function getWasm() {
+  if (!wasmModule) {
+    wasmModule = await import('../pkg/image_processor');
+    await wasmModule.default();  // initializes the Wasm module
+  }
+  return wasmModule;
+}
+```
+
+```tsx
+// components/ImageProcessor.tsx
+'use client';
+
+import { useRef, useState } from 'react';
+import { getWasm } from '@/lib/wasm';
+
+export function ImageProcessor() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [processing, setProcessing] = useState(false);
+
+  const handleImage = async (file: File) => {
+    setProcessing(true);
+
+    const bitmap = await createImageBitmap(file);
+    const canvas = canvasRef.current!;
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(bitmap, 0, 0);
+
+    const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+
+    const wasm = await getWasm();
+    const result = wasm.grayscale(imageData.data, bitmap.width, bitmap.height);
+
+    const output = new ImageData(new Uint8ClampedArray(result), bitmap.width, bitmap.height);
+    ctx.putImageData(output, 0, 0);
+
+    setProcessing(false);
+  };
+
+  return (
+    <div>
+      <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImage(e.target.files[0])} />
+      {processing && <p>Processing…</p>}
+      <canvas ref={canvasRef} />
+    </div>
+  );
+}
+```
+
+## Web Workers for Wasm
+
+Wasm processing blocks the main thread if run inline. Move it to a Web Worker:
+
+```ts
+// workers/image.worker.ts
+import { grayscale } from '../pkg/image_processor';
+import init from '../pkg/image_processor';
+
+self.onmessage = async ({ data: { pixels, width, height } }) => {
+  await init();
+  const result = grayscale(pixels, width, height);
+  self.postMessage({ result }, [result.buffer]);
+};
+```
+
+```ts
+// Using the worker
+const worker = new Worker(new URL('../workers/image.worker.ts', import.meta.url));
+
+worker.onmessage = ({ data: { result } }) => {
+  // result is the processed pixel data
+};
+
+worker.postMessage({ pixels: imageData.data, width, height }, [imageData.data.buffer]);
+```
+
+The `[imageData.data.buffer]` is a transferable — it moves the buffer to the worker without copying.
+
+## Next.js Wasm config
+
+Wasm files need explicit webpack configuration in Next.js:
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  webpack(config) {
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+    return config;
+  },
+};
+
+export default nextConfig;
+```
+
+## The performance trade-off
+
+Wasm module load time is real. A 500KB `.wasm` file adds 50–200ms on first load even on fast connections. Mitigate with:
+
+1. Dynamic import (only load when needed)
+2. Cache the initialized module singleton (don't re-initialize on every call)
+3. Ship with a JS fallback for simple operations
+4. Preload with `<link rel="preload" as="fetch" crossOrigin="anonymous" href="/path/to/module.wasm" />` for critical paths
+
+The general rule: if the processing time saved per operation exceeds the one-time module load cost after a few operations, Wasm is justified.
