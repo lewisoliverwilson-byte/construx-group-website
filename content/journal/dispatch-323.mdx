@@ -1,0 +1,167 @@
+---
+title: "Tailwind CSS v4: what's actually different"
+date: "2027-08-07"
+excerpt: "Tailwind v4 is a near-complete rewrite. The CSS-first configuration replaces tailwind.config.js, the new engine is 5-10x faster, and container queries are now first-class. Here's what changes in practice and what stays the same."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Tailwind CSS v4 is the most significant update since v2. It rewrites the configuration model, replaces the JIT engine with a Rust-based engine called Oxide, and makes container queries a first-class citizen. Most of your class names stay the same — the setup changes substantially.
+
+## Configuration: CSS-first
+
+In v4, configuration moves from `tailwind.config.js` to your CSS file:
+
+```css
+/* app/globals.css */
+@import "tailwindcss";
+
+/* Theme customisation */
+@theme {
+  --color-brand: oklch(65% 0.24 30);
+  --color-brand-dark: oklch(55% 0.24 30);
+
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --spacing-18: 4.5rem;
+  --spacing-22: 5.5rem;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  --shadow-glow: 0 0 20px oklch(65% 0.24 30 / 0.3);
+}
+
+/* Dark mode */
+@variant dark (&:where(.dark, .dark *));
+```
+
+No `tailwind.config.js` required. The CSS file is the source of truth.
+
+## Importing in Next.js
+
+```css
+/* app/globals.css */
+@import "tailwindcss";
+@import "./theme.css";
+```
+
+```ts
+// app/layout.tsx
+import './globals.css';
+```
+
+No PostCSS config required for basic setups. The v4 plugin handles everything:
+
+```ts
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const config: NextConfig = {
+  // Nothing special needed for Tailwind v4 with Next.js
+};
+
+export default config;
+```
+
+## Container queries (built-in)
+
+In v3, container queries required a plugin. In v4, they're native:
+
+```html
+<!-- Mark a container -->
+<div class="@container">
+  <!-- Style based on container width, not viewport -->
+  <div class="flex-col @md:flex-row">
+    <aside class="w-full @md:w-64">Sidebar</aside>
+    <main class="flex-1">Content</main>
+  </div>
+</div>
+```
+
+Container breakpoints: `@sm` (20rem), `@md` (28rem), `@lg` (32rem), `@xl` (36rem), `@2xl` (42rem). Named containers:
+
+```html
+<div class="@container/sidebar">
+  <div class="hidden @md/sidebar:block">Only visible in wide sidebar</div>
+</div>
+```
+
+This is transformative for component libraries: components can respond to their actual available space rather than the viewport.
+
+## New utility classes
+
+**`field-sizing`** — textarea grows with content:
+```html
+<textarea class="field-sizing-content"></textarea>
+```
+
+**Logical properties** (i18n-friendly):
+```html
+<div class="ms-4 me-4 ps-6 pe-6">
+  <!-- ms/me = margin-inline-start/end, ps/pe = padding-inline-start/end -->
+</div>
+```
+
+**Color opacity shorthand:**
+```html
+<!-- v3: text-brand-500/80 -->
+<!-- v4: same syntax, but extended to all utilities -->
+<div class="bg-brand/20 border-brand/40 text-brand/90">...</div>
+```
+
+**`not-*` variant:**
+```html
+<div class="not-first:mt-4">Applied to all except first child</div>
+```
+
+## Migration from v3
+
+Most projects can upgrade without touching component code:
+
+```bash
+npx @tailwindcss/upgrade@next
+```
+
+The upgrade tool:
+1. Migrates `tailwind.config.js` to `@theme` blocks in CSS
+2. Updates deprecated utility names (`shadow-sm` → `shadow-xs`, etc.)
+3. Removes the PostCSS config if it's simple
+
+Manual changes required:
+- Custom plugins written as JavaScript need to be converted to CSS using `@plugin`
+- `content` paths in config move to `@source` directives in CSS
+- Arbitrary value syntax stays the same (`w-[347px]` still works)
+
+## Performance difference
+
+The Oxide engine is meaningfully faster on large projects — 5-10x faster full builds, incremental builds measured in milliseconds rather than seconds. On a codebase with 100+ components and a design system, this is the difference between "instant" and "noticeable pause" in development.
+
+Cold start (no cache): ~40ms on a mid-size project vs ~300ms with the v3 JIT engine. Incremental: typically under 5ms.
+
+## Theming in v4 vs v3
+
+**v3:**
+```js
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: { brand: { 500: '#F97316' } },
+      fontFamily: { mono: ['JetBrains Mono', 'monospace'] },
+    },
+  },
+};
+```
+
+**v4:**
+```css
+@theme {
+  --color-brand-500: #F97316;
+  --font-mono: "JetBrains Mono", monospace;
+}
+```
+
+The CSS variables are also available at runtime — `var(--color-brand-500)` works in inline styles and CSS custom properties, so you can reference theme values outside of Tailwind classes.

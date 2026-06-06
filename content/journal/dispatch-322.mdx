@@ -1,0 +1,235 @@
+---
+title: "React Query: async state done right"
+date: "2027-08-04"
+excerpt: "React Query (TanStack Query) removes the need to manually manage loading, error, and cache states for server data. It handles refetching, background updates, and cache invalidation — so you don't have to. Here are the patterns that cover real production use."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+React Query is a server state library. It solves a specific and common problem: you have data that lives on a server, you need to fetch it, display it, keep it fresh, and mutate it — and you want all of that to work without writing a pile of `useState`, `useEffect`, and manual cache management.
+
+## Setup
+
+```ts
+// app/providers.tsx
+'use client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useState } from 'react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 60 * 1000, // data fresh for 1 minute
+            retry: 2,
+          },
+        },
+      }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  );
+}
+```
+
+## Basic queries
+
+```ts
+// hooks/usePost.ts
+import { useQuery } from '@tanstack/react-query';
+
+async function fetchPost(id: string) {
+  const res = await fetch(`/api/posts/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch post');
+  return res.json() as Promise<Post>;
+}
+
+export function usePost(id: string) {
+  return useQuery({
+    queryKey: ['posts', id],
+    queryFn: () => fetchPost(id),
+    enabled: !!id, // don't run if id is empty
+  });
+}
+
+// Usage in component
+function PostDetail({ id }: { id: string }) {
+  const { data, isPending, isError, error } = usePost(id);
+
+  if (isPending) return <Skeleton />;
+  if (isError) return <ErrorMessage error={error} />;
+
+  return <div>{data.title}</div>;
+}
+```
+
+The `queryKey` is how React Query identifies and caches data. Arrays work like namespaces — `['posts']` for a list, `['posts', id]` for a specific post.
+
+## Mutations
+
+```ts
+// hooks/useUpdatePost.ts
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+async function updatePost(id: string, data: Partial<Post>) {
+  const res = await fetch(`/api/posts/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Update failed');
+  return res.json() as Promise<Post>;
+}
+
+export function useUpdatePost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Post> }) =>
+      updatePost(id, data),
+    onSuccess: (updatedPost) => {
+      // Update the specific post in cache
+      queryClient.setQueryData(['posts', updatedPost.id], updatedPost);
+      // Invalidate the list — it may have stale data
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+}
+
+// Usage
+function EditPost({ post }: { post: Post }) {
+  const update = useUpdatePost();
+
+  return (
+    <button
+      onClick={() => update.mutate({ id: post.id, data: { published: true } })}
+      disabled={update.isPending}
+    >
+      {update.isPending ? 'Publishing…' : 'Publish'}
+    </button>
+  );
+}
+```
+
+## Optimistic updates
+
+```ts
+export function useToggleLike(postId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => fetch(`/api/posts/${postId}/like`, { method: 'POST' }),
+    onMutate: async () => {
+      // Cancel any in-flight fetches
+      await queryClient.cancelQueries({ queryKey: ['posts', postId] });
+
+      // Snapshot previous value
+      const previous = queryClient.getQueryData<Post>(['posts', postId]);
+
+      // Optimistically update
+      queryClient.setQueryData<Post>(['posts', postId], (old) =>
+        old ? { ...old, likes: old.likes + 1, liked: true } : old,
+      );
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Rollback on failure
+      if (context?.previous) {
+        queryClient.setQueryData(['posts', postId], context.previous);
+      }
+    },
+    onSettled: () => {
+      // Refetch to sync with server
+      queryClient.invalidateQueries({ queryKey: ['posts', postId] });
+    },
+  });
+}
+```
+
+## Pagination and infinite queries
+
+```ts
+export function useInfinitePosts() {
+  return useInfiniteQuery({
+    queryKey: ['posts', 'infinite'],
+    queryFn: ({ pageParam }) =>
+      fetch(`/api/posts?cursor=${pageParam}&limit=20`).then((r) => r.json()),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+  });
+}
+
+function PostFeed() {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfinitePosts();
+
+  const allPosts = data?.pages.flatMap((page) => page.posts) ?? [];
+
+  return (
+    <div>
+      {allPosts.map((post) => <PostCard key={post.id} post={post} />)}
+      <button
+        onClick={() => fetchNextPage()}
+        disabled={!hasNextPage || isFetchingNextPage}
+      >
+        {isFetchingNextPage ? 'Loading…' : hasNextPage ? 'Load more' : 'No more posts'}
+      </button>
+    </div>
+  );
+}
+```
+
+## Prefetching
+
+Prefetch data for pages the user is likely to navigate to:
+
+```ts
+// Prefetch on hover — hover intent is a strong signal of upcoming navigation
+function PostLink({ post }: { post: Post }) {
+  const queryClient = useQueryClient();
+
+  return (
+    <Link
+      href={`/posts/${post.id}`}
+      onMouseEnter={() => {
+        queryClient.prefetchQuery({
+          queryKey: ['posts', post.id],
+          queryFn: () => fetchPost(post.id),
+          staleTime: 10 * 1000,
+        });
+      }}
+    >
+      {post.title}
+    </Link>
+  );
+}
+```
+
+## Query key factories
+
+Keep query keys consistent across your codebase:
+
+```ts
+// lib/queryKeys.ts
+export const postKeys = {
+  all: ['posts'] as const,
+  lists: () => [...postKeys.all, 'list'] as const,
+  list: (filters: Record<string, unknown>) => [...postKeys.lists(), { filters }] as const,
+  details: () => [...postKeys.all, 'detail'] as const,
+  detail: (id: string) => [...postKeys.details(), id] as const,
+};
+
+// Usage
+useQuery({ queryKey: postKeys.detail(id), queryFn: () => fetchPost(id) });
+queryClient.invalidateQueries({ queryKey: postKeys.lists() }); // invalidates all lists
+```
+
+The factory pattern ensures `invalidateQueries` correctly matches related keys. Without it, a string typo silently leaves stale data in the cache.
