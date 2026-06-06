@@ -1,0 +1,107 @@
+---
+title: "Cookie security: HttpOnly, Secure, SameSite"
+date: "2029-09-21"
+excerpt: "Cookies carry session tokens, authentication state, and tracking identifiers. Three attributes determine their security posture: HttpOnly prevents JavaScript access (blocking XSS theft), Secure requires HTTPS transmission, and SameSite controls cross-site request behaviour (preventing CSRF). All three should be set on any cookie that carries authentication state."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Cookies are the default mechanism for persisting sessions in web apps. They're also one of the most common attack vectors — improperly configured cookies leak session tokens to scripts, expose credentials on mixed HTTP/HTTPS pages, and enable cross-site request forgery. Three attributes close most of these gaps.
+
+## HttpOnly
+
+`HttpOnly` prevents client-side JavaScript from accessing the cookie. `document.cookie` returns nothing; `fetch` can't read it. The cookie is sent with HTTP requests automatically — it just can't be read by scripts.
+
+```http
+Set-Cookie: session=abc123; HttpOnly
+```
+
+The threat this mitigates: **XSS (Cross-Site Scripting)**. If an attacker injects JavaScript into your page, `HttpOnly` cookies can't be stolen via `document.cookie`. Without `HttpOnly`, a single XSS vulnerability allows complete session hijacking.
+
+**Always set `HttpOnly` on session cookies.**
+
+There's one legitimate reason not to: if client-side JavaScript needs to read the cookie value. For preferences or non-sensitive state, that's fine. For authentication tokens, never.
+
+## Secure
+
+`Secure` prevents the cookie from being sent over HTTP. It's only transmitted over HTTPS connections.
+
+```http
+Set-Cookie: session=abc123; HttpOnly; Secure
+```
+
+The threat: **network interception on mixed content**. If your app redirects HTTP to HTTPS, a brief HTTP phase exists. Without `Secure`, the browser sends the cookie during that HTTP phase — visible in plaintext to anyone on the network.
+
+**Always set `Secure` on session cookies in production.** In development on `localhost`, HTTPS isn't typically used, so `Secure` cookies are often omitted in dev and added in prod via environment-specific config.
+
+```ts
+// Next.js / next-auth example
+const cookie = {
+  httpOnly: true,
+  secure:   process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+};
+```
+
+## SameSite
+
+`SameSite` controls whether the browser sends the cookie with cross-site requests. Three values:
+
+**`SameSite=Strict`**: cookie is only sent if the request originates from the same site. A user clicking a link on `other.com` to `construxgroup.io` does not send the cookie. The user appears logged out until they navigate within your site.
+
+**`SameSite=Lax`** (default in modern browsers): cookie is sent on top-level navigations (clicking a link) but not on cross-site subresource requests (images, iframes, fetch). The most balanced setting for most applications.
+
+**`SameSite=None`**: cookie is sent on all cross-site requests. Requires `Secure`. Used for third-party cookies (ad tracking, embedded widgets). Increasingly blocked by browsers.
+
+```http
+Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Lax
+```
+
+The threat `SameSite` mitigates: **CSRF (Cross-Site Request Forgery)**. Without it, a malicious page on `evil.com` can submit a form to `construxgroup.io` and the browser will include the session cookie. With `Lax` or `Strict`, the cookie is not sent with those cross-origin POST requests.
+
+`Lax` is the right default for most auth cookies. `Strict` is more secure but breaks "login with a link" flows (clicking an email magic link from an email client). If you use magic links, use `Lax`.
+
+## Setting cookies correctly in Next.js
+
+```ts
+// app/api/auth/route.ts
+import { cookies } from 'next/headers';
+
+export async function POST(req: Request) {
+  const { token } = await authenticate(req);
+
+  cookies().set('session', token, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path:     '/',
+    maxAge:   60 * 60 * 24 * 7,  // 7 days
+  });
+
+  return Response.json({ ok: true });
+}
+```
+
+## The `Path` attribute
+
+`Path=/` sends the cookie with all requests to the domain. Restricting to `Path=/api` sends it only with API requests — useful if your static assets and API share a domain and you don't want the session cookie sent with asset requests.
+
+## The `Domain` attribute
+
+`Domain=construxgroup.io` shares the cookie with all subdomains (`api.construxgroup.io`, `app.construxgroup.io`). Without it, cookies are only sent to the exact domain that set them.
+
+Use caution with `Domain=` — it broadens the scope of the cookie. Only set it if you intentionally share the session across subdomains, and ensure every subdomain has the same security posture.
+
+## The complete secure session cookie
+
+```
+Set-Cookie: session=<token>; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800
+```
+
+- `HttpOnly`: no XSS theft
+- `Secure`: no plaintext transmission
+- `SameSite=Lax`: CSRF protection with sensible UX
+- `Path=/`: sent with all requests
+- `Max-Age=604800`: expires in 7 days (vs `Expires` which is an absolute date and subject to clock drift)
+
+This is the minimum for any cookie that carries authentication state.

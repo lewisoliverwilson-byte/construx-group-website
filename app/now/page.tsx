@@ -6,6 +6,7 @@ import TerminalCalPanel from '@/components/TerminalCalPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import IostatPanel from '@/components/IostatPanel';
+import JournalctlPanel from '@/components/JournalctlPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -322,6 +323,11 @@ export default function NowPage() {
         {/* Disk I/O stats */}
         <div className="mt-6">
           <IostatPanel />
+        </div>
+
+        {/* System journal */}
+        <div className="mt-6">
+          <JournalctlPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

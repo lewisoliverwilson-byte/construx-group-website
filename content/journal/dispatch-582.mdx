@@ -1,0 +1,164 @@
+---
+title: "Docker multi-stage builds: production-ready images"
+date: "2029-09-24"
+excerpt: "Multi-stage builds produce lean production Docker images by separating the build environment from the runtime environment. The build stage installs all dev dependencies and compiles the code; the final stage copies only the artifacts. The result is an image with no dev dependencies, no build tools, and a fraction of the size."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A naive Docker image for a Node.js application installs all `node_modules` (including `devDependencies`), runs the build, and ships the whole thing. The resulting image might be 1.5GB. The actual runtime only needs the compiled output and production dependencies — maybe 200MB.
+
+Multi-stage builds produce the 200MB image by doing the heavy work in a build stage and copying only what's needed into a clean final stage.
+
+## The pattern for Next.js
+
+```dockerfile
+# Stage 1: Install dependencies
+FROM node:22-alpine AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --only=production --frozen-lockfile
+
+# Stage 2: Build
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --frozen-lockfile  # all deps including dev
+
+COPY . .
+
+RUN npm run build
+
+# Stage 3: Production image
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy only production artifacts
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+COPY --from=deps    /app/node_modules ./node_modules
+
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+The `runner` stage has no build tools, no `devDependencies`, no source code. Only the compiled Next.js output and production `node_modules`.
+
+Next.js `output: 'standalone'` in `next.config.js` produces a `server.js` with the minimal Node.js server. Combined with multi-stage builds, the image shrinks dramatically.
+
+```js
+// next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',
+};
+```
+
+## The pattern for a Node.js API
+
+```dockerfile
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --frozen-lockfile
+
+COPY . .
+RUN npm run build  # tsc → dist/
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --only=production --frozen-lockfile
+
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3001
+CMD ["node", "dist/server.js"]
+```
+
+The final image contains only:
+- `node_modules/` (production deps only)
+- `dist/` (compiled TypeScript)
+- `package.json`
+
+No TypeScript compiler, no `tsx`, no `ts-node`, no test libraries.
+
+## Layer caching
+
+Docker caches each instruction. If `COPY package.json` and `RUN npm ci` are early in the Dockerfile and `package.json` hasn't changed, Docker uses the cached layer — `npm ci` doesn't run.
+
+This is why you copy `package.json` before copying source:
+
+```dockerfile
+# Right — package.json changes infrequently
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# THEN copy source (changes on every commit)
+COPY . .
+RUN npm run build
+```
+
+If you copy everything first (`COPY . .`), any file change invalidates the npm install cache. Every build runs `npm ci` from scratch.
+
+## Base image choice
+
+`node:22-alpine` uses Alpine Linux — about 50MB vs ~150MB for the Debian-based `node:22`. Alpine uses `musl` instead of `glibc`, which occasionally causes issues with native modules (Prisma, sharp). For pure JavaScript services, Alpine is fine.
+
+For services with native modules, consider `node:22-slim` (Debian slim, ~80MB) over full Debian (~150MB) or Alpine.
+
+## Build secrets
+
+Don't put secrets in `ARG` or `ENV` in your Dockerfile — they're visible in `docker history`. Use Docker Buildkit secrets:
+
+```dockerfile
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN=$(cat /run/secrets/npm_token) npm ci
+```
+
+```bash
+docker build --secret id=npm_token,src=.npmrc .
+```
+
+The secret is mounted only during that `RUN` instruction and doesn't persist in the image layer.
+
+## .dockerignore
+
+Always include a `.dockerignore` to prevent unnecessary files from being copied into the build context:
+
+```
+.next
+.git
+node_modules
+*.md
+.env*
+coverage
+__tests__
+```
+
+The build context is everything Docker sends to the daemon before building. A large context (50MB+) slows every build even if those files aren't used.
+
+## Building and tagging
+
+```bash
+# Build
+docker build -t construx-api:latest .
+docker build -t construx-api:$(git rev-parse --short HEAD) .  # tag with commit hash
+
+# Multi-platform (for M-series Mac → Linux server)
+docker buildx build --platform linux/amd64 -t construx-api:latest .
+
+# Push
+docker push gcr.io/construx-prod/api:latest
+```
+
+Tagging with the git commit hash is better than `latest` for production — it makes deployed version auditable without checking the registry.

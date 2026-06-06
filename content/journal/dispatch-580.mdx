@@ -1,0 +1,167 @@
+---
+title: "systemd: services, journals, and timers"
+date: "2029-09-18"
+excerpt: "systemd is the init system on most Linux distributions. It manages services (starting, stopping, restarting), logs (via journald), and scheduled tasks (via systemd timers, which replace cron for many use cases). Understanding the basics — unit files, journalctl, systemctl — makes server management significantly faster."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+systemd is the first process started by the Linux kernel (PID 1). Everything else — your services, your cron jobs, your logging — runs through it. On any VPS or EC2 instance running Ubuntu 20+, Debian 12+, or Amazon Linux 2+, this is what you're working with.
+
+## Unit files: describing a service
+
+A systemd unit file tells the system how to run a process:
+
+```ini
+# /etc/systemd/system/construx-api.service
+[Unit]
+Description=Construx API Server
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/opt/construx-api
+ExecStart=/usr/bin/node /opt/construx-api/dist/server.js
+Restart=on-failure
+RestartSec=5s
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/construx-api/env
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=construx-api
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**`After=`**: start this service after these units are active. Network and Redis must be up before the API starts.
+
+**`Requires=`**: this service depends on Redis. If Redis stops, the API stops too.
+
+**`Restart=on-failure`**: restart if the process exits with a non-zero code. `always` restarts on any exit; `on-failure` is more conservative.
+
+**`EnvironmentFile=`**: load environment variables from a file. Keeps secrets out of the unit file (which lands in git-tracked config management).
+
+**`SyslogIdentifier=`**: the identifier used in the journal. Makes filtering logs easy.
+
+## systemctl: managing services
+
+```bash
+# Enable a service to start on boot
+systemctl enable construx-api
+
+# Start / stop / restart
+systemctl start construx-api
+systemctl stop construx-api
+systemctl restart construx-api
+
+# Reload config without restart (if the service supports it)
+systemctl reload nginx
+
+# Check status
+systemctl status construx-api
+
+# Apply changes to a unit file
+systemctl daemon-reload
+systemctl restart construx-api
+
+# List all running services
+systemctl list-units --type=service --state=running
+```
+
+After editing a unit file, always run `daemon-reload` before `restart`. Otherwise systemd runs the old unit file.
+
+## journalctl: reading logs
+
+All services that write to stdout/stderr (with `StandardOutput=journal`) have their logs collected by journald.
+
+```bash
+# Show logs for a specific service
+journalctl -u construx-api
+
+# Follow live (like tail -f)
+journalctl -u construx-api -f
+
+# Last 50 lines
+journalctl -u construx-api -n 50
+
+# Since a specific time
+journalctl -u construx-api --since "2029-09-18 09:00:00"
+
+# Show only errors
+journalctl -u construx-api -p err
+
+# Show full timestamps
+journalctl -u construx-api --output=short-iso
+
+# All logs since boot
+journalctl -b
+
+# Logs from previous boot
+journalctl -b -1
+```
+
+`journalctl -u construx-api -f` is the primary debugging tool — equivalent to `tail -f` for a service's output.
+
+## systemd timers: replacing cron
+
+systemd timers are the modern replacement for cron. They support all the same scheduling patterns plus better error handling, dependency management, and log integration.
+
+A timer needs two unit files: the timer and the service it triggers.
+
+```ini
+# /etc/systemd/system/construx-backup.timer
+[Unit]
+Description=Daily Construx backup
+
+[Timer]
+OnCalendar=*-*-* 07:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```ini
+# /etc/systemd/system/construx-backup.service
+[Unit]
+Description=Construx backup job
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/usr/local/bin/construx-backup.sh
+```
+
+```bash
+systemctl enable construx-backup.timer
+systemctl start construx-backup.timer
+systemctl list-timers  # see all timers and next run time
+```
+
+`Persistent=true` means: if the timer was missed while the system was down, run it on the next boot.
+
+`OnCalendar=` supports cron-style expressions and natural language:
+
+```
+OnCalendar=daily        # every day at midnight
+OnCalendar=hourly       # every hour
+OnCalendar=Mon-Fri 09:00:00
+OnCalendar=*-*-* 07:30:00  # every day at 07:30
+```
+
+## Checking what failed
+
+When a service fails:
+
+```bash
+systemctl status construx-api           # see last error
+journalctl -u construx-api --no-pager -n 50  # see logs around the failure
+journalctl -u construx-api -p err       # just errors
+```
+
+The exit code is visible in `systemctl status`. Combined with the journal, you can usually diagnose the failure without SSH-ing into the process.
+
+systemd's logging integration is the main operational advantage over raw process managers like `nohup` or `&`. The logs are structured, searchable, time-indexed, and don't disappear when the process crashes.
