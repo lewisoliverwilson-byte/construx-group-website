@@ -1,0 +1,287 @@
+---
+title: "Internationalization in Next.js: routing, translations, and locale detection"
+date: "2027-09-21"
+excerpt: "i18n in Next.js App Router means middleware-based locale detection, locale-prefixed routes (/en/..., /fr/...), and a translation system that works in both Server and Client Components. Here's the setup that handles all three without a bloated i18n library."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Internationalization in Next.js App Router requires three pieces: routing (which URL serves which locale), locale detection (what does a new visitor get?), and translations (the actual strings). The App Router's nested layouts make this cleaner than the Pages Router approach.
+
+## Routing structure
+
+The standard pattern: locale prefix in the URL.
+
+```
+/en/             → English home
+/fr/             → French home  
+/en/journal      → English journal
+/fr/journal      → French journal
+construxgroup.io → redirects to /en or /fr based on Accept-Language
+```
+
+This is SEO-friendly (each locale has a distinct URL) and avoids cookie-based locale tracking.
+
+## Middleware: locale detection and redirect
+
+```ts
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+const LOCALES = ['en', 'fr', 'de', 'es'] as const;
+type Locale = typeof LOCALES[number];
+const DEFAULT_LOCALE: Locale = 'en';
+
+function getPreferredLocale(req: NextRequest): Locale {
+  const acceptLanguage = req.headers.get('accept-language') ?? '';
+  
+  // Parse Accept-Language header: "fr-FR,fr;q=0.9,en;q=0.8"
+  const preferred = acceptLanguage
+    .split(',')
+    .map((lang) => {
+      const [code, q = '1'] = lang.trim().split(';q=');
+      return { code: code.split('-')[0].toLowerCase(), q: parseFloat(q) };
+    })
+    .sort((a, b) => b.q - a.q)
+    .map((l) => l.code);
+
+  return (preferred.find((lang) => LOCALES.includes(lang as Locale)) as Locale) ?? DEFAULT_LOCALE;
+}
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Skip non-page requests
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api') ||
+    pathname.includes('.')
+  ) {
+    return NextResponse.next();
+  }
+
+  // Check if pathname starts with a valid locale
+  const pathnameHasLocale = LOCALES.some(
+    (locale) => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
+  );
+
+  if (!pathnameHasLocale) {
+    // Redirect to preferred locale
+    const locale = getPreferredLocale(req);
+    req.nextUrl.pathname = `/${locale}${pathname}`;
+    return NextResponse.redirect(req.nextUrl);
+  }
+
+  return NextResponse.next();
+}
+```
+
+## App directory structure
+
+```
+app/
+  [locale]/
+    layout.tsx         ← locale-aware root layout
+    page.tsx           ← home page
+    journal/
+      page.tsx
+      [slug]/
+        page.tsx
+```
+
+```tsx
+// app/[locale]/layout.tsx
+import { notFound } from 'next/navigation';
+
+const LOCALES = ['en', 'fr', 'de', 'es'];
+
+export function generateStaticParams() {
+  return LOCALES.map((locale) => ({ locale }));
+}
+
+export default function LocaleLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: { locale: string };
+}) {
+  if (!LOCALES.includes(params.locale)) notFound();
+  
+  return (
+    <html lang={params.locale}>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+## Translation system
+
+A typed, lightweight dictionary approach — no external library needed for most projects:
+
+```ts
+// lib/i18n/translations/en.ts
+export const en = {
+  nav: {
+    ventures: 'Ventures',
+    journal: 'Journal',
+    contact: 'Contact',
+  },
+  home: {
+    hero: {
+      title: 'Building at the AI frontier',
+      subtitle: 'A portfolio of ventures that only exist because AI makes them possible.',
+    },
+    cta: 'Get in touch',
+  },
+  journal: {
+    readMore: 'Read dispatch',
+    minRead: (n: number) => `${n} min read`,
+  },
+} as const;
+
+export type Translations = typeof en;
+```
+
+```ts
+// lib/i18n/translations/fr.ts
+import { Translations } from './en';
+
+export const fr: Translations = {
+  nav: {
+    ventures: 'Projets',
+    journal: 'Journal',
+    contact: 'Contact',
+  },
+  home: {
+    hero: {
+      title: 'Construire à la frontière de l\'IA',
+      subtitle: 'Un portfolio de projets qui n\'existent que parce que l\'IA les rend possibles.',
+    },
+    cta: 'Nous contacter',
+  },
+  journal: {
+    readMore: 'Lire la dépêche',
+    minRead: (n: number) => `${n} min de lecture`,
+  },
+};
+```
+
+```ts
+// lib/i18n/index.ts
+import { en } from './translations/en';
+import { fr } from './translations/fr';
+
+const dictionaries = { en, fr } as const;
+
+export async function getDictionary(locale: string) {
+  return dictionaries[locale as keyof typeof dictionaries] ?? dictionaries.en;
+}
+```
+
+## Server Component usage
+
+```tsx
+// app/[locale]/page.tsx
+import { getDictionary } from '@/lib/i18n';
+
+export default async function HomePage({ params }: { params: { locale: string } }) {
+  const t = await getDictionary(params.locale);
+
+  return (
+    <section>
+      <h1>{t.home.hero.title}</h1>
+      <p>{t.home.hero.subtitle}</p>
+      <a href={`/${params.locale}/contact`}>{t.home.cta}</a>
+    </section>
+  );
+}
+```
+
+## Client Component usage
+
+Pass the dictionary as a prop — don't import it in a client component, as that bundles all translations client-side:
+
+```tsx
+// components/Nav.tsx — client component
+'use client';
+import type { Translations } from '@/lib/i18n/translations/en';
+
+interface Props {
+  locale: string;
+  t: Translations['nav'];
+}
+
+export function Nav({ locale, t }: Props) {
+  return (
+    <nav>
+      <a href={`/${locale}/ventures`}>{t.ventures}</a>
+      <a href={`/${locale}/journal`}>{t.journal}</a>
+    </nav>
+  );
+}
+```
+
+```tsx
+// In a Server Component layout — pass only the slice needed
+const t = await getDictionary(params.locale);
+return <Nav locale={params.locale} t={t.nav} />;
+```
+
+## Locale switcher
+
+```tsx
+'use client';
+import { usePathname, useRouter } from 'next/navigation';
+
+const LOCALES = ['en', 'fr', 'de', 'es'] as const;
+const LOCALE_LABELS: Record<string, string> = { en: 'EN', fr: 'FR', de: 'DE', es: 'ES' };
+
+export function LocaleSwitcher({ currentLocale }: { currentLocale: string }) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const switchLocale = (newLocale: string) => {
+    // Replace current locale prefix with new one
+    const newPath = pathname.replace(`/${currentLocale}`, `/${newLocale}`);
+    router.push(newPath);
+  };
+
+  return (
+    <div className="flex gap-1">
+      {LOCALES.map((locale) => (
+        <button
+          key={locale}
+          onClick={() => switchLocale(locale)}
+          className={locale === currentLocale ? 'active' : ''}
+        >
+          {LOCALE_LABELS[locale]}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+## hreflang tags for SEO
+
+Tell search engines about your locale variants:
+
+```tsx
+// app/[locale]/layout.tsx
+export async function generateMetadata({ params }: { params: { locale: string } }) {
+  const siteUrl = 'https://construxgroup.io';
+  
+  return {
+    alternates: {
+      canonical: `${siteUrl}/${params.locale}`,
+      languages: Object.fromEntries(
+        LOCALES.map((locale) => [locale, `${siteUrl}/${locale}`])
+      ),
+    },
+  };
+}
+```
+
+This generates the correct `<link rel="alternate" hreflang="fr" href="..."/>` tags that Google uses for locale selection in search results.
