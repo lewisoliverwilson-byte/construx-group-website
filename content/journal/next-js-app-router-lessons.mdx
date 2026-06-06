@@ -1,0 +1,109 @@
+---
+title: "Next.js App Router: what we learned building three products"
+date: "2026-07-27"
+excerpt: "We adopted the Next.js App Router early and built all three products with it. Twelve months and three production deployments later, here are the patterns that worked and the things we'd do differently."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+All three Construx products are built with the Next.js App Router — not the Pages Router, the newer App Router introduced in Next.js 13 and matured through 14 and 15. We adopted it early, before most of the ecosystem had caught up.
+
+Here's what we've learned across three production codebases.
+
+## The server component model: excellent when used correctly
+
+Server components — components that render exclusively on the server and don't send JavaScript to the client — are one of the genuinely good ideas in the App Router.
+
+The pattern we've settled on: every page that can be a server component is a server component. We push data fetching up to the server layer, pass the data to client components as props, and keep client components small and focused on interactivity.
+
+This produces pages that:
+- Fetch data without a loading state (the data is there when the page first renders)
+- Send minimal JavaScript to the client (only the interactive parts)
+- Are trivially cacheable (server-side rendering with static content is just CDN-friendly HTML)
+
+The mistake we made early: marking components as client components (`'use client'`) too aggressively. We'd add interactivity to a component and make it a client component without considering whether the interactivity could be extracted into a smaller child component.
+
+The correct pattern: keep the data-fetching parent as a server component, extract the interactive piece into a small client component, and pass the data as props. The SolarSystemLoader on the homepage is a client component (Three.js requires browser APIs); the page layout around it is a server component.
+
+## Data fetching patterns
+
+The App Router provides `async/await` directly in server components. No `useEffect`, no `useState` for server data, no client-side loading states.
+
+```tsx
+// Server component — just async/await, no hooks
+export default async function VenturePage({ params }: Props) {
+  const { slug } = await params;
+  const venture = getVentureBySlug(slug);
+  if (!venture) notFound();
+  
+  // venture is available synchronously — no loading state needed
+  return <div>{venture.name}</div>;
+}
+```
+
+This is dramatically cleaner than the Pages Router pattern (getServerSideProps or getStaticProps as separate export functions with their own types). The data is just there, typed correctly, in the component.
+
+The pattern we use: `lib/` functions that are pure TypeScript (not React), importable in both server and client contexts. `getVentureBySlug`, `getAllPostMeta`, `getPostBySlug` — all pure functions. The server component calls them directly; the data is fetched at build time (static generation) or on request.
+
+## Static generation vs. dynamic rendering
+
+The App Router defaults to static generation — pages are rendered at build time and served as static HTML. This is free performance: no server-side rendering cost on each request.
+
+Most of our pages are static or nearly static:
+- Journal listing page: static (regenerated when new posts are added)
+- Journal post pages: static (one page per post, generated at build time via `generateStaticParams`)
+- Venture pages: static
+- Homepage: static (the solar system is client-side)
+
+The exceptions: the contact form (client component, server action for the form submission), and any page that needs user-specific data.
+
+We lean toward static generation as the default and only opt into dynamic rendering when there's a specific reason. Static pages are faster, cheaper to serve, and more resilient.
+
+## Server Actions
+
+We use Server Actions for form submissions. The contact form sends its data via a Server Action — no API route required.
+
+```tsx
+async function submitContact(data: ContactFormData) {
+  'use server';
+  // Runs on the server, not the client
+  await sendEmail(data);
+  revalidatePath('/contact');
+}
+```
+
+The benefit: no separate API route to maintain, TypeScript types flow through from form to server without a separate API schema, and the action is co-located with the form component.
+
+The limitation: Server Actions are best for simple mutations. For complex operations (streaming responses, long-running tasks), a dedicated API route is clearer.
+
+## The metadata API
+
+Next.js 14+ provides a `metadata` export for each page that handles `<head>` content:
+
+```tsx
+export const metadata: Metadata = {
+  title: 'Journal',
+  description: 'Build-in-public posts from Construx Group.',
+  openGraph: { ... },
+};
+```
+
+This is one of the App Router features we'd have a hard time going back from. Defining metadata alongside the page component, with TypeScript typing for every field, is substantially nicer than manually managing `<Head>` tags in the Pages Router.
+
+We use the metadata API on every page, with per-post and per-venture dynamic metadata generated via `generateMetadata`.
+
+## What we'd do differently
+
+**Earlier investment in the component structure.** We started with flat component files and refactored into subdirectories as the projects grew. Starting with `components/ui/`, `components/journal/`, `components/nav/` etc. from the beginning would have saved refactoring time.
+
+**Stricter client component budgets.** We were more generous with `'use client'` than we should have been early on. The correct mental model — client components are expensive, use them minimally — took time to fully internalise.
+
+**Better streaming for AI features.** The App Router supports streaming responses from server components. We use streaming for AI features via API routes, but we haven't fully explored server component streaming for AI features. This is an area of active investigation.
+
+## The broader verdict
+
+The App Router is the right foundation for AI-first products. Server components reduce client-side JavaScript, which matters for fast initial loads on products where the AI interaction is the focus (not the page render). Static generation of content pages reduces infrastructure cost. The TypeScript-native approach (async server components, typed metadata, typed Server Actions) reduces runtime errors.
+
+The ecosystem has caught up significantly since we adopted it. Most libraries we use now have App Router-compatible versions. The rough edges of 2023 have smoothed considerably by 2026.
+
+For new products, we'd choose the App Router without hesitation.

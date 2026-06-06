@@ -1,0 +1,106 @@
+---
+title: "Incident response as a two-person team"
+date: "2026-07-26"
+excerpt: "We've had production incidents on all three products. Running incident response with no dedicated ops function and no on-call rotation has forced us to develop a simple, repeatable process. Here's what it looks like."
+author: "Lewis Wilson"
+tag: "Process"
+---
+
+We've had production incidents. Scoutr's scan API timing out under load. The Marqet's image CDN serving stale images after a content update. The Hyve's AI agent returning 500 errors for 90 minutes on a Tuesday evening.
+
+As a two-person team with no dedicated ops function, no on-call rotation, and no 24-hour monitoring capacity, incident response requires a process that's simple enough to execute under pressure.
+
+Here's ours.
+
+## Incident detection
+
+Most of our incidents are detected through one of three channels:
+
+**PostHog alerts** — we set up custom alerts for error rate spikes, API error increases, and specific failure events. PostHog sends a notification when the error rate for a product exceeds a threshold (>2% of requests returning 5xx errors over 10 minutes).
+
+**User reports** — users email or contact us when something is broken. This is often how we learn about client-side issues that don't generate server-side errors.
+
+**Self-discovery** — we use the products ourselves. We notice when something isn't working. This is embarrassingly frequent as a detection method, but it works.
+
+What we don't have: 24-hour on-call coverage. If a production incident starts at 3am and PostHog sends an alert that we don't see until 8am, we have five hours of downtime before response begins. This is an accepted limitation.
+
+## Incident classification
+
+The first thing to do when something goes wrong: classify the severity.
+
+**P1 — Critical**: users can't complete core product workflows. Payments are failing. Authentication is broken. The AI core feature is returning errors for all users.
+
+**P2 — Major**: significant functionality is degraded but core workflows are accessible. Slow responses, specific features failing, intermittent errors affecting a subset of users.
+
+**P3 — Minor**: cosmetic issues, non-critical feature failures, performance degradation that's noticeable but not blocking.
+
+Classification determines urgency. P1 gets immediate response — one of us drops what we're doing. P2 gets response within 2 hours. P3 gets added to the product issue queue.
+
+## The response playbook
+
+For every P1 and P2 incident, we follow the same sequence:
+
+**Identify and communicate** (first 5 minutes): confirm the incident is real, understand the scope, update any public-facing status if the impact is significant.
+
+**Stop the bleeding** (next 15 minutes): take actions to limit the impact. This might mean rolling back the most recent deployment, disabling a specific feature, or rate-limiting a failing endpoint. The goal is to stop more users from being affected, not to fix the root cause.
+
+**Diagnose** (next 30-60 minutes): find the root cause. CloudWatch logs, PostHog error events, the most recent deployment diff, the database query logs. What changed that could have caused this?
+
+**Fix and verify** (as long as it takes): implement the fix, verify it in staging, deploy, confirm the incident is resolved.
+
+**Post-mortem** (within 24 hours): document what happened, what the root cause was, and what we're changing to prevent it.
+
+## The "stop the bleeding" principle
+
+The most important lesson from incident response: don't try to fix the root cause while the incident is ongoing.
+
+When users are experiencing a production problem, the first goal is to stop new users from experiencing it. This usually means a reversible, conservative action: roll back the deployment, disable the feature, route traffic to a cached fallback.
+
+A rolled-back deployment with a known root cause is better than a forward-deployed change that you're not sure will work. The rollback takes 5 minutes. The speculative fix might take 2 hours and might not work.
+
+This principle has saved us several times from making the incident worse by trying to fix a complex root cause under pressure.
+
+## Communication during incidents
+
+We don't have a public status page (on the list to build). Our incident communication is direct: we email affected users when we know who they are and the impact was significant.
+
+The email formula:
+- What happened (brief, honest)
+- When it happened and for how long
+- What was affected
+- What we did to fix it
+- What we're doing to prevent it
+
+Users who experience an outage and receive a clear, honest explanation maintain trust better than users who experience an outage and hear nothing. We've sent three post-incident emails. In each case, the response was positive — users appreciated the transparency.
+
+## The post-mortem
+
+Within 24 hours of resolving an incident, we write a brief post-mortem. Not a lengthy document — a structured set of answers:
+
+- What happened?
+- When did it start? When was it detected? When was it resolved?
+- What was the root cause?
+- What was the impact (approximate user count, feature downtime)?
+- What prevented earlier detection?
+- What did we do to resolve it?
+- What changes are we making to prevent recurrence?
+
+Post-mortems go into a shared document. Three post-mortems in, patterns are already visible: two of our three incidents involved a deployment that changed environment variables incorrectly. We're now more careful with env var changes — every change gets verified in staging against the production config before deploying.
+
+## What we'd do differently at scale
+
+Our current process is sustainable for two people and a handful of incidents per year. It doesn't scale.
+
+At some future point, we'd add:
+- **A public status page** — so users can check status without emailing us
+- **Automated rollback on error rate spike** — so stop-the-bleeding happens automatically, not manually
+- **Better alerting granularity** — per-feature alerts, not just overall error rate
+- **On-call rotation** — if we hire, rotating incident response responsibility
+
+Until then, the current process is the right size for the team.
+
+## The two-person advantage
+
+The one thing smaller team incident response does well: fast decision-making. During The Hyve's Tuesday incident, one of us was diagnosing (CloudWatch logs, deployment diff) while the other was communicating with affected users who'd reached out. The decision to roll back happened in under 2 minutes. No escalation chain. No approval gate. Just "this deployment changed the environment config incorrectly, let's roll back."
+
+A larger team with an incident response process might have resolved the same incident in similar total time, but with more overhead. Our process is minimal by necessity. That minimalism is also a feature.
