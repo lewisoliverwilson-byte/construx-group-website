@@ -87,16 +87,29 @@ export default function Footer() {
           </div>
 
           {/* Site links */}
-          <div>
-            <h3 className="font-mono text-[9px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
-              // NAVIGATE
-            </h3>
-            <ul className="flex flex-col gap-2.5">
+          <div
+            className="overflow-hidden"
+            style={{ background: 'rgba(3,3,14,0.7)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
+          >
+            <div
+              className="flex items-center gap-2 px-3 py-2 select-none"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
+            >
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[7px] uppercase tracking-[0.2em] text-text-dim/30 flex-1 text-center">
+                construx.nav
+              </span>
+            </div>
+            <ul className="flex flex-col p-3 gap-0.5">
               {navLinks.map(({ href, label }) => (
                 <li key={href}>
                   <Link
                     href={href}
-                    className="text-sm text-text-muted hover:text-construx transition-colors"
+                    className="block px-2 py-1.5 text-sm text-text-muted hover:text-construx hover:bg-construx/5 transition-colors rounded-sm"
                   >
                     {label}
                   </Link>
@@ -106,18 +119,32 @@ export default function Footer() {
           </div>
 
           {/* Ventures */}
-          <div>
-            <h3 className="font-mono text-[9px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
-              // VENTURES
-            </h3>
-            <ul className="flex flex-col gap-2.5">
+          <div
+            className="overflow-hidden"
+            style={{ background: 'rgba(3,3,14,0.7)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
+          >
+            <div
+              className="flex items-center gap-2 px-3 py-2 select-none"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
+            >
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[7px] uppercase tracking-[0.2em] text-text-dim/30 flex-1 text-center">
+                construx.ventures
+              </span>
+              <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.35)' }}>● live</span>
+            </div>
+            <ul className="flex flex-col p-3 gap-0.5">
               {ventures.map((v) => (
                 <li key={v.id}>
                   <a
                     href={v.url ?? `/ventures/${v.slug}`}
                     target={v.url ? '_blank' : undefined}
                     rel={v.url ? 'noopener noreferrer' : undefined}
-                    className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text-base transition-colors group"
+                    className="flex items-center gap-2 px-2 py-1.5 text-sm text-text-muted hover:text-text-base hover:bg-white/[0.03] transition-colors rounded-sm group"
                   >
                     <span
                       className="h-1.5 w-1.5 rounded-full flex-shrink-0"
@@ -127,7 +154,7 @@ export default function Footer() {
                     {v.url && (
                       <ArrowUpRight
                         size={11}
-                        className="opacity-0 group-hover:opacity-60 transition-opacity"
+                        className="ml-auto opacity-0 group-hover:opacity-50 transition-opacity"
                       />
                     )}
                   </a>
@@ -137,18 +164,32 @@ export default function Footer() {
           </div>
 
           {/* Journal */}
-          <div>
-            <h3 className="font-mono text-[9px] font-medium tracking-[0.2em] uppercase text-text-dim mb-4">
-              // JOURNAL
-            </h3>
-            <ul className="flex flex-col gap-2.5">
+          <div
+            className="overflow-hidden"
+            style={{ background: 'rgba(3,3,14,0.7)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px' }}
+          >
+            <div
+              className="flex items-center gap-2 px-3 py-2 select-none"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
+            >
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
+              </div>
+              <span className="font-mono text-[7px] uppercase tracking-[0.2em] text-text-dim/30 flex-1 text-center">
+                construx.journal
+              </span>
+              <span className="font-mono text-[7px] tabular-nums" style={{ color: 'rgba(249,115,22,0.35)' }}>{postCount}</span>
+            </div>
+            <ul className="flex flex-col p-3 gap-0.5">
               {recentPosts.map((post, i) => {
                 const dispatchNum = String(allPosts.length - i).padStart(3, '0');
                 return (
                   <li key={post.slug}>
                     <Link
                       href={`/journal/${post.slug}`}
-                      className="flex items-start gap-2 text-sm text-text-muted hover:text-construx transition-colors leading-snug group"
+                      className="flex items-start gap-2 px-2 py-1.5 text-sm text-text-muted hover:text-construx hover:bg-construx/5 transition-colors leading-snug group rounded-sm"
                     >
                       <span className="font-mono text-[9px] text-construx/30 group-hover:text-construx/60 tabular-nums flex-shrink-0 mt-0.5">
                         #{dispatchNum}
@@ -159,7 +200,7 @@ export default function Footer() {
                 );
               })}
               {recentPosts.length > 0 && (
-                <li>
+                <li className="mt-1 px-2">
                   <Link
                     href="/journal"
                     className="font-mono text-[9px] text-text-dim hover:text-construx transition-colors uppercase tracking-widest"
