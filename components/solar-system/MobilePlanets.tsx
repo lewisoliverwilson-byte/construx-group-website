@@ -22,11 +22,23 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
         borderRadius: '3px',
       }}
     >
-      {/* Accent stripe */}
+      {/* Terminal title bar */}
       <div
-        className="h-1 w-full"
-        style={{ background: `linear-gradient(90deg, transparent, ${venture.accent}, transparent)` }}
-      />
+        className="flex items-center gap-3 px-4 py-2.5 select-none"
+        style={{ borderBottom: `1px solid ${venture.accent}14`, background: `${venture.accent}06` }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
+        </div>
+        <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center truncate" style={{ color: `${venture.accent}50` }}>
+          construx.{venture.slug} — {venture.category.toLowerCase()}
+        </span>
+        <span className="font-mono text-[8px] uppercase tracking-widest flex-shrink-0" style={{ color: 'rgba(74,222,128,0.55)' }}>
+          ● live
+        </span>
+      </div>
 
       <div className="p-6">
         <div className="flex items-center gap-3 mb-4">
@@ -88,6 +100,21 @@ function VentureCard({ venture, index }: { venture: (typeof ventures)[0]; index:
           )}
         </div>
       </div>
+
+      {/* Status footer */}
+      <div
+        className="flex items-center justify-between px-4 py-1.5"
+        style={{ borderTop: `1px solid ${venture.accent}10`, background: 'rgba(0,0,0,0.28)' }}
+      >
+        <span className="font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'rgba(74,222,128,0.55)' }}>
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#4ade80', boxShadow: '0 0 3px rgba(74,222,128,0.5)' }} />
+          LIVE
+        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[8px] tabular-nums" style={{ color: `${venture.accent}40` }}>p50 &lt;80ms</span>
+          <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>exit: 0</span>
+        </div>
+      </div>
     </motion.article>
   );
 }
@@ -142,22 +169,37 @@ export default function MobilePlanets() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="relative overflow-hidden border border-border px-6 py-5"
-          style={{ background: 'rgba(5,5,18,0.5)', borderRadius: '3px' }}
+          className="relative overflow-hidden"
+          style={{ background: 'rgba(2,2,12,0.9)', border: '1px solid rgba(168,85,247,0.18)', borderRadius: '3px' }}
         >
-          <div className="flex items-center gap-3">
+          {/* Title bar */}
+          <div
+            className="flex items-center gap-2 px-3 py-2 select-none"
+            style={{ borderBottom: '1px solid rgba(168,85,247,0.1)', background: 'rgba(168,85,247,0.04)' }}
+          >
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
+              <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
+              <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
+            </div>
+            <span className="font-mono text-[7px] uppercase tracking-[0.2em] flex-1 text-center truncate" style={{ color: 'rgba(168,85,247,0.45)' }}>
+              asteroid.belt — classified.tx
+            </span>
+            <span className="font-mono text-[7px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.4)' }}>◈ SOON</span>
+          </div>
+          <div className="flex items-center gap-3 px-5 py-4">
             <div className="flex -space-x-2">
               {[0.6, 0.4, 0.25].map((opacity, i) => (
                 <div
                   key={i}
                   className="h-6 w-6 rounded-full border border-border"
-                  style={{ background: `rgba(255,255,255,${opacity * 0.12})` }}
+                  style={{ background: `rgba(168,85,247,${opacity * 0.18})` }}
                 />
               ))}
             </div>
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-widest text-text-muted">More in incubation</p>
-              <p className="font-mono text-[9px] uppercase tracking-widest text-text-dim opacity-60 mt-0.5">Orbiting into view</p>
+              <p className="font-mono text-[10px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.7)' }}>More in incubation</p>
+              <p className="font-mono text-[9px] uppercase tracking-widest opacity-60 mt-0.5" style={{ color: 'rgba(240,239,255,0.3)' }}>Orbiting into view</p>
             </div>
           </div>
         </motion.div>
