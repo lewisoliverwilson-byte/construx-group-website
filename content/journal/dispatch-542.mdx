@@ -1,0 +1,188 @@
+---
+title: "Cache invalidation strategies in Next.js"
+date: "2029-05-27"
+excerpt: "Next.js has four caching layers: Request Memoization, Data Cache, Full Route Cache, and Router Cache. Each has different lifetimes and invalidation mechanisms. Understanding which layer is serving your data — and how to bust it — is the difference between stale UIs and fresh ones."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Next.js 15 changed the caching defaults significantly: `fetch` requests are no longer cached by default. Understanding what's cached, for how long, and how to invalidate it correctly is essential for shipping correct behaviour.
+
+## The four caching layers
+
+```
+Request → Router Cache (client-side, per-navigation)
+        → Full Route Cache (server-side, per-build or per-revalidation)
+        → Data Cache (per fetch, persistent across requests)
+        → Request Memoization (per-request, in-memory, dedupe only)
+```
+
+### 1. Request Memoization
+
+Deduplicates identical `fetch` calls within a single server request. If your layout and page both fetch `/api/user`, only one HTTP request goes out.
+
+```ts
+// These two fetches in the same request tree deduplicate automatically
+const user = await fetch('/api/user'); // goes to server
+const user2 = await fetch('/api/user'); // returns memoized result
+```
+
+Lifetime: single request. No invalidation needed — it's gone when the request ends.
+
+### 2. Data Cache
+
+Persists fetch responses across requests. In Next.js 15, `fetch` is **uncached by default** — you opt in with `cache: 'force-cache'`.
+
+```ts
+// Next.js 15: uncached by default
+const data = await fetch('https://api.example.com/data');
+
+// Opt into caching
+const data = await fetch('https://api.example.com/data', {
+  cache: 'force-cache',
+});
+
+// Cache with revalidation
+const data = await fetch('https://api.example.com/data', {
+  next: { revalidate: 3600 }, // seconds
+});
+```
+
+### 3. Full Route Cache
+
+Stores the rendered HTML and RSC payload for a route. Statically rendered routes are cached at build time. Routes with dynamic functions (`cookies()`, `headers()`, `searchParams`) opt out.
+
+```ts
+// Force dynamic — disables Full Route Cache for this route
+export const dynamic = 'force-dynamic';
+
+// Revalidate at interval — ISR
+export const revalidate = 3600;
+
+// Cache indefinitely (default for static routes)
+export const revalidate = false;
+```
+
+### 4. Router Cache
+
+Client-side cache of prefetched route segments. Stored in browser memory per navigation session. Automatic — no configuration.
+
+## Invalidation strategies
+
+### Time-based (revalidate)
+
+The simplest strategy. Data is stale after N seconds; the next request triggers a background refresh.
+
+```ts
+// Per-fetch revalidation
+const posts = await fetch('https://api.example.com/posts', {
+  next: { revalidate: 300 }, // fresh for 5 minutes
+});
+
+// Route-level revalidation
+// app/blog/page.tsx
+export const revalidate = 300;
+```
+
+The stale-while-revalidate pattern: the old data is served while fresh data is being fetched in the background. Users see instant responses; data is eventually consistent.
+
+### On-demand revalidation
+
+Explicitly invalidate cache entries when data changes — no waiting for TTL expiry.
+
+```ts
+// app/api/revalidate/route.ts
+import { revalidatePath, revalidateTag } from 'next/cache';
+import { NextRequest } from 'next/server';
+
+export async function POST(req: NextRequest) {
+  const { path, tag, secret } = await req.json();
+
+  if (secret !== process.env.REVALIDATION_SECRET) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (path) revalidatePath(path);
+  if (tag) revalidateTag(tag);
+
+  return Response.json({ revalidated: true });
+}
+```
+
+Call this from your CMS webhook, admin action, or database trigger when content changes.
+
+### Tag-based invalidation
+
+Tag fetch requests and invalidate all tagged requests at once.
+
+```ts
+// Tag a fetch
+const posts = await fetch('https://api.example.com/posts', {
+  next: { tags: ['posts'] },
+});
+
+// Invalidate all 'posts' entries
+import { revalidateTag } from 'next/cache';
+revalidateTag('posts');
+```
+
+This is the cleanest pattern for content that spans multiple routes. When a blog post is published, `revalidateTag('posts')` busts the cache on every page that fetched posts — the listing page, the sitemap, the RSS feed.
+
+### Server Actions with revalidation
+
+Combine mutation and cache invalidation in a single server action:
+
+```ts
+// app/actions/posts.ts
+'use server';
+
+import { revalidatePath, revalidateTag } from 'next/cache';
+import { db } from '@/lib/db';
+
+export async function publishPost(id: string) {
+  await db.posts.update({ where: { id }, data: { published: true } });
+  revalidatePath('/blog');
+  revalidateTag('posts');
+}
+```
+
+The client calls the action, the mutation runs, the cache is busted, and the next request to `/blog` serves fresh data. No manual API call to a revalidation endpoint required.
+
+## The Scoutr pattern
+
+Scoutr has two types of data with very different staleness tolerances:
+
+**Listing data** (product prices, availability): must be fresh. We use `revalidate: 0` for user-specific data and tag-based invalidation after scraper runs complete.
+
+**Static content** (tool docs, help articles): can be stale for hours. We use `revalidate: 3600`.
+
+```ts
+// Scraper completion triggers revalidation
+async function onScraperComplete(jobId: string) {
+  await fetch('/api/revalidate', {
+    method: 'POST',
+    body: JSON.stringify({
+      tag: `scraper-${jobId}`,
+      secret: process.env.REVALIDATION_SECRET,
+    }),
+  });
+}
+```
+
+## Common mistakes
+
+**Expecting `revalidatePath` to work inside fetch handlers**: It only works in Server Actions and Route Handlers, not middleware.
+
+**Not tagging fetches**: If you use `revalidateTag` but didn't tag the fetch, nothing is invalidated.
+
+**Over-caching user-specific data**: Any data that varies by user should not be in the Data Cache. Use `cache: 'no-store'` or ensure the route is dynamic.
+
+```ts
+// Bad: caches user-specific data globally
+const user = await fetch('/api/me', { cache: 'force-cache' });
+
+// Good: no-store for user-specific data
+const user = await fetch('/api/me', { cache: 'no-store' });
+```
+
+The caching system is powerful when you model it correctly. The mental model is: data that changes infrequently gets a revalidate interval; data that changes on explicit events gets tag-based invalidation; data that is user-specific gets no caching.

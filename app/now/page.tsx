@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import RecentCommitsPanel from '@/components/RecentCommitsPanel';
 import TerminalCalPanel from '@/components/TerminalCalPanel';
 import CrontabPanel from '@/components/CrontabPanel';
+import DiskUsagePanel from '@/components/DiskUsagePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -310,6 +311,11 @@ export default function NowPage() {
         {/* Scheduled background jobs */}
         <div className="mt-6">
           <CrontabPanel />
+        </div>
+
+        {/* Disk usage */}
+        <div className="mt-6">
+          <DiskUsagePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
