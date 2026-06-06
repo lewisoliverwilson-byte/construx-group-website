@@ -140,16 +140,22 @@ export default function Footer() {
               // JOURNAL
             </h3>
             <ul className="flex flex-col gap-2.5">
-              {recentPosts.map((post) => (
-                <li key={post.slug}>
-                  <Link
-                    href={`/journal/${post.slug}`}
-                    className="text-sm text-text-muted hover:text-construx transition-colors line-clamp-2 leading-snug"
-                  >
-                    {post.title}
-                  </Link>
-                </li>
-              ))}
+              {recentPosts.map((post, i) => {
+                const dispatchNum = String(allPosts.length - i).padStart(3, '0');
+                return (
+                  <li key={post.slug}>
+                    <Link
+                      href={`/journal/${post.slug}`}
+                      className="flex items-start gap-2 text-sm text-text-muted hover:text-construx transition-colors leading-snug group"
+                    >
+                      <span className="font-mono text-[9px] text-construx/30 group-hover:text-construx/60 tabular-nums flex-shrink-0 mt-0.5">
+                        #{dispatchNum}
+                      </span>
+                      <span className="line-clamp-2">{post.title}</span>
+                    </Link>
+                  </li>
+                );
+              })}
               {recentPosts.length > 0 && (
                 <li>
                   <Link

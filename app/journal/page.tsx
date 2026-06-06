@@ -141,7 +141,7 @@ export default async function JournalPage({ searchParams }: Props) {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <Link
                         href={`/journal?tag=${encodeURIComponent(post.tag)}`}
                         onClick={(e) => e.stopPropagation()}
@@ -150,6 +150,11 @@ export default async function JournalPage({ searchParams }: Props) {
                       >
                         {post.tag}
                       </Link>
+                      {globalIndex === 0 && (
+                        <span className="font-mono text-[9px] font-bold px-2 py-0.5 text-black uppercase tracking-widest bg-construx" style={{ borderRadius: '2px' }}>
+                          NEW
+                        </span>
+                      )}
                       <span className="font-mono text-[10px] text-text-dim">{post.author}</span>
                       <span className="text-text-dim text-xs opacity-50">·</span>
                       <span className="font-mono text-[10px] text-text-dim">{post.readingTime} min read</span>
