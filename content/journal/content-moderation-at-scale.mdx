@@ -1,0 +1,103 @@
+---
+title: "Content moderation on The Marqet: why we don't outsource it to users"
+date: "2026-09-10"
+excerpt: "Marketplaces have a moderation problem. We think about it as a pipeline problem. Here's how The Marqet handles listing quality, prohibited content, and the edge cases between them."
+author: "Lewis Wilson"
+tag: "Product"
+---
+
+Every marketplace eventually has a content moderation problem. The Marqet is a marketplace for professional service listings — research, analysis, delivery, and tool services. Our content isn't user-generated images or social posts; it's structured listing data. The moderation challenge is different but no less real.
+
+## The problem space
+
+The Marqet allows sellers to create listings in four categories: research, tools, analysis, and delivery. A listing describes a professional service: what it is, what the buyer gets, and at what price. Our moderation concern is not spam in the traditional sense; it's quality and category integrity.
+
+The failure modes we need to prevent:
+
+**Mislabelled listings.** A seller lists a research service but the description is actually a delivery operation. This pollutes search results and frustrates buyers who use category filters.
+
+**Vague listings that aren't actually services.** "I will help you with eBay" is not a service description. It can't be evaluated by a buyer; it sets no expectations; it produces refund disputes. We want listings to describe an outcome, a deliverable, and a timeline.
+
+**Prohibited content.** Services that violate our terms of service: anything illegal, anything that assists with counterfeiting, anything involving prohibited eBay practices (shill bidding coaching, feedback manipulation).
+
+**Price manipulation.** Listings priced at £0.01 with the actual price disclosed in DMs, or listings priced at £10,000 for a service worth £50, both representing different types of price integrity problems.
+
+## The moderation pipeline
+
+We run every new or updated listing through a moderation pipeline before it goes live:
+
+```
+Listing submitted → schema validation → category classifier → quality scorer → prohibited content check → human review queue or auto-approve
+```
+
+**Schema validation** happens first, at the API layer. Required fields, string lengths, price ranges. If a listing fails schema validation, it's rejected immediately with a specific error message.
+
+**Category classification** runs the listing description through a small prompt to the Claude API:
+
+```ts
+const classificationPrompt = `
+You are classifying a marketplace listing into one of four categories:
+- research: information gathering, market analysis, data collection
+- tools: software, scripts, browser extensions, automated processes
+- analysis: data interpretation, pricing strategy, profitability assessment
+- delivery: logistics, sourcing, purchasing, physical handling
+
+Listing title: ${listing.title}
+Listing description: ${listing.description}
+
+Respond with JSON: {"category": "research|tools|analysis|delivery", "confidence": 0.0-1.0, "reasoning": "one sentence"}
+`;
+```
+
+If the classifier's predicted category doesn't match the seller's selected category, and confidence is above 0.8, we flag the listing for human review and inform the seller of the mismatch.
+
+**Quality scoring** uses a rubric-based prompt:
+
+```ts
+const qualityPrompt = `
+Rate this marketplace listing on a scale of 1-10 for each criterion:
+- Clarity: Can a buyer understand exactly what they're getting?
+- Specificity: Are deliverables, scope, and timeline clearly defined?
+- Professionalism: Is the language professional and free of errors?
+
+Give a score and one-sentence reasoning for each criterion.
+Return JSON: {"clarity": {"score": N, "note": "..."}, "specificity": {...}, "professionalism": {...}}
+`;
+```
+
+Listings scoring below 5 on clarity or specificity are returned to the seller with the specific feedback before going live.
+
+**Prohibited content checking** uses a fixed list of prohibited keywords combined with an AI check for context-dependent prohibitions. Keyword matching alone produces too many false positives; "feedback" appears in legitimate listings about delivering buyer feedback as well as in "feedback manipulation" schemes. The AI check provides context.
+
+## Why we don't rely on user reporting
+
+User-flagging systems are common in marketplace moderation. They're also unreliable as a primary mechanism:
+
+**They're reactive, not proactive.** A listing with bad content is live until someone reports it. For a small marketplace, "someone" might be nobody for weeks.
+
+**They're gamed.** Competitors report legitimate listings to slow rivals down. Users with a grudge report sellers for non-violations. The signal is noisy.
+
+**They create adversarial dynamics.** Sellers who know they can be reported change their behaviour in ways that aren't necessarily aligned with quality — they write vague descriptions to avoid specific keyword flags rather than clear descriptions that accurately represent their service.
+
+We use user reporting as a secondary signal, not a primary one. If a listing gets multiple reports, it goes into the human review queue regardless of its automated score. But we don't rely on it as the first line of defence.
+
+## The human review queue
+
+Automated moderation catches most quality issues. The cases that require human judgement:
+
+- Category classification confidence below 0.8 (model is uncertain)
+- Quality score borderline (5-6 range)
+- Multiple user reports on a previously approved listing
+- High-price listings (above £200) where the stakes are higher
+
+Human review is currently: one of us. This does not scale indefinitely, but at current volume (20-40 new listings per week) it's manageable. We spend approximately 30 minutes per week on the human review queue.
+
+The long-term plan: a senior seller tier where sellers with a track record of approved, high-quality listings bypass most of the automated checks. Trust is earned; the pipeline relaxes for trusted sellers.
+
+## What we've found
+
+Six months of running this pipeline: the category mislabelling rate dropped from ~18% (sellers guessing which category fits) to ~4% (sellers correcting after the classifier flags a mismatch). The average quality score of live listings increased from 6.2 to 7.8.
+
+More importantly: refund disputes related to listing misrepresentation dropped 60% in the 12 weeks after we added the quality scoring step. Clearer listings set clearer expectations. Clear expectations produce fewer disputes.
+
+The AI-assisted moderation pipeline pays for itself in dispute resolution cost reduction within the first month. At our scale, that's a few hours of human time per month. As the marketplace grows, the ratio stays roughly constant — the AI does the work, humans handle the edge cases.

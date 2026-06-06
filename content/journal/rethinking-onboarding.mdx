@@ -1,0 +1,81 @@
+---
+title: "Rethinking onboarding: what we changed after watching users fail"
+date: "2026-09-11"
+excerpt: "The biggest onboarding mistake is assuming users understand your mental model. They don't. They have their own. Here's what three rounds of onboarding iteration taught us about the gap between builder and user."
+author: "Lewis Wilson"
+tag: "Methodology"
+---
+
+We've redesigned the onboarding flow for each of the three Construx products at least twice. Each time, we thought we'd fixed it. Each time, we watched new users struggle with something we thought was obvious.
+
+This is the accumulated learning from those iterations.
+
+## The core mistake
+
+The core mistake in early-stage onboarding is building for the mental model you have as the builder, not the mental model a new user arrives with.
+
+We know exactly how Scoutr is supposed to be used. We know that you start with a product URL, that the confidence score is calibrated to our specific fee model, that "high confidence" means something specific about the data quality and margin floor. This knowledge is invisible to us — it's just how the product works.
+
+A new user arrives with a mental model built from every other eBay tool they've used, every spreadsheet they've maintained, every rule of thumb they've developed over years of selling. None of it maps exactly onto how we built Scoutr.
+
+The friction isn't stupidity. It's a gap between two legitimate mental models. Onboarding is the work of bridging that gap.
+
+## Scoutr: three onboarding iterations
+
+**V1 (launch):** An empty input field. No guidance. The assumption: users know what eBay arbitrage is and will try the product the obvious way.
+
+What happened: 60% of users who signed up never completed a first successful scan. The most common exit point was the empty input state — they didn't know what to paste.
+
+**V2:** Added placeholder text: "Paste a product URL or barcode." Added an example URL below the input.
+
+Improvement: first-scan completion went from 40% to 68%. Still 32% not completing.
+
+The remaining failure: users who completed their first scan often didn't understand the output. The confidence score, the margin calculation, the fee breakdown — they would look at the result and not know what action to take.
+
+**V3:** Added a contextual tooltip system that appears on first use. When the confidence score appears, a tooltip explains it. When the margin is shown, a tooltip shows the fee calculation. Added a "what does this mean for me?" summary line above the detailed breakdown — plain English, one sentence: "This product has a 67% chance of being profitable based on current eBay prices and estimated fees."
+
+Result: retention at day-7 went from 31% to 54%. The output comprehension problem was the retention driver, not the input problem.
+
+## The Marqet: the category confusion problem
+
+The Marqet's browse structure — research, tools, analysis, delivery — was intuitive to us. We'd spent time designing the taxonomy. To new buyers, the categories were not intuitive at all.
+
+The problem: buyers would arrive looking for "someone to check if a product is profitable." That's an analysis service. But buyers would look at the four categories and see "research" or "analysis" as equally plausible. They'd browse the wrong category, not find what they wanted, and leave.
+
+**V1 onboarding:** Category icons and one-line descriptions. ("Research: information gathering and data collection.")
+
+**V2:** Replaced category descriptions with "looking for..." framing. Instead of describing the category, we described the buyer's goal:
+- "Looking for someone to research products for you?" → Research
+- "Looking for tools that automate your eBay workflow?" → Tools
+- "Looking for help deciding if a product is worth buying?" → Analysis
+- "Looking for someone to handle sourcing and delivery?" → Delivery
+
+Browse-to-purchase conversion went up 34%. The buyer's goal framing was significantly more effective than the category description framing.
+
+## The Hyve: the blank channel problem
+
+The Hyve is a collaborative workspace with AI integration. The blank-channel problem: when a user creates their first channel, it's empty. An empty channel with an AI agent is bewildering if you don't know what the AI is for.
+
+**V1:** Created a help channel with a pinned message explaining what the AI can do.
+
+Problem: nobody read the pinned message. Pinned messages are furniture — they're part of the background, not the foreground.
+
+**V2:** The AI agent sends a first message in every new channel automatically:
+
+> "I'm the Hyve AI. I can help you summarise past decisions, draft strategy documents, research questions your team has raised, or keep context across long channel histories. What are you working on?"
+
+Not a help message. A conversation opener. Phrased as a question, not a tutorial.
+
+Result: AI interaction rate on first session went from 12% to 67%. The AI asking a question was more effective at driving interaction than any amount of documentation.
+
+## The pattern
+
+Across all three iterations, the pattern is consistent:
+
+1. **V1 assumes user knowledge.** Fails because builders project their own knowledge onto users.
+2. **V2 adds instructions.** Partial improvement. Instructions are better than nothing but compete with the product for attention.
+3. **V3 makes the product do the teaching.** The product behaves in a way that demonstrates its value and guides the user's understanding. Contextual tooltips, goal-framed navigation, AI conversation openers.
+
+The best onboarding is when the product teaches through use, not through documentation. Every tutorial you write is a tax on the user's attention. Every time the product demonstrates its own value, it's investing in the user's understanding.
+
+We still have onboarding problems. We always will. The work is ongoing: watch users, identify the gaps, reduce the friction. Never assume the gap is closed.
