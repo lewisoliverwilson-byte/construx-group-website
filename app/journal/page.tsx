@@ -10,6 +10,7 @@ import DispatchGitLog from '@/components/journal/DispatchGitLog';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import TechFreqPanel from '@/components/TechFreqPanel';
 import SitemapIndexPanel from '@/components/SitemapIndexPanel';
+import RssFeedPanel from '@/components/RssFeedPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -179,6 +180,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* Sitemap index */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <SitemapIndexPanel />
+      </section>
+
+      {/* RSS feed */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <RssFeedPanel />
       </section>
 
       {/* Posts */}

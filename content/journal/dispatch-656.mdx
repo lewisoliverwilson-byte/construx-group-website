@@ -1,0 +1,167 @@
+---
+title: "Storybook: isolated component development and documentation"
+date: "2030-05-04"
+excerpt: "Storybook is a workshop for building UI components in isolation. Each component has stories — named states that render the component with specific props. You develop components without running the full application, document every variant, test interactions, and catch visual regressions with snapshot testing. The result is a living component library that the whole team can browse."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Storybook flips the development workflow. Instead of navigating to the page that contains a component, starting up the full app, and clicking through UI states to see the component in context — you open Storybook and see every state of every component immediately.
+
+## Setup
+
+```bash
+npx storybook@latest init
+npm run storybook  # serves at localhost:6006
+```
+
+The init command detects your framework (Next.js, React, Vue, etc.) and configures Storybook accordingly.
+
+## Writing stories (CSF3 format)
+
+```tsx
+// components/Button/Button.stories.tsx
+import type { Meta, StoryObj } from '@storybook/react';
+import { Button }              from './Button';
+
+const meta: Meta<typeof Button> = {
+  title:     'Components/Button',
+  component: Button,
+  tags:      ['autodocs'],  // auto-generate docs page
+  argTypes: {
+    variant: {
+      control: { type: 'select' },
+      options: ['primary', 'secondary', 'ghost', 'danger'],
+    },
+    size: {
+      control: { type: 'radio' },
+      options: ['sm', 'md', 'lg'],
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof Button>;
+
+// Each export is a story
+export const Primary: Story = {
+  args: {
+    children: 'Click me',
+    variant:  'primary',
+    size:     'md',
+  },
+};
+
+export const Loading: Story = {
+  args: {
+    children:  'Saving…',
+    variant:   'primary',
+    disabled:  true,
+    isLoading: true,
+  },
+};
+
+export const AllVariants: Story = {
+  render: () => (
+    <div className="flex gap-4 flex-wrap">
+      <Button variant="primary">Primary</Button>
+      <Button variant="secondary">Secondary</Button>
+      <Button variant="ghost">Ghost</Button>
+      <Button variant="danger">Danger</Button>
+    </div>
+  ),
+};
+```
+
+## Args and controls
+
+```tsx
+// Stories with args become interactive in Storybook's Controls panel
+export const Configurable: Story = {
+  args: {
+    label:    'Button text',
+    variant:  'primary',
+    size:     'md',
+    disabled: false,
+  },
+};
+
+// argTypes customise the control UI
+const meta: Meta = {
+  argTypes: {
+    label: { control: 'text' },
+    count: { control: { type: 'range', min: 0, max: 100, step: 1 } },
+    color: { control: 'color' },
+    date:  { control: 'date' },
+  },
+};
+```
+
+## Decorators: wrapping stories in context
+
+```tsx
+// .storybook/preview.tsx
+import type { Preview } from '@storybook/react';
+import { ThemeProvider } from '@/components/ThemeProvider';
+import '@/styles/globals.css';
+
+const preview: Preview = {
+  decorators: [
+    (Story) => (
+      <ThemeProvider defaultTheme="dark">
+        <div className="p-8">
+          <Story />
+        </div>
+      </ThemeProvider>
+    ),
+  ],
+  parameters: {
+    backgrounds: {
+      default:  'dark',
+      values:   [{ name: 'dark', value: '#01010a' }, { name: 'light', value: '#ffffff' }],
+    },
+  },
+};
+
+export default preview;
+```
+
+Decorators wrap every story in shared context — providers, layout wrappers, or anything that components need to render correctly.
+
+## Interaction testing
+
+```tsx
+import { userEvent, within, expect } from '@storybook/test';
+
+export const SearchInteraction: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Type in the search input
+    await userEvent.type(canvas.getByRole('textbox'), 'hello world');
+
+    // Click the search button
+    await userEvent.click(canvas.getByRole('button', { name: 'Search' }));
+
+    // Assert on the result
+    await expect(canvas.getByText('Results for: hello world')).toBeInTheDocument();
+  },
+};
+```
+
+`play` functions run automated interactions against a rendered story. They test the component behaviour without a browser E2E test — faster and closer to unit test speed.
+
+## Visual regression with Chromatic
+
+```bash
+npm install -D chromatic
+
+# Run visual snapshot tests
+npx chromatic --project-token=<your-token>
+```
+
+Chromatic captures screenshots of every story on every PR. If the rendered output changes, it shows you a diff and asks for approval. Catches visual bugs that logic tests miss — layout shifts, colour changes, unintended ripple effects.
+
+## Storybook vs Ladle vs Histoire
+
+Storybook is the most mature and has the largest ecosystem. Ladle is faster and simpler (no plugins, no configuration), built for large component libraries where Storybook's build time is painful. Histoire is the Vue-first alternative. For React and Next.js, Storybook is the default choice unless build performance is a specific concern.

@@ -1,0 +1,168 @@
+---
+title: "Tailwind CSS: utility-first CSS without the stylesheet"
+date: "2030-05-01"
+excerpt: "Tailwind is a utility-first CSS framework. Instead of writing CSS, you compose pre-built utility classes directly in your HTML. Padding, colour, typography, flexbox, grid — all expressed as class names. The output CSS is only the utilities you used, scanned from your source files. No dead CSS, no specificity wars, no context-switching between files."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The mental model shift: instead of `.card { display: flex; padding: 1.5rem; background: white; border-radius: 0.5rem; }` in a stylesheet, you write `<div class="flex p-6 bg-white rounded-lg">` in the HTML. The styles live with the structure.
+
+## Core utilities
+
+```html
+<!-- Spacing -->
+<div class="p-4 px-6 py-3 m-2 mt-8 mb-4 gap-3">
+
+<!-- Flexbox -->
+<div class="flex items-center justify-between flex-wrap gap-4">
+
+<!-- Grid -->
+<div class="grid grid-cols-3 gap-6 md:grid-cols-2 sm:grid-cols-1">
+
+<!-- Typography -->
+<p class="text-sm font-medium text-gray-600 leading-relaxed tracking-wide uppercase">
+
+<!-- Colours -->
+<div class="bg-blue-500 text-white border border-blue-600 hover:bg-blue-600">
+
+<!-- Sizing -->
+<div class="w-full max-w-2xl h-64 min-h-screen">
+
+<!-- Borders -->
+<div class="border border-gray-200 rounded-lg rounded-t-none border-opacity-50">
+
+<!-- Shadows -->
+<div class="shadow-sm shadow-md shadow-lg shadow-xl shadow-none">
+```
+
+## Responsive prefixes
+
+```html
+<!-- Mobile-first: base styles apply at all sizes, prefix overrides at breakpoint+ -->
+<div class="
+  flex flex-col       <!-- mobile: column -->
+  md:flex-row         <!-- tablet+: row -->
+  lg:grid lg:grid-cols-3  <!-- desktop+: grid -->
+">
+```
+
+Breakpoints: `sm` (640px), `md` (768px), `lg` (1024px), `xl` (1280px), `2xl` (1536px). All are mobile-first — the unprefixed class is the default, prefixed classes apply at that width and above.
+
+## State variants
+
+```html
+<!-- Hover, focus, active -->
+<button class="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 focus:ring-2 focus:ring-orange-300">
+
+<!-- Group hover -->
+<div class="group">
+  <div class="text-gray-400 group-hover:text-white transition-colors">
+    Visible text that changes on parent hover
+  </div>
+</div>
+
+<!-- Dark mode -->
+<div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+<!-- Disabled state -->
+<button class="opacity-50 cursor-not-allowed" disabled>
+<button class="disabled:opacity-50 disabled:cursor-not-allowed">
+```
+
+## Arbitrary values
+
+```html
+<!-- Custom values with square brackets -->
+<div class="w-[340px] h-[600px] top-[calc(100vh-64px)]">
+<div class="bg-[#FF5F57] text-[13px] border-[1.5px]">
+<div class="grid-cols-[1fr_2fr_1fr] gap-[11px]">
+<div class="shadow-[0_0_24px_rgba(0,0,0,0.4)]">
+```
+
+Arbitrary values let you escape the scale for one-off values without writing custom CSS.
+
+## Configuration (tailwind.config.ts)
+
+```ts
+import type { Config } from 'tailwindcss';
+
+export default {
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+
+  theme: {
+    extend: {
+      colors: {
+        construx: '#F97316',      // custom brand colour
+        'text-base':  '#F0EFFF',
+        'text-muted': 'rgba(240,239,255,0.6)',
+        'text-dim':   'rgba(240,239,255,0.35)',
+      },
+      fontFamily: {
+        sans:  ['var(--font-inter)', 'system-ui'],
+        mono:  ['var(--font-geist-mono)', 'monospace'],
+      },
+      animation: {
+        'fade-in':  'fadeIn 0.4s ease both',
+        'fade-up':  'fadeUp 0.5s ease both',
+      },
+      keyframes: {
+        fadeIn:  { from: { opacity: '0' }, to: { opacity: '1' } },
+        fadeUp:  { from: { opacity: '0', transform: 'translateY(8px)' }, to: { opacity: '1', transform: 'none' } },
+      },
+    },
+  },
+
+  plugins: [],
+} satisfies Config;
+```
+
+## Using @apply for repeated patterns
+
+```css
+/* globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .btn-primary {
+    @apply bg-construx text-white font-medium px-4 py-2 rounded-md hover:bg-orange-600 transition-colors;
+  }
+
+  .card {
+    @apply bg-white/5 border border-white/10 rounded-lg p-6;
+  }
+}
+
+@layer utilities {
+  .text-gradient-orange {
+    @apply bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent;
+  }
+}
+```
+
+Use `@apply` sparingly — it defeats some of the utility approach benefits. Prefer it for patterns used in many places (`btn-primary`, `card`) rather than one-off styles.
+
+## CSS variables in Tailwind v4
+
+Tailwind v4 uses CSS variables instead of `tailwind.config.ts`:
+
+```css
+/* globals.css */
+@import 'tailwindcss';
+
+@theme {
+  --color-construx: #F97316;
+  --color-text-base: #F0EFFF;
+  --font-family-mono: 'Geist Mono', monospace;
+  --animate-fade-up: fadeUp 0.5s ease both;
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+}
+```
+
+The `@theme` block replaces `theme.extend` in the config file. Variables are available as CSS custom properties (`var(--color-construx)`) and as Tailwind utilities (`bg-construx`, `text-construx`).

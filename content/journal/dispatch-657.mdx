@@ -1,0 +1,147 @@
+---
+title: "Turborepo: fast monorepo task orchestration"
+date: "2030-05-07"
+excerpt: "Turborepo is a build system for JavaScript and TypeScript monorepos. It caches task outputs and only re-runs tasks whose inputs have changed. In a monorepo with 20 packages, `turbo build` runs builds only for packages affected by recent changes — the rest are restored from cache in milliseconds. Remote caching shares the cache across your whole team and CI."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+The problem Turborepo solves: in a monorepo, every package has its own build, test, and lint tasks. Running them naively means running everything every time. Turborepo understands the dependency graph between packages and the input files for each task — if nothing relevant changed, the cache is the output.
+
+## Setup
+
+```bash
+npm install -D turbo
+```
+
+```json
+// package.json (root)
+{
+  "scripts": {
+    "build": "turbo run build",
+    "test":  "turbo run test",
+    "lint":  "turbo run lint",
+    "dev":   "turbo run dev --parallel"
+  }
+}
+```
+
+## turbo.json: task pipeline
+
+```json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs":    ["src/**", "tsconfig.json", "package.json"],
+      "outputs":   [".next/**", "dist/**"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs":    ["src/**", "tests/**", "vitest.config.ts"]
+    },
+    "lint": {
+      "inputs": ["src/**", ".eslintrc.*"]
+    },
+    "dev": {
+      "cache":       false,
+      "persistent":  true
+    },
+    "type-check": {
+      "inputs":  ["src/**", "tsconfig.json"],
+      "outputs": []
+    }
+  }
+}
+```
+
+- `"dependsOn": ["^build"]` — run `build` in all dependencies first (topological order)
+- `"inputs"` — files that affect this task; if none changed, use cache
+- `"outputs"` — files to cache; restored on cache hit
+- `"cache": false` — never cache (for dev servers, watchers)
+- `"persistent": true` — long-running task (stays running until killed)
+
+## Workspace structure
+
+```
+apps/
+  web/          # Next.js app
+  api/          # Hono API
+packages/
+  ui/           # shared React components
+  types/        # shared TypeScript types
+  config/       # shared ESLint and TypeScript configs
+turbo.json
+package.json
+pnpm-workspace.yaml
+```
+
+## Running tasks
+
+```bash
+# Run build in all packages (respects dependency order)
+turbo run build
+
+# Run only for packages affected by git changes
+turbo run build --filter=...[HEAD~1]
+
+# Run for a specific package and its dependents
+turbo run build --filter=@construx/ui...
+
+# Run for packages matching a glob
+turbo run test --filter='apps/*'
+
+# Run multiple tasks
+turbo run build test lint
+
+# Dry run: show what would run without running it
+turbo run build --dry-run
+```
+
+## Remote caching with Vercel
+
+```bash
+# Login to Vercel for remote cache
+npx turbo login
+
+# Link the monorepo to Vercel remote cache
+npx turbo link
+
+# All subsequent builds across team and CI share the cache
+turbo run build  # "cache hit" for unchanged packages
+```
+
+Remote caching means a build that a team member ran this morning is the cache for CI. CI pulls the output directly instead of rebuilding. For large monorepos, this can reduce CI time from 15 minutes to under 2.
+
+## Self-hosted remote cache (Ducktape / Turborepo Remote Cache)
+
+```ts
+// turbo.json: custom remote cache endpoint
+{
+  "remoteCache": {
+    "enabled":   true,
+    "apiUrl":    "https://cache.construxgroup.io",
+    "teamId":    "construx",
+    "signature": true
+  }
+}
+```
+
+Run your own cache server to avoid Vercel dependency. Ducktape and similar open-source implementations support the Turborepo remote cache protocol.
+
+## Package dependency graph
+
+```bash
+# Show the dependency graph
+turbo run build --graph
+
+# Output as SVG (requires graphviz)
+turbo run build --graph=output.svg
+```
+
+The graph shows which packages depend on which, and which order tasks run. Useful for understanding why a package rebuilds more than expected.
+
+## Turborepo vs Nx
+
+Both are monorepo task orchestrators. Turborepo is simpler: one config file, less opinions. Nx is more comprehensive: project graph inference, generators, executors, distributed task execution, and a rich plugin ecosystem. Use Turborepo when you want fast builds with minimal configuration. Use Nx when you want a full monorepo framework with code generators and consistent tooling across many project types.
