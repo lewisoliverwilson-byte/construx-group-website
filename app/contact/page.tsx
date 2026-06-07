@@ -67,6 +67,7 @@ import GoReleaserPanel from '@/components/GoReleaserPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import BrewListPanel from '@/components/BrewListPanel';
+import CosignPanel from '@/components/CosignPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -700,8 +701,13 @@ export default function ContactPage() {
       </section>
 
       {/* brew list — installed formulae, casks, versions */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BrewListPanel />
+      </section>
+
+      {/* cosign — container signing, verification, keyless */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CosignPanel />
       </section>
     </div>
   );

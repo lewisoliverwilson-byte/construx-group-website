@@ -68,6 +68,7 @@ import AtlasPanel from '@/components/AtlasPanel';
 import PulumiPanel from '@/components/PulumiPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import DmesgPanel from '@/components/DmesgPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -828,8 +829,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cloudnativepg — postgres operator, clusters, replicas */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CloudNativePGPanel />
+        </div>
+
+        {/* dmesg — kernel ring buffer, hardware events, boot log */}
+        <div className="mt-6 pb-10">
+          <DmesgPanel />
         </div>
 
         {/* CTA */}

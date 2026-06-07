@@ -70,6 +70,7 @@ import SpiffePanel from '@/components/SpiffePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
+import CycloneDxPanel from '@/components/CycloneDxPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -740,8 +741,13 @@ export default function StatsPage() {
       </div>
 
       {/* ci pipeline — stages, jobs, artifacts, durations */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CIPipelinePanel />
+      </div>
+
+      {/* cyclonedx — sbom, components, vulnerabilities, licenses */}
+      <div className="mt-6 pb-10">
+        <CycloneDxPanel />
       </div>
     </div>
   );

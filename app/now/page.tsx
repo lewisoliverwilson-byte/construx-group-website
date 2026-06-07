@@ -68,6 +68,7 @@ import DebeziumPanel from '@/components/DebeziumPanel';
 import QdrantPanel from '@/components/QdrantPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import DockerStatsPanel from '@/components/DockerStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -692,8 +693,13 @@ export default function NowPage() {
         </div>
 
         {/* containerd — container runtime, images, snapshots, tasks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ContainerdPanel />
+        </div>
+
+        {/* docker stats — cpu, mem, net, block per container */}
+        <div className="mt-6 pb-10">
+          <DockerStatsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
