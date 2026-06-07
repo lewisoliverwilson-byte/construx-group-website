@@ -13,10 +13,10 @@ const HIST: TraceRow[] = [
   { usec: '[1, 2)',       count:   18, bar:  2 },
   { usec: '[2, 4)',       count:   91, bar:  5 },
   { usec: '[4, 8)',       count:  342, bar: 12 },
-  { usec: '[8, 16)',      count: 1 847, bar: 24 },
-  { usec: '[16, 32)',     count: 4 211, bar: 36 },
-  { usec: '[32, 64)',     count: 3 804, bar: 34 },
-  { usec: '[64, 128)',    count: 1 093, bar: 18 },
+  { usec: '[8, 16)',      count: 1847, bar: 24 },
+  { usec: '[16, 32)',     count: 4211, bar: 36 },
+  { usec: '[32, 64)',     count: 3804, bar: 34 },
+  { usec: '[64, 128)',    count: 1093, bar: 18 },
   { usec: '[128, 256)',   count:  312, bar: 10 },
   { usec: '[256, 512)',   count:   88, bar:  6 },
   { usec: '[512, 1K)',    count:   22, bar:  3 },
@@ -31,16 +31,16 @@ interface ProbeRow {
 }
 
 const PROBES: ProbeRow[] = [
-  { probe: 'kprobe:tcp_v4_connect',              count:  2 041, live: false },
-  { probe: 'kprobe:tcp_close',                   count:  1 988, live: false },
-  { probe: 'tracepoint:syscalls:sys_enter_read', count: 48 812, live: true  },
-  { probe: 'tracepoint:syscalls:sys_exit_read',  count: 48 801, live: true  },
-  { probe: 'uprobe:/usr/bin/node:uv_fs_open',    count:    914, live: false },
-  { probe: 'uprobe:/usr/bin/node:uv_fs_stat',    count:    403, live: false },
-  { probe: 'kprobe:do_sys_openat2',              count:  1 317, live: false },
+  { probe: 'kprobe:tcp_v4_connect',              count:  2041, live: false },
+  { probe: 'kprobe:tcp_close',                   count:  1988, live: false },
+  { probe: 'tracepoint:syscalls:sys_enter_read', count: 48812, live: true  },
+  { probe: 'tracepoint:syscalls:sys_exit_read',  count: 48801, live: true  },
+  { probe: 'uprobe:/usr/bin/node:uv_fs_open',    count:   914, live: false },
+  { probe: 'uprobe:/usr/bin/node:uv_fs_stat',    count:   403, live: false },
+  { probe: 'kprobe:do_sys_openat2',              count:  1317, live: false },
 ];
 
-function barStr(n: number, color: string): JSX.Element {
+function barStr(n: number, color: string) {
   return (
     <span>
       <span style={{ color }}>{'█'.repeat(n)}</span>
@@ -146,7 +146,7 @@ export default function BpftracePanel() {
       >
         <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@sys:~$</span>
         <span className="text-[9px] ml-2" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          sudo bpftrace -e {'\''}kprobe:vfs_read { @usecs = hist(nsecs/1000); }{'\''}
+          {"sudo bpftrace -e 'kprobe:vfs_read { @usecs = hist(nsecs/1000); }'"}
         </span>
       </div>
 
@@ -194,7 +194,7 @@ export default function BpftracePanel() {
               <span style={{ color: 'rgba(240,239,255,0.45)', minWidth: '288px', flexShrink: 0 }}>
                 {p.probe}
               </span>
-              <span style={{ color: p.live ? '#4ade80' : 'rgba(240,239,255,0.3)', fontWeight: 700, tabularNums: true } as React.CSSProperties}>
+              <span style={{ color: p.live ? '#4ade80' : 'rgba(240,239,255,0.3)', fontWeight: 700 }}>
                 {(liveCounts[i] ?? p.count).toLocaleString()}
               </span>
             </div>

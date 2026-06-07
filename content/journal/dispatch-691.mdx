@@ -14,7 +14,7 @@ TypeScript's Promise gives you async but nothing else. Errors are untyped, cance
 npm install effect
 ```
 
-## Effect<A, E, R> — three type parameters
+## `Effect<A, E, R>` — three type parameters
 
 ```ts
 import { Effect } from 'effect';
@@ -144,4 +144,4 @@ NodeRuntime.runMain(main);
 
 ## Effect vs fp-ts vs neverthrow vs plain Promise
 
-Effect: typed errors + DI + concurrency + scheduling + observability in one model. Steep learning curve. neverthrow: typed Result<T, E> for simple error propagation, minimal footprint. fp-ts: functional programming primitives, smaller scope. Plain Promise: familiar, untyped errors, no structured concurrency. Use Effect for long-lived services where unhandled exceptions in production are unacceptable. Use neverthrow for boundary-level typed errors without the full Effect model.
+Effect: typed errors + DI + concurrency + scheduling + observability in one model. Steep learning curve. neverthrow: typed `Result<T, E>` for simple error propagation, minimal footprint. fp-ts: functional programming primitives, smaller scope. Plain Promise: familiar, untyped errors, no structured concurrency. Use Effect for long-lived services where unhandled exceptions in production are unacceptable. Use neverthrow for boundary-level typed errors without the full Effect model.

@@ -163,7 +163,7 @@ export default function WebVitalsPanel() {
                 return (
                   <div key={m.abbr} className="flex items-center gap-3 text-[8px]">
                     <span style={{ color: col, fontWeight: 700, minWidth: '36px' }}>{m.abbr}</span>
-                    <span style={{ color: col, fontWeight: 700, minWidth: '56px', tabularNums: 'tabular-nums' as React.CSSProperties['tabularNums'] } as React.CSSProperties}>
+                    <span className="tabular-nums" style={{ color: col, fontWeight: 700, minWidth: '56px' }}>
                       {m.unit === 's' ? `${live.value}s` : m.unit === 'ms' ? `${live.value}ms` : live.value}
                     </span>
                     <span className="tracking-widest text-[7px]" style={{ color: col }}>

@@ -31,12 +31,12 @@ function jitter(base: number, range: number): number {
   return Math.max(0, Math.min(100, base + (Math.random() - 0.5) * range * 2));
 }
 
-function bar(pct: number, width: number, color: string): JSX.Element {
+function bar(pct: number, width: number, color: string) {
   const filled = Math.round((pct / 100) * width);
   return (
     <span>
       <span style={{ color }}>{`${'|'.repeat(filled)}`}</span>
-      <span style={{ color: 'rgba(255,255,255,0.08)' }}>{`${'|'.repeat(Math.max(0, width - filled)}`}</span>
+      <span style={{ color: 'rgba(255,255,255,0.08)' }}>{`${'|'.repeat(Math.max(0, width - filled))}`}</span>
     </span>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import type { CSSProperties } from 'react';
+
 interface Bar {
   label: string;
   count: number;
@@ -122,7 +124,7 @@ export default function ActivityHistogram({ bars, total }: { bars: Bar[]; total:
                     borderRadius: '2px 2px 0 0',
                     animationDelay: `${i * 70}ms`,
                     boxShadow: isPeak ? '0 0 6px rgba(249,115,22,0.3)' : 'none',
-                  } as React.CSSProperties}
+                  } as CSSProperties}
                 />
                 <span
                   className="font-mono uppercase"

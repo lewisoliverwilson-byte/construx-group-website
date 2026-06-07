@@ -161,7 +161,7 @@ async function getCompressed<T>(key: string): Promise<T | null> {
 }
 ```
 
-Worth the extra latency (typically <2ms) for cached values over 10KB. For smaller values, the overhead outweighs the benefit.
+Worth the extra latency (typically under 2ms) for cached values over 10KB. For smaller values, the overhead outweighs the benefit.
 
 ## Connection in serverless
 

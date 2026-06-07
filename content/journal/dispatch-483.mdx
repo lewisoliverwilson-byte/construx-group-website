@@ -175,7 +175,7 @@ self.onmessage = (event: MessageEvent<{ buffer: SharedArrayBuffer }>) => {
 **Bad candidates:**
 - DOM manipulation (not available in workers)
 - Simple async operations (use `useEffect` + fetch)
-- Operations that take <5ms (overhead isn't worth it)
+- Operations that take under 5ms (overhead isn't worth it)
 - Anything that requires shared mutable state (use context or Zustand instead)
 
 The break-even point is roughly: if the operation blocks the main thread for >50ms and is triggered frequently enough to notice, move it to a worker.

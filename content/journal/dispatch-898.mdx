@@ -143,5 +143,5 @@ aws lambda update-function-configuration \
   --memory-size 256
 ```
 
-Lambda vs ECS/Fargate: Lambda is cheaper and operationally simpler for sporadic, short-duration workloads — event-driven processing, API handlers with <15 min max duration, webhook receivers. Fargate is better for long-running processes, sustained high traffic (warm Lambda concurrency gets expensive at scale), or workloads needing persistent connections. The pricing crossover point varies: at ~1M requests/month with <200ms duration, Lambda is usually cheaper; at 10M requests/month with sustained load, a small Fargate task running continuously is often cheaper than the equivalent Lambda concurrency. Measure both.
+Lambda vs ECS/Fargate: Lambda is cheaper and operationally simpler for sporadic, short-duration workloads — event-driven processing, API handlers with under 15 min max duration, webhook receivers. Fargate is better for long-running processes, sustained high traffic (warm Lambda concurrency gets expensive at scale), or workloads needing persistent connections. The pricing crossover point varies: at ~1M requests/month with under 200ms duration, Lambda is usually cheaper; at 10M requests/month with sustained load, a small Fargate task running continuously is often cheaper than the equivalent Lambda concurrency. Measure both.
 
