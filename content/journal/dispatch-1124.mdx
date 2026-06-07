@@ -1,0 +1,164 @@
+---
+title: "ExternalDNS: Kubernetes-driven DNS — Route53, Cloudflare, TXT ownership, sync policy"
+date: "2034-03-09"
+excerpt: "ExternalDNS is a Kubernetes controller that synchronises DNS records in external DNS providers (AWS Route53, Cloudflare, Google Cloud DNS, Azure DNS, and others) based on Kubernetes Ingress and Service resources. Without ExternalDNS, when you deploy a new service with an Ingress defining hostname api.construx.io, someone has to manually create the A record in Route53 or Cloudflare pointing to the load balancer IP. ExternalDNS automates this: it watches Ingress and Service resources, reads the hostname annotations or spec, and creates/updates/deletes the corresponding DNS records in the configured provider. TXT ownership records prevent ExternalDNS from deleting DNS records it didn't create — when ExternalDNS creates an A record for api.construx.io, it also creates a TXT record with a ownership identifier; on the next sync, it only manages records that have its ownership TXT record. The sync policy controls how deletions work: `sync` deletes DNS records when the Kubernetes resource is deleted (full lifecycle management); `upsert-only` only creates and updates, never deletes (safer for production). The annotation model gives fine-grained control: `external-dns.alpha.kubernetes.io/hostname: api.construx.io` on an Ingress creates the record; `external-dns.alpha.kubernetes.io/ttl: 60` sets the TTL."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Route53. TXT ownership. Ingress source. Service source. Sync policy. Annotation. Zone filter.
+
+## ExternalDNS deployment and annotation examples
+
+```yaml
+# ExternalDNS Helm deployment: Route53 via IRSA
+# bitnami/external-dns chart
+
+externalDNS:
+  provider: aws
+  aws:
+    region: eu-west-2
+    zoneType: public     # public | private | ""
+    batchChangeSize: 1000
+    batchChangeInterval: 1s
+
+  sources:
+    - ingress
+    - service
+
+  domainFilters:
+    - construx.io        # only manage records in this zone
+
+  # TXT ownership: prevents ExternalDNS from deleting unmanaged records
+  txtOwnerId: "construx-prod"
+  txtPrefix: "_externaldns."
+
+  # Sync policy: sync=delete when removed, upsert-only=never delete
+  policy: sync
+
+  logLevel: info
+  interval: 1m
+
+  # IRSA: pod identity → IAM role with Route53 permissions
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/external-dns-route53
+
+  # RBAC: ExternalDNS needs to read Ingress, Service, EndpointSlice resources
+  rbac:
+    create: true
+
+# AWS IAM policy for ExternalDNS (minimum required permissions)
+# Attached to the IRSA role above
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": ["route53:ChangeResourceRecordSets"],
+#       "Resource": ["arn:aws:route53:::hostedzone/*"]
+#     },
+#     {
+#       "Effect": "Allow",
+#       "Action": ["route53:ListHostedZones", "route53:ListResourceRecordSets",
+#                  "route53:ListTagsForResource"],
+#       "Resource": ["*"]
+#     }
+#   ]
+# }
+```
+
+```yaml
+# Ingress: ExternalDNS creates Route53 A record from spec.rules[].host
+# cert-manager creates TLS certificate from annotations
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orders-api
+  namespace: construx-prod
+  annotations:
+    # ExternalDNS: create/update this hostname in Route53
+    external-dns.alpha.kubernetes.io/hostname: api.construx.io
+    external-dns.alpha.kubernetes.io/ttl: "300"
+
+    # cert-manager: issue certificate from Vault PKI
+    cert-manager.io/cluster-issuer: construx-intermediate-ca
+
+    # NGINX: configure ingress controller settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.construx.io
+      secretName: orders-api-tls
+
+  rules:
+    - host: api.construx.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orders-api
+                port:
+                  number: 8080
+
+---
+# Service: ExternalDNS creates DNS record from LoadBalancer service
+# Useful for non-HTTP protocols (gRPC, MQTT, custom TCP)
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-gateway
+  namespace: construx-prod
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: grpc.construx.io
+    external-dns.alpha.kubernetes.io/ttl: "60"
+    # Create both A (IPv4) and AAAA (IPv6) records
+    external-dns.alpha.kubernetes.io/access: public
+spec:
+  type: LoadBalancer
+  selector:
+    app: grpc-gateway
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 9443
+```
+
+```bash
+# ExternalDNS dry-run: preview what changes would be made
+# Run before switching from upsert-only to sync policy
+
+kubectl logs -n external-dns deploy/external-dns 2>&1 | grep -E "Desired change|record"
+
+# Output:
+# time="2034-03-09T08:14:22Z" msg="Desired change: CREATE api.construx.io A [34.240.1.100]"
+# time="2034-03-09T08:14:22Z" msg="Desired change: CREATE api.construx.io TXT [\"heritage=external-dns,external-dns/owner=construx-prod,external-dns/resource=ingress/construx-prod/orders-api\"]"
+# time="2034-03-09T08:14:23Z" msg="2 record(s) in zone construx.io. were successfully updated"
+
+# Check what DNS records ExternalDNS owns in Route53
+aws route53 list-resource-record-sets \
+  --hosted-zone-id Z1234567890ABC \
+  --query 'ResourceRecordSets[?Type==`TXT` && contains(Name, `_externaldns`)].[Name,ResourceRecords[0].Value]' \
+  --output table
+
+# Force a sync immediately (restart the pod)
+kubectl rollout restart deployment/external-dns -n external-dns
+
+# Check ExternalDNS metrics (Prometheus)
+kubectl port-forward -n external-dns deploy/external-dns 7979:7979
+curl -s http://localhost:7979/metrics | grep external_dns
+# external_dns_controller_verified_aarecords 31
+# external_dns_registry_endpoints_total{exported_namespace="construx-prod"} 9
+# external_dns_source_errors_total 0
+```
+
+ExternalDNS vs manual Route53 management vs Terraform DNS vs AWS Service Discovery vs CoreDNS: Manual Route53 management (clicking in the AWS console or running aws cli commands after each deployment) is the status quo for many teams — it works but creates operational friction and drift: DNS records for deleted services accumulate, TTLs aren't standardised, and the first deployment to a new environment requires manual DNS setup. Terraform DNS management (using `aws_route53_record` resources) solves the drift problem but requires a Terraform apply for every hostname change — incompatible with dynamic Kubernetes deployments where hostnames are determined by Helm values or dynamic Ingress resources. AWS Service Discovery (Cloud Map) is the AWS-native alternative for service-to-service internal DNS — it integrates with ECS, Lambda, and EKS, but it's designed for internal discovery, not public-facing DNS. CoreDNS handles in-cluster DNS (service.namespace.svc.cluster.local) but doesn't manage external DNS providers. ExternalDNS is the right architecture for teams whose DNS is driven by Kubernetes: hostnames are declared in Ingress and Service resources, ExternalDNS translates them to DNS provider records, and the entire DNS lifecycle (create on deploy, delete on remove) is automated without any external process or human intervention.

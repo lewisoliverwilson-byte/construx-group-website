@@ -28,6 +28,7 @@ import CockroachDbPanel from '@/components/CockroachDbPanel';
 import CitusPanel from '@/components/CitusPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import TektonPanel from '@/components/TektonPanel';
+import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -466,8 +467,13 @@ export default function ContactPage() {
       </section>
 
       {/* tekton cloud-native ci/cd — tasks, pipelines, chains, cosign attestation */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <TektonPanel />
+      </section>
+
+      {/* external-dns kubernetes-driven dns — route53, ingress, service, txt-ownership */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ExternalDnsPanel />
       </section>
     </div>
   );

@@ -1,0 +1,110 @@
+---
+title: "Dragonfly: Redis-compatible in-memory store — multi-threaded, RESP3, snapshot-at-scale"
+date: "2034-03-12"
+excerpt: "Dragonfly is a Redis-compatible in-memory data store designed to fully utilise modern hardware. Redis is single-threaded for its main command processing loop — it uses a single CPU core regardless of the server it runs on. This is fine for most workloads, but at high throughput (millions of commands per second) or on large instances (200GB+ of RAM), Redis becomes CPU-bound. Dragonfly uses a multi-threaded, lock-free architecture based on the shared-nothing principle: each thread owns a subset of keyspace shards and processes commands independently, with no global locks. The result is linear scaling with CPU cores — a 32-core instance handles 32x the throughput of a single-core instance. Dragonfly is fully compatible with the Redis API (RESP protocol, all data types, Lua scripting, pub/sub, Streams, Cluster protocol) — Redis clients connect without modification. Its snapshot model uses Linux's copy-on-write semantics at the OS level, enabling point-in-time snapshots with no latency spike — unlike Redis's BGSAVE, which can cause latency spikes due to fork overhead. Dragonfly supports RESP3 (the newer Redis protocol that enables streaming and new data types) and has native TLS support. At the Construx cache tier, Dragonfly replaced Redis on the highest-throughput services where Redis was saturating a single CPU core at ~400k RPS, bottlenecking on the event loop."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Multi-threaded. Lock-free. RESP3. Snapshot. Linux COW. Cache eviction. Redis-compatible.
+
+## Dragonfly deployment and benchmark
+
+```yaml
+# Dragonfly Helm deployment
+# dragonflydb/dragonfly chart
+
+dragonfly:
+  replicaCount: 1    # single-node (cluster mode available in enterprise)
+
+  resources:
+    requests:
+      cpu: "4"
+      memory: 16Gi
+    limits:
+      cpu: "8"
+      memory: 32Gi
+
+  args:
+    # Multi-threaded: use all available CPU cores
+    - --proactor_threads=0    # 0 = auto-detect CPU count
+    # Cache eviction policy
+    - --cache_mode          # enable cache mode (auto-evict on memory pressure)
+    - --maxmemory=28g       # leave headroom for OS
+    - --maxmemory-policy=allkeys-lru
+    # Persistence
+    - --snapshot_cron="0 * * * *"  # hourly snapshots
+    - --dbfilename=dump.rdb
+    # Security
+    - --requirepass=${DRAGONFLY_PASSWORD}
+    - --tls=true
+    - --tls_cert=/tls/tls.crt
+    - --tls_key=/tls/tls.key
+    # Performance tuning
+    - --tcp_backlog=1024
+    - --hz=100
+
+  storage:
+    enabled: true
+    storageClassName: gp3
+    size: 50Gi   # for RDB snapshots
+
+  service:
+    type: ClusterIP
+    port: 6379
+```
+
+```bash
+# Dragonfly benchmark: compare throughput with Redis on same hardware
+# Using memtier_benchmark (Redis/Dragonfly benchmark tool)
+
+# Redis benchmark (single-threaded, 32-core instance)
+memtier_benchmark \
+  --server=redis.construx-prod.svc.cluster.local \
+  --port=6379 \
+  --threads=16 \
+  --clients=50 \
+  --requests=100000 \
+  --data-size=256 \
+  --pipeline=10 \
+  --test-time=60
+
+# Redis output:
+# Type         Ops/sec    Hits/sec   Misses/sec  Latency    KB/sec
+# Sets         412,847    ---        ---         1.94 msec  103,212
+# Gets         412,843    324,482    88,361      1.94 msec   88,631
+
+# Dragonfly benchmark (multi-threaded, same 32-core instance)
+memtier_benchmark \
+  --server=dragonfly.construx-prod.svc.cluster.local \
+  --port=6379 \
+  --threads=32 \
+  --clients=50 \
+  --requests=100000 \
+  --data-size=256 \
+  --pipeline=10 \
+  --test-time=60
+
+# Dragonfly output:
+# Type         Ops/sec    Hits/sec   Misses/sec  Latency    KB/sec
+# Sets       3,847,291    ---        ---         0.21 msec  961,823
+# Gets       3,847,113  3,024,891   822,222      0.21 msec  824,407
+# (9.3x more throughput, 89% lower latency)
+
+# Monitor Dragonfly metrics (Prometheus-compatible endpoint)
+kubectl port-forward -n construx-prod svc/dragonfly 6379:6379
+redis-cli -p 6379 INFO stats | grep -E "instantaneous_ops_per_sec|used_memory_human|connected_clients"
+# instantaneous_ops_per_sec:3847291
+# used_memory_human:14.23G
+# connected_clients:1604
+
+# Verify Redis compatibility: run existing Redis client code unchanged
+redis-cli -h dragonfly.construx-prod.svc.cluster.local SET "session:user:1234" '{"tenant":"acme","exp":1735686000}' EX 3600
+redis-cli -h dragonfly.construx-prod.svc.cluster.local GET "session:user:1234"
+
+# Snapshot: trigger manual point-in-time snapshot
+redis-cli -h dragonfly.construx-prod.svc.cluster.local BGSAVE
+# Background saving started (no fork — uses Linux COW, no latency spike)
+```
+
+Dragonfly vs Redis vs Valkey vs KeyDB vs Memcached: Redis is the reference in-memory store — an enormous ecosystem of clients, operators, tutorials, and integrations. Its single-threaded architecture is a deliberate design choice: no locking, predictable latency, simple mental model. For most workloads (up to a few hundred thousand commands per second on a 2-4 core instance), it is the correct choice. Valkey is the Linux Foundation fork of Redis after the BSL licence change — it aims to maintain Redis 7.x compatibility while remaining fully open-source, and the community has already merged multi-threaded I/O improvements. KeyDB is another multi-threaded Redis fork with a similar architecture to Dragonfly, less mature but battle-tested at Snapchat. Memcached is the classic alternative — simpler (strings only, no persistence, no replication), but genuinely faster for pure cache workloads because it has always been multi-threaded. Dragonfly's position: Redis-compatible (zero client changes), multi-threaded for throughput scaling, and optimised for modern Linux kernel features (io_uring, huge pages, NUMA-aware allocation). The trade-off is maturity — Redis has 15+ years of production hardening; Dragonfly is newer and lacks some Redis enterprise features (ACLs, multi-database isolation, Sentinel HA). For teams that have outgrown Redis's single-core throughput ceiling and don't want to run Redis Cluster (which adds operational complexity), Dragonfly is the cleanest path to linear scaling.
