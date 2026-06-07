@@ -29,6 +29,7 @@ import CitusPanel from '@/components/CitusPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import TektonPanel from '@/components/TektonPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
+import KubescapePanel from '@/components/KubescapePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -472,8 +473,13 @@ export default function ContactPage() {
       </section>
 
       {/* external-dns kubernetes-driven dns — route53, ingress, service, txt-ownership */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <ExternalDnsPanel />
+      </section>
+
+      {/* kubescape kspm — nsa/mitre/cis compliance, control checks, risk score */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubescapePanel />
       </section>
     </div>
   );
