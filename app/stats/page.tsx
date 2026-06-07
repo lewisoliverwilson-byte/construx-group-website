@@ -80,6 +80,7 @@ import KindPanel from '@/components/KindPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LsofPanel from '@/components/LsofPanel';
+import BufPanel from '@/components/BufPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -800,8 +801,13 @@ export default function StatsPage() {
       </div>
 
       {/* lsof — open files, sockets, pids, fds */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LsofPanel />
+      </div>
+
+      {/* buf — protobuf lint, breaking, generate, push */}
+      <div className="mt-6 pb-10">
+        <BufPanel />
       </div>
     </div>
   );

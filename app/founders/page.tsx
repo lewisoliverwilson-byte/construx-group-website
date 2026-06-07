@@ -78,6 +78,7 @@ import KnativePanel from '@/components/KnativePanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import LokiPanel from '@/components/LokiPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
+import BunBuildPanel from '@/components/BunBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -888,8 +889,13 @@ export default function FoundersPage() {
         </div>
 
         {/* meilisearch — index, search, filters, facets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MeilisearchPanel />
+        </div>
+
+        {/* bun build — bundler, transpile, minify, treeshake */}
+        <div className="mt-6 pb-10">
+          <BunBuildPanel />
         </div>
 
         {/* CTA */}

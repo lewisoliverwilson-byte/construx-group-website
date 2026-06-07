@@ -78,6 +78,7 @@ import KubebenchPanel from '@/components/KubebenchPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
+import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -752,8 +753,13 @@ export default function NowPage() {
         </div>
 
         {/* meminfo — ram, swap, buffers, cached, available */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MemInfoPanel />
+        </div>
+
+        {/* bundle analysis — chunks, modules, size, tree */}
+        <div className="mt-6 pb-10">
+          <BundleAnalysisPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
