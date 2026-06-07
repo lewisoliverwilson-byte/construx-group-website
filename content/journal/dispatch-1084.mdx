@@ -1,0 +1,108 @@
+---
+title: "Pixie: eBPF-based auto-instrumentation for Kubernetes — no code changes, instant observability"
+date: "2033-11-09"
+excerpt: "Pixie is a Kubernetes observability platform that uses eBPF to capture telemetry at the Linux kernel level without requiring any code instrumentation, sidecar injection, or application restarts. When you install Pixie on a Kubernetes cluster, the Pixie Edge Module (PEM) DaemonSet runs one pod per node; each PEM uses eBPF probes to intercept system calls and capture HTTP/1.1, HTTP/2, gRPC, PostgreSQL, MySQL, Redis, Cassandra, Kafka, and DNS traffic automatically. This means you get request/response latency, error rates, and throughput for every service in your cluster — including services you don't own and can't modify — within minutes of installation. Pixie uses in-cluster data storage (not sending raw traffic data to the cloud): telemetry is stored on node memory (configurable, typically 1-2GB per node) with a rolling 24-hour window. Queries run directly against this in-cluster store using PxL (Pixie Language, a Python-based query language). Pixie integrates with Grafana (as a data source), with OpenTelemetry export, and with the Pixie web UI (accessed via the Pixie Cloud or self-hosted). The net result: any service running on the cluster gets baseline RED metrics (Rate, Errors, Duration) for free."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+eBPF probes. PEM DaemonSet. Auto protocol detection. PxL queries. No instrumentation. RED metrics.
+
+## Pixie installation and PxL queries
+
+```bash
+# Install Pixie via Helm (requires Kubernetes 1.26+, Linux kernel 4.14+)
+helm repo add pixie-operator https://pixie-operator-charts.storage.googleapis.com
+helm install pixie-operator pixie-operator/pixie-operator \
+  --namespace plc \
+  --create-namespace \
+  --set deployKey=px-deploy-key-... \   # from Pixie Cloud or self-hosted control plane
+  --version 0.1.6
+
+# Or install via Pixie CLI
+px deploy --deploy_key px-deploy-key-...
+
+# Check Pixie PEM DaemonSet
+kubectl get pods -n pl   # Pixie namespace
+# NAME          READY  STATUS   RESTARTS  AGE
+# kelvin-...    1/1    Running  0         2m   ← query broker
+# pem-zk8j9     1/1    Running  0         2m   ← per-node eBPF collector
+# pem-p2x4m     1/1    Running  0         2m
+# pem-nq7k1     1/1    Running  0         2m
+# vizier-...    1/1    Running  0         2m   ← metadata and health
+
+# Run a built-in script: service-level RED metrics across all services
+px run px/service_stats -- -start_time '-5m'
+# SERVICE                       RPS    ERROR_RATE  P50_LATENCY  P99_LATENCY
+# construx-prod/construx-api    847/s  0.2%        12ms         42ms
+# construx-prod/construx-worker 124/s  0.0%        8ms          31ms
+# monitoring/prometheus          21/s  0.0%        4ms          18ms
+
+# HTTP request details for a specific service
+px run px/http_data -- \
+  -service construx-api \
+  -start_time '-10m' | head -20
+# TIMESTAMP            REQ_PATH              STATUS  LATENCY_NS  REQ_BODY
+# 2033-11-09T09:14:12  /api/v1/orders        200     14231142    {}
+# 2033-11-09T09:14:12  /api/v1/orders/abc123 200     8124891     {}
+# 2033-11-09T09:14:13  /api/v1/tenants       500     142381842   {}   ← error
+```
+
+```python
+# PxL script: custom query in Python-like Pixie Language
+# Find the slowest SQL queries hitting PostgreSQL (no Postgres instrumentation needed)
+
+import px
+
+def sql_stats(start_time: str, threshold_ms: int):
+    df = px.DataFrame(table='conn_stats', start_time=start_time)
+
+    # Filter to PostgreSQL connections (port 5432)
+    df = df[df.remote_port == 5432]
+
+    # Parse the SQL query from the request body (captured by eBPF)
+    df.query = df.req_body.str[:200]
+
+    # Aggregate: count requests and compute latency stats
+    df = df.groupby(['query']).agg(
+        count       = ('query',      px.count),
+        p50_ms      = ('latency',    px.quantiles(0.5)),
+        p99_ms      = ('latency',    px.quantiles(0.99)),
+        error_count = ('resp_status', lambda x: px.sum(x == '500')),
+    )
+
+    # Filter to slow queries only
+    df = df[df.p99_ms > threshold_ms * 1e6]   # nanoseconds
+    df = df.sort('p99_ms', ascending=False)
+    return df
+
+px.display(sql_stats('-30m', 100), 'slow_sql_queries')
+# QUERY                                      COUNT  P50_MS  P99_MS  ERRORS
+# SELECT * FROM orders WHERE tenant_id = $1  18421  4.2ms   142ms   0
+# UPDATE tenants SET last_seen = NOW()        4821   2.1ms   31ms    0
+```
+
+```bash
+# Pixie Grafana integration: use Pixie as a Grafana data source
+# Install Pixie Grafana plugin
+grafana-cli plugins install pixie-pixie-datasource
+
+# In Grafana: add Pixie data source
+# URL: https://work.withpixie.ai/api (or self-hosted control plane)
+# API key: px-api-key-...
+
+# PxL script as Grafana panel query:
+# import px
+# df = px.DataFrame(table='http_events', start_time=px.plugin.start_time)
+# df = df[df.service == 'construx-prod/construx-api']
+# df = df.groupby(['time_']).agg(rps = ('latency', px.count))
+# px.display(df, 'http_rps')
+
+# Pixie metrics
+# px_pem_cpu_usage{pod="pem-zk8j9"} 0.24
+# px_pem_memory_bytes{pod="pem-zk8j9"} 1.84e+09
+# px_pem_http_bytes_total{pod="pem-zk8j9"} 4.21e+12
+# px_cluster_query_duration_seconds_bucket{le="1"} 1421
+```
+
+Pixie vs Datadog APM vs Jaeger/OTel vs Prometheus vs traditional APM: Traditional APM (Datadog, New Relic, Dynatrace) requires either a language-specific agent installed in every service or SDK instrumentation in the application code. Rolling out APM to 50 services means 50 deployment changes. Jaeger and OpenTelemetry require even more work — SDK integration, context propagation, trace sampling configuration. Pixie requires none of this: install once at the cluster level, get baseline observability for everything immediately. The trade-off: Pixie captures at the kernel level, so it sees HTTP/SQL/Redis traffic but not application-specific business events (a user purchase, a specific workflow step). For custom business metrics, OpenTelemetry instrumentation is still necessary. Pixie's 24-hour in-cluster data window is a limitation for historical analysis — it's for real-time debugging, not long-term trend analysis. The right pattern is Pixie for instant, no-friction baseline observability (RED metrics, HTTP request logs, SQL queries) and Prometheus + OTel for deeper, application-specific metrics with longer retention.

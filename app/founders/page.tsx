@@ -26,6 +26,7 @@ import TrivyPanel from '@/components/TrivyPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import RisingWavePanel from '@/components/RisingWavePanel';
 import DbtPanel from '@/components/DbtPanel';
+import CertManagerPanel from '@/components/CertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -576,8 +577,13 @@ export default function FoundersPage() {
         </div>
 
         {/* dbt sql-first data transformation — models, tests, lineage dag */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DbtPanel />
+        </div>
+
+        {/* cert-manager tls automation — acme, vault pki, auto-renewal, x509 */}
+        <div className="mt-6 pb-10">
+          <CertManagerPanel />
         </div>
 
         {/* CTA */}
