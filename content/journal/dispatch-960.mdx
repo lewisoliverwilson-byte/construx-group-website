@@ -1,0 +1,181 @@
+---
+title: "NATS: lightweight pub/sub, request-reply, and JetStream persistence"
+date: "2032-11-02"
+excerpt: "NATS is a high-performance message broker — pub/sub, request-reply, and queue groups — with a binary protocol, sub-millisecond latency, and a server that compiles to a single 20MB binary. JetStream adds persistence: messages are stored in streams (ordered, deduplicated logs), and consumers can replay from any position, deliver at-least-once or exactly-once, and acknowledge individual messages. NATS clusters for high availability and geo-distributed operation via leaf nodes. The subject hierarchy uses dot-separated tokens (`orders.eu.pending`) with wildcard subscriptions (`orders.*.pending` and `orders.>`). NATS is a lighter alternative to Kafka for use cases that don't require Kafka's partition-based ordering or its large operational footprint."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Dot-separated subjects. Wildcard subscriptions. JetStream for persistence. Sub-millisecond latency.
+
+## Core pub/sub and request-reply
+
+```go
+// Go NATS client: connect and subscribe
+import "github.com/nats-io/nats.go"
+
+nc, err := nats.Connect("nats://localhost:4222",
+    nats.MaxReconnects(10),
+    nats.ReconnectWait(2*time.Second),
+    nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+        log.Printf("NATS disconnected: %v", err)
+    }),
+)
+defer nc.Drain()   // flush pending messages and close
+
+// Publish: fire-and-forget (no durability)
+nc.Publish("orders.eu.created", []byte(`{"id":"ord-001","total":4200}`))
+
+// Subscribe: receive all messages on a subject
+nc.Subscribe("orders.eu.created", func(msg *nats.Msg) {
+    log.Printf("Received order: %s", msg.Data)
+})
+
+// Wildcard subscriptions:
+// * matches a single token
+nc.Subscribe("orders.*.created", func(msg *nats.Msg) {
+    // receives: orders.eu.created, orders.us.created, etc.
+    region := strings.Split(msg.Subject, ".")[1]
+    log.Printf("Order from %s: %s", region, msg.Data)
+})
+
+// > matches zero or more tokens (must be last)
+nc.Subscribe("orders.>", func(msg *nats.Msg) {
+    // receives everything under orders.*.*.*...
+})
+
+// Request-reply: synchronous RPC over NATS
+response, err := nc.Request("pricing.calculate",
+    []byte(`{"sku":"PRD-001","quantity":3}`),
+    5*time.Second,
+)
+log.Printf("Price: %s", response.Data)
+
+// Respond to requests (server side)
+nc.Subscribe("pricing.calculate", func(msg *nats.Msg) {
+    price := calculatePrice(msg.Data)
+    msg.Respond([]byte(fmt.Sprintf(`{"total_cents":%d}`, price)))
+})
+```
+
+## Queue groups — competing consumers
+
+```go
+// Queue groups: messages distributed across subscribers in the group
+// Load balancing without application-level coordination
+
+// Worker 1
+nc.QueueSubscribe("orders.process", "order-workers", func(msg *nats.Msg) {
+    processOrder(msg.Data)
+    msg.Ack()
+})
+
+// Worker 2 (same queue group = same load balancing pool)
+nc.QueueSubscribe("orders.process", "order-workers", func(msg *nats.Msg) {
+    processOrder(msg.Data)
+    msg.Ack()
+})
+
+// NATS delivers each message to exactly one worker in the group
+// No coordination needed — NATS handles the distribution
+// Scale by adding more workers to the queue group
+
+// CLI: publish to a subject
+nats pub orders.eu.created '{"id":"ord-001","total":4200}'
+
+# Subscribe and watch messages
+nats sub orders.eu.*
+nats sub 'orders.>'   # shell quoting for >
+
+# Request-reply from CLI
+nats request pricing.calculate '{"sku":"PRD-001","quantity":3}' --timeout 5s
+```
+
+## JetStream — persistent streams
+
+```go
+// JetStream: persistence layer for NATS (Kafka-like, but lighter)
+js, err := nc.JetStream()
+
+// Create a stream: defines which subjects to capture and how long to retain
+js.AddStream(&nats.StreamConfig{
+    Name:       "ORDERS",
+    Subjects:   []string{"orders.>"},
+    Retention:  nats.LimitsPolicy,    // or WorkQueuePolicy, InterestPolicy
+    MaxAge:     7 * 24 * time.Hour,   // retain for 7 days
+    Storage:    nats.FileStorage,
+    Replicas:   3,                    // 3-way replication across NATS nodes
+    MaxMsgSize: 1024 * 1024,          // 1MB max message size
+    Discard:    nats.DiscardOld,      // drop oldest when limits hit
+})
+
+// Publish to a stream (synchronous — waits for Raft quorum acknowledgement)
+ack, err := js.Publish("orders.eu.created", payload)
+if err != nil {
+    return fmt.Errorf("publish failed: %w", err)
+}
+log.Printf("Published seq %d to %s", ack.Sequence, ack.Stream)
+
+// Create a consumer: durable, ordered, with acknowledgement
+sub, err := js.Subscribe("orders.eu.created",
+    func(msg *nats.Msg) {
+        if err := processOrder(msg.Data); err != nil {
+            msg.Nak()    // negative-ack: redeliver after backoff
+            return
+        }
+        msg.Ack()        // positive-ack: advance consumer position
+    },
+    nats.Durable("order-processor"),     // named consumer — survives restarts
+    nats.AckExplicit(),
+    nats.MaxDeliver(5),                  // max redelivery attempts
+    nats.AckWait(30*time.Second),        // redeliver if not acked within 30s
+    nats.DeliverNew(),                   // start from new messages only
+)
+
+// Replay from the beginning (catch up)
+sub, err = js.Subscribe("orders.eu.created", handler,
+    nats.Durable("audit-log"),
+    nats.DeliverAll(),   // start from sequence 1
+)
+
+// Exactly-once delivery (with MsgID deduplication)
+js.Publish("orders.eu.created", payload,
+    nats.MsgId("order-abc123"),   // deduplicated within a configurable window
+)
+```
+
+## Key-value and object store
+
+```go
+// JetStream Key-Value: distributed KV with watch and history
+kv, err := js.CreateKeyValue(&nats.KeyValueConfig{
+    Bucket:  "service-config",
+    History: 5,                   // keep 5 versions of each key
+    TTL:     24 * time.Hour,
+})
+
+kv.Put("construx-api.log-level", []byte("warn"))
+
+entry, err := kv.Get("construx-api.log-level")
+log.Printf("Value: %s (revision: %d)", entry.Value(), entry.Revision())
+
+// Watch for changes
+watcher, _ := kv.Watch("construx-api.*")
+for entry := range watcher.Updates() {
+    log.Printf("Config changed: %s = %s", entry.Key(), entry.Value())
+}
+
+// Update with optimistic locking (CAS)
+kv.Update("construx-api.log-level", []byte("debug"), entry.Revision())
+
+// JetStream Object Store: large binary objects (up to 5GB)
+obs, _ := js.CreateObjectStore(&nats.ObjectStoreConfig{
+    Bucket:   "model-artifacts",
+    Storage:  nats.FileStorage,
+    Replicas: 3,
+})
+obs.PutFile("construx-model-v2.pkl", "model-v2.pkl")
+obs.GetFile("construx-model-v2.pkl", "/tmp/")
+```
+
+NATS vs Kafka vs RabbitMQ: Kafka is built for high-throughput ordered event logs — partition-based ordering, retention measured in terabytes, and the event sourcing / CDC use case. The operational complexity is high: ZooKeeper (or KRaft), partition rebalancing, consumer group coordination. RabbitMQ is the general-purpose broker — AMQP with exchanges, queues, routing keys, DLX, and rich plugin ecosystem. NATS is the lightweight option: the server binary is 20MB, it starts in milliseconds, and the latency is sub-millisecond. JetStream gives it persistence and at-least-once delivery. The decision: use Kafka when you need partition-based ordering, multi-consumer fan-out with independent offsets, and terabyte-scale retention. Use NATS for microservice communication, request-reply, and lighter persistence needs. Use RabbitMQ when you need AMQP compatibility or complex routing topologies.

@@ -23,6 +23,7 @@ import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import PprofPanel from '@/components/PprofPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import HtopPanel from '@/components/HtopPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -458,8 +459,13 @@ export default function StatsPage() {
       </div>
 
       {/* btop real-time process monitor */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <HtopPanel />
+      </div>
+
+      {/* nvidia-smi GPU monitoring */}
+      <div className="mt-6 pb-10">
+        <NvidiaSmiPanel />
       </div>
     </div>
   );
