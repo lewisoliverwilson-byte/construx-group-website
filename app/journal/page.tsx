@@ -34,6 +34,7 @@ import KnativePanel from '@/components/KnativePanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import SpiceDbPanel from '@/components/SpiceDbPanel';
 import BeylaPanel from '@/components/BeylaPanel';
+import NftablesPanel from '@/components/NftablesPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -322,6 +323,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* grafana beyla ebpf auto-instrumentation — RED metrics, traces, zero-code */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <BeylaPanel />
+      </section>
+
+      {/* nftables netfilter — tables, chains, rules, packet/byte counters */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NftablesPanel />
       </section>
 
       {/* Posts */}
