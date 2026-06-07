@@ -56,6 +56,7 @@ import RekorPanel from '@/components/RekorPanel';
 import SigstorePanel from '@/components/SigstorePanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import AirbytePanel from '@/components/AirbytePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -638,8 +639,13 @@ export default function UsesPage() {
         </div>
 
         {/* dmesg kernel ring buffer — messages, drivers, boot */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DmesgPanel />
+        </div>
+
+        {/* airbyte open-source elt — connectors, syncs, data movement */}
+        <div className="mt-6 pb-10">
+          <AirbytePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

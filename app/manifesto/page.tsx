@@ -58,6 +58,7 @@ import PulumiPanel from '@/components/PulumiPanel';
 import CosignPanel from '@/components/CosignPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
 import ActPanel from '@/components/ActPanel';
+import AirflowPanel from '@/components/AirflowPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -531,8 +532,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* act github actions locally — jobs, steps, runners */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ActPanel />
+        </div>
+
+        {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
+        <div className="mt-4 pb-6">
+          <AirflowPanel />
         </div>
 
         {/* Sign-off */}

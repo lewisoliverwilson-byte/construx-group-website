@@ -57,6 +57,7 @@ import ZarfPanel from '@/components/ZarfPanel';
 import KindPanel from '@/components/KindPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
+import CiliumPanel from '@/components/CiliumPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -871,8 +872,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* typescript type check — errors, files, diagnostics */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <TypeCheckPanel />
+      </section>
+
+      {/* cilium ebpf networking — endpoints, policy, hubble flows */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CiliumPanel />
       </section>
 
       {/* CTA */}
