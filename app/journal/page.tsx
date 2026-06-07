@@ -20,6 +20,7 @@ import TrivyScanPanel from '@/components/TrivyScanPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import SbomPanel from '@/components/SbomPanel';
+import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -239,6 +240,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* SBOM — software bill of materials */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <SbomPanel />
+      </section>
+
+      {/* NATS pub/sub message stream */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NatsPubSubPanel />
       </section>
 
       {/* Posts */}

@@ -1,0 +1,146 @@
+---
+title: "AWS CDK v2: infrastructure as TypeScript, first-party"
+date: "2031-10-11"
+excerpt: "AWS CDK (Cloud Development Kit) lets you define AWS infrastructure in TypeScript. Constructs are the building blocks — L1 constructs map 1:1 to CloudFormation resources; L2 constructs are higher-level abstractions (a VPC, an ECS cluster) with sensible defaults; L3 constructs (Patterns) implement entire architectures. CDK synthesises your TypeScript into CloudFormation templates, which AWS deploys atomically."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript to CloudFormation. L1 raw, L2 sensible defaults, L3 full patterns.
+
+## Stack definition
+
+```ts
+// infra/bin/app.ts
+import * as cdk from 'aws-cdk-lib';
+import { ConstruxApiStack } from '../lib/api-stack';
+
+const app = new cdk.App();
+
+new ConstruxApiStack(app, 'ConstruxApi-Prod', {
+  env: { account: process.env.CDK_ACCOUNT, region: 'eu-west-1' },
+  domainName:   'api.construxgroup.io',
+  dbInstanceClass: 't3.medium',
+});
+```
+
+## Construct-level stack
+
+```ts
+// infra/lib/api-stack.ts
+import * as cdk    from 'aws-cdk-lib';
+import * as ec2    from 'aws-cdk-lib/aws-ec2';
+import * as ecs    from 'aws-cdk-lib/aws-ecs';
+import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
+import * as rds    from 'aws-cdk-lib/aws-rds';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as acm    from 'aws-cdk-lib/aws-certificatemanager';
+import { Construct } from 'constructs';
+
+interface ConstruxApiStackProps extends cdk.StackProps {
+  domainName:      string;
+  dbInstanceClass: string;
+}
+
+export class ConstruxApiStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props: ConstruxApiStackProps) {
+    super(scope, id, props);
+
+    // VPC — 2 AZs, public + private subnets
+    const vpc = new ec2.Vpc(this, 'Vpc', {
+      maxAzs:          2,
+      natGateways:     1,
+      subnetConfiguration: [
+        { cidrMask: 24, name: 'public',  subnetType: ec2.SubnetType.PUBLIC },
+        { cidrMask: 24, name: 'private', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      ],
+    });
+
+    // RDS PostgreSQL
+    const db = new rds.DatabaseInstance(this, 'Database', {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_16_4,
+      }),
+      instanceType: new ec2.InstanceType(props.dbInstanceClass),
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      multiAz:    true,
+      credentials: rds.Credentials.fromGeneratedSecret('construx_admin'),
+      databaseName: 'construx',
+      removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
+    });
+
+    // ECS Fargate with ALB — the L3 Pattern handles everything
+    const zone = route53.HostedZone.fromLookup(this, 'Zone', {
+      domainName: 'construxgroup.io',
+    });
+
+    const cert = new acm.Certificate(this, 'Cert', {
+      domainName:      props.domainName,
+      validation:      acm.CertificateValidation.fromDns(zone),
+    });
+
+    const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
+
+    const service = new ecsPatterns.ApplicationLoadBalancedFargateService(this, 'Service', {
+      cluster,
+      cpu:    512,
+      memoryLimitMiB: 1024,
+      desiredCount: 2,
+      taskImageOptions: {
+        image:       ecs.ContainerImage.fromAsset('../'),
+        environment: {
+          NODE_ENV:   'production',
+          PORT:       '3000',
+        },
+        secrets: {
+          DATABASE_URL: ecs.Secret.fromSecretsManager(db.secret!, 'password'),
+        },
+        containerPort: 3000,
+      },
+      domainName:   props.domainName,
+      domainZone:   zone,
+      certificate:  cert,
+      redirectHTTP: true,
+    });
+
+    // Allow the Fargate service to reach the database
+    db.connections.allowFrom(service.service, ec2.Port.tcp(5432));
+
+    // Auto scaling
+    const scaling = service.service.autoScaleTaskCount({ maxCapacity: 10 });
+    scaling.scaleOnCpuUtilization('CpuScaling', { targetUtilizationPercent: 70 });
+
+    // Outputs
+    new cdk.CfnOutput(this, 'ApiUrl', { value: `https://${props.domainName}` });
+    new cdk.CfnOutput(this, 'DbEndpoint', { value: db.dbInstanceEndpointAddress });
+  }
+}
+```
+
+## Deploy workflow
+
+```bash
+# Install CDK
+npm install -g aws-cdk
+
+# Bootstrap (first time per account/region)
+cdk bootstrap aws://123456789012/eu-west-1
+
+# Synthesise CloudFormation templates — check the output before deploying
+cdk synth
+
+# Diff — what will change
+cdk diff ConstruxApi-Prod
+
+# Deploy
+cdk deploy ConstruxApi-Prod
+
+# Deploy without confirmation prompts (CI/CD)
+cdk deploy ConstruxApi-Prod --require-approval never
+
+# Destroy (careful — this deletes resources)
+cdk destroy ConstruxApi-Prod
+```
+
+CDK vs Pulumi vs Terraform: CDK is AWS-only but first-party — AWS invests heavily in its L2/L3 constructs, documentation, and integration. Pulumi supports multiple clouds with real TypeScript. Terraform has the largest community and provider ecosystem. The Construx default: CDK for AWS-only stacks where the L2/L3 constructs save significant configuration; Terraform when multi-cloud or a specific module only exists in the Terraform registry.

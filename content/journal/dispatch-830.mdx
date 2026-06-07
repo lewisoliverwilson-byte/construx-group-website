@@ -1,0 +1,155 @@
+---
+title: "NATS: lightweight pub/sub with JetStream persistence"
+date: "2031-10-08"
+excerpt: "NATS is a pub/sub messaging system written in Go, designed for simplicity and speed. The core model is subjects (topics), subscribers, and publishers — all communicating through a central NATS server. Subjects use dot notation (`orders.created`) and wildcards (`orders.>`). JetStream is NATS's persistence layer — it adds durable consumers, replay, and at-least-once delivery on top of the core pub/sub."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Subjects, wildcards, and JetStream for persistence.
+
+## Core pub/sub
+
+```ts
+// lib/nats.ts
+import { connect, StringCodec, JSONCodec } from 'nats';
+
+const sc = StringCodec();
+const jc = JSONCodec();
+
+// Connect to NATS server
+export const nc = await connect({
+  servers: process.env.NATS_URL!,
+  token:   process.env.NATS_TOKEN,
+});
+
+// Publish a message
+export function publish<T>(subject: string, payload: T) {
+  nc.publish(subject, jc.encode(payload));
+}
+
+// Subscribe with a wildcard
+const sub = nc.subscribe('orders.>');
+(async () => {
+  for await (const msg of sub) {
+    const event = jc.decode(msg.data) as OrderEvent;
+    console.log(`${msg.subject}:`, event);
+  }
+})();
+```
+
+## Subject hierarchy
+
+```
+orders.created           → new order placed
+orders.confirmed         → payment succeeded, inventory reserved
+orders.shipped           → tracking number assigned
+orders.delivered         → confirmed delivered
+orders.cancelled         → order cancelled
+
+payments.initiated       → payment attempt started
+payments.succeeded       → payment captured
+payments.failed          → payment declined
+
+users.created            → new user signed up
+users.verified           → email verified
+
+# Wildcards:
+orders.*                 → matches orders.created, orders.shipped, etc. (single token)
+orders.>                 → matches all orders.* subjects (multi-token)
+```
+
+## JetStream — durable consumers
+
+```ts
+import { connect, JSONCodec }            from 'nats';
+import { RetentionPolicy, StorageType }  from 'nats';
+
+const nc = await connect({ servers: process.env.NATS_URL! });
+const js = nc.jetstream();
+const jc = JSONCodec();
+
+// Create a stream (durable storage for subjects)
+const jsm = await nc.jetstreamManager();
+await jsm.streams.add({
+  name:       'ORDERS',
+  subjects:   ['orders.>'],
+  retention:  RetentionPolicy.Limits,
+  storage:    StorageType.File,
+  max_age:    7 * 24 * 60 * 60 * 1e9,  // 7 days (nanoseconds)
+  max_msgs:   1_000_000,
+});
+
+// Publish to JetStream — acknowledgement confirms durability
+const ack = await js.publish('orders.created', jc.encode({
+  orderId: 'ord_01JA',
+  userId:  'usr_abc',
+  amount:  4999,
+}));
+console.log(`Seq: ${ack.seq}`);  // Sequence number in the stream
+
+// Durable consumer — survives server restart
+const sub = await js.consumers.get('ORDERS', 'email-service');
+// If consumer doesn't exist yet, create it:
+await jsm.consumers.add('ORDERS', {
+  name:           'email-service',
+  durable_name:   'email-service',
+  filter_subject: 'orders.confirmed',
+  ack_policy:     'explicit',  // Must ACK each message
+});
+```
+
+## At-least-once processing
+
+```ts
+const sub = await js.consumers.get('ORDERS', 'email-service');
+const msgs = await sub.consume({ max_messages: 10 });
+
+for await (const msg of msgs) {
+  const event = jc.decode(msg.data) as OrderConfirmedEvent;
+
+  try {
+    await sendConfirmationEmail(event);
+    msg.ack();   // Acknowledge — won't be redelivered
+  } catch (err) {
+    msg.nak();   // Negative ACK — will be redelivered after backoff
+    console.error('Failed to process:', err);
+  }
+}
+```
+
+## Request-reply pattern
+
+```ts
+// Service A — sends a request and waits for reply
+const reply = await nc.request('users.lookup', jc.encode({ userId: 'usr_abc' }), {
+  timeout: 5000,
+});
+const user = jc.decode(reply.data) as User;
+
+// Service B — handles the request
+const sub = nc.subscribe('users.lookup');
+(async () => {
+  for await (const msg of sub) {
+    const { userId } = jc.decode(msg.data) as { userId: string };
+    const user = await db.users.findUnique({ where: { id: userId } });
+    msg.respond(jc.encode(user));  // Send reply to the reply-to subject
+  }
+})();
+```
+
+## Deploy — Docker
+
+```yaml
+services:
+  nats:
+    image: nats:2.10-alpine
+    command: -js -sd /data -m 8222   # JetStream + monitoring
+    ports:
+      - '4222:4222'  # Client connections
+      - '8222:8222'  # HTTP monitoring
+    volumes:
+      - nats-data:/data
+```
+
+NATS vs Kafka: Kafka is designed for very high throughput (millions of events/sec), long-term retention, and multi-datacenter replication. NATS JetStream is simpler to operate (single binary, no ZooKeeper), has lower latency at moderate throughput, and supports the request-reply pattern natively. The Construx default: NATS JetStream for internal event pipelines under ~100k events/day; Kafka only when throughput, long retention, or multi-region consumption requires it.

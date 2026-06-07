@@ -1,0 +1,129 @@
+---
+title: "Coolify: self-hosted Heroku on any VPS"
+date: "2031-10-14"
+excerpt: "Coolify is an open-source platform-as-a-service that runs on your own VPS. You point it at a GitHub repo; it builds and deploys the app via Docker, manages SSL certificates via Let's Encrypt, and gives you a Heroku-like experience without the Heroku price. Services (PostgreSQL, Redis, MinIO) can be deployed as managed containers alongside applications. The Coolify server itself is a single Docker Compose stack."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Heroku DX on your own VPS. No platform tax.
+
+## Install Coolify
+
+```bash
+# Install on a fresh Ubuntu 24.04 VPS (minimum 2 vCPU, 4GB RAM)
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+
+# Coolify installs:
+# - Docker Engine
+# - Docker Compose
+# - Traefik (reverse proxy + automatic TLS)
+# - The Coolify app itself (at https://<your-ip>:8000)
+
+# After installation, navigate to http://<your-ip>:8000
+# Complete the setup wizard
+```
+
+## What Coolify manages
+
+```
+Applications
+├── Static sites (Nixpacks, Dockerfile, or Docker Compose)
+├── Next.js / Node.js apps (auto-detected via Nixpacks)
+├── Python / Rails / Laravel / Go (Nixpacks)
+└── Docker Compose stacks (deploy your compose.yaml directly)
+
+Services (managed containers)
+├── PostgreSQL 16
+├── Redis 7
+├── MongoDB
+├── MinIO (S3-compatible storage)
+├── Meilisearch
+└── Umami / Plausible / Uptime Kuma (apps)
+
+Infrastructure
+├── Traefik (automatic TLS with Let's Encrypt)
+├── Backups (S3 or local)
+└── Multi-server support (SSH into remote VPS)
+```
+
+## Deploy a Next.js app
+
+```yaml
+# coolify will detect Next.js via Nixpacks — no Dockerfile needed
+# Or use a Dockerfile:
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package.json bun.lockb ./
+RUN npm install -g bun && bun install --frozen-lockfile
+COPY . .
+RUN bun run build
+
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+## Environment variables
+
+```bash
+# Set via Coolify UI or API
+# Coolify stores secrets encrypted in the database
+
+# Required for a typical Next.js + Postgres app:
+DATABASE_URL=postgresql://construx:$DB_PASS@postgres:5432/construx
+RESEND_API_KEY=re_xxxx
+POSTHOG_API_KEY=phc_xxxx
+NEXT_PUBLIC_URL=https://app.construxgroup.io
+NODE_ENV=production
+```
+
+## Coolify API — automate deployments
+
+```bash
+# Trigger a deployment via the Coolify API (CI/CD integration)
+curl -X POST \
+  -H "Authorization: Bearer $COOLIFY_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://coolify.construxgroup.io/api/v1/deploy?uuid=$APP_UUID&force=false"
+
+# Check deployment status
+curl \
+  -H "Authorization: Bearer $COOLIFY_TOKEN" \
+  "https://coolify.construxgroup.io/api/v1/applications/$APP_UUID/deployments"
+```
+
+## GitHub Actions integration
+
+```yaml
+# .github/workflows/deploy.yml
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify deployment
+        run: |
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            "${{ secrets.COOLIFY_WEBHOOK_URL }}"
+```
+
+## Backup to S3
+
+```yaml
+# Coolify database backup config (set in UI)
+# Schedule: 0 2 * * *  (2am UTC daily)
+# Retention: 30 days
+# Destination: s3://construx-backups/postgres/
+# Encryption: AES-256
+```
+
+Coolify vs Heroku vs Railway: Heroku has the most mature DX, best documentation, and longest track record — but prices are high for what you get. Railway has beautiful UX and good pricing. Coolify is self-hosted so the VPS cost is the only bill — a €10/month Hetzner instance handles most small products. The tradeoff: you maintain the Coolify server and VPS. The Construx default: Coolify for client projects with modest traffic; Railway when a managed platform is specifically required.
