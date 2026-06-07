@@ -81,6 +81,7 @@ import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -607,8 +608,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* jaeger trace — spans, services, operations, latency */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <JaegerTracePanel />
+      </section>
+
+      {/* caddy access — requests, status, latency, paths */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CaddyAccessPanel />
       </section>
 
       {/* Posts */}

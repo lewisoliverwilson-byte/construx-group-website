@@ -77,6 +77,7 @@ import GatlingPanel from '@/components/GatlingPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import BuildOutputPanel from '@/components/BuildOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -991,8 +992,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* ip addr — interfaces, addresses, states, mtu */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <IpAddrPanel />
+      </section>
+
+      {/* build output — steps, artifacts, duration, cache hits */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BuildOutputPanel />
       </section>
 
       {/* CTA */}

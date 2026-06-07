@@ -76,6 +76,7 @@ import GitSignPanel from '@/components/GitSignPanel';
 import HtopPanel from '@/components/HtopPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import DronePanel from '@/components/DronePanel';
+import CgroupsPanel from '@/components/CgroupsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -758,8 +759,13 @@ export default function UsesPage() {
         </div>
 
         {/* drone — ci pipelines, steps, runners, secrets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DronePanel />
+        </div>
+
+        {/* cgroups — cpu, memory, io, pids quotas */}
+        <div className="mt-6 pb-10">
+          <CgroupsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

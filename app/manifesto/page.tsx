@@ -78,6 +78,7 @@ import FluxCDPanel from '@/components/FluxCDPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import IostatPanel from '@/components/IostatPanel';
+import BgpLookupPanel from '@/components/BgpLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -651,8 +652,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* iostat — disk io, await, util, read/write rates */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <IostatPanel />
+        </div>
+
+        {/* bgp lookup — asn, prefixes, peers, origin */}
+        <div className="mt-4 pb-6">
+          <BgpLookupPanel />
         </div>
 
         {/* Sign-off */}
