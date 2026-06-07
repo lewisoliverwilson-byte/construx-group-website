@@ -1,0 +1,222 @@
+---
+title: "Thanos: long-term Prometheus storage with global query view"
+date: "2033-02-09"
+excerpt: "Prometheus stores metrics locally and retains them for a configurable period (typically 15-30 days by default). Thanos extends Prometheus for long-term retention by shipping TSDB blocks to object storage (S3, GCS, Azure Blob) and providing a global query layer that federates across multiple Prometheus instances. The query component merges results from local Prometheus instances and remote object storage transparently — `query.thanos.svc` becomes the single endpoint for Grafana instead of per-cluster Prometheus addresses. Thanos Ruler re-evaluates Prometheus recording rules and alerts against the global dataset, and Compactor downsamples old blocks (5m resolution after 40d, 1h resolution after 1y) to keep query performance fast even over multi-year datasets."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Object store backend. Global query layer. Downsampling. Infinite retention. Multi-cluster federation.
+
+## Architecture and deployment
+
+```bash
+# Thanos components:
+# - Sidecar:   runs alongside each Prometheus, ships TSDB blocks to S3
+# - Store:     exposes S3 blocks as Prometheus API (query fetches from it)
+# - Query:     global query frontend — merges sidecar + store results
+# - Compactor: downsamples and compacts blocks in S3 (singleton, not HA)
+# - Ruler:     evaluates recording rules and alerts against global data
+# - Receive:   optional remote-write endpoint (for push-based ingestion)
+
+# Install via Helm
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm upgrade --install thanos bitnami/thanos \
+  --namespace monitoring \
+  -f thanos-values.yaml
+
+# thanos-values.yaml
+cat > thanos-values.yaml <<'EOF'
+objstoreConfig: |
+  type: S3
+  config:
+    bucket: construx-thanos-metrics
+    endpoint: s3.eu-west-1.amazonaws.com
+    region: eu-west-1
+    sse_config:
+      type: SSE-S3
+
+query:
+  enabled: true
+  replicaCount: 2
+  replicaLabel: replica   # deduplicate HA Prometheus replicas in queries
+  stores:
+    - dnssrv+_grpc._tcp.thanos-storegateway.monitoring.svc.cluster.local
+  extraFlags:
+    - --query.partial-response
+
+storegateway:
+  enabled: true
+  replicaCount: 2
+
+compactor:
+  enabled: true
+  retentionResolutionRaw: 40d    # raw 15s blocks retained for 40 days
+  retentionResolution5m:  1y     # 5m downsampled blocks retained for 1 year
+  retentionResolution1h:  10y    # 1h downsampled blocks retained for 10 years
+
+ruler:
+  enabled: true
+  alertmanagers:
+    - http://alertmanager.monitoring.svc:9093
+  config: |
+    groups:
+      - name: construx-slos
+        rules:
+          - record: job:request_success_rate:ratio5m
+            expr: sum(rate(http_requests_total{code=~"2.."}[5m])) by (job)
+                  /
+                  sum(rate(http_requests_total[5m])) by (job)
+EOF
+```
+
+## Prometheus sidecar configuration
+
+```yaml
+# Deploy Prometheus with the Thanos sidecar
+# Using the kube-prometheus-stack Helm chart + Thanos configuration
+
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: construx-prometheus
+  namespace: monitoring
+spec:
+  replicas: 2            # HA pair — Thanos query deduplicates
+  replicaExternalLabelName: replica
+  externalLabels:
+    cluster: eu-west-1   # global label for multi-cluster queries
+    region: eu-west-1
+
+  retention: 4h           # local retention short — Thanos handles long term
+  retentionSize: 50GB
+
+  storage:
+    volumeClaimTemplate:
+      spec:
+        resources:
+          requests:
+            storage: 100Gi
+
+  thanos:
+    image: quay.io/thanos/thanos:v0.36.0
+    version: v0.36.0
+    objectStorageConfig:
+      secret:
+        name: thanos-objstore-secret
+        key: objstore.yml
+    # Sidecar ships 2h TSDB blocks to S3 as they're completed
+    # Prometheus flushes blocks every 2h by default
+```
+
+```bash
+# After deploying, verify sidecar is uploading blocks
+kubectl logs -n monitoring prometheus-construx-prometheus-0 -c thanos-sidecar
+# level=info component=shipper msg="upload new block" id=01H9... labels="map[cluster:eu-west-1 replica:0]"
+# level=info component=shipper msg="upload new block" id=01H9...
+
+# Check blocks in S3
+aws s3 ls s3://construx-thanos-metrics/ --recursive | grep meta.json | head -10
+# 2033-02-09 09:00:00  construx-thanos-metrics/01H9XY.../meta.json
+# 2033-02-09 07:00:00  construx-thanos-metrics/01H9XZ.../meta.json
+```
+
+## Global querying and downsampling
+
+```bash
+# The Thanos Query component provides a Prometheus-compatible API
+# Point Grafana at Thanos Query instead of individual Prometheus instances
+
+# Grafana data source: http://thanos-query.monitoring.svc:9090
+
+# Thanos Query deduplicates HA replicas automatically
+# --query.replica-label=replica tells it which label marks replicas
+
+# Query a metric across all clusters (multi-cluster global view)
+curl -s 'http://thanos-query.monitoring.svc:9090/api/v1/query' \
+  --data-urlencode 'query=sum by (cluster) (rate(http_requests_total[5m]))' \
+  | jq '.data.result[] | {cluster: .metric.cluster, rps: .value[1]}'
+# { "cluster": "eu-west-1",    "rps": "142.3" }
+# { "cluster": "us-east-1",    "rps": "289.7" }
+# { "cluster": "ap-southeast", "rps": "94.1"  }
+
+# Query historical data (pulls from S3 store, not local Prometheus)
+# 90 days ago
+curl -s 'http://thanos-query.monitoring.svc:9090/api/v1/query_range' \
+  --data-urlencode 'query=rate(http_requests_total[5m])' \
+  --data-urlencode 'start=2032-11-10T00:00:00Z' \
+  --data-urlencode 'end=2032-11-10T01:00:00Z' \
+  --data-urlencode 'step=5m' \
+  | jq '.data.result | length'
+# 3  ← returns data for all 3 instances from November, sourced from S3
+
+# Verify downsampling is happening (Compactor runs in background)
+thanos tools bucket inspect \
+  --objstore.config-file=objstore.yaml
+# ULID              FROM                  UNTIL               RES   LABELS
+# 01H9XY1A...  2033-02-09T00:00:00  2033-02-09T02:00:00  raw   cluster=eu-west-1
+# 01H7GX3B...  2033-01-01T00:00:00  2033-01-01T02:00:00  raw   cluster=eu-west-1
+# 01G9PQ2C...  2032-10-01T00:00:00  2032-10-08T00:00:00  5m    cluster=eu-west-1
+# 01E8MN4D...  2032-01-01T00:00:00  2032-04-01T00:00:00  1h    cluster=eu-west-1
+
+# Raw resolution block:  one sample per scrape interval (15s) — retained 40d
+# 5m downsampled block:  one sample per 5m — retained 1 year
+# 1h downsampled block:  one sample per 1h — retained 10 years
+
+# Cost example: 3 clusters × 100k metrics × 15s scrape = ~2GB/day raw
+# After 40d: raw purged, 5m blocks = 144× smaller = ~14MB/day equivalent
+# After 1y:  5m purged, 1h blocks = 12× smaller = ~1.2MB/day equivalent
+```
+
+## Thanos Ruler: global alerting
+
+```bash
+# Thanos Ruler evaluates Prometheus rules against the global (Thanos) dataset
+# Needed for: SLO alerts that span multiple Prometheus instances,
+#             alerts on historical data (> local Prometheus retention)
+
+# Configure recording rules and alerts in Ruler
+cat > thanos-ruler-rules.yaml <<'EOF'
+groups:
+  - name: construx-slos
+    interval: 1m
+    rules:
+      # Error rate SLO: < 0.1% errors in 30-day window
+      - record: construx:error_ratio:30d
+        expr: |
+          1 - (
+            sum(increase(http_requests_total{code=~"2.."}[30d]))
+            /
+            sum(increase(http_requests_total[30d]))
+          )
+
+      - alert: ConstructAPIErrorBudgetExhausted
+        expr: construx:error_ratio:30d > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "construx-api error budget exhausted — {{ $value | humanizePercentage }} errors in 30d"
+          runbook: "https://construx.internal/runbooks/api-error-budget"
+
+  - name: construx-capacity
+    interval: 5m
+    rules:
+      # Trend-based alert: if p99 latency is growing at > 1ms/hour, alert
+      - alert: ConstructAPILatencyGrowing
+        expr: |
+          deriv(histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )[1h:5m]) > 0.001
+        for: 30m
+        labels:
+          severity: warning
+EOF
+
+kubectl create configmap thanos-ruler-rules \
+  --from-file=thanos-ruler-rules.yaml \
+  -n monitoring
+```
+
+Thanos vs Grafana Mimir vs VictoriaMetrics: All three solve the Prometheus scalability problem (local TSDB doesn't scale forever) but from different angles. Mimir is Grafana Labs's horizontally scalable backend — it's designed to ingest at write time (remote_write sharding) and is the best choice if you're all-in on Grafana Cloud or running at extreme scale. VictoriaMetrics is the performance champion — single-node VM handles what requires a Thanos cluster at a fraction of the CPU/memory, and the cluster version shards both ingestion and query. Thanos's advantage is transparency: you keep your existing Prometheus deployments untouched and add Thanos alongside them. If you already run Prometheus and want long-term storage + global queries without migrating, Thanos is the lowest-friction path.

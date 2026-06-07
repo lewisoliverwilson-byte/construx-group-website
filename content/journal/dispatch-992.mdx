@@ -1,0 +1,265 @@
+---
+title: "Linkerd: ultralight service mesh with automatic mTLS and per-route observability"
+date: "2033-02-06"
+excerpt: "Linkerd is the CNCF-graduated service mesh focused on simplicity and low overhead. Where Istio adds Envoy sidecars (a full proxy with hundreds of config options), Linkerd uses a purpose-built micro-proxy written in Rust (linkerd2-proxy) that uses 10MB RAM per pod instead of Envoy's 50-100MB. The core value proposition: automatic mTLS between all meshed pods, golden metrics (success rate, request rate, latency P50/P99) per deployment and per route, and retry/timeout policies — all without touching application code. The mesh is injected at the pod level via a mutating admission webhook that adds the proxy sidecar automatically. Linkerd's control plane is itself meshed, so you can observe it the same way you observe your applications."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Rust micro-proxy. Automatic mTLS. Golden metrics per route. Retry budget. Zero config change in app code.
+
+## Installation and mesh injection
+
+```bash
+# Install the Linkerd CLI
+curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+export PATH=$PATH:$HOME/.linkerd2/bin
+
+# Pre-install checks
+linkerd check --pre
+# ✓ kubectl works
+# ✓ cluster configuration
+# ✓ no conflicting admission webhook configurations
+
+# Install Linkerd control plane
+linkerd install --crds | kubectl apply -f -
+linkerd install | kubectl apply -f -
+
+# Verify installation
+linkerd check
+# ✓ control plane is running in linkerd namespace
+# ✓ control plane components are healthy
+# ✓ proxy injection is working
+# ✓ Linkerd is installed and up to date
+
+# Install Linkerd viz (the observability extension)
+linkerd viz install | kubectl apply -f -
+linkerd viz check
+
+# Inject a namespace: all pods created in this namespace get the sidecar
+kubectl annotate namespace construx-prod linkerd.io/inject=enabled
+
+# Inject an existing deployment without restarting
+kubectl get deploy construx-api -n construx-prod -o yaml \
+  | linkerd inject - \
+  | kubectl apply -f -
+
+# Check injection status
+linkerd viz check --proxy
+linkerd viz stat namespaces
+# NAMESPACE       MESHED   SUCCESS      RPS   LATENCY_P50   LATENCY_P99   TLS
+# construx-prod   12/12    99.8%       418/s      12ms          67ms      100%
+
+# Check an individual deployment
+linkerd viz stat deployments -n construx-prod
+# NAME            MESHED  SUCCESS    RPS   LATENCY_P50  LATENCY_P99  TLS
+# construx-api     3/3    99.9%   142/s      9ms          23ms       100%
+# worker           4/4    99.7%    31/s      4ms           8ms       100%
+# postgres         1/1   100.0%    18/s      2ms           4ms       100%
+# redis            1/1   100.0%    94/s      1ms           1ms       100%
+```
+
+## Per-route metrics with service profiles
+
+```bash
+# Service profiles define routes for per-route metrics and policies
+# Without a service profile: Linkerd shows aggregate stats only
+# With a service profile: per-route success rate, latency, retries
+
+cat > construx-api-serviceprofile.yaml <<'EOF'
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: construx-api.construx-prod.svc.cluster.local
+  namespace: construx-prod
+spec:
+  routes:
+    - name: "GET /api/v1/products"
+      condition:
+        method: GET
+        pathRegex: /api/v1/products(/.*)?
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    - name: "POST /api/v1/orders"
+      condition:
+        method: POST
+        pathRegex: /api/v1/orders
+      timeout: 5000ms
+      retries:
+        budget:
+          retryRatio: 0.2      # up to 20% of requests can be retried
+          minRetriesPerSecond: 10
+          ttl: 10s
+        condition:
+          status:
+            min: 500
+            max: 599
+
+    - name: "GET /api/v1/search"
+      condition:
+        method: GET
+        pathRegex: /api/v1/search
+      timeout: 10000ms          # search is slower — allow more time
+
+    - name: "[DEFAULT]"
+      condition:
+        pathRegex: .*
+EOF
+
+kubectl apply -f construx-api-serviceprofile.yaml
+
+# Now per-route metrics are available
+linkerd viz routes deploy/construx-api -n construx-prod
+# ROUTE                   SUCCESS    RPS  LATENCY_P50  LATENCY_P99
+# GET /api/v1/products    99.9%     98/s      9ms          23ms
+# POST /api/v1/orders     99.6%     22/s     14ms          41ms
+# GET /api/v1/search      99.1%     18/s     31ms          89ms
+# [DEFAULT]               99.8%      4/s      7ms          19ms
+
+# Watch live traffic per route
+linkerd viz routes deploy/construx-api -n construx-prod --watch
+
+# Tap live traffic (inspect individual requests)
+linkerd viz tap deploy/construx-api -n construx-prod
+# req id=0:1 proxy=in  src=10.0.1.5:54321 dst=10.0.1.10:8080 tls=true :method=GET :authority=construx-api :path=/api/v1/products
+# rsp id=0:1 proxy=in  src=10.0.1.5:54321 dst=10.0.1.10:8080 tls=true :status=200 latency=8423µs
+# req id=0:2 proxy=in  src=10.0.1.6:44512 dst=10.0.1.10:8080 tls=true :method=POST :authority=construx-api :path=/api/v1/orders
+# rsp id=0:2 proxy=in  src=10.0.1.6:44512 dst=10.0.1.10:8080 tls=true :status=201 latency=13887µs
+
+# Filter tap to specific paths
+linkerd viz tap deploy/construx-api -n construx-prod \
+  --path /api/v1/orders \
+  --method POST
+```
+
+## mTLS and identity
+
+```bash
+# Linkerd issues mTLS certificates to every meshed pod automatically
+# Based on SPIFFE: spiffe://cluster.local/ns/construx-prod/sa/construx-api
+# Certificates rotate every 24 hours by default
+
+# Verify mTLS is active on a connection
+linkerd viz tap deploy/construx-api -n construx-prod | grep tls
+# tls=true on every request
+
+# Check the identity of a pod's certificate
+linkerd identity -n construx-prod $(kubectl get pod -n construx-prod -l app=construx-api -o name | head -1)
+# CERTIFICATE DETAILS
+# subject:        system:serviceaccount:construx-prod:construx-api
+# issuer:         identity.linkerd.cluster.local
+# valid from:     2033-02-05T09:00:00Z
+# valid until:    2033-02-06T09:00:00Z  (24h TTL)
+# sans:           spiffe://cluster.local/ns/construx-prod/sa/construx-api
+
+# The Linkerd identity component (control plane) acts as the CA:
+# - Linkerd trust anchor: long-lived root cert (self-signed, 10y)
+# - Issuer cert: signed by trust anchor (90d TTL)
+# - Pod workload certs: signed by issuer (24h TTL, auto-rotated)
+
+# Zero configuration needed in the application:
+# The sidecar intercepts all traffic transparently
+# Pods communicate as if talking to localhost — mTLS is the sidecar's job
+
+# Using external cert-manager for the issuer cert
+# (for compliance requirements around certificate lifecycle)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: linkerd-identity-issuer
+  namespace: linkerd
+spec:
+  secretName: linkerd-identity-issuer
+  duration: 48h
+  renewBefore: 25h
+  issuerRef:
+    name: vault-issuer
+    kind: ClusterIssuer
+  commonName: identity.linkerd.cluster.local
+  dnsNames:
+    - identity.linkerd.cluster.local
+  isCA: true
+  usages:
+    - cert sign
+    - crl sign
+```
+
+## Traffic policies: circuit breaking and retries
+
+```bash
+# Retry budget in ServiceProfile (shown above) is the main retry mechanism
+# Circuit breaking is via HTTPRoute + policy resources (Linkerd 2.13+)
+
+cat > circuit-breaker.yaml <<'EOF'
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: construx-api-route
+  namespace: construx-prod
+spec:
+  parentRefs:
+    - name: construx-api
+      kind: Service
+      group: core
+      port: 8080
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1/
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: x-forwarded-by
+                value: linkerd-proxy
+
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: CircuitBreakerPolicy
+metadata:
+  name: construx-api-cb
+  namespace: construx-prod
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: construx-api-route
+  consecutiveFailures: 5      # open after 5 consecutive 5xx
+  minimumRequestVolume: 20    # don't open unless 20+ requests seen
+  probingInterval: 30s        # half-open probe interval
+EOF
+
+kubectl apply -f circuit-breaker.yaml
+
+# Canary: traffic splitting (with Linkerd SMI extension)
+cat > traffic-split.yaml <<'EOF'
+apiVersion: split.smi-spec.io/v1alpha2
+kind: TrafficSplit
+metadata:
+  name: construx-api-canary
+  namespace: construx-prod
+spec:
+  service: construx-api
+  backends:
+    - service: construx-api-stable
+      weight: 90
+    - service: construx-api-canary
+      weight: 10
+EOF
+
+kubectl apply -f traffic-split.yaml
+
+# Watch the split in action
+linkerd viz stat trafficsplits -n construx-prod
+# NAMESPACE       NAME                    APEX            LEAF                     WEIGHT  SUCCESS    RPS
+# construx-prod  construx-api-canary  construx-api  construx-api-stable          90       99.9%   128/s
+# construx-prod  construx-api-canary  construx-api  construx-api-canary          10      100.0%    14/s
+```
+
+Linkerd vs Istio: Istio is the feature-complete service mesh — it has traffic management, external authorization, WebAssembly extension points, and deep integration with the Envoy ecosystem. But it's also complex: 40+ CRDs, control plane components (Pilot, Citadel, Galley are now merged but still substantial), and Envoy's memory and CPU overhead. Linkerd's bet is that most teams need automatic mTLS, golden metrics, and basic retries — and they need those things to work without an Istio expert on staff. The Rust micro-proxy uses a fraction of Envoy's resources, and the control plane is simpler to operate. If your requirements go beyond what Linkerd's service profile and policy resources can express, Istio is the right call. For most teams running Kubernetes who want observability and mTLS without complexity, Linkerd is the right size.

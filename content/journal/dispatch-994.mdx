@@ -1,0 +1,255 @@
+---
+title: "VictoriaMetrics: high-performance time series database and Prometheus drop-in"
+date: "2033-02-12"
+excerpt: "VictoriaMetrics is a high-performance time series database designed as a Prometheus replacement or drop-in extension. A single-node instance can ingest millions of samples per second using 10-20% of the RAM and disk that Prometheus needs for the same data, due to its aggressive compression algorithm (roaring bitmaps for index, zstd for values). It's compatible with the Prometheus remote_write protocol and PromQL, meaning existing Grafana dashboards and alerting rules work without changes. The cluster version (vminsert / vmselect / vmstorage) shards both ingestion and query horizontally — you can run a global metrics backend that replaces Thanos without the operational complexity of Prometheus + sidecar + store + query components."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+10-20x compression vs Prometheus. Drop-in PromQL. Cluster mode. vminsert/vmselect/vmstorage.
+
+## Single-node deployment
+
+```bash
+# Single-node VictoriaMetrics: replace or supplement Prometheus for most teams
+
+# Download and run
+curl -L https://github.com/VictoriaMetrics/VictoriaMetrics/releases/latest/download/victoria-metrics-linux-amd64.tar.gz \
+  | tar xz
+./victoria-metrics \
+  -storageDataPath=/var/lib/victoria-metrics \
+  -retentionPeriod=12       # months: 12 months default retention
+  -httpListenAddr=:8428 \
+  -selfScrapeInterval=15s   # VM scrapes itself and exposes /metrics
+
+# VM is immediately compatible with Prometheus remote_write
+# Configure existing Prometheus to remote_write to VM:
+
+# prometheus.yml
+remote_write:
+  - url: http://victoria-metrics:8428/api/v1/write
+    queue_config:
+      max_samples_per_send: 10000
+      capacity: 50000
+
+# Or replace Prometheus entirely:
+# VM scrapes Kubernetes pods natively via scrape configs
+./victoria-metrics \
+  -storageDataPath=/var/lib/victoria-metrics \
+  -retentionPeriod=12 \
+  -promscrape.config=/etc/victoria-metrics/scrape.yaml
+
+# scrape.yaml uses the same format as prometheus.yml
+# Kubernetes auto-discovery with relabeling — identical to Prometheus
+
+# MetricsQL: VM's PromQL superset (all PromQL works, plus extensions)
+# Query via the same API as Prometheus:
+curl 'http://victoria-metrics:8428/api/v1/query' \
+  --data-urlencode 'query=rate(http_requests_total[5m])'
+
+# Point existing Grafana Prometheus data source at VM instead:
+# http://victoria-metrics:8428
+# (No changes to dashboards needed)
+
+# Disk usage comparison with Prometheus for the same data:
+# Prometheus: ~8 bytes/sample average with WAL
+# VictoriaMetrics: ~0.4 bytes/sample (20x compression)
+# For 100k metrics × 15s scrape × 30 days:
+# Prometheus: ~100GB
+# VictoriaMetrics: ~5GB
+```
+
+## Cluster mode for horizontal scaling
+
+```bash
+# VictoriaMetrics cluster: three components
+# vminsert:   stateless write fanout layer (shards data to vmstorage)
+# vmstorage:  stateful storage nodes (each holds a shard of the data)
+# vmselect:   stateless query layer (merges results from vmstorage shards)
+
+# Deploy with Helm
+helm repo add vm https://victoriametrics.github.io/helm-charts/
+helm upgrade --install victoria-metrics-cluster vm/victoria-metrics-cluster \
+  --namespace monitoring \
+  -f vm-cluster-values.yaml
+
+cat > vm-cluster-values.yaml <<'EOF'
+vminsert:
+  replicaCount: 3
+  extraArgs:
+    replicationFactor: "2"   # each metric shard written to 2 storage nodes
+
+vmselect:
+  replicaCount: 3
+  extraArgs:
+    dedup.minScrapeInterval: "15s"  # deduplicate if replication > 1
+
+vmstorage:
+  replicaCount: 6   # 6 shards
+  persistentVolume:
+    enabled: true
+    size: 500Gi
+    storageClass: gp3
+  retentionPeriod: "12"  # months
+EOF
+
+# Ingestion endpoint (for Prometheus remote_write, or direct push)
+# http://vminsert.monitoring.svc:8480/insert/0/prometheus/api/v1/write
+
+# Query endpoint (PromQL compatible)
+# http://vmselect.monitoring.svc:8481/select/0/prometheus/api/v1/query
+
+# Grafana data source: http://vmselect.monitoring.svc:8481/select/0/prometheus/
+
+# Scale storage: add more vmstorage nodes
+# vminsert automatically distributes data across nodes via consistent hashing
+# New nodes are rebalanced gradually (no downtime)
+kubectl scale statefulset victoria-metrics-cluster-vmstorage --replicas=8 -n monitoring
+```
+
+## vmagent: lightweight scraping agent
+
+```bash
+# vmagent: a scraping agent that replaces Prometheus for data collection only
+# It scrapes targets and remote_writes to VM (or any Prometheus-compatible backend)
+# Uses 10x less RAM than Prometheus for the same number of targets
+
+# Deploy vmagent in every cluster, point it at a central VM cluster
+cat > vmagent-values.yaml <<'EOF'
+remoteWriteUrls:
+  - http://vminsert.monitoring.svc:8480/insert/0/prometheus/api/v1/write
+
+# External labels to identify the source cluster
+externalLabels:
+  cluster: eu-west-1
+  region: eu-west-1
+
+# Kubernetes auto-discovery — same syntax as Prometheus
+additionalScrapeConfigs:
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: "true"
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        target_label: __metrics_path__
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+
+# Reduce cardinality at scrape time (before sending to storage)
+streamAggrConfig: |
+  - match: '{__name__=~"go_.*"}'
+    interval: 60s
+    outputs:
+      - total
+      - increase
+    # Aggregate Go runtime metrics: instead of sending every 15s,
+    # compute 60s totals and send those — 4x fewer samples
+EOF
+
+# vmagent status and debug
+curl http://vmagent:8429/api/v1/targets | jq '.data.activeTargets | length'
+# 342  ← number of scrape targets
+
+# Check scrape errors
+curl -s http://vmagent:8429/api/v1/targets \
+  | jq '.data.activeTargets[] | select(.health == "down") | {target: .labels.instance, error: .lastError}'
+```
+
+## vmrule and vmalert: recording rules and alerting
+
+```bash
+# vmalert: evaluates PromQL rules against VM and fires alerts to Alertmanager
+# (Equivalent to Prometheus recording rules + alerting rules)
+
+cat > vmalert-rules.yaml <<'EOF'
+groups:
+  - name: construx-api
+    interval: 30s
+    rules:
+      # Recording rule: pre-compute 5m error ratio
+      - record: job:error_ratio:rate5m
+        expr: |
+          sum(rate(http_requests_total{code=~"5.."}[5m])) by (job)
+          /
+          sum(rate(http_requests_total[5m])) by (job)
+
+      - alert: APIHighErrorRate
+        expr: job:error_ratio:rate5m{job="construx-api"} > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "construx-api error rate {{ $value | humanizePercentage }}"
+          description: "Error rate > 1% for 5 minutes. P99: {{ query \"histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job='construx-api'}[5m]))\" | first | value | humanizeDuration }}"
+
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="construx-api"}[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "construx-api p99 latency {{ $value | humanizeDuration }}"
+EOF
+
+# Deploy vmalert
+cat > vmalert-config.yaml <<'EOF'
+datasource:
+  url: http://vmselect.monitoring.svc:8481/select/0/prometheus
+
+remoteWrite:
+  url: http://vminsert.monitoring.svc:8480/insert/0/prometheus/api/v1/write
+
+notifier:
+  url: http://alertmanager.monitoring.svc:9093
+
+rule:
+  - /etc/vmalert/rules/*.yaml
+
+# Evaluate rules across multi-cluster data (global view)
+# because vmselect merges all vmstorage shards
+EOF
+```
+
+## MetricsQL extensions
+
+```bash
+# MetricsQL: VictoriaMetrics PromQL superset
+# All PromQL works — MetricsQL adds extra functions
+
+# withTemplate: extract repeated subexpressions for readability
+WITH (
+  api_success = rate(http_requests_total{code=~"2..",job="construx-api"}[5m]),
+  api_total   = rate(http_requests_total{job="construx-api"}[5m]),
+)
+api_success / api_total
+
+# aggr_over_time: aggregate over time with multiple functions
+# (built-in PromQL only has avg_over_time, min_over_time, max_over_time etc.)
+aggr_over_time("p99", rate(http_request_duration_seconds_bucket[5m])[1h:5m])
+
+# keep_last_value: fills gaps (Prometheus doesn't do gap-filling in PromQL)
+keep_last_value(http_requests_total, 300s)  # fill gaps up to 300s
+
+# outlierIQR: find anomalous series
+outlierIQR(rate(http_requests_total[5m]))
+# Returns only the series with values outside 1.5×IQR — anomaly detection
+
+# limit_offset: pagination (useful in Grafana variables for large cardinality)
+limit 100 offset 0 (rate(http_requests_total[5m]))
+
+# Downsampling queries (use coarser resolution for long time ranges)
+# VM auto-selects resolution based on time range when step is provided:
+curl 'http://vmselect:8481/select/0/prometheus/api/v1/query_range' \
+  --data-urlencode 'query=rate(http_requests_total[5m])' \
+  --data-urlencode 'start=2032-01-01T00:00:00Z' \
+  --data-urlencode 'end=2033-02-01T00:00:00Z' \
+  --data-urlencode 'step=1h'
+# Returns 1-year range at 1h resolution — VM uses pre-computed downsampled data
+```
+
+VictoriaMetrics vs Thanos vs Grafana Mimir: VictoriaMetrics wins on simplicity and resource efficiency — single-binary deployment, 20x compression, and MetricsQL extensions. Thanos wins on transparency — you keep Prometheus unchanged and add Thanos alongside it, which is valuable when you have many teams running their own Prometheus and you want a federation layer without forcing a migration. Mimir wins at extreme scale and Grafana Cloud integration — it's designed for multi-tenant SaaS deployments with millions of active series and is the best choice if you're standardizing on the Grafana LGTM (Loki, Grafana, Tempo, Mimir) stack. For a team running on Kubernetes that wants to move off bare Prometheus and needs something that works and is easy to operate, VictoriaMetrics is the pragmatic answer.

@@ -23,6 +23,7 @@ import FalcoPanel from '@/components/FalcoPanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import GrypePanel from '@/components/GrypePanel';
 import K9sPanel from '@/components/K9sPanel';
+import LinkerdPanel from '@/components/LinkerdPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -321,8 +322,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* k9s kubernetes cluster terminal UI */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <K9sPanel />
+        </div>
+
+        {/* linkerd service mesh — mTLS, routes, retry budget */}
+        <div className="mt-4 pb-6">
+          <LinkerdPanel />
         </div>
 
         {/* Sign-off */}
