@@ -90,6 +90,7 @@ import MLflowPanel from '@/components/MLflowPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import PatroniPanel from '@/components/PatroniPanel';
+import PortainerPanel from '@/components/PortainerPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -723,8 +724,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* patroni — leader, replicas, lag, failover */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PatroniPanel />
+        </div>
+
+        {/* portainer — containers, stacks, volumes, networks */}
+        <div className="mt-4 pb-6">
+          <PortainerPanel />
         </div>
 
         {/* Sign-off */}

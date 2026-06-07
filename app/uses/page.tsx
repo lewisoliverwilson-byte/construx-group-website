@@ -88,6 +88,7 @@ import NetstatPanel from '@/components/NetstatPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
+import PrometheusPanel from '@/components/PrometheusPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -830,8 +831,13 @@ export default function UsesPage() {
         </div>
 
         {/* pnpm workspace — packages, deps, scripts, filters */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PnpmWorkspacePanel />
+        </div>
+
+        {/* prometheus — targets, rules, alerts, tsdb */}
+        <div className="mt-6 pb-10">
+          <PrometheusPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
