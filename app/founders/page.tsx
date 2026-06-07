@@ -74,6 +74,7 @@ import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
+import KnativePanel from '@/components/KnativePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -864,8 +865,13 @@ export default function FoundersPage() {
         </div>
 
         {/* k8s events — warnings, normal, reasons, namespaces */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K8sEventsPanel />
+        </div>
+
+        {/* knative — serverless, serving, eventing, scale-to-zero */}
+        <div className="mt-6 pb-10">
+          <KnativePanel />
         </div>
 
         {/* CTA */}

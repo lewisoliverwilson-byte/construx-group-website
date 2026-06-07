@@ -76,6 +76,7 @@ import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import HubblePanel from '@/components/HubblePanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
+import KindPanel from '@/components/KindPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -776,8 +777,13 @@ export default function StatsPage() {
       </div>
 
       {/* k6 load test — vus, rps, p95 latency, thresholds */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <K6LoadTestPanel />
+      </div>
+
+      {/* kind — kubernetes in docker, clusters, nodes, addons */}
+      <div className="mt-6 pb-10">
+        <KindPanel />
       </div>
     </div>
   );

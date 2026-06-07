@@ -73,6 +73,7 @@ import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import K3sPanel from '@/components/K3sPanel';
+import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -736,8 +737,13 @@ export default function ContactPage() {
       </section>
 
       {/* k3s — lightweight kubernetes, agents, storage, networking */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <K3sPanel />
+      </section>
+
+      {/* kafka streams — topologies, tasks, state stores, lag */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KafkaStreamsPanel />
       </section>
     </div>
   );

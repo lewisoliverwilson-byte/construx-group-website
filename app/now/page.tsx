@@ -74,6 +74,7 @@ import GhCliPanel from '@/components/GhCliPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K9sPanel from '@/components/K9sPanel';
+import KubebenchPanel from '@/components/KubebenchPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -728,8 +729,13 @@ export default function NowPage() {
         </div>
 
         {/* k9s — tui kubernetes dashboard, pods, logs, exec */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K9sPanel />
+        </div>
+
+        {/* kubebench — cis benchmark, controls, remediation, pass rate */}
+        <div className="mt-6 pb-10">
+          <KubebenchPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
