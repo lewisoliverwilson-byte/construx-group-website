@@ -54,6 +54,7 @@ import TempoPanel from '@/components/TempoPanel';
 import VitessPanel from '@/components/VitessPanel';
 import YugaBytePanel from '@/components/YugaBytePanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
+import LangfusePanel from '@/components/LangfusePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -644,8 +645,13 @@ export default function StatsPage() {
       </div>
 
       {/* karpenter kubernetes node autoscaler — nodes, provisioners */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KarpenterPanel />
+      </div>
+
+      {/* langfuse llm observability — traces, scores, datasets */}
+      <div className="mt-6 pb-10">
+        <LangfusePanel />
       </div>
     </div>
   );

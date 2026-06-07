@@ -52,6 +52,7 @@ import KubeAuditPanel from '@/components/KubeAuditPanel';
 import GrypePanel from '@/components/GrypePanel';
 import ThanosPanel from '@/components/ThanosPanel';
 import TetragonPanel from '@/components/TetragonPanel';
+import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -596,8 +597,13 @@ export default function NowPage() {
         </div>
 
         {/* tetragon ebpf security — policies, execs, connects */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TetragonPanel />
+        </div>
+
+        {/* grafana tempo distributed tracing — traces, spans, services */}
+        <div className="mt-6 pb-10">
+          <GrafanaTempoPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

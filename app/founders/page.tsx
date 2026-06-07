@@ -52,6 +52,7 @@ import FalcoPanel from '@/components/FalcoPanel';
 import WoodpeckerCIPanel from '@/components/WoodpeckerCIPanel';
 import DronePanel from '@/components/DronePanel';
 import HarborPanel from '@/components/HarborPanel';
+import VeleroPanel from '@/components/VeleroPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -732,8 +733,13 @@ export default function FoundersPage() {
         </div>
 
         {/* harbor container registry — projects, repositories, replication */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HarborPanel />
+        </div>
+
+        {/* velero kubernetes backup — schedules, backups, restores */}
+        <div className="mt-6 pb-10">
+          <VeleroPanel />
         </div>
 
         {/* CTA */}
