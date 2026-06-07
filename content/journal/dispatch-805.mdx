@@ -1,0 +1,158 @@
+---
+title: "Cloudflare Workers: edge functions that actually scale"
+date: "2031-07-25"
+excerpt: "Cloudflare Workers run JavaScript/TypeScript at the edge — in Cloudflare's 300+ data centres worldwide. Cold start is zero (Workers use V8 isolates, not containers). The Workers runtime is not Node.js: it implements the WinterCG standard, which means the Fetch API, Web Crypto, and Streams are native, but Node.js APIs are not. Workers are the right choice for API gateways, authentication layers, edge caching logic, and request transformation that needs to run as close to the user as possible."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Zero cold start. 300+ locations. Not Node.js — the Fetch API.
+
+## Basic worker
+
+```ts
+// src/index.ts
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/health') {
+      return Response.json({ status: 'ok', region: request.cf?.colo });
+    }
+
+    if (url.pathname.startsWith('/api/')) {
+      return handleApi(request, env);
+    }
+
+    return new Response('Not found', { status: 404 });
+  },
+};
+```
+
+## Hono on Workers
+
+```ts
+// src/index.ts
+import { Hono } from 'hono';
+
+const app = new Hono<{ Bindings: Env }>();
+
+app.use('*', async (c, next) => {
+  c.res.headers.set('X-Frame-Options', 'DENY');
+  await next();
+});
+
+app.get('/api/users/:id', async (c) => {
+  const id   = c.req.param('id');
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+  if (!user) return c.json({ error: 'Not found' }, 404);
+  return c.json(user);
+});
+
+export default app;
+```
+
+## KV — global key-value store
+
+```ts
+// wrangler.toml
+// [[kv_namespaces]]
+// binding  = "CONFIG"
+// id       = "abc123..."
+
+export default {
+  async fetch(req: Request, env: Env) {
+    // Read
+    const config = await env.CONFIG.get('feature-flags', 'json');
+
+    // Write (available globally within ~60s)
+    await env.CONFIG.put('last-deploy', new Date().toISOString(), {
+      expirationTtl: 86400,  // 1 day
+    });
+
+    return Response.json(config);
+  },
+};
+```
+
+## D1 — SQLite at the edge
+
+```ts
+// wrangler.toml
+// [[d1_databases]]
+// binding       = "DB"
+// database_name = "construx-prod"
+// database_id   = "..."
+
+app.post('/api/waitlist', async (c) => {
+  const { email } = await c.req.json();
+
+  const result = await c.env.DB
+    .prepare('INSERT INTO waitlist (email, created_at) VALUES (?, ?) RETURNING id')
+    .bind(email, new Date().toISOString())
+    .first<{ id: number }>();
+
+  return c.json({ id: result!.id }, 201);
+});
+```
+
+## Queue — background processing
+
+```ts
+// wrangler.toml
+// [[queues.producers]]
+// binding      = "EMAIL_QUEUE"
+// queue        = "email-send"
+
+// [[queues.consumers]]
+// queue        = "email-send"
+// max_batch_size = 10
+
+export default {
+  async fetch(req: Request, env: Env) {
+    const { to, subject, html } = await req.json() as EmailJob;
+    await env.EMAIL_QUEUE.send({ to, subject, html });
+    return Response.json({ queued: true });
+  },
+
+  async queue(batch: MessageBatch<EmailJob>, env: Env) {
+    for (const message of batch.messages) {
+      await sendEmail(message.body, env);
+      message.ack();
+    }
+  },
+};
+```
+
+## Cron triggers
+
+```toml
+# wrangler.toml
+[[triggers.crons]]
+cron = "0 8 * * 1"  # Every Monday at 8am UTC
+```
+
+```ts
+export default {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(sendWeeklyDigest(env));
+  },
+};
+```
+
+## Deploy
+
+```bash
+# wrangler.toml
+name = "construx-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# Deploy to Cloudflare's network
+bun wrangler deploy
+
+# Local development (exact edge runtime)
+bun wrangler dev
+```
+
+Workers vs Vercel Edge Functions vs AWS Lambda@Edge: all three run at the edge. Workers have zero cold start and the most flexible KV/D1/Queue bindings. Vercel Edge Functions have tight Next.js integration. Lambda@Edge has the most configuration but 100ms+ cold starts. The Construx default: Workers for standalone API edge functions and auth layers; Vercel Edge Functions for Next.js middleware.

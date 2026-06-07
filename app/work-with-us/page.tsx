@@ -14,6 +14,7 @@ import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import VaultSecretsPanel from '@/components/VaultSecretsPanel';
 import FluxCdPanel from '@/components/FluxCdPanel';
 import TailnetStatusPanel from '@/components/TailnetStatusPanel';
+import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -616,6 +617,11 @@ export default function WorkWithUsPage() {
       {/* Tailscale tailnet device status */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <TailnetStatusPanel />
+      </section>
+
+      {/* GitHub Actions workflow run */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <GhActionsRunPanel />
       </section>
 
       {/* CTA */}
