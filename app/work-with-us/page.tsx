@@ -38,6 +38,7 @@ import EarthlyPanel from '@/components/EarthlyPanel';
 import TypesensePanel from '@/components/TypesensePanel';
 import PrefectPanel from '@/components/PrefectPanel';
 import SpiceDbPanel from '@/components/SpiceDbPanel';
+import StepSecurityPanel from '@/components/StepSecurityPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -759,6 +760,11 @@ export default function WorkWithUsPage() {
       {/* spicedb zanzibar authz — schema, relationships, permission checks */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <SpiceDbPanel />
+      </section>
+
+      {/* stepsecurity cicd hardening — scorecard, harden-runner, findings */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <StepSecurityPanel />
       </section>
 
       {/* CTA */}

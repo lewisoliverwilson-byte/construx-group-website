@@ -39,6 +39,7 @@ import DaprPanel from '@/components/DaprPanel';
 import BufPanel from '@/components/BufPanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
 import DruidPanel from '@/components/DruidPanel';
+import KedaPanel from '@/components/KedaPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -417,8 +418,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* apache druid real-time olap — datasources, kafka ingest, native sql */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DruidPanel />
+        </div>
+
+        {/* keda k8s event-driven autoscaling — scaledobjects, triggers, replicas */}
+        <div className="mt-4 pb-6">
+          <KedaPanel />
         </div>
 
         {/* Sign-off */}

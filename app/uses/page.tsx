@@ -37,7 +37,7 @@ import KedaPanel from '@/components/KedaPanel';
 import ZarfPanel from '@/components/ZarfPanel';
 import BiomePanel from '@/components/BiomePanel';
 import RabbitMQPanel from '@/components/RabbitMQPanel';
-import GrpcurlPanel from '@/components/GrpcurlPanel';
+import SocketPanel from '@/components/SocketPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -529,9 +529,9 @@ export default function UsesPage() {
           <RabbitMQPanel />
         </div>
 
-        {/* grpcurl grpc reflection — services, rpc calls, streaming */}
+        {/* socket.dev supply chain security — packages, alerts, cves */}
         <div className="mt-6 pb-10">
-          <GrpcurlPanel />
+          <SocketPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

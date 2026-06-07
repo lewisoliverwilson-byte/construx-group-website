@@ -43,6 +43,7 @@ import NetdataPanel from '@/components/NetdataPanel';
 import NeonPanel from '@/components/NeonPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
+import SigstorePanel from '@/components/SigstorePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -376,6 +377,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* huggingface hub — model registry, inference, fine-tunes */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <HuggingFacePanel />
+      </section>
+
+      {/* sigstore keyless signing — cosign, rekor, transparency log */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <SigstorePanel />
       </section>
 
       {/* Posts */}
