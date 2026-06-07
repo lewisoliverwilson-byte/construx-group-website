@@ -29,6 +29,7 @@ import DbtPanel from '@/components/DbtPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import PinotPanel from '@/components/PinotPanel';
+import BackstagePanel from '@/components/BackstagePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -594,8 +595,13 @@ export default function FoundersPage() {
         </div>
 
         {/* apache pinot realtime olap — star-tree, upsert, hybrid, kafka ingestion */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PinotPanel />
+        </div>
+
+        {/* backstage developer portal — service catalog, tech radar, plugins */}
+        <div className="mt-6 pb-10">
+          <BackstagePanel />
         </div>
 
         {/* CTA */}
