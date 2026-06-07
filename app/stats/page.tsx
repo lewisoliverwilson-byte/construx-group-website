@@ -66,6 +66,7 @@ import CiliumPanel from '@/components/CiliumPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import SpiffePanel from '@/components/SpiffePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -716,8 +717,13 @@ export default function StatsPage() {
       </div>
 
       {/* goreleaser — release automation, binaries, docker, changelog */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GoReleaserPanel />
+      </div>
+
+      {/* spiffe workload identity — svids, trust bundles, federation */}
+      <div className="mt-6 pb-10">
+        <SpiffePanel />
       </div>
     </div>
   );

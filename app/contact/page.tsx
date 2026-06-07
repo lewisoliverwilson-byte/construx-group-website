@@ -63,7 +63,7 @@ import CiliumPanel from '@/components/CiliumPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
-import AirbytePanel from '@/components/AirbytePanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -681,9 +681,9 @@ export default function ContactPage() {
         <FlinkPanel />
       </section>
 
-      {/* airbyte open-source elt — connectors, syncs, data movement */}
+      {/* goreleaser — release automation, binaries, docker, changelog */}
       <section className="px-5 pb-20 mx-auto max-w-2xl">
-        <AirbytePanel />
+        <GoReleaserPanel />
       </section>
     </div>
   );
