@@ -55,6 +55,7 @@ import WeaviatePanel from '@/components/WeaviatePanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 import ZarfPanel from '@/components/ZarfPanel';
 import KindPanel from '@/components/KindPanel';
+import BunBuildPanel from '@/components/BunBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -859,8 +860,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* kind kubernetes in docker — clusters, nodes, contexts */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KindPanel />
+      </section>
+
+      {/* bun js runtime build — transpile, bundle, test */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BunBuildPanel />
       </section>
 
       {/* CTA */}

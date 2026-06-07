@@ -59,6 +59,7 @@ import OpenSearchPanel from '@/components/OpenSearchPanel';
 import DruidPanel from '@/components/DruidPanel';
 import SyftPanel from '@/components/SyftPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
+import LighthousePanel from '@/components/LighthousePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -475,8 +476,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* scorecard security scoring — checks, scores, badges */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ScorecardPanel />
+      </section>
+
+      {/* lighthouse performance audit — scores, metrics, opportunities */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LighthousePanel />
       </section>
 
       {/* Posts */}

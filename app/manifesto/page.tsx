@@ -56,6 +56,7 @@ import QdrantPanel from '@/components/QdrantPanel';
 import RiverPanel from '@/components/RiverPanel';
 import PulumiPanel from '@/components/PulumiPanel';
 import CosignPanel from '@/components/CosignPanel';
+import TurboRepoPanel from '@/components/TurboRepoPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -519,8 +520,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cosign container image signing — signatures, attestations, keyless */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CosignPanel />
+        </div>
+
+        {/* turborepo monorepo build system — tasks, cache, pipelines */}
+        <div className="mt-4 pb-6">
+          <TurboRepoPanel />
         </div>
 
         {/* Sign-off */}

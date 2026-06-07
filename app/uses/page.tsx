@@ -54,6 +54,7 @@ import TypesensePanel from '@/components/TypesensePanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import RekorPanel from '@/components/RekorPanel';
 import SigstorePanel from '@/components/SigstorePanel';
+import WebVitalsPanel from '@/components/WebVitalsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -626,8 +627,13 @@ export default function UsesPage() {
         </div>
 
         {/* sigstore supply chain security — signing, verification, policy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SigstorePanel />
+        </div>
+
+        {/* web vitals core metrics — lcp, cls, inp, fid */}
+        <div className="mt-6 pb-10">
+          <WebVitalsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
