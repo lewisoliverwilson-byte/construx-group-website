@@ -1,0 +1,160 @@
+---
+title: "pgvector: semantic search and nearest-neighbor queries in PostgreSQL"
+date: "2032-03-01"
+excerpt: "pgvector is a PostgreSQL extension that adds a `vector` column type and three distance operators: `<->` (Euclidean), `<#>` (negative inner product), and `<=>` (cosine). You store model embeddings — fixed-length float arrays from OpenAI, Cohere, or a local model — alongside your normal relational data. Then you query for the N nearest vectors to a query embedding. Two index types: IVFFlat (faster to build, lower recall) and HNSW (slower to build, higher recall at query time, better for production). Hybrid search — combining pgvector with PostgreSQL full-text search — handles queries that are neither purely semantic nor purely keyword."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Embeddings are columns. Cosine distance is an operator. PostgreSQL does the rest.
+
+## Setup and schema
+
+```sql
+-- Enable the extension (requires superuser or pg_extension_owner role)
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Add a vector column to an existing table
+-- 1536 dims = OpenAI text-embedding-3-small
+-- 3072 dims = OpenAI text-embedding-3-large
+ALTER TABLE products ADD COLUMN embedding vector(1536);
+
+-- Or create a table with the column from scratch
+CREATE TABLE documents (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  content    text NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  embedding  vector(1536)   -- NULL until the worker generates it
+);
+
+-- Bulk-update embeddings (called from an async worker)
+UPDATE documents
+SET embedding = $1::vector
+WHERE id = $2;
+```
+
+## Index types — IVFFlat vs HNSW
+
+```sql
+-- IVFFlat: Inverted File with Flat quantization
+-- Build: fast (~minutes for 1M vectors)
+-- Query: requires a full scan of nprobe cluster centroids
+-- Recall: 95-98% at default settings, tunable via SET ivfflat.probes
+-- Use when: you need fast index builds, can accept slightly lower recall
+
+CREATE INDEX documents_embedding_ivfflat
+ON documents USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);   -- sqrt(row_count) is a good starting point
+
+-- Tune at query time
+SET ivfflat.probes = 10;   -- Check 10/100 lists → higher recall, slower
+
+-- HNSW: Hierarchical Navigable Small World graph
+-- Build: slow (~hours for 1M vectors, O(n log n) memory during build)
+-- Query: graph traversal, O(log n) per query
+-- Recall: 98-99.5% at default settings
+-- Use when: production workload, query latency matters, can afford build time
+
+CREATE INDEX documents_embedding_hnsw
+ON documents USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+-- m: edges per node (higher = better recall, more memory)
+-- ef_construction: search width during build (higher = better recall, slower build)
+
+-- Tune at query time
+SET hnsw.ef_search = 100;   -- Search 100 candidates (default: 40)
+```
+
+## Nearest-neighbor search
+
+```sql
+-- Cosine similarity: find the 5 most semantically similar documents
+-- $1 is the query embedding (from your embedding model)
+SELECT id, content,
+       1 - (embedding <=> $1) AS similarity   -- Convert distance to similarity
+FROM documents
+ORDER BY embedding <=> $1    -- <=> = cosine distance (0=identical, 2=opposite)
+LIMIT 5;
+
+-- With WHERE clause: filter before the vector scan
+-- Index can push the WHERE predicate before the ANN scan
+SELECT id, content, 1 - (embedding <=> $1) AS similarity
+FROM documents
+WHERE created_at > now() - interval '30 days'
+  AND category = 'electronics'
+ORDER BY embedding <=> $1
+LIMIT 10;
+
+-- Exact K-NN (no index, full table scan) — use for testing recall
+SET enable_indexscan = off;
+SELECT id, 1 - (embedding <=> $1) AS sim
+FROM documents ORDER BY embedding <=> $1 LIMIT 10;
+SET enable_indexscan = on;
+```
+
+## Hybrid search — vector + full-text (RRF)
+
+```sql
+-- Reciprocal Rank Fusion: combine BM25 rank with vector rank
+-- Neither ranking dominates — the fusion handles queries like
+-- "show me documents similar to this embedding that also mention PostgreSQL"
+
+WITH
+  fts AS (
+    SELECT id,
+           ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, query) DESC) AS rank
+    FROM documents,
+         plainto_tsquery('english', $2) query
+    WHERE search_tsv @@ plainto_tsquery('english', $2)
+    LIMIT 60
+  ),
+  vec AS (
+    SELECT id,
+           ROW_NUMBER() OVER (ORDER BY embedding <=> $1) AS rank
+    FROM documents
+    ORDER BY embedding <=> $1
+    LIMIT 60
+  )
+SELECT
+  COALESCE(fts.id, vec.id) AS id,
+  1.0 / (60 + COALESCE(fts.rank, 60)) +
+  1.0 / (60 + COALESCE(vec.rank, 60)) AS rrf_score
+FROM fts FULL OUTER JOIN vec USING (id)
+ORDER BY rrf_score DESC
+LIMIT 10;
+```
+
+## Generate embeddings from Python
+
+```python
+# requirements: psycopg2-binary, openai
+import openai
+import psycopg2
+
+client = openai.OpenAI()
+
+def embed(text: str) -> list[float]:
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text,
+    )
+    return response.data[0].embedding
+
+# Batch-embed products and store
+conn = psycopg2.connect("postgresql://localhost/construx_production")
+cur  = conn.cursor()
+
+cur.execute("SELECT id, name || ' ' || description FROM products WHERE embedding IS NULL LIMIT 100")
+rows = cur.fetchall()
+
+for product_id, text in rows:
+    embedding = embed(text)
+    cur.execute(
+        "UPDATE products SET embedding = %s WHERE id = %s",
+        (embedding, product_id)
+    )
+
+conn.commit()
+```
+
+pgvector vs dedicated vector databases (Pinecone, Weaviate, Qdrant): Dedicated vector databases optimise for one thing — ANN search — and achieve higher throughput (Pinecone: 1000s of queries/second per pod). pgvector runs inside PostgreSQL, so you get ACID transactions, JOINs with relational data, and existing tooling. The tradeoff: pgvector tops out at ~100-200 ANN queries/second per core on HNSW, while Pinecone scales horizontally without limits. For most applications (< 10M vectors, < 100 queries/second), pgvector in the existing PostgreSQL instance is the right call — it eliminates an entire service from your stack.

@@ -1,0 +1,141 @@
+---
+title: "Redis sorted sets, Lua scripting, and Redis Streams"
+date: "2032-03-04"
+excerpt: "Redis sorted sets (ZSET) are ordered collections where each member has a float score. They support O(log n) insertion, O(log n) rank queries, and O(log n + k) range scans — perfect for leaderboards, rate limiters, and time-series indices. Lua scripting executes atomic multi-command transactions in the Redis process: no locks, no round trips, no race conditions. Redis Streams (XADD/XREAD) implement a persistent, consumer-group-aware event log — closer to Kafka than pub/sub, but embedded in Redis with sub-millisecond latency."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Sorted by score. Atomic with Lua. Persistent with Streams.
+
+## Sorted sets — leaderboard and rate limiter
+
+```bash
+# ZADD: add members with scores
+ZADD orders:leaderboard 4999 "cust-001"
+ZADD orders:leaderboard 8998 "cust-002" 3499 "cust-003" 12450 "cust-004"
+
+# ZREVRANGE: top N members (highest score first) with scores
+ZREVRANGE orders:leaderboard 0 2 WITHSCORES
+# 1) "cust-004"   2) "12450"
+# 3) "cust-002"   4) "8998"
+# 5) "cust-001"   6) "4999"
+
+# ZINCRBY: increment a member's score (atomic)
+ZINCRBY orders:leaderboard 500 "cust-001"
+# "5499"   ← new score
+
+# ZRANK: get 0-based rank of a member
+ZRANK orders:leaderboard "cust-003"
+# (integer) 0   ← lowest score = rank 0
+
+# ZRANGEBYSCORE: range query by score
+ZRANGEBYSCORE orders:leaderboard 4000 9000 WITHSCORES LIMIT 0 10
+# members with score between 4000 and 9000
+
+# Rate limiter: sliding window with ZSET
+# Add current timestamp, remove old entries, count remaining
+MULTI
+  ZADD rate:api:user-001 1709296327.112 "req:a3f9"
+  ZREMRANGEBYSCORE rate:api:user-001 -inf "(1709296267.112"   # Remove entries > 60s old
+  ZCARD rate:api:user-001
+  EXPIRE rate:api:user-001 60
+EXEC
+```
+
+## Lua scripting — atomic multi-command operations
+
+```lua
+-- Redis Lua: runs inside the Redis process, atomic, no round trips
+-- EVAL "script" numkeys key [key ...] arg [arg ...]
+
+-- Rate limiter: check + increment in one atomic operation
+local key      = KEYS[1]     -- rate:api:user-001
+local limit    = tonumber(ARGV[1])  -- 100
+local window   = tonumber(ARGV[2])  -- 60 (seconds)
+local now      = tonumber(ARGV[3])  -- unix timestamp (milliseconds)
+local min_time = now - (window * 1000)
+
+-- Remove requests outside the window
+redis.call('ZREMRANGEBYSCORE', key, '-inf', min_time)
+
+-- Count remaining requests in the window
+local count = redis.call('ZCARD', key)
+
+if count >= limit then
+  return 0   -- Rate limited
+end
+
+-- Add this request
+redis.call('ZADD', key, now, now .. ':' .. math.random(1000000))
+redis.call('EXPIRE', key, window)
+return limit - count   -- Remaining requests allowed
+```
+
+```python
+# Execute Lua from Python (redis-py)
+import redis, time
+
+r = redis.Redis(host='cache-01', port=6379)
+
+RATE_LIMIT_SCRIPT = r.register_script("""
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+if count > tonumber(ARGV[2]) then
+  return 0
+end
+return 1
+""")
+
+def check_rate_limit(user_id: str, window_secs: int = 60, limit: int = 100) -> bool:
+    key = f"rate:{user_id}:{int(time.time()) // window_secs}"
+    result = RATE_LIMIT_SCRIPT(keys=[key], args=[window_secs, limit])
+    return bool(result)
+```
+
+## Redis Streams — persistent event log with consumer groups
+
+```bash
+# XADD: append an event to a stream (auto-generated ID: timestamp-sequence)
+XADD orders:events '*' \
+  order_id  a3f9b2c1 \
+  customer  cust-001 \
+  total_cents  4999 \
+  status    paid
+
+# Returned: 1709296327112-0  (millisecond timestamp + sequence number)
+
+# XREAD: read N events from a position
+XREAD COUNT 10 STREAMS orders:events 0   # From beginning
+XREAD COUNT 10 STREAMS orders:events $   # From now (new events only)
+
+# Consumer groups: multiple workers, each event processed by one worker
+XGROUP CREATE orders:events billing 0   # Start from beginning
+XGROUP CREATE orders:events analytics $  # Start from now
+
+# Worker A: reads pending events for the 'billing' group
+XREADGROUP GROUP billing worker-a COUNT 5 STREAMS orders:events >
+# '>' means: give me messages not yet delivered to any consumer in this group
+
+# Acknowledge processed messages
+XACK orders:events billing 1709296327112-0
+
+# Check pending (delivered but unacknowledged) messages
+XPENDING orders:events billing - + 10
+# 1709296327112-0  worker-a  84000ms  3 deliveries  ← hasn't been acked in 84s
+
+# Claim stuck messages (dead letter recovery)
+XCLAIM orders:events billing worker-b 60000 1709296327112-0
+# Transfer ownership to worker-b after 60s of inactivity from worker-a
+
+# Stream length and trimming
+XLEN orders:events
+# (integer) 18241
+
+# Trim to last 10000 entries (approximately, MAXLEN ~ is an approximation)
+XTRIM orders:events MAXLEN ~ 10000
+```
+
+Redis Streams vs Kafka: Kafka is designed for massive scale — millions of messages/second, petabytes of retention, hundreds of consumers. Its overhead reflects this: 64MB JVM heap minimum, ZooKeeper/KRaft coordination, per-topic log segment files. Redis Streams run in the Redis process — sub-millisecond latency, zero JVM overhead, but bounded by Redis memory (typically 1-32GB). For "I need durable, replayable events within a service" at low-to-medium volume (< 100k messages/second), Redis Streams embedded in your existing Redis instance is the right call. For "I need to fan out events to 100 microservices with 30-day retention," use Kafka.

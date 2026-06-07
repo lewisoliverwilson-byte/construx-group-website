@@ -22,6 +22,7 @@ import BunBuildPanel from '@/components/BunBuildPanel';
 import SbomPanel from '@/components/SbomPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import SentryIssuesPanel from '@/components/SentryIssuesPanel';
+import PgvectorPanel from '@/components/PgvectorPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -251,6 +252,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* Sentry error tracking issues */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <SentryIssuesPanel />
+      </section>
+
+      {/* pgvector semantic search */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <PgvectorPanel />
       </section>
 
       {/* Posts */}
