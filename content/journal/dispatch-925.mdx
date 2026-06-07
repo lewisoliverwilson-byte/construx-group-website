@@ -1,0 +1,224 @@
+---
+title: "Rust async: Tokio, channels, and writing concurrent network services"
+date: "2032-07-20"
+excerpt: "Rust's async/await model runs on a cooperative scheduler — async functions yield at await points, allowing a single thread to interleave thousands of concurrent I/O operations without the overhead of OS threads. Tokio is the dominant async runtime: it provides a multi-threaded work-stealing scheduler, async I/O via epoll/io_uring, channels (mpsc, broadcast, watch, oneshot), timers, and the #[tokio::main] macro. Writing a high-performance network service in Rust with Tokio gives you C-level throughput with memory safety, predictable latency, and no garbage collector pauses."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Async yields at `.await`. Tokio schedules on a thread pool. No GC. No data races.
+
+## Tokio basics — async TCP server
+
+```rust
+// src/main.rs — basic TCP echo server
+
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let listener = TcpListener::bind("0.0.0.0:8080").await?;
+    println!("listening on :8080");
+
+    loop {
+        // accept() is async — yields to the runtime while waiting for a connection
+        let (mut socket, addr) = listener.accept().await?;
+        println!("connection from {addr}");
+
+        // Spawn a new task per connection (cheap — a Tokio task is ~128 bytes)
+        tokio::spawn(async move {
+            let mut buf = vec![0u8; 1024];
+            loop {
+                let n = match socket.read(&mut buf).await {
+                    Ok(0) => return,   // Connection closed
+                    Ok(n) => n,
+                    Err(e) => { eprintln!("read error: {e}"); return; }
+                };
+                if socket.write_all(&buf[..n]).await.is_err() { return; }
+            }
+        });
+    }
+}
+```
+
+## Channels — communication between tasks
+
+```rust
+use tokio::sync::{mpsc, broadcast, watch, oneshot};
+
+// mpsc: multiple producers, single consumer (most common for work queues)
+let (tx, mut rx) = mpsc::channel::<Order>(1000);   // Buffer 1000 items
+
+// Producer tasks
+for _ in 0..10 {
+    let tx = tx.clone();   // Clone sender for each producer
+    tokio::spawn(async move {
+        tx.send(Order::new()).await.unwrap();
+    });
+}
+drop(tx);   // Drop the original sender so the channel closes when all clones drop
+
+// Consumer
+while let Some(order) = rx.recv().await {
+    process_order(order).await;
+}
+
+// oneshot: single value, single response (request-reply pattern)
+async fn fetch_order(id: &str, db: &Database) -> anyhow::Result<Order> {
+    let (resp_tx, resp_rx) = oneshot::channel();
+    db.send(DbRequest::GetOrder { id: id.to_string(), reply: resp_tx }).await?;
+    resp_rx.await.map_err(Into::into)
+}
+
+// broadcast: one sender, multiple receivers (fan-out for events)
+let (tx, _) = broadcast::channel::<Event>(256);
+
+// Subscribe from multiple tasks
+let mut rx1 = tx.subscribe();
+let mut rx2 = tx.subscribe();
+
+tokio::spawn(async move {
+    while let Ok(event) = rx1.recv().await {
+        // handle event in task 1
+    }
+});
+
+// watch: latest-value semantics (replace, not queue) — for config updates
+let (config_tx, config_rx) = watch::channel(AppConfig::default());
+
+// Background task updates config
+tokio::spawn(async move {
+    loop {
+        let new_config = reload_config().await;
+        config_tx.send(new_config).unwrap();
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+});
+
+// Workers use the latest config
+let config = config_rx.borrow().clone();
+```
+
+## Shared state — Arc<Mutex<T>> and DashMap
+
+```rust
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use dashmap::DashMap;
+
+// RwLock: many readers OR one writer (from tokio — async, not std)
+let state: Arc<RwLock<AppState>> = Arc::new(RwLock::new(AppState::default()));
+
+// Read (non-exclusive — many concurrent readers)
+let guard = state.read().await;
+println!("{:?}", guard.orders.len());
+
+// Write (exclusive)
+let mut guard = state.write().await;
+guard.orders.push(order);
+
+// DashMap: lock-free concurrent hashmap (no async required — uses sharding)
+let cache: Arc<DashMap<String, CachedOrder>> = Arc::new(DashMap::new());
+
+// Multiple tasks can read/write concurrently without locking the whole map
+cache.insert("a3f9b2c1".to_string(), cached_order);
+if let Some(order) = cache.get("a3f9b2c1") {
+    return Ok(order.clone());
+}
+```
+
+## HTTP server with Axum (built on Tokio + Hyper)
+
+```rust
+// src/main.rs — construx API with Axum
+
+use axum::{
+    extract::{Path, State},
+    response::Json,
+    routing::{get, post},
+    Router,
+};
+use std::sync::Arc;
+use tokio::net::TcpListener;
+
+#[derive(Clone)]
+struct AppState {
+    db: Arc<Database>,
+    cache: Arc<DashMap<String, Order>>,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let state = AppState {
+        db: Arc::new(Database::connect("postgres://...").await?),
+        cache: Arc::new(DashMap::new()),
+    };
+
+    let app = Router::new()
+        .route("/v1/orders", post(create_order))
+        .route("/v1/orders/:id", get(get_order))
+        .route("/health", get(|| async { "ok" }))
+        .with_state(state);
+
+    let listener = TcpListener::bind("0.0.0.0:8080").await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn get_order(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<Order>, StatusCode> {
+    // Check cache first (no await — DashMap is sync)
+    if let Some(order) = state.cache.get(&id) {
+        return Ok(Json(order.clone()));
+    }
+
+    // Fall through to database
+    match state.db.get_order(&id).await {
+        Ok(Some(order)) => {
+            state.cache.insert(id, order.clone());
+            Ok(Json(order))
+        }
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!("database error: {e}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+```
+
+## Runtime configuration and tokio-console
+
+```rust
+// Custom runtime: tune thread count, task limits, I/O driver
+#[tokio::main(flavor = "multi_thread", worker_threads = 8)]
+async fn main() {}
+
+// Or build the runtime manually
+let runtime = tokio::runtime::Builder::new_multi_thread()
+    .worker_threads(8)
+    .max_blocking_threads(512)    // Thread pool for blocking operations
+    .enable_all()
+    .thread_name("construx-worker")
+    .on_thread_start(|| { /* set thread-local state */ })
+    .build()?;
+
+// tokio-console: live task inspection (like htop for Tokio tasks)
+// Add to Cargo.toml: console-subscriber = "0.3"
+// TOKIO_CONSOLE_BIND=127.0.0.1:6669 cargo run
+// In another terminal: tokio-console http://127.0.0.1:6669
+// Shows: task list, poll durations, blocking tasks, waker counts
+
+// Instrument your tasks for tokio-console
+#[instrument(name = "process_order", skip(db))]
+async fn process_order(order: Order, db: &Database) -> anyhow::Result<()> {
+    tracing::info!(order_id = %order.id, "processing");
+    db.save_order(&order).await?;
+    Ok(())
+}
+```
+
+Rust async vs Go goroutines: Go goroutines are also cooperatively scheduled on a thread pool, but Go's runtime manages them transparently — you write `go func()` and the scheduler handles everything. Rust async is explicit: you must choose a runtime (Tokio, async-std), annotate async functions, and `.await` every I/O point. The explicitness is a feature: you can see exactly where your code might yield, reason about cancellation (Futures are cancelled by dropping), and have zero runtime surprise. Go's goroutine overhead is ~2KB per goroutine; a Tokio task is ~128 bytes. Go's GC occasionally pauses; Rust has no GC. For high-throughput services with tight latency requirements (thousands of concurrent connections, sub-millisecond P99 targets), Rust + Tokio is competitive with the best C implementations while being memory-safe. For most services, Go's simpler model is the right trade-off — the ergonomics gap is real.

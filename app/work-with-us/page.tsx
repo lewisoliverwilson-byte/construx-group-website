@@ -19,6 +19,7 @@ import PackerBuildPanel from '@/components/PackerBuildPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import TrivyVulnPanel from '@/components/TrivyVulnPanel';
 import VeleroPanel from '@/components/VeleroPanel';
+import PulumiPanel from '@/components/PulumiPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -644,8 +645,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* Velero Kubernetes backup */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <VeleroPanel />
+      </section>
+
+      {/* Pulumi infrastructure as code */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <PulumiPanel />
       </section>
 
       {/* CTA */}
