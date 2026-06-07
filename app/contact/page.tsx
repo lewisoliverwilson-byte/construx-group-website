@@ -44,6 +44,7 @@ import GatlingPanel from '@/components/GatlingPanel';
 import K6Panel from '@/components/K6Panel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import BenthosPanel from '@/components/BenthosPanel';
+import ConsulPanel from '@/components/ConsulPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -562,8 +563,13 @@ export default function ContactPage() {
       </section>
 
       {/* benthos stream processor — pipelines, bloblang, fanout */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <BenthosPanel />
+      </section>
+
+      {/* consul service mesh — discovery, intentions, health */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ConsulPanel />
       </section>
     </div>
   );

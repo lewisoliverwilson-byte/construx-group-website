@@ -44,6 +44,7 @@ import FalcoPanel from '@/components/FalcoPanel';
 import TailscalePanel from '@/components/TailscalePanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import TeleportPanel from '@/components/TeleportPanel';
+import CertManagerPanel from '@/components/CertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -548,8 +549,13 @@ export default function NowPage() {
         </div>
 
         {/* teleport infrastructure access — nodes, sessions, audit */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TeleportPanel />
+        </div>
+
+        {/* cert-manager tls automation — certificates, issuers, acme */}
+        <div className="mt-6 pb-10">
+          <CertManagerPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

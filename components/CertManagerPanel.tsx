@@ -1,173 +1,143 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'cert' | 'renewal' | 'challenge' | 'vault' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',   text: '# cert-manager: kubernetes tls automation — acme, vault pki, auto-renewal' },
-  { kind: 'prompt',    text: 'kubectl get certificate -A' },
-  { kind: 'blank',     text: '' },
-  { kind: 'comment',   text: '# certificates: 2 ready  0 expired  0 issuing' },
-  { kind: 'cert',      text: '  ingress-nginx  construx-io-wildcard   True  letsencrypt-prod  62d' },
-  { kind: 'cert',      text: '  construx-prod  construx-api-tls        True  vault-pki-internal 4h' },
-  { kind: 'blank',     text: '' },
-  { kind: 'comment',   text: '# renewal windows: days until auto-renew triggered' },
-  { kind: 'renewal',   text: '  construx-io-wildcard:  expires 2033-12-12  renews 2033-11-12  30d left' },
-  { kind: 'renewal',   text: '  construx-api-tls:      expires 4h           renews 8h before    vault PKI' },
-  { kind: 'blank',     text: '' },
-  { kind: 'challenge', text: '  last challenge: DNS-01 route53  txt _acme-challenge.construx.io  ok' },
-  { kind: 'vault',     text: '  vault-pki: intermediate CA  path:pki/sign/construx  auth:k8s' },
-  { kind: 'metric',    text: '  sync-calls: 842  renewals-this-month: 3  cert-age-p50: 28d' },
-  { kind: 'stat',      text: '  2 certs  2 issuers  acme+vault  cert-manager 1.16' },
+const CERTIFICATES = [
+  { name: 'construxgroup-io-tls', namespace: 'prod', issuer: 'letsencrypt-prod', notAfter: '84d', renewsIn: '54d', status: 'ready' },
+  { name: 'api-construxgroup-io-tls', namespace: 'prod', issuer: 'letsencrypt-prod', notAfter: '71d', renewsIn: '41d', status: 'ready' },
+  { name: 'staging-tls', namespace: 'staging', issuer: 'letsencrypt-staging', notAfter: '12d', renewsIn: '-18d', status: 'renewing' },
+  { name: 'internal-mtls', namespace: 'prod', issuer: 'vault-issuer', notAfter: '365d', renewsIn: '335d', status: 'ready' },
 ];
 
-const TOTAL = LINES.length + 3;
+const ISSUERS = [
+  { name: 'letsencrypt-prod', namespace: 'cert-manager', type: 'acme', ready: true, status: 'ready' },
+  { name: 'letsencrypt-staging', namespace: 'cert-manager', type: 'acme', ready: true, status: 'ready' },
+  { name: 'vault-issuer', namespace: 'cert-manager', type: 'vault', ready: true, status: 'ready' },
+  { name: 'selfsigned', namespace: 'cert-manager', type: 'selfSigned', ready: true, status: 'ready' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':   return 'rgba(240,239,255,0.22)';
-    case 'prompt':    return 'rgba(240,239,255,0.6)';
-    case 'cert':      return '#4ade80';
-    case 'renewal':   return '#67e8f9';
-    case 'challenge': return '#a78bfa';
-    case 'vault':     return '#fbbf24';
-    case 'metric':    return 'rgba(240,239,255,0.5)';
-    case 'stat':      return 'rgba(240,239,255,0.45)';
-    default:          return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function CertManagerPanel() {
-  const [revealed,    setRevealed]    = useState(0);
-  const [liveDays,    setLiveDays]    = useState(30);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [certRows, setCertRows] = useState(0);
+  const [issuerRows, setIssuerRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const certsIssued = useCounter(284, 1, 1200);
+  const renewalsTotal = useCounter(2840, 4, 800);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveDays(28 + Math.floor(Math.random() * 5));
-          }, 3000);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const c = setInterval(() => setCertRows((x) => Math.min(x + 1, CERTIFICATES.length)), 160);
+    const i = setInterval(() => setIssuerRows((x) => Math.min(x + 1, ISSUERS.length)), 140);
+    return () => { clearInterval(c); clearInterval(i); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(74,222,128,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(74,222,128,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@certs — cert-manager · acme · vault-pki · auto-renewal · tls
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(74,222,128,0.08)', background: 'rgba(74,222,128,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(74,222,128,0.4)' }}>
+          cert-manager -- tls automation -- certificates / issuers / acme
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveDays}d left` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {certsIssued.toLocaleString()} certs
         </span>
       </div>
 
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@certs# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          cert-manager · acme · dns-01 · vault · auto-renewal · x509
-        </span>
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#4ade80', fontWeight: 600 }}>cmctl@cluster</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>cmctl status certificate construxgroup-io-tls -n prod && cmctl check api --wait=2m</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'certs issued', value: certsIssued.toLocaleString(), color: '#4ade80' },
+          { label: 'renewals', value: renewalsTotal.toLocaleString(), color: '#67e8f9' },
+          { label: 'issuers', value: ISSUERS.length.toString(), color: '#a78bfa' },
+          { label: 'renewing', value: CERTIFICATES.filter(c => c.status === 'renewing').length.toString(), color: '#fbbf24' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>cert-manager 1.16 ·</span>
-          <span style={{ color: '#4ade80' }}>2 certs valid</span>
-          <span style={{ color: '#67e8f9' }}>{liveDays}d to renew</span>
-          <span style={{ color: '#a78bfa' }}>dns-01 ok</span>
-          <span style={{ color: '#fbbf24' }}>vault pki</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Certificates */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // certificates
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {CERTIFICATES.slice(0, certRows).map((cert) => (
+            <div key={cert.name} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 80px 36px 36px 52px', alignItems: 'center', gap: 8, padding: '5px 8px', background: cert.status === 'renewing' ? 'rgba(251,191,36,0.06)' : 'rgba(74,222,128,0.04)', border: `1px solid ${cert.status === 'renewing' ? 'rgba(251,191,36,0.2)' : 'rgba(74,222,128,0.1)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cert.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{cert.namespace}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cert.issuer}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{cert.notAfter}</span>
+              <span className="tabular-nums" style={{ color: cert.status === 'renewing' ? '#fbbf24' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{cert.renewsIn}</span>
+              <span style={{ color: cert.status === 'ready' ? '#4ade80' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{cert.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Issuers */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // certificate issuers
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {ISSUERS.slice(0, issuerRows).map((issuer) => (
+            <div key={issuer.name} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 56px 36px 48px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{issuer.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{issuer.namespace}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{issuer.type}</span>
+              <span style={{ color: issuer.ready ? '#4ade80' : '#f87171', fontSize: 7, textAlign: 'center' }}>{issuer.ready ? 'rdy' : 'not'}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{issuer.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          cert-manager · acme · vault-pki · auto-renewal · x509 · tls
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(74,222,128,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          cert-manager v1.15 - apache-2.0 - x.509 certificate automation
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● all valid' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {certsIssued.toLocaleString()} issued - {renewalsTotal.toLocaleString()} renewed
         </span>
       </div>
     </div>
