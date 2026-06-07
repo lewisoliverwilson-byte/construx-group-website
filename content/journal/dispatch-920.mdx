@@ -1,0 +1,164 @@
+---
+title: "openssl: certificate inspection, key generation, and TLS debugging"
+date: "2032-07-05"
+excerpt: "openssl is the command-line interface to the OpenSSL cryptographic library — it handles TLS connections, certificate inspection, key generation, certificate signing requests, digital signatures, and encryption. For day-to-day infrastructure work: s_client inspects a live TLS certificate chain; x509 parses certificate fields; genrsa and ecparam generate RSA and ECDSA private keys; req creates CSRs; verify checks a certificate chain against a CA bundle. Knowing these commands makes certificate debugging, self-signed cert generation, and mutual TLS setup tractable without a GUI or external service."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+`s_client` connects. `x509` parses. `verify` validates. `ecparam` generates keys.
+
+## Certificate inspection
+
+```bash
+# Inspect a live TLS certificate (connect and immediately exit)
+echo | openssl s_client -connect api.construx.io:443 -servername api.construx.io 2>/dev/null \
+  | openssl x509 -noout -text
+# Certificate:
+#   Subject: CN=api.construx.io
+#   Issuer: C=US, O=Let's Encrypt, CN=E6
+#   Validity: Not Before: Jan 14 00:00:00 2032 GMT  Not After: Apr 14 23:59:59 2032 GMT
+#   Public Key Algorithm: id-ecPublicKey (prime256v1, 256 bit)
+#   Subject Alt Names: api.construx.io, *.construx.io
+#   X509v3 Key Usage: Digital Signature
+#   X509v3 Extended Key Usage: TLS Web Server Authentication
+
+# Check expiry date only
+echo | openssl s_client -connect api.construx.io:443 2>/dev/null \
+  | openssl x509 -noout -enddate
+# notAfter=Apr 14 23:59:59 2032 GMT
+
+# Days until expiry — CI/CD monitoring
+EXPIRY=$(echo | openssl s_client -connect api.construx.io:443 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
+NOW_EPOCH=$(date +%s)
+echo $(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 )) days remaining
+# 99 days remaining
+
+# Check all SANs (Subject Alternative Names)
+echo | openssl s_client -connect api.construx.io:443 2>/dev/null \
+  | openssl x509 -noout -ext subjectAltName
+# X509v3 Subject Alternative Names:
+#   DNS:api.construx.io, DNS:*.construx.io
+
+# Inspect a certificate file (PEM format)
+openssl x509 -in server.crt -noout -text
+openssl x509 -in server.crt -noout -fingerprint -sha256
+# SHA256 Fingerprint=A3:F9:B2:C1:...
+
+# Inspect a certificate bundle — how many certs are in the chain?
+openssl crl2pkcs7 -nocrl -certfile chain.pem | openssl pkcs7 -print_certs -noout
+```
+
+## Key generation and CSR creation
+
+```bash
+# ECDSA key (prime256v1 = P-256) — preferred over RSA for new certificates
+openssl ecparam -name prime256v1 -genkey -noout -out server.key
+openssl ec -in server.key -noout -text   # Verify key details
+
+# RSA 4096 key (for compatibility with older systems)
+openssl genrsa -out server-rsa.key 4096
+
+# Create a CSR (Certificate Signing Request) — send to your CA
+openssl req -new \
+  -key server.key \
+  -out server.csr \
+  -subj "/C=GB/ST=England/L=London/O=ConstruX Group/CN=api.construx.io" \
+  -addext "subjectAltName=DNS:api.construx.io,DNS:*.construx.io"
+
+# Verify the CSR
+openssl req -in server.csr -noout -text | grep -A 3 "Subject:"
+
+# Self-signed certificate (dev/local use only)
+openssl req -new -x509 \
+  -key server.key \
+  -out server.crt \
+  -days 365 \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+# Generate CA key + self-signed CA cert (for an internal CA)
+openssl ecparam -name prime256v1 -genkey -noout -out ca.key
+openssl req -new -x509 -key ca.key -out ca.crt -days 3650 -subj "/CN=ConstruX Internal CA"
+
+# Sign a server cert with your internal CA
+openssl x509 -req \
+  -in server.csr \
+  -CA ca.crt \
+  -CAkey ca.key \
+  -CAcreateserial \
+  -out server.crt \
+  -days 365 \
+  -extfile <(echo "subjectAltName=DNS:api.construx.io")
+```
+
+## TLS debugging with s_client
+
+```bash
+# Show full certificate chain (intermediate + root)
+openssl s_client -connect api.construx.io:443 -showcerts 2>/dev/null | grep "BEGIN CERTIFICATE"
+# -----BEGIN CERTIFICATE-----  ← leaf cert
+# -----BEGIN CERTIFICATE-----  ← intermediate (Let's Encrypt E6)
+# -----BEGIN CERTIFICATE-----  ← ISRG Root X2
+
+# Check cipher suite negotiated
+openssl s_client -connect api.construx.io:443 2>/dev/null | grep "Cipher\|Protocol"
+# Protocol: TLSv1.3
+# Cipher: TLS_AES_256_GCM_SHA384
+
+# Force a specific TLS version
+openssl s_client -connect api.construx.io:443 -tls1_2   # Force TLS 1.2
+openssl s_client -connect api.construx.io:443 -tls1_3   # Force TLS 1.3
+openssl s_client -connect api.construx.io:443 -no_tls1_3  # Exclude TLS 1.3
+
+# Verify OCSP stapling
+openssl s_client -connect api.construx.io:443 -status 2>/dev/null | grep "OCSP"
+# OCSP Response Status: successful (0x0)
+# OCSP Cert Status: Good
+
+# Test mTLS: present a client certificate
+openssl s_client \
+  -connect api-internal.construx.io:443 \
+  -cert client.crt \
+  -key client.key \
+  -CAfile ca.crt \
+  -verify_return_error
+
+# Check what ciphers a server supports (iterate all)
+for cipher in $(openssl ciphers 'ALL:eNULL' | tr ':' ' '); do
+  result=$(echo | openssl s_client -connect api.construx.io:443 -cipher "$cipher" 2>&1)
+  if echo "$result" | grep -q "Cipher is $cipher"; then
+    echo "SUPPORTED: $cipher"
+  fi
+done
+# SUPPORTED: ECDHE-ECDSA-AES256-GCM-SHA384
+# SUPPORTED: ECDHE-ECDSA-AES128-GCM-SHA256
+```
+
+## Encryption, hashing, and miscellaneous
+
+```bash
+# Encrypt a file with AES-256-GCM
+openssl enc -aes-256-gcm -pbkdf2 -in secrets.txt -out secrets.enc
+openssl enc -d -aes-256-gcm -pbkdf2 -in secrets.enc -out secrets.txt
+
+# Hash a file
+openssl dgst -sha256 construx-api-v1.4.2.tar.gz
+# SHA256(construx-api-v1.4.2.tar.gz)= a3f9b2c1...
+
+# Generate random bytes (useful for secret key generation)
+openssl rand -hex 32    # 256-bit random key as hex
+openssl rand -base64 32 # 256-bit random key as base64
+
+# Verify a digital signature
+openssl dgst -sha256 -verify public.key -signature file.sig file.bin
+# Verified OK
+
+# Inspect a PKCS#12 bundle (.pfx/.p12 — used by Windows, Java keystores)
+openssl pkcs12 -in bundle.p12 -noout -info
+openssl pkcs12 -in bundle.p12 -out bundle.pem -nodes   # Extract to PEM
+```
+
+openssl s_client vs curl -v for TLS debugging: s_client gives you the full TLS transcript — protocol version, cipher suite, full certificate chain, OCSP stapling status, session ticket details — without making an HTTP request. curl -v makes an HTTP request and shows the TLS handshake summary plus request/response headers. Use s_client when you want to inspect the TLS layer in isolation (is the certificate valid? what cipher did we negotiate? is the chain complete?). Use curl -v when you want to see both the TLS handshake and the HTTP exchange. For certificate chain debugging specifically, s_client -showcerts is the right tool: it dumps every certificate in the chain so you can verify the intermediate is present, which is the most common cause of certificate errors in production.

@@ -20,6 +20,7 @@ import GitBisectPanel from '@/components/GitBisectPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
 import FalcoPanel from '@/components/FalcoPanel';
+import OpensslPanel from '@/components/OpensslPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -303,8 +304,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* Falco runtime security */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FalcoPanel />
+        </div>
+
+        {/* openssl certificate inspection and key generation */}
+        <div className="mt-4 pb-6">
+          <OpensslPanel />
         </div>
 
         {/* Sign-off */}

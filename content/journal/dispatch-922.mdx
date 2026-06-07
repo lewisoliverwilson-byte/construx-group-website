@@ -1,0 +1,196 @@
+---
+title: "Caddy: automatic HTTPS, HTTP/3, and zero-configuration TLS"
+date: "2032-07-11"
+excerpt: "Caddy is a web server written in Go that provisions and renews TLS certificates automatically using ACME (Let's Encrypt or ZeroSSL) — HTTPS is the default with no configuration required beyond specifying a domain name. Caddy supports HTTP/3 (QUIC), on-demand TLS for wildcard and multi-domain setups, automatic HTTPS redirects, and a configuration API that lets you modify routing without restarting. The Caddyfile format is declarative and minimal: a typical reverse proxy setup is 3 lines. For production use, Caddy also accepts JSON configuration over its REST API, making it automation-friendly."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Specify a domain. HTTPS is automatic. Certificate renewal is automatic. HTTP/3 is automatic.
+
+## Caddyfile — minimal reverse proxy
+
+```caddyfile
+# /etc/caddy/Caddyfile
+
+# Automatic HTTPS for api.construx.io
+# Caddy provisions a cert from Let's Encrypt automatically on first request
+api.construx.io {
+  reverse_proxy localhost:8080
+}
+
+# HTTPS + HTTP/3 (QUIC) — enabled by default in Caddy 2.7+
+construx.io {
+  reverse_proxy localhost:3000 {
+    header_up Host {host}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+  }
+
+  # Redirect www to apex
+  redir https://construx.io{uri} permanent
+}
+
+www.construx.io {
+  redir https://construx.io{uri} permanent
+}
+
+# Static file server with compression and caching
+static.construx.io {
+  root * /var/www/static
+  file_server {
+    precompressed gzip br   # Serve .gz and .br files if they exist
+  }
+  encode zstd gzip
+
+  header Cache-Control "public, max-age=31536000, immutable"
+  header X-Content-Type-Options "nosniff"
+  header X-Frame-Options "DENY"
+}
+```
+
+## Multiple sites and path-based routing
+
+```caddyfile
+# Single domain, multiple backends by path
+api.construx.io {
+  # Route /v2/ to the new API
+  handle /v2/* {
+    reverse_proxy localhost:8082
+  }
+
+  # Route /internal/ — restrict by IP
+  handle /internal/* {
+    @allowed remote_ip 10.0.0.0/8 172.16.0.0/12
+    handle @allowed {
+      reverse_proxy localhost:8081
+    }
+    respond "Forbidden" 403
+  }
+
+  # Metrics endpoint — localhost only
+  handle /metrics {
+    @localhost remote_ip 127.0.0.1
+    handle @localhost {
+      reverse_proxy localhost:9090
+    }
+    respond "Forbidden" 403
+  }
+
+  # Everything else → main API
+  handle {
+    reverse_proxy localhost:8080
+  }
+
+  # Log to structured JSON
+  log {
+    output file /var/log/caddy/access.log
+    format json
+  }
+}
+
+# WebSocket support (Caddy upgrades automatically)
+ws.construx.io {
+  reverse_proxy localhost:8083
+}
+
+# gRPC (HTTP/2 required)
+grpc.construx.io {
+  reverse_proxy h2c://localhost:9000   # h2c = cleartext HTTP/2 to backend
+}
+```
+
+## On-demand TLS and wildcard certificates
+
+```caddyfile
+# On-demand TLS: provision certificates on first request for any subdomain
+# Useful for multi-tenant platforms where each customer gets their own subdomain
+{
+  on_demand_tls {
+    ask http://localhost:8080/api/check-domain   # Ask your app if domain is allowed
+    interval 2m
+    burst 5
+  }
+}
+
+:443 {
+  tls {
+    on_demand
+  }
+  reverse_proxy localhost:8080
+}
+
+# Wildcard certificate (requires DNS-01 challenge — not HTTP-01)
+*.construx.io {
+  tls {
+    dns cloudflare {env.CLOUDFLARE_API_TOKEN}   # Caddy DNS plugin for DNS-01
+  }
+  reverse_proxy localhost:8080
+}
+
+# ACME configuration (use ZeroSSL instead of Let's Encrypt)
+{
+  acme_ca https://acme.zerossl.com/v2/DV90
+  email certs@construx.io
+  acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+}
+```
+
+## Admin API — live configuration changes without restart
+
+```bash
+# Caddy exposes a REST API for live config changes (default: localhost:2019)
+CADDY_API=http://localhost:2019
+
+# Check current config
+curl -s $CADDY_API/config/ | jq '.apps.http.servers'
+
+# Add a new route without restarting (JSON config via API)
+curl -X POST $CADDY_API/config/apps/http/servers/myserver/routes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "match": [{"host": ["new.construx.io"]}],
+    "handle": [{"handler": "reverse_proxy", "upstreams": [{"dial": "localhost:8084"}]}]
+  }'
+
+# Reload the Caddyfile (equivalent to nginx -s reload)
+caddy reload --config /etc/caddy/Caddyfile
+
+# Validate config without applying
+caddy validate --config /etc/caddy/Caddyfile
+
+# Check certificate status
+caddy list-modules | grep tls
+curl -s $CADDY_API/config/apps/tls | jq '.automation.policies[].subjects'
+
+# Format the Caddyfile (like gofmt for Caddy configs)
+caddy fmt --overwrite /etc/caddy/Caddyfile
+
+# Run in dev mode (uses localhost, no Let's Encrypt, serves HTTP + HTTPS)
+caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+## Observability and logging
+
+```bash
+# Access logs in JSON (pipe to jq or ship to Loki)
+tail -f /var/log/caddy/access.log | jq '.request.uri, .status, .duration'
+# "/v1/orders"  200  0.041
+# "/v1/health"  200  0.003
+
+# Structured log fields
+# request.method, request.uri, request.host, request.headers
+# status, size, duration (seconds), remote_ip
+# tls.version, tls.cipher_suite, tls.resumed
+
+# Prometheus metrics (via caddy-prometheus plugin or admin endpoint)
+curl -s http://localhost:2019/metrics | grep "caddy_http"
+# caddy_http_requests_total{code="200",handler="reverse_proxy",method="GET"} 38241
+# caddy_http_request_duration_seconds_sum{...} 1574.2
+
+# Debug: increase log level
+caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --environ
+# CADDY_LOG_LEVEL=DEBUG
+```
+
+Caddy vs nginx vs Traefik: nginx is the incumbent — battle-tested, huge community, extensive documentation, and handles very high loads. But TLS certificate management requires certbot or a sidecar process, and config changes require a reload. Traefik is designed for Kubernetes and Docker — it reads routing rules from container labels and K8s Ingress/IngressRoute resources, with automatic Let's Encrypt. Caddy sits between them: simpler config than nginx, automatic TLS without a sidecar, and an API for live changes. The standout feature is on-demand TLS — Caddy can provision certificates for thousands of custom domains by delegating the domain allowlist check to your application. For a static reverse proxy with a handful of domains, any of the three works. For a platform where every customer gets their own TLS-enabled subdomain, Caddy's on-demand TLS is the right primitive.
