@@ -39,6 +39,7 @@ import TypesensePanel from '@/components/TypesensePanel';
 import PrefectPanel from '@/components/PrefectPanel';
 import SpiceDbPanel from '@/components/SpiceDbPanel';
 import StepSecurityPanel from '@/components/StepSecurityPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -765,6 +766,11 @@ export default function WorkWithUsPage() {
       {/* stepsecurity cicd hardening — scorecard, harden-runner, findings */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <StepSecurityPanel />
+      </section>
+
+      {/* grype vulnerability scanner — cve, cvss, containers, sbom */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GrypePanel />
       </section>
 
       {/* CTA */}

@@ -44,6 +44,7 @@ import NeonPanel from '@/components/NeonPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import SigstorePanel from '@/components/SigstorePanel';
+import PgBouncerPanel from '@/components/PgBouncerPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -382,6 +383,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* sigstore keyless signing — cosign, rekor, transparency log */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <SigstorePanel />
+      </section>
+
+      {/* pgbouncer postgres connection pooler — pools, stats, modes */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <PgBouncerPanel />
       </section>
 
       {/* Posts */}

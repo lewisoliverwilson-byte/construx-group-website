@@ -38,6 +38,7 @@ import ZarfPanel from '@/components/ZarfPanel';
 import BiomePanel from '@/components/BiomePanel';
 import RabbitMQPanel from '@/components/RabbitMQPanel';
 import SocketPanel from '@/components/SocketPanel';
+import PixiePanel from '@/components/PixiePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -530,8 +531,13 @@ export default function UsesPage() {
         </div>
 
         {/* socket.dev supply chain security — packages, alerts, cves */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SocketPanel />
+        </div>
+
+        {/* pixie ebpf observability — no-instrumentation, pxl scripts, live */}
+        <div className="mt-6 pb-10">
+          <PixiePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

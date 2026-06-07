@@ -40,6 +40,7 @@ import BufPanel from '@/components/BufPanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
 import DruidPanel from '@/components/DruidPanel';
 import KedaPanel from '@/components/KedaPanel';
+import OpaPanel from '@/components/OpaPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -423,8 +424,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* keda k8s event-driven autoscaling — scaledobjects, triggers, replicas */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KedaPanel />
+        </div>
+
+        {/* opa open policy agent — rego, admission, api authz, decisions */}
+        <div className="mt-4 pb-6">
+          <OpaPanel />
         </div>
 
         {/* Sign-off */}
