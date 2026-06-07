@@ -23,6 +23,7 @@ import JournaldPanel from '@/components/JournaldPanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import OpaPanel from '@/components/OpaPanel';
 import TrivyPanel from '@/components/TrivyPanel';
+import ClickHousePanel from '@/components/ClickHousePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -558,8 +559,13 @@ export default function FoundersPage() {
         </div>
 
         {/* trivy vulnerability scanner and SBOM generation */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TrivyPanel />
+        </div>
+
+        {/* clickhouse columnar analytics at scale */}
+        <div className="mt-6 pb-10">
+          <ClickHousePanel />
         </div>
 
         {/* CTA */}
