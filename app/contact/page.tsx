@@ -49,6 +49,7 @@ import PatroniPanel from '@/components/PatroniPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import VaultPanel from '@/components/VaultPanel';
 import CaddyPanel from '@/components/CaddyPanel';
+import IstioPanel from '@/components/IstioPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -592,8 +593,13 @@ export default function ContactPage() {
       </section>
 
       {/* caddy web server — routes, automatic-tls, reverse-proxy */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <CaddyPanel />
+      </section>
+
+      {/* istio service mesh — virtual services, destination rules, mtls */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <IstioPanel />
       </section>
     </div>
   );

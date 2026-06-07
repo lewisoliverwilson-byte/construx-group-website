@@ -51,6 +51,7 @@ import RedisPanel from '@/components/RedisPanel';
 import NATSPanel from '@/components/NATSPanel';
 import PrometheusPanel from '@/components/PrometheusPanel';
 import TempoPanel from '@/components/TempoPanel';
+import VitessPanel from '@/components/VitessPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -626,8 +627,13 @@ export default function StatsPage() {
       </div>
 
       {/* grafana tempo distributed tracing — traces, spans, tenants */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TempoPanel />
+      </div>
+
+      {/* vitess mysql sharding — keyspaces, tablets, vtgate */}
+      <div className="mt-6 pb-10">
+        <VitessPanel />
       </div>
     </div>
   );

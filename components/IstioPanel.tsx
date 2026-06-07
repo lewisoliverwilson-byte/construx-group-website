@@ -1,179 +1,144 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'ok' | 'route' | 'mtls' | 'policy' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment', text: '# istio: envoy sidecar mesh — mtls, traffic management, observability' },
-  { kind: 'prompt',  text: 'istioctl proxy-status' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# sidecar injection: envoy proxy in every pod — transparent interception' },
-  { kind: 'ok',      text: '  construx-api-7d9f4b     SYNCED  Healthy  istiod  172.0.5.2' },
-  { kind: 'ok',      text: '  construx-worker-9f4b    SYNCED  Healthy  istiod  172.0.5.3' },
-  { kind: 'ok',      text: '  construx-payments-b2c3  SYNCED  Healthy  istiod  172.0.5.4' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# virtualservice: 90% stable / 10% canary traffic split' },
-  { kind: 'route',   text: '  construx-api  →  construx-api-stable  weight:90' },
-  { kind: 'route',   text: '  construx-api  →  construx-api-canary  weight:10  (X-Canary: skip)' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# peer authentication: strict mtls — all pod-to-pod traffic encrypted' },
-  { kind: 'mtls',    text: '  construx-prod  PeerAuthentication  STRICT  mTLS enforced' },
-  { kind: 'mtls',    text: '  construx-api → postgres  MUTUAL_TLS  cert: spiffe://construx.io/...' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# authorization policy: zero-trust — deny-all except explicit allows' },
-  { kind: 'policy',  text: '  ALLOW  construx-api → postgres:5432   (SA: construx-api only)' },
-  { kind: 'policy',  text: '  DENY   *           → postgres:5432   (all other principals)' },
-  { kind: 'metric',  text: '  p99 latency added by sidecar: 0.3ms  success rate: 99.97%' },
-  { kind: 'stat',    text: '  3 services  6 pods  envoy sidecar overhead: ~50MB/pod' },
+const VIRTUAL_SERVICES = [
+  { name: 'construx-api-vs', namespace: 'prod', hosts: 'api.construxgroup.io', routes: 2, retries: 3, timeout: '30s', status: 'SYNCED' },
+  { name: 'construx-web-vs', namespace: 'prod', hosts: 'construxgroup.io', routes: 1, retries: 3, timeout: '15s', status: 'SYNCED' },
+  { name: 'construx-worker-vs', namespace: 'prod', hosts: 'worker.svc', routes: 2, retries: 5, timeout: '60s', status: 'SYNCED' },
+  { name: 'construx-grpc-vs', namespace: 'prod', hosts: 'grpc.construxgroup.io', routes: 1, retries: 2, timeout: '10s', status: 'SYNCED' },
 ];
 
-const TOTAL = LINES.length + 3;
+const DEST_RULES = [
+  { name: 'construx-api-dr', namespace: 'prod', host: 'construx-api', trafficPolicy: 'ROUND_ROBIN', subsets: 2, mtls: true, status: 'SYNCED' },
+  { name: 'construx-web-dr', namespace: 'prod', host: 'construx-web', trafficPolicy: 'LEAST_CONN', subsets: 1, mtls: true, status: 'SYNCED' },
+  { name: 'construx-worker-dr', namespace: 'prod', host: 'construx-worker', trafficPolicy: 'ROUND_ROBIN', subsets: 2, mtls: true, status: 'SYNCED' },
+  { name: 'pg-dr', namespace: 'data', host: 'postgres.data.svc', trafficPolicy: 'PASSTHROUGH', subsets: 1, mtls: false, status: 'SYNCED' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment': return 'rgba(240,239,255,0.22)';
-    case 'prompt':  return 'rgba(240,239,255,0.6)';
-    case 'ok':      return '#4ade80';
-    case 'route':   return '#a78bfa';
-    case 'mtls':    return '#67e8f9';
-    case 'policy':  return '#fbbf24';
-    case 'metric':  return 'rgba(240,239,255,0.5)';
-    case 'stat':    return 'rgba(240,239,255,0.45)';
-    default:        return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function IstioPanel() {
-  const [revealed,     setRevealed]     = useState(0);
-  const [liveSuccess,  setLiveSuccess]  = useState(99.97);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [vsRows, setVsRows] = useState(0);
+  const [drRows, setDrRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const reqPerSec = useCounter(28400, 480, 400);
+  const tlsHandshakes = useCounter(284000, 2400, 500);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveSuccess(parseFloat((99.9 + Math.random() * 0.1).toFixed(2)));
-          }, 2200);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const v = setInterval(() => setVsRows((x) => Math.min(x + 1, VIRTUAL_SERVICES.length)), 160);
+    const d = setInterval(() => setDrRows((x) => Math.min(x + 1, DEST_RULES.length)), 140);
+    return () => { clearInterval(v); clearInterval(d); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(103,232,249,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(103,232,249,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@mesh — istio · envoy · mtls · virtualservice · authpolicy
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(103,232,249,0.08)', background: 'rgba(103,232,249,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(103,232,249,0.4)' }}>
+          istio -- service mesh -- virtual services / destination rules / mtls
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveSuccess}% success` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {reqPerSec.toLocaleString()} req/s
         </span>
       </div>
 
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@mesh# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          istio · envoy · strict-mtls · virtualservice · destinationrule · authorizationpolicy
-        </span>
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#67e8f9', fontWeight: 600 }}>istio@mesh</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>istioctl proxy-status && istioctl analyze --all-namespaces && istioctl x describe svc construx-api</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'req / sec', value: reqPerSec.toLocaleString(), color: '#67e8f9' },
+          { label: 'tls handshakes', value: (tlsHandshakes / 1000).toFixed(0) + 'k', color: '#4ade80' },
+          { label: 'virtual services', value: VIRTUAL_SERVICES.length.toString(), color: '#a78bfa' },
+          { label: 'dest rules', value: DEST_RULES.length.toString(), color: '#fbbf24' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Istio 1.23 ·</span>
-          <span style={{ color: '#4ade80' }}>{liveSuccess}% success</span>
-          <span style={{ color: '#67e8f9' }}>strict mTLS</span>
-          <span style={{ color: '#a78bfa' }}>90/10 canary</span>
-          <span style={{ color: '#fbbf24' }}>zero-trust</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Virtual Services */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // virtual services
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {VIRTUAL_SERVICES.slice(0, vsRows).map((vs) => (
+            <div key={vs.name} style={{ display: 'grid', gridTemplateColumns: '1fr 36px 20px 20px 28px 48px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vs.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{vs.namespace}</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{vs.routes}r</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'center' }}>{vs.retries}rt</span>
+              <span style={{ color: '#fbbf24', fontSize: 7, textAlign: 'center' }}>{vs.timeout}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{vs.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Destination Rules */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // destination rules
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {DEST_RULES.slice(0, drRows).map((dr, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 72px 80px 20px 32px 48px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dr.name}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dr.trafficPolicy}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dr.host}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{dr.subsets}s</span>
+              <span style={{ color: dr.mtls ? '#4ade80' : '#fbbf24', fontSize: 7, textAlign: 'center' }}>{dr.mtls ? 'mtls' : 'plain'}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{dr.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          istio · envoy · mtls · virtualservice · authorizationpolicy · istiod
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(103,232,249,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          istio v1.23 - apache-2.0 - connect, secure, control, and observe services
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● synced' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {reqPerSec.toLocaleString()} req/s - {(tlsHandshakes / 1000).toFixed(0)}k tls
         </span>
       </div>
     </div>

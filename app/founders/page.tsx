@@ -49,6 +49,7 @@ import KeycloakPanel from '@/components/KeycloakPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import FalcoPanel from '@/components/FalcoPanel';
+import WoodpeckerCIPanel from '@/components/WoodpeckerCIPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -714,8 +715,13 @@ export default function FoundersPage() {
         </div>
 
         {/* falco runtime security — rules, syscall-events, alerts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FalcoPanel />
+        </div>
+
+        {/* woodpecker ci continuous integration — pipelines, steps, agents */}
+        <div className="mt-6 pb-10">
+          <WoodpeckerCIPanel />
         </div>
 
         {/* CTA */}

@@ -49,6 +49,7 @@ import TektonPanel from '@/components/TektonPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -578,8 +579,13 @@ export default function NowPage() {
         </div>
 
         {/* kubeaudit k8s security audit — findings, namespaces, remediation */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeAuditPanel />
+        </div>
+
+        {/* grype vulnerability scanner — images, cves, sbom */}
+        <div className="mt-6 pb-10">
+          <GrypePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
