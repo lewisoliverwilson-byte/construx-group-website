@@ -82,6 +82,7 @@ import CniPanel from '@/components/CniPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import JournaldPanel from '@/components/JournaldPanel';
+import KubeAuditPanel from '@/components/KubeAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1021,8 +1022,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* journald — structured logs, transport, fields, priority */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <JournaldPanel />
+      </section>
+
+      {/* kube audit — events, verbs, resources, users */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KubeAuditPanel />
       </section>
 
       {/* CTA */}

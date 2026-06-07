@@ -83,6 +83,7 @@ import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import FioPanel from '@/components/FioPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
+import KeycloakPanel from '@/components/KeycloakPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -681,8 +682,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* journalctl — units, priorities, timestamps, fields */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <JournalctlPanel />
+        </div>
+
+        {/* keycloak — realms, clients, users, tokens */}
+        <div className="mt-4 pb-6">
+          <KeycloakPanel />
         </div>
 
         {/* Sign-off */}

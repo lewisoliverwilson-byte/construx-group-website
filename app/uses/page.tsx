@@ -81,6 +81,7 @@ import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
+import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -788,8 +789,13 @@ export default function UsesPage() {
         </div>
 
         {/* k6 summary — scenarios, thresholds, checks, http */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K6SummaryPanel />
+        </div>
+
+        {/* kube prometheus — rules, alerts, scrapes, metrics */}
+        <div className="mt-6 pb-10">
+          <KubePrometheusPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
