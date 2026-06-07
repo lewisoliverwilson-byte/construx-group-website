@@ -38,6 +38,7 @@ import CortexPanel from '@/components/CortexPanel';
 import OpaGatekeeperPanel from '@/components/OpaGatekeeperPanel';
 import MimirPanel from '@/components/MimirPanel';
 import VictoriaLogsPanel from '@/components/VictoriaLogsPanel';
+import OpenObservePanel from '@/components/OpenObservePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -548,8 +549,13 @@ export default function StatsPage() {
       </div>
 
       {/* victorialogs fast log management — streams, logsql queries, compression */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <VictoriaLogsPanel />
+      </div>
+
+      {/* openobserve rust-native o11y — logs/metrics/traces streams, queries, cache */}
+      <div className="mt-6 pb-10">
+        <OpenObservePanel />
       </div>
     </div>
   );

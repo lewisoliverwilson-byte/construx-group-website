@@ -37,6 +37,7 @@ import ProwPanel from '@/components/ProwPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import PyroscopePanel from '@/components/PyroscopePanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
+import KeycloakPanel from '@/components/KeycloakPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -506,8 +507,13 @@ export default function NowPage() {
         </div>
 
         {/* kubeflow mlops — pipelines, experiments, training runs, gpu hours */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeflowPanel />
+        </div>
+
+        {/* keycloak cloud-native iam — realms, clients, active sessions, tokens */}
+        <div className="mt-6 pb-10">
+          <KeycloakPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

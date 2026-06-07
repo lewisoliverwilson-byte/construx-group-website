@@ -1,185 +1,141 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'receiver' | 'processor' | 'exporter' | 'pipeline' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',   text: '# otelcol: receiver → processor → exporter pipeline — traces, metrics, logs' },
-  { kind: 'prompt',    text: 'curl -s http://otelcol:8888/metrics | grep otelcol_receiver_accepted' },
-  { kind: 'blank',     text: '' },
-  { kind: 'receiver',  text: '  receiver: otlp/grpc        accepted: {LIVE_R}/s  refused: 0' },
-  { kind: 'receiver',  text: '  receiver: prometheus       scraped: 142 targets  errors: 0' },
-  { kind: 'receiver',  text: '  receiver: k8s_events       events: 312/m         errors: 0' },
-  { kind: 'blank',     text: '' },
-  { kind: 'processor', text: '  processor: batch           send_size: 512        timeout: 200ms' },
-  { kind: 'processor', text: '  processor: memory_limiter  heap: 78%  limit: 512Mi  refused: 0' },
-  { kind: 'processor', text: '  processor: resource_detection  cloud.provider: aws  k8s.cluster: construx-prod' },
-  { kind: 'blank',     text: '' },
-  { kind: 'exporter',  text: '  exporter: otlp/tempo       sent: {LIVE_E}/s   failed: 0  queue: 0' },
-  { kind: 'exporter',  text: '  exporter: prometheusremotewrite  metrics/s: 8.4k  failed: 0' },
-  { kind: 'pipeline',  text: '  pipelines: traces/prod  metrics/prod  logs/prod  (3 active)' },
-  { kind: 'metric',    text: '  uptime: 14d  dropped: 0  queue-depth: 0  receivers: 3  exporters: 3' },
-  { kind: 'stat',      text: '  otelcol-contrib v0.105.0  daemonset: 12 nodes  memory: 312Mi' },
+const PIPELINES = [
+  { name: 'traces/prod', receivers: ['otlp'], processors: ['batch', 'memory_limiter'], exporters: ['tempo', 'jaeger'], status: 'running' },
+  { name: 'metrics/prod', receivers: ['prometheus', 'otlp'], processors: ['batch'], exporters: ['prometheusremotewrite'], status: 'running' },
+  { name: 'logs/prod', receivers: ['otlp', 'filelog'], processors: ['batch', 'k8sattributes'], exporters: ['loki'], status: 'running' },
 ];
 
-const TOTAL = LINES.length + 3;
+const EXPORTERS = [
+  { name: 'tempo', type: 'traces', sent: 28400, failed: 0, queue: 0 },
+  { name: 'prometheusremotewrite', type: 'metrics', sent: 184200, failed: 2, queue: 12 },
+  { name: 'loki', type: 'logs', sent: 42800, failed: 0, queue: 0 },
+  { name: 'jaeger', type: 'traces', sent: 8400, failed: 0, queue: 0 },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':   return 'rgba(240,239,255,0.22)';
-    case 'prompt':    return 'rgba(240,239,255,0.6)';
-    case 'receiver':  return '#4ade80';
-    case 'processor': return '#fbbf24';
-    case 'exporter':  return '#a78bfa';
-    case 'pipeline':  return '#67e8f9';
-    case 'metric':    return 'rgba(240,239,255,0.5)';
-    case 'stat':      return 'rgba(240,239,255,0.45)';
-    default:          return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function OtelCollectorPanel() {
-  const [revealed,   setRevealed]   = useState(0);
-  const [receiverRps, setReceiverRps] = useState(24000);
-  const [exporterRps, setExporterRps] = useState(23800);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [pRows, setPRows] = useState(0);
+  const [eRows, setERows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const spansPerSec = useCounter(2840, 42, 600);
+  const metricsPerSec = useCounter(18400, 120, 500);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setReceiverRps((c) => Math.floor(c + (Math.random() - 0.4) * 800));
-            setExporterRps((c) => Math.floor(c + (Math.random() - 0.4) * 780));
-          }, 2000);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const p = setInterval(() => setPRows((x) => Math.min(x + 1, PIPELINES.length)), 160);
+    const e = setInterval(() => setERows((x) => Math.min(x + 1, EXPORTERS.length)), 140);
+    return () => { clearInterval(p); clearInterval(e); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(251,191,36,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(251,191,36,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(251,191,36,0.08)', background: 'rgba(251,191,36,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.4)' }}>
+          otel collector -- traces / metrics / logs -- vendor-neutral
+        </span>
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {spansPerSec.toLocaleString()} spans/s
+        </span>
+      </div>
+
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#fbbf24', fontWeight: 600 }}>otelcol@obs</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>otelcol --config=/etc/otelcol/config.yaml && otelcol components</span>
+      </div>
+
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'spans/s', value: spansPerSec.toLocaleString(), color: '#fbbf24' },
+          { label: 'metrics/s', value: metricsPerSec.toLocaleString(), color: '#67e8f9' },
+          { label: 'pipelines', value: PIPELINES.length.toString(), color: '#a78bfa' },
+          { label: 'exporters', value: EXPORTERS.length.toString(), color: '#4ade80' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Pipelines */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // pipelines
         </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@otelcol — receiver · processor · exporter · pipeline · contrib
-        </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${(receiverRps / 1000).toFixed(1)}k/s` : 'loading…'}
-        </span>
-      </div>
-
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@otelcol# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          otelcol · receiver · processor · exporter · pipeline · traces · metrics · logs
-        </span>
-      </div>
-
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => {
-          let text = l.text;
-          if (l.kind === 'receiver' && text.includes('{LIVE_R}')) {
-            text = text.replace('{LIVE_R}', (receiverRps / 1000).toFixed(1) + 'k');
-          }
-          if (l.kind === 'exporter' && text.includes('{LIVE_E}')) {
-            text = text.replace('{LIVE_E}', (exporterRps / 1000).toFixed(1) + 'k');
-          }
-          return (
-            <div
-              key={i}
-              className="text-[7.5px] leading-[1.8]"
-              style={{ color: lineColor(l.kind) }}
-            >
-              {l.kind === 'blank' ? ' ' : (
-                <>
-                  {l.kind === 'prompt' && (
-                    <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                  )}
-                  {text}
-                </>
-              )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {PIPELINES.slice(0, pRows).map((p) => (
+            <div key={p.name} style={{ display: 'grid', gridTemplateColumns: '84px 1fr 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 8, fontWeight: 600 }}>{p.name}</span>
+              <span style={{ color: 'rgba(240,239,255,0.25)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.receivers.join(',')} → {p.processors.join(',')} → {p.exporters.join(',')}
+              </span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{p.status}</span>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>OTel Collector v0.105.0 ·</span>
-          <span style={{ color: '#4ade80' }}>{(receiverRps / 1000).toFixed(1)}k received/s</span>
-          <span style={{ color: '#a78bfa' }}>{(exporterRps / 1000).toFixed(1)}k exported/s</span>
-          <span style={{ color: '#67e8f9' }}>3 pipelines</span>
-          <span style={{ color: '#fbbf24' }}>0 dropped</span>
+          ))}
         </div>
-      )}
+
+        {/* Exporters */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // exporters
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {EXPORTERS.slice(0, eRows).map((ex) => (
+            <div key={ex.name} style={{ display: 'grid', gridTemplateColumns: '1fr 44px 64px 28px 28px', alignItems: 'center', gap: 8, padding: '4px 8px', background: ex.failed > 0 ? 'rgba(248,113,113,0.04)' : 'rgba(74,222,128,0.04)', border: `1px solid ${ex.failed > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 8, fontWeight: 600 }}>{ex.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{ex.type}</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 8, textAlign: 'right' }}>{ex.sent.toLocaleString()}</span>
+              <span className="tabular-nums" style={{ color: ex.failed > 0 ? '#f87171' : 'rgba(255,255,255,0.15)', fontSize: 8, textAlign: 'center', fontWeight: ex.failed > 0 ? 700 : 400 }}>{ex.failed}</span>
+              <span className="tabular-nums" style={{ color: ex.queue > 0 ? '#fbbf24' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'right' }}>{ex.queue}q</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          otelcol · receiver · processor · exporter · traces · metrics · logs
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(251,191,36,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          otel collector v0.100 - apache 2.0 - cncf
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● flowing' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {spansPerSec.toLocaleString()} spans/s - {metricsPerSec.toLocaleString()} metrics/s
         </span>
       </div>
     </div>

@@ -2,17 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const PROVIDERS = [
-  { name: 'provider-aws', version: 'v0.47.0', healthy: true, managed: 42, age: '2h' },
-  { name: 'provider-gcp', version: 'v0.38.0', healthy: true, managed: 12, age: '2h' },
-  { name: 'provider-helm', version: 'v0.18.0', healthy: true, managed: 8, age: '30m' },
+const ENVIRONMENTS = [
+  { name: 'construx-prod', type: 'kubernetes', nodes: 6, containers: 42, status: 'up' },
+  { name: 'construx-staging', type: 'kubernetes', nodes: 3, containers: 18, status: 'up' },
+  { name: 'construx-local', type: 'docker', nodes: 1, containers: 8, status: 'up' },
 ];
 
-const MANAGED = [
-  { name: 'construx-prod-vpc', kind: 'VPC', provider: 'aws', synced: true, ready: true, age: '2h' },
-  { name: 'construx-prod-rds', kind: 'RDSInstance', provider: 'aws', synced: true, ready: true, age: '2h' },
-  { name: 'construx-prod-bucket', kind: 'Bucket', provider: 'gcp', synced: true, ready: false, age: '12m' },
-  { name: 'construx-staging-redis', kind: 'MemoryStore', provider: 'gcp', synced: false, ready: false, age: '4m' },
+const CONTAINERS = [
+  { name: 'api-server-7d9f4', image: 'construx/api:v2.4.1', env: 'prod', cpu: '0.8%', mem: '284MB', state: 'running' },
+  { name: 'worker-6b8c2', image: 'construx/worker:v2.4.1', env: 'prod', cpu: '2.1%', mem: '512MB', state: 'running' },
+  { name: 'postgres-0', image: 'postgres:16-alpine', env: 'prod', cpu: '0.4%', mem: '842MB', state: 'running' },
+  { name: 'redis-0', image: 'redis:7-alpine', env: 'prod', cpu: '0.1%', mem: '48MB', state: 'running' },
 ];
 
 function useCounter(base: number, delta: number, ms = 900) {
@@ -24,13 +24,13 @@ function useCounter(base: number, delta: number, ms = 900) {
   return v;
 }
 
-export default function CrossplanePanel() {
+export default function PortainerPanel() {
   const [visible, setVisible] = useState(false);
-  const [pRows, setPRows] = useState(0);
-  const [mRows, setMRows] = useState(0);
+  const [eRows, setERows] = useState(0);
+  const [cRows, setCRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const totalManaged = PROVIDERS.reduce((a, p) => a + p.managed, 0);
-  const reconciles = useCounter(2840, 8, 900);
+  const totalContainers = ENVIRONMENTS.reduce((a, e) => a + e.containers, 0);
+  const apiCalls = useCounter(2840, 12, 800);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -40,9 +40,9 @@ export default function CrossplanePanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const p = setInterval(() => setPRows((x) => Math.min(x + 1, PROVIDERS.length)), 160);
-    const m = setInterval(() => setMRows((x) => Math.min(x + 1, MANAGED.length)), 140);
-    return () => { clearInterval(p); clearInterval(m); };
+    const e = setInterval(() => setERows((x) => Math.min(x + 1, ENVIRONMENTS.length)), 160);
+    const c = setInterval(() => setCRows((x) => Math.min(x + 1, CONTAINERS.length)), 140);
+    return () => { clearInterval(e); clearInterval(c); };
   }, [visible]);
 
   return (
@@ -66,27 +66,27 @@ export default function CrossplanePanel() {
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
         <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(59,130,246,0.4)' }}>
-          crossplane -- universal k8s control plane -- managed resources
+          portainer -- container management -- docker / kubernetes
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {reconciles.toLocaleString()} reconciles
+          {apiCalls.toLocaleString()} api calls
         </span>
       </div>
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#3b82f6', fontWeight: 600 }}>crossplane@k8s</span>
+        <span style={{ color: '#3b82f6', fontWeight: 600 }}>portainer@mgmt</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>kubectl get providers && kubectl get managed --all-namespaces</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>portainer --admin-password-file=/run/secrets/portainer --tunnel-port=8000</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'reconciles', value: reconciles.toLocaleString(), color: '#3b82f6' },
-          { label: 'managed', value: totalManaged.toString(), color: '#4ade80' },
-          { label: 'providers', value: PROVIDERS.length.toString(), color: '#a78bfa' },
-          { label: 'not-ready', value: MANAGED.filter(m => !m.ready).length.toString(), color: '#f87171' },
+          { label: 'api calls', value: apiCalls.toLocaleString(), color: '#3b82f6' },
+          { label: 'containers', value: totalContainers.toString(), color: '#4ade80' },
+          { label: 'environments', value: ENVIRONMENTS.length.toString(), color: '#a78bfa' },
+          { label: 'running', value: CONTAINERS.filter(c => c.state === 'running').length.toString(), color: '#67e8f9' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -96,33 +96,34 @@ export default function CrossplanePanel() {
       </div>
 
       <div style={{ padding: '10px 14px 0' }}>
-        {/* Providers */}
+        {/* Environments */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // providers
+          // environments
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {PROVIDERS.slice(0, pRows).map((p) => (
-            <div key={p.name} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 24px 28px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)', borderRadius: 2 }}>
-              <span style={{ color: '#3b82f6', fontSize: 8, fontWeight: 600 }}>{p.name}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{p.version}</span>
-              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 8, textAlign: 'center' }}>{p.managed}</span>
-              <span style={{ color: p.healthy ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{p.healthy ? 'ok' : 'err'}</span>
+          {ENVIRONMENTS.slice(0, eRows).map((env) => (
+            <div key={env.name} style={{ display: 'grid', gridTemplateColumns: '1fr 56px 24px 24px 28px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#3b82f6', fontSize: 8, fontWeight: 600 }}>{env.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{env.type}</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 8, textAlign: 'center' }}>{env.nodes}</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 8, textAlign: 'center' }}>{env.containers}</span>
+              <span style={{ color: env.status === 'up' ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{env.status}</span>
             </div>
           ))}
         </div>
 
-        {/* Managed Resources */}
+        {/* Containers */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // managed resources
+          // containers
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {MANAGED.slice(0, mRows).map((m) => (
-            <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '1fr 68px 40px 28px 28px', alignItems: 'center', gap: 8, padding: '4px 8px', background: m.ready ? 'rgba(74,222,128,0.04)' : 'rgba(248,113,113,0.04)', border: `1px solid ${m.ready ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.1)'}`, borderRadius: 2 }}>
-              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
-              <span style={{ color: '#3b82f6', fontSize: 7 }}>{m.kind}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{m.provider}</span>
-              <span style={{ color: m.synced ? '#4ade80' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'center' }}>{m.synced ? 'sync' : 'wait'}</span>
-              <span style={{ color: m.ready ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{m.ready ? 'rdy' : 'no'}</span>
+          {CONTAINERS.slice(0, cRows).map((c) => (
+            <div key={c.name} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 32px 40px 44px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.image}</span>
+              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'right' }}>{c.cpu}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{c.mem}</span>
+              <span style={{ color: c.state === 'running' ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{c.state}</span>
             </div>
           ))}
         </div>
@@ -131,10 +132,10 @@ export default function CrossplanePanel() {
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
         <span style={{ fontSize: 8, color: 'rgba(59,130,246,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          crossplane v1.15 - apache 2.0 - cncf graduated
+          portainer v2.20 - zlib - container mgmt ui
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {PROVIDERS.length} providers - {totalManaged} managed
+          {ENVIRONMENTS.length} envs - {totalContainers} containers
         </span>
       </div>
     </div>

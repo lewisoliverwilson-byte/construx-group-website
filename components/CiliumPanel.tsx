@@ -1,190 +1,142 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'endpoint-ok' | 'endpoint-warn' | 'policy' | 'flow-allow' | 'flow-deny' | 'metric' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',      text: '# Cilium endpoint status — one endpoint per pod' },
-  { kind: 'prompt',       text: 'cilium endpoint list' },
-  { kind: 'endpoint-ok',  text: 'ENDPOINT  POLICY (ingress)  POLICY (egress)  IDENTITY   LABELS                   STATUS' },
-  { kind: 'endpoint-ok',  text: '1842      Enabled           Enabled          34291      k8s:app=construx-api     ready' },
-  { kind: 'endpoint-ok',  text: '1843      Enabled           Enabled          34291      k8s:app=construx-api     ready' },
-  { kind: 'endpoint-ok',  text: '2104      Enabled           Enabled          28183      k8s:app=construx-worker  ready' },
-  { kind: 'endpoint-ok',  text: '2891      Enabled           Enabled          14842      k8s:app=postgres         ready' },
-  { kind: 'endpoint-warn', text: '3012      Enabled           Disabled         92841      k8s:app=legacy-importer  not-ready' },
-  { kind: 'blank',        text: '' },
-  { kind: 'comment',      text: '# Cilium network policy — identity-based L3/L4/L7 enforcement' },
-  { kind: 'prompt',       text: 'cilium policy get' },
-  { kind: 'policy',       text: '  Revision: 48   Labels: [k8s:io.cilium.k8s.policy.name=allow-api-to-postgres]' },
-  { kind: 'policy',       text: '  Ingress: fromEndpoints[k8s:app=construx-api] → postgres:5432/TCP  → Allow' },
-  { kind: 'policy',       text: '  Ingress: fromEndpoints[k8s:app=construx-worker] → postgres:5432/TCP → Allow' },
-  { kind: 'policy',       text: '  Egress:  default → Deny (zero-trust: deny unless explicitly allowed)' },
-  { kind: 'blank',        text: '' },
-  { kind: 'comment',      text: '# Hubble — eBPF-native flow visibility (Cilium\'s observability layer)' },
-  { kind: 'prompt',       text: 'hubble observe --namespace construx --follow' },
-  { kind: 'flow-allow',   text: 'Mar 25 14:32:01.441  FORWARDED  construx-api-6d9f/construx → postgres-0/construx  TCP 34291→14842  :5432' },
-  { kind: 'flow-allow',   text: 'Mar 25 14:32:01.444  FORWARDED  construx-api-6d9f/construx → nats-0/construx      TCP 34291→19823  :4222' },
-  { kind: 'flow-deny',    text: 'Mar 25 14:32:01.512  DROPPED    legacy-importer/construx  → postgres-0/construx  TCP 92841→14842  :5432 (policy deny)' },
-  { kind: 'flow-allow',   text: 'Mar 25 14:32:02.003  FORWARDED  construx-worker/construx  → postgres-0/construx  TCP 28183→14842  :5432' },
-  { kind: 'blank',        text: '' },
-  { kind: 'comment',      text: '# Cilium metrics — dataplane statistics' },
-  { kind: 'prompt',       text: 'cilium metrics list | grep -E "forward|drop|policy"' },
-  { kind: 'metric',       text: 'cilium_drop_count_total{reason="Policy denied"}         8,421' },
-  { kind: 'metric',       text: 'cilium_forward_count_total{direction="ingress"}      4,928,312' },
-  { kind: 'metric',       text: 'cilium_forward_count_total{direction="egress"}       4,901,847' },
-  { kind: 'metric',       text: 'cilium_policy_count                                         12' },
-  { kind: 'metric',       text: 'cilium_policy_endpoint_enforcement_status{status="true"}    31' },
+const ENDPOINTS = [
+  { id: '1284', pod: 'api-server-7d9f4', namespace: 'prod', identity: 'construx/api', state: 'ready', policy: 'enforced' },
+  { id: '2048', pod: 'worker-6b8c2', namespace: 'prod', identity: 'construx/worker', state: 'ready', policy: 'enforced' },
+  { id: '3102', pod: 'postgres-0', namespace: 'prod', identity: 'construx/db', state: 'ready', policy: 'enforced' },
+  { id: '4210', pod: 'redis-0', namespace: 'prod', identity: 'construx/cache', state: 'ready', policy: 'audit' },
 ];
 
-const TOTAL = LINES.length + 3;
+const FLOWS = [
+  { src: 'api-server', dst: 'postgres-0', port: 5432, verdict: 'FORWARDED', proto: 'TCP' },
+  { src: 'worker', dst: 'redis-0', port: 6379, verdict: 'FORWARDED', proto: 'TCP' },
+  { src: 'internet', dst: 'api-server', port: 443, verdict: 'FORWARDED', proto: 'TCP' },
+  { src: 'scanner-pod', dst: 'postgres-0', port: 5432, verdict: 'DROPPED', proto: 'TCP' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':       return 'rgba(240,239,255,0.22)';
-    case 'prompt':        return 'rgba(240,239,255,0.6)';
-    case 'endpoint-ok':   return '#4ade80';
-    case 'endpoint-warn': return '#fbbf24';
-    case 'policy':        return '#a78bfa';
-    case 'flow-allow':    return '#67e8f9';
-    case 'flow-deny':     return '#f87171';
-    case 'metric':        return '#fb923c';
-    default:              return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function CiliumPanel() {
-  const [revealed,     setRevealed]     = useState(0);
-  const [liveForward,  setLiveForward]  = useState(4928312);
-  const [liveDrop,     setLiveDrop]     = useState(8421);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [eRows, setERows] = useState(0);
+  const [fRows, setFRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const flowsPerSec = useCounter(84200, 240, 400);
+  const droppedTotal = useCounter(284, 2, 1800);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveForward((v) => v + Math.floor(Math.random() * 800));
-            setLiveDrop((v) => v + Math.floor(Math.random() * 3));
-          }, 1950);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 81;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const e = setInterval(() => setERows((x) => Math.min(x + 1, ENDPOINTS.length)), 160);
+    const f = setInterval(() => setFRows((x) => Math.min(x + 1, FLOWS.length)), 140);
+    return () => { clearInterval(e); clearInterval(f); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(74,222,128,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(74,222,128,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@k8s-node-01 — cilium · Hubble · eBPF network policy
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(74,222,128,0.08)', background: 'rgba(74,222,128,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(74,222,128,0.4)' }}>
+          cilium -- ebpf networking -- network policy / hubble flows
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveForward.toLocaleString()} fwd` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {flowsPerSec.toLocaleString()} flows/s
         </span>
       </div>
 
       {/* Shell prompt */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@k8s-node-01# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          cilium endpoint · policy · hubble flows · eBPF dataplane
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#4ade80', fontWeight: 600 }}>cilium@ebpf</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>cilium status && hubble observe --namespace prod --last 50</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'flows/s', value: flowsPerSec.toLocaleString(), color: '#4ade80' },
+          { label: 'endpoints', value: ENDPOINTS.length.toString(), color: '#67e8f9' },
+          { label: 'enforced', value: ENDPOINTS.filter(e => e.policy === 'enforced').length.toString(), color: '#a78bfa' },
+          { label: 'dropped', value: droppedTotal.toLocaleString(), color: '#f87171' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Cilium 1.16 · eBPF ·</span>
-          <span style={{ color: '#4ade80' }}>{liveForward.toLocaleString()} forwarded</span>
-          <span style={{ color: '#f87171' }}>{liveDrop.toLocaleString()} dropped</span>
-          <span style={{ color: '#a78bfa' }}>12 policies active</span>
-          <span style={{ color: '#67e8f9' }}>Hubble relay: enabled</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Endpoints */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // endpoints
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {ENDPOINTS.slice(0, eRows).map((ep) => (
+            <div key={ep.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 80px 40px 52px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.08)', borderRadius: 2 }}>
+              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{ep.id}</span>
+              <span style={{ color: '#4ade80', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.pod}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.identity}</span>
+              <span style={{ color: ep.state === 'ready' ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'center' }}>{ep.state}</span>
+              <span style={{ color: ep.policy === 'enforced' ? '#a78bfa' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{ep.policy}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Flows */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // hubble flows
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {FLOWS.slice(0, fRows).map((fl, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 36px 32px 52px', alignItems: 'center', gap: 8, padding: '4px 8px', background: fl.verdict === 'DROPPED' ? 'rgba(248,113,113,0.04)' : 'rgba(74,222,128,0.04)', border: `1px solid ${fl.verdict === 'DROPPED' ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fl.src}</span>
+              <span style={{ color: 'rgba(240,239,255,0.25)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fl.dst}</span>
+              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{fl.port}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{fl.proto}</span>
+              <span style={{ color: fl.verdict === 'DROPPED' ? '#f87171' : '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{fl.verdict}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          Cilium 1.16.2 · Hubble 0.13 · eBPF kernel 6.8 · zero-trust L3/L4/L7
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(74,222,128,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          cilium v1.15 - apache 2.0 - ebpf / cncf graduated
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● enforcing' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {ENDPOINTS.length} endpoints - {flowsPerSec.toLocaleString()} flows/s
         </span>
       </div>
     </div>

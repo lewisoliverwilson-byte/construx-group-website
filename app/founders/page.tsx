@@ -36,6 +36,7 @@ import TerraformCloudPanel from '@/components/TerraformCloudPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import TankaPanel from '@/components/TankaPanel';
+import FlaggerPanel from '@/components/FlaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -636,8 +637,13 @@ export default function FoundersPage() {
         </div>
 
         {/* tanka jsonnet k8s config — environments, drift diff, applied objects */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TankaPanel />
+        </div>
+
+        {/* flagger progressive delivery — canary, bluegreen, a/b, metric analysis */}
+        <div className="mt-6 pb-10">
+          <FlaggerPanel />
         </div>
 
         {/* CTA */}
