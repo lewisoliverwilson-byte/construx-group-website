@@ -33,6 +33,7 @@ import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
+import KubebenchPanel from '@/components/KubebenchPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -383,6 +384,11 @@ export default function ManifestoPage() {
         {/* grafana tempo distributed tracing — spans, s3 backend, trace search */}
         <div className="mt-4 pb-6">
           <GrafanaTempoPanel />
+        </div>
+
+        {/* kube-bench cis kubernetes benchmark — control plane, nodes, policies */}
+        <div className="mt-4 pb-6">
+          <KubebenchPanel />
         </div>
 
         {/* Sign-off */}

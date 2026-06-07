@@ -37,6 +37,7 @@ import BeylaPanel from '@/components/BeylaPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import K3sPanel from '@/components/K3sPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
+import AtlasPanel from '@/components/AtlasPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -340,6 +341,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* fluent bit log processor — inputs, outputs, loki/s3/opensearch pipeline */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <FluentBitPanel />
+      </section>
+
+      {/* atlas schema migrations — versioned, lint, apply history */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <AtlasPanel />
       </section>
 
       {/* Posts */}

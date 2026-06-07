@@ -32,6 +32,7 @@ import HubblePanel from '@/components/HubblePanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import NomadPanel from '@/components/NomadPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
+import SonarQubePanel from '@/components/SonarQubePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -494,8 +495,13 @@ export default function UsesPage() {
         </div>
 
         {/* kube-proxy service routing — iptables nat rules, cluster IP, endpoints */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeProxyPanel />
+        </div>
+
+        {/* sonarqube code quality — coverage, security gates, open issues */}
+        <div className="mt-6 pb-10">
+          <SonarQubePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

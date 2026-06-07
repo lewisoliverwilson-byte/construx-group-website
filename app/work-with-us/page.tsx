@@ -32,6 +32,7 @@ import StrimziPanel from '@/components/StrimziPanel';
 import VclusterPanel from '@/components/VclusterPanel';
 import ZitadelPanel from '@/components/ZitadelPanel';
 import RekorPanel from '@/components/RekorPanel';
+import HarborPanel from '@/components/HarborPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -721,8 +722,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* rekor sigstore transparency log — supply chain security, attestations, policies */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <RekorPanel />
+      </section>
+
+      {/* harbor oci registry — image repos, trivy scans, cosign signatures */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <HarborPanel />
       </section>
 
       {/* CTA */}
