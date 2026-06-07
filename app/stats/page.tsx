@@ -43,6 +43,7 @@ import InfluxDbPanel from '@/components/InfluxDbPanel';
 import DbtPanel from '@/components/DbtPanel';
 import SeaweedFsPanel from '@/components/SeaweedFsPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -578,8 +579,13 @@ export default function StatsPage() {
       </div>
 
       {/* goreplay http traffic replay — shadow testing, rate control */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GoReplayPanel />
+      </div>
+
+      {/* cassandra distributed db — ring, keyspaces, replication factor */}
+      <div className="mt-6 pb-10">
+        <CassandraPanel />
       </div>
     </div>
   );

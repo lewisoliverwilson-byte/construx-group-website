@@ -41,6 +41,7 @@ import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import OpenFgaPanel from '@/components/OpenFgaPanel';
 import TrufflehogPanel from '@/components/TrufflehogPanel';
 import VaultSecretsPanel from '@/components/VaultSecretsPanel';
+import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -666,8 +667,13 @@ export default function FoundersPage() {
         </div>
 
         {/* vault secrets management — kv, pki, aws, transit engines */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VaultSecretsPanel />
+        </div>
+
+        {/* aws bedrock foundation models — invocations, guardrails, tokens */}
+        <div className="mt-6 pb-10">
+          <AwsBedrockPanel />
         </div>
 
         {/* CTA */}

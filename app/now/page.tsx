@@ -41,7 +41,7 @@ import KeycloakPanel from '@/components/KeycloakPanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import PromtailPanel from '@/components/PromtailPanel';
 import FalcoPanel from '@/components/FalcoPanel';
-import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
+import TailscalePanel from '@/components/TailscalePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -535,9 +535,9 @@ export default function NowPage() {
           <FalcoPanel />
         </div>
 
-        {/* cloudflare workers — edge runtime, kv namespaces, wrangler */}
+        {/* tailscale zero-config vpn — wireguard mesh, devices, acl */}
         <div className="mt-6 pb-10">
-          <CloudflareWorkersPanel />
+          <TailscalePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
