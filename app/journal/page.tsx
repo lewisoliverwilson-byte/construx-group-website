@@ -58,6 +58,7 @@ import ScyllaPanel from '@/components/ScyllaPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import DruidPanel from '@/components/DruidPanel';
 import SyftPanel from '@/components/SyftPanel';
+import ScorecardPanel from '@/components/ScorecardPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -469,8 +470,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* syft sbom generation — packages, licenses, vulnerabilities */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <SyftPanel />
+      </section>
+
+      {/* scorecard security scoring — checks, scores, badges */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ScorecardPanel />
       </section>
 
       {/* Posts */}

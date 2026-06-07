@@ -55,6 +55,7 @@ import CuePanel from '@/components/CuePanel';
 import QdrantPanel from '@/components/QdrantPanel';
 import RiverPanel from '@/components/RiverPanel';
 import PulumiPanel from '@/components/PulumiPanel';
+import CosignPanel from '@/components/CosignPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -513,8 +514,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* pulumi infrastructure as code — stacks, resources, deployments */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PulumiPanel />
+        </div>
+
+        {/* cosign container image signing — signatures, attestations, keyless */}
+        <div className="mt-4 pb-6">
+          <CosignPanel />
         </div>
 
         {/* Sign-off */}
