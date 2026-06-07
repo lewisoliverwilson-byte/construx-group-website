@@ -36,6 +36,7 @@ import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import CortexPanel from '@/components/CortexPanel';
 import OpaGatekeeperPanel from '@/components/OpaGatekeeperPanel';
+import MimirPanel from '@/components/MimirPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -536,8 +537,13 @@ export default function StatsPage() {
       </div>
 
       {/* opa gatekeeper admission control — constraints, violations, rego policies */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpaGatekeeperPanel />
+      </div>
+
+      {/* grafana mimir multi-tenant prometheus tsdb — tenants, series, components */}
+      <div className="mt-6 pb-10">
+        <MimirPanel />
       </div>
     </div>
   );

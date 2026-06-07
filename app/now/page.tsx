@@ -35,6 +35,7 @@ import DeltaLakePanel from '@/components/DeltaLakePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import ProwPanel from '@/components/ProwPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
+import PyroscopePanel from '@/components/PyroscopePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -494,8 +495,13 @@ export default function NowPage() {
         </div>
 
         {/* dns zones and records — dnssec, spf, dmarc, resolver cache */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DragonFlyDnsPanel />
+        </div>
+
+        {/* grafana pyroscope continuous profiling — pprof, flamegraph, ebpf */}
+        <div className="mt-6 pb-10">
+          <PyroscopePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

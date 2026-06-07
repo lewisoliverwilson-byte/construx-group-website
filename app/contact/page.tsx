@@ -34,6 +34,7 @@ import IcebergPanel from '@/components/IcebergPanel';
 import WasmEdgePanel from '@/components/WasmEdgePanel';
 import BazelPanel from '@/components/BazelPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
+import TemporalPanel from '@/components/TemporalPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -502,8 +503,13 @@ export default function ContactPage() {
       </section>
 
       {/* clickhouse columnar olap — mergetree tables, insert rate, query results */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <ClickhouseMigrationPanel />
+      </section>
+
+      {/* temporal durable workflow engine — workflows, activities, task queues */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TemporalPanel />
       </section>
     </div>
   );
