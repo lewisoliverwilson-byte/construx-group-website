@@ -28,6 +28,7 @@ import DuckdbPanel from '@/components/DuckdbPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import SkaffoldPanel from '@/components/SkaffoldPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
+import KyvernoPanel from '@/components/KyvernoPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -287,6 +288,10 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* grafana alloy unified observability pipeline */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <GrafanaAlloyPanel />
+      </section>
+
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KyvernoPanel />
       </section>
 
       {/* Posts */}

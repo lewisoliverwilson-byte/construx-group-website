@@ -1,0 +1,134 @@
+---
+title: "Syft and Grype: software bill of materials and vulnerability scanning"
+date: "2033-05-10"
+excerpt: "Syft generates a Software Bill of Materials (SBOM) — a structured list of every package, library, and dependency in a container image or directory. Grype consumes an SBOM (or directly scans an image) and matches every package against vulnerability databases (NVD, GitHub Advisory, OSV, Debian, Alpine, RHEL, etc.) to produce a prioritised CVE report. Together they form a supply chain transparency layer: Syft attests what is in the image, Grype identifies what in that image has known vulnerabilities. Both integrate into CI (fail the build if a critical CVE is present), attach results as attestations to OCI images via Cosign, and export SBOM in standard formats (SPDX, CycloneDX) for compliance and procurement workflows. The SBOM is the foundational artifact — once you have it, Grype, Trivy, and commercial scanners can all consume it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SBOM generation. CycloneDX. SPDX. CVE matching. NVD. Cosign attestation. CI gating.
+
+## Generating SBOMs with Syft
+
+```bash
+# Syft: scan a container image and generate an SBOM
+
+# Install
+curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
+
+# Scan a local image
+syft registry.construx.internal/api:latest
+
+# Output: table format (default)
+# NAME             VERSION      TYPE
+# node             20.14.0      binary
+# openssl          3.0.13       deb
+# @prisma/client   5.14.0       npm
+# express          4.19.2       npm
+# next             15.3.3       npm
+# ... (200+ packages)
+
+# Export as SPDX JSON (standard format for compliance)
+syft registry.construx.internal/api:latest \
+  -o spdx-json \
+  > sbom-api-2.18.4.spdx.json
+
+# Export as CycloneDX (alternative standard — better tool ecosystem)
+syft registry.construx.internal/api:latest \
+  -o cyclonedx-json \
+  > sbom-api-2.18.4.cyclonedx.json
+
+# Scan a directory (useful in CI before building the image)
+syft dir:./app \
+  -o spdx-json \
+  > sbom-source.spdx.json
+
+# Attach as Cosign attestation (paired with signing from dispatch-1022)
+cosign attest --yes \
+  --type spdxjson \
+  --predicate sbom-api-2.18.4.spdx.json \
+  registry.construx.internal/api@sha256:a1b2c3...
+```
+
+## Vulnerability scanning with Grype
+
+```bash
+# Grype: match SBOM packages against vulnerability databases
+
+# Scan directly from an image
+grype registry.construx.internal/api:latest
+
+# Scan from an existing SBOM (faster — no re-extraction)
+grype sbom:sbom-api-2.18.4.spdx.json
+
+# Sample output:
+# NAME         INSTALLED  FIXED-IN  TYPE  VULNERABILITY  SEVERITY
+# openssl      3.0.13     3.0.14    deb   CVE-2033-1234  High
+# express      4.19.2     4.19.3    npm   CVE-2033-5678  Medium
+# @prisma/...  5.14.0     5.14.1    npm   CVE-2033-9012  Low
+
+# Fail the build on critical or high CVEs
+grype registry.construx.internal/api:latest \
+  --fail-on high \
+  --output table
+
+# Output as JSON for parsing in CI
+grype registry.construx.internal/api:latest \
+  --output json \
+  | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length'
+
+# Ignore specific CVEs (with a documented justification)
+# Create .grype.yaml:
+# ignore:
+#   - vulnerability: CVE-2033-9999
+#     reason: "False positive — the vulnerable code path is not reachable"
+#     expires: "2033-08-01"
+
+grype --config .grype.yaml sbom:sbom-api-2.18.4.spdx.json
+```
+
+## CI integration and OCI attestation
+
+```yaml
+# GitHub Actions: full supply chain pipeline
+# Build → SBOM → Vulnerability scan → Sign → Push attestation
+
+- name: Generate SBOM
+  run: |
+    syft registry.construx.internal/api:${{ github.sha }} \
+      -o spdx-json > sbom.json
+
+- name: Scan for vulnerabilities
+  run: |
+    grype sbom:sbom.json \
+      --fail-on high \
+      --output table
+    # Build fails here if any High or Critical CVEs found
+
+- name: Attach SBOM attestation to image
+  run: |
+    cosign attest --yes \
+      --type spdxjson \
+      --predicate sbom.json \
+      registry.construx.internal/api@${{ steps.build.outputs.digest }}
+
+- name: Attach Grype scan result as attestation
+  run: |
+    grype sbom:sbom.json --output json > grype-results.json
+    cosign attest --yes \
+      --type vuln \
+      --predicate grype-results.json \
+      registry.construx.internal/api@${{ steps.build.outputs.digest }}
+
+# Verify the SBOM attestation before deploying
+# (in your deployment pipeline or Kyverno policy)
+cosign verify-attestation \
+  --type spdxjson \
+  --certificate-identity "https://github.com/lewisoliverwilson-byte/..." \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  registry.construx.internal/api:latest \
+  | jq '.payload | @base64d | fromjson | .predicate.packages | length'
+# 247   — the number of packages in the SBOM
+```
+
+Syft vs Trivy vs Grype vs Docker Scout vs Snyk: Trivy is an all-in-one scanner (does both SBOM generation and vulnerability matching in one tool) and supports more artifact types (Kubernetes manifests, Terraform, Helm charts). Grype is Anchore's vulnerability scanner — it consumes Syft SBOMs specifically and is more granular about false positive management. Docker Scout integrates with Docker Hub and Docker Desktop — good UX but vendor-tied. Snyk requires an API key and is commercial above a certain usage tier. For open-source, self-hosted supply chain security: Syft + Grype + Cosign form a composable toolchain where each component is replaceable. Trivy is the simpler single-tool option if you want fewer moving parts. The choice between Syft/Grype and Trivy mostly comes down to whether you want separate SBOM generation and scanning (Syft/Grype — better for attestation workflows) or a single unified scan (Trivy — simpler CI integration).
