@@ -1,179 +1,140 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'constraint' | 'violation' | 'audit' | 'template' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',    text: '# opa gatekeeper: k8s admission control — constraints, violations, audit' },
-  { kind: 'prompt',     text: 'kubectl get constraints -A' },
-  { kind: 'blank',      text: '' },
-  { kind: 'constraint', text: '  RequireResourceLimits     enforced   violations: 0   total: 142' },
-  { kind: 'constraint', text: '  DisallowPrivileged        enforced   violations: 0   total: 38' },
-  { kind: 'constraint', text: '  RequireLabels             warn       violations: 4   total: 89' },
-  { kind: 'constraint', text: '  AllowedRegistries         enforced   violations: 0   total: 142' },
-  { kind: 'blank',      text: '' },
-  { kind: 'prompt',     text: 'kubectl describe constrainttemplate requireresourcelimits' },
-  { kind: 'blank',      text: '' },
-  { kind: 'template',   text: '  rego: containers must specify resources.limits.cpu and .memory' },
-  { kind: 'template',   text: '  targets: admission.k8s.gatekeeper.sh  enforcementAction: deny' },
-  { kind: 'violation',  text: '  audit-result: 0 violations in construx-prod (last: 2m ago)' },
-  { kind: 'audit',      text: '  audit-interval: 60s  total-constraints: 9  exemptions: 2 namespaces' },
-  { kind: 'metric',     text: '  denied-today: {LIVE}  warned: 12  passed: 2847  audit-age: 45s' },
-  { kind: 'stat',       text: '  gatekeeper v3.17.1  opa v0.68.0  webhooks: 2  audit-pods: 2' },
+const CONSTRAINTS = [
+  { name: 'require-resource-limits', kind: 'K8sRequiredResources', enforcementAction: 'deny', violations: 0, total: 284, status: 'active' },
+  { name: 'restrict-privileged-containers', kind: 'K8sPSPPrivilegedContainer', enforcementAction: 'deny', violations: 0, total: 284, status: 'active' },
+  { name: 'require-labels', kind: 'K8sRequiredLabels', enforcementAction: 'warn', violations: 4, total: 284, status: 'active' },
+  { name: 'disallow-latest-tag', kind: 'K8sDisallowedTags', enforcementAction: 'deny', violations: 0, total: 284, status: 'active' },
 ];
 
-const TOTAL = LINES.length + 3;
+const AUDIT_VIOLATIONS = [
+  { constraint: 'require-labels', resource: 'Deployment/staging/feature-proxy', message: 'missing required label: app.kubernetes.io/version', enforcedAt: '8m ago' },
+  { constraint: 'require-labels', resource: 'Pod/ci/runner-build-48', message: 'missing required label: team', enforcedAt: '14m ago' },
+  { constraint: 'require-labels', resource: 'Service/staging/temp-svc', message: 'missing required label: managed-by', enforcedAt: '28m ago' },
+  { constraint: 'require-labels', resource: 'Deployment/dev/debug-proxy', message: 'missing required label: app.kubernetes.io/version', enforcedAt: '1h ago' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':    return 'rgba(240,239,255,0.22)';
-    case 'prompt':     return 'rgba(240,239,255,0.6)';
-    case 'constraint': return '#4ade80';
-    case 'violation':  return '#fbbf24';
-    case 'audit':      return '#67e8f9';
-    case 'template':   return '#a78bfa';
-    case 'metric':     return 'rgba(240,239,255,0.5)';
-    case 'stat':       return 'rgba(240,239,255,0.45)';
-    default:           return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function GatekeeperPanel() {
-  const [revealed,    setRevealed]    = useState(0);
-  const [deniedToday, setDeniedToday] = useState(7);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [constraintRows, setConstraintRows] = useState(0);
+  const [violationRows, setViolationRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const admissionsTotal = useCounter(28400, 48, 500);
+  const deniesTotal = useCounter(284, 1, 1400);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setDeniedToday((c) => c + (Math.random() > 0.7 ? 1 : 0));
-          }, 6000);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const c = setInterval(() => setConstraintRows((x) => Math.min(x + 1, CONSTRAINTS.length)), 160);
+    const v = setInterval(() => setViolationRows((x) => Math.min(x + 1, AUDIT_VIOLATIONS.length)), 140);
+    return () => { clearInterval(c); clearInterval(v); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(74,222,128,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(74,222,128,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(74,222,128,0.08)', background: 'rgba(74,222,128,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(74,222,128,0.4)' }}>
+          gatekeeper -- policy controller -- constraints / rego / audit
+        </span>
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {CONSTRAINTS.length} constraints
+        </span>
+      </div>
+
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#4ade80', fontWeight: 600 }}>kubectl@gatekeeper</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>kubectl get constraints --all-namespaces && kubectl get k8srequiredlabels -o wide</span>
+      </div>
+
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'admissions', value: admissionsTotal.toLocaleString(), color: '#4ade80' },
+          { label: 'denies', value: deniesTotal.toLocaleString(), color: '#f87171' },
+          { label: 'constraints', value: CONSTRAINTS.length.toString(), color: '#67e8f9' },
+          { label: 'violations', value: CONSTRAINTS.reduce((a, c) => a + c.violations, 0).toString(), color: '#fbbf24' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Constraints */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // constraints
         </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@gatekeeper — opa · constraints · audit · violations · admission
-        </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${deniedToday} denied` : 'loading…'}
-        </span>
-      </div>
-
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@gatekeeper# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          gatekeeper · opa · constraints · templates · audit · violations · admission
-        </span>
-      </div>
-
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => {
-          const text = l.kind === 'metric'
-            ? l.text.replace('{LIVE}', String(deniedToday))
-            : l.text;
-          return (
-            <div
-              key={i}
-              className="text-[7.5px] leading-[1.8]"
-              style={{ color: lineColor(l.kind) }}
-            >
-              {l.kind === 'blank' ? ' ' : (
-                <>
-                  {l.kind === 'prompt' && (
-                    <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                  )}
-                  {text}
-                </>
-              )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {CONSTRAINTS.slice(0, constraintRows).map((c) => (
+            <div key={c.name} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 36px 52px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#4ade80', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.kind}</span>
+              <span style={{ color: c.enforcementAction === 'deny' ? '#f87171' : '#fbbf24', fontSize: 7, textAlign: 'center' }}>{c.enforcementAction}</span>
+              <span className="tabular-nums" style={{ color: c.violations > 0 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{c.violations}v/{c.total}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{c.status}</span>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Gatekeeper v3.17.1 ·</span>
-          <span style={{ color: '#f87171' }}>{deniedToday} denied today</span>
-          <span style={{ color: '#4ade80' }}>0 violations</span>
-          <span style={{ color: '#a78bfa' }}>9 constraints</span>
-          <span style={{ color: '#67e8f9' }}>audit 60s</span>
+          ))}
         </div>
-      )}
+
+        {/* Violations */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // audit violations
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {AUDIT_VIOLATIONS.slice(0, violationRows).map((v, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 36px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#4ade80', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.constraint}</span>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.message}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{v.enforcedAt}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          gatekeeper · opa · constraints · templates · audit · admission
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(74,222,128,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          gatekeeper v3.16 - apache-2.0 - opa policy controller for k8s
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● enforcing' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {admissionsTotal.toLocaleString()} admitted - {deniesTotal.toLocaleString()} denied
         </span>
       </div>
     </div>

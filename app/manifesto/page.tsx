@@ -47,6 +47,7 @@ import CrossplanePanel from '@/components/CrossplanePanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import OllamaPanel from '@/components/OllamaPanel';
+import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -465,8 +466,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ollama local llm — models, generations, embeddings */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OllamaPanel />
+        </div>
+
+        {/* opentelemetry observability — traces, metrics, logs */}
+        <div className="mt-4 pb-6">
+          <OpenTelemetryPanel />
         </div>
 
         {/* Sign-off */}

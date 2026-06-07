@@ -45,6 +45,7 @@ import LinkerdPanel from '@/components/LinkerdPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import KindPanel from '@/components/KindPanel';
+import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -572,8 +573,13 @@ export default function UsesPage() {
         </div>
 
         {/* kind k8s in docker — clusters, nodes, e2e testing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KindPanel />
+        </div>
+
+        {/* kube-state-metrics k8s object metrics — resources, labels, conditions */}
+        <div className="mt-6 pb-10">
+          <KubeStateMetricsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

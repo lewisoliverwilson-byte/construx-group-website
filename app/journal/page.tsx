@@ -51,6 +51,7 @@ import RekorPanel from '@/components/RekorPanel';
 import TypesensePanel from '@/components/TypesensePanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import CosignPanel from '@/components/CosignPanel';
+import HarborPanel from '@/components/HarborPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -422,8 +423,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cosign artifact signing — signatures, keyless, tlog */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CosignPanel />
+      </section>
+
+      {/* harbor container registry — projects, images, vulnerability scanning */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <HarborPanel />
       </section>
 
       {/* Posts */}
