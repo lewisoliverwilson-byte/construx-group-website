@@ -19,6 +19,7 @@ import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
+import FalcoPanel from '@/components/FalcoPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -297,8 +298,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* Prometheus AlertManager firing alerts */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PrometheusAlertPanel />
+        </div>
+
+        {/* Falco runtime security */}
+        <div className="mt-4 pb-6">
+          <FalcoPanel />
         </div>
 
         {/* Sign-off */}

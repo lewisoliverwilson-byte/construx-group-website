@@ -1,0 +1,228 @@
+---
+title: "Open Policy Agent: policy-as-code for Kubernetes and API authorization"
+date: "2032-04-27"
+excerpt: "Open Policy Agent (OPA) is a general-purpose policy engine that decouples policy decisions from application logic. You write policies in Rego (a declarative query language), and OPA evaluates them against JSON input to return a decision. In Kubernetes, OPA runs as a webhook admission controller (via Gatekeeper): every pod, deployment, and configmap creation is intercepted, evaluated against your Rego policies, and either allowed or rejected with a human-readable message. The same OPA instance can enforce policies across different systems: API gateway authorization, Terraform plan validation, CI pipeline gating."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Write policy in Rego. Every admission request is evaluated. Non-compliant resources are rejected at apply time.
+
+## Rego — the policy language
+
+```rego
+# policies/require-resource-limits.rego
+# Rego is a declarative query language — you define what must be TRUE
+# OPA evaluates the policy against the input document
+
+package kubernetes.admission
+
+# Default: allow (only deny with explicit rules)
+default allow = true
+
+# Violation accumulator — collect all policy failures
+deny[msg] {
+    # For every container in the pod spec...
+    container := input.request.object.spec.containers[_]
+
+    # ...that is missing CPU limits...
+    not container.resources.limits.cpu
+
+    # ...produce this denial message
+    msg := sprintf(
+        "Container '%s' in pod '%s' is missing CPU limits",
+        [container.name, input.request.object.metadata.name]
+    )
+}
+
+deny[msg] {
+    container := input.request.object.spec.containers[_]
+    not container.resources.limits.memory
+    msg := sprintf(
+        "Container '%s' is missing memory limits",
+        [container.name]
+    )
+}
+
+deny[msg] {
+    # Reject images not from our registry
+    container := input.request.object.spec.containers[_]
+    not startswith(container.image, "construx.registry.io/")
+    not startswith(container.image, "docker.io/library/")   # Allow official images
+    msg := sprintf(
+        "Container '%s' uses unauthorized image: %s",
+        [container.name, container.image]
+    )
+}
+
+# Privileged containers are never allowed
+deny[msg] {
+    container := input.request.object.spec.containers[_]
+    container.securityContext.privileged == true
+    msg := sprintf(
+        "Container '%s' must not run privileged",
+        [container.name]
+    )
+}
+```
+
+## Gatekeeper — OPA for Kubernetes admission control
+
+```yaml
+# Gatekeeper wraps OPA and adds Kubernetes-native CRDs
+# Install Gatekeeper
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.17/deploy/gatekeeper.yaml
+
+# Step 1: Define a ConstraintTemplate (the Rego policy wrapped in a CRD)
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: requireresourcelimits
+spec:
+  crd:
+    spec:
+      names:
+        kind: RequireResourceLimits
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package requireresourcelimits
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.cpu
+          msg := sprintf("Container '%s' missing CPU limits", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.memory
+          msg := sprintf("Container '%s' missing memory limits", [container.name])
+        }
+
+---
+# Step 2: Create a Constraint (instantiate the template with scope)
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RequireResourceLimits
+metadata:
+  name: require-resource-limits
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces: ["construx", "construx-staging"]   # Only enforce in prod namespaces
+  enforcementAction: deny    # deny | warn | dryrun
+```
+
+## Testing Rego policies — opa test
+
+```bash
+# OPA has a built-in test runner — write unit tests for your policies
+# policies/require-resource-limits_test.rego
+
+package kubernetes.admission_test
+
+import future.keywords.if
+
+# Test: a deployment with limits passes
+test_allows_containers_with_limits if {
+    allow with input as {
+        "request": {
+            "object": {
+                "metadata": {"name": "construx-api"},
+                "spec": {
+                    "containers": [{
+                        "name": "api",
+                        "image": "construx.registry.io/api:v1",
+                        "resources": {
+                            "limits": {"cpu": "500m", "memory": "256Mi"}
+                        }
+                    }]
+                }
+            }
+        }
+    }
+}
+
+# Test: a deployment without limits is denied with the right message
+test_denies_containers_without_cpu_limit if {
+    count(deny) == 1 with input as {
+        "request": {
+            "object": {
+                "metadata": {"name": "construx-api"},
+                "spec": {
+                    "containers": [{
+                        "name": "api",
+                        "image": "construx.registry.io/api:v1",
+                        "resources": {"limits": {"memory": "256Mi"}}
+                        # Missing CPU limit
+                    }]
+                }
+            }
+        }
+    }
+}
+
+# Run all tests
+opa test policies/ -v
+# PASS: 12/12 (2.841ms)
+# data.kubernetes.admission_test.test_allows_containers_with_limits: PASS (0.4ms)
+# data.kubernetes.admission_test.test_denies_containers_without_cpu_limit: PASS (0.3ms)
+```
+
+## OPA for API authorization
+
+```go
+// OPA as a sidecar or remote service for request-time authorization
+// The application queries OPA via HTTP for every incoming request
+
+package main
+
+import (
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+type OPAInput struct {
+    Input struct {
+        User   string `json:"user"`
+        Action string `json:"action"`    // "read" | "write" | "delete"
+        Path   string `json:"path"`      // "/api/orders/order-123"
+    } `json:"input"`
+}
+
+type OPAResult struct {
+    Result struct {
+        Allow  bool     `json:"allow"`
+        Reason []string `json:"reason"`
+    } `json:"result"`
+}
+
+func authorize(ctx context.Context, user, action, path string) (bool, error) {
+    input := OPAInput{}
+    input.Input.User   = user
+    input.Input.Action = action
+    input.Input.Path   = path
+
+    body, _ := json.Marshal(input)
+
+    // Query OPA's REST API (runs as sidecar on localhost:8181)
+    resp, err := http.Post("http://localhost:8181/v1/data/construx/authz/allow",
+        "application/json", bytes.NewReader(body))
+    if err != nil {
+        return false, fmt.Errorf("opa query: %w", err)
+    }
+    defer resp.Body.Close()
+
+    var result OPAResult
+    json.NewDecoder(resp.Body).Decode(&result)
+    return result.Result.Allow, nil
+}
+```
+
+OPA vs RBAC: Kubernetes RBAC is binary — a service account either has a cluster role or it doesn't. OPA allows contextual policy: allow reads on orders matching the user's tenant ID, deny writes during a deployment freeze window, allow admin operations only from specific IP ranges. The Rego learning curve is real — it's a logic language, not imperative code — but the expressiveness pays off when you need policies that can't be expressed as static role bindings.
+

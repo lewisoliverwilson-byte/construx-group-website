@@ -1,0 +1,161 @@
+---
+title: "Falco: runtime security and anomaly detection with eBPF syscall tracing"
+date: "2032-04-24"
+excerpt: "Falco is a CNCF-graduated runtime security tool that monitors Linux syscalls using eBPF and evaluates them against a rule set to detect anomalous behavior: a container spawning a shell, a process writing to /usr/bin, a pod reading /etc/shadow, a sudden DNS lookup for a command-and-control domain. Unlike static analysis (Trivy, Snyk), Falco watches what containers actually do at runtime — catching supply chain attacks that pass CVE scans because the malicious behavior is triggered post-deploy. Rules are YAML-based, composable, and loaded hot without restart."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Static scans check what's in the image. Falco watches what runs at runtime.
+
+## How Falco works — the eBPF datapath
+
+```bash
+# Falco's data source: eBPF programs loaded into the kernel
+# The eBPF probe attaches to syscall tracepoints and sends events to user-space
+
+# Three driver options (in order of preference):
+# 1. modern-bpf: CO-RE eBPF, no kernel headers needed, kernel 5.8+
+# 2. ebpf: classic eBPF, requires kernel headers, kernel 4.14+
+# 3. kernel module: fallback for old kernels (requires module signing)
+
+# Start Falco with modern eBPF probe
+falco --modern-bpf
+
+# Or install and auto-detect the right probe
+falcoctl driver install
+# 2032-04-15T10:00:01 Trying eBPF probe first...
+# 2032-04-15T10:00:02 eBPF probe is supported and installed.
+
+# Falco watches syscalls that matter for container security:
+# open/openat  — file reads (sensitive files: /etc/passwd, ~/.aws/credentials)
+# execve       — process spawning (shell in container, network tools)
+# connect      — outbound connections (unexpected egress, C2 callbacks)
+# ptrace       — process tracing (breakout attempts)
+# mknod        — device file creation
+# clone/fork   — privilege escalation via namespace manipulation
+
+# JSON output format — for log aggregation
+falco --modern-bpf -o json_output=true 2>&1 | jq .
+# {
+#   "output": "Warning A shell was spawned in a container (user=root container=construx-api cmd=bash)",
+#   "priority": "Warning",
+#   "rule": "Terminal shell in container",
+#   "time": "2032-04-15T14:32:14.284Z",
+#   "output_fields": {
+#     "container.id": "a3f9b2c1",
+#     "container.name": "construx-api",
+#     "proc.cmdline": "bash",
+#     "user.name": "root"
+#   }
+# }
+```
+
+## Default and custom rules
+
+```yaml
+# Falco rules are YAML files loaded at startup (hot-reload supported)
+# Rules follow this structure:
+
+# Macros — reusable conditions
+- macro: container
+  condition: container.id != host   # Running in a container, not on the host
+
+- macro: spawned_process
+  condition: evt.type = execve and evt.dir = <
+
+# Lists — reusable sets of values
+- list: shell_binaries
+  items: [bash, csh, ksh, sh, tcsh, zsh, ash]
+
+- list: allowed_image_prefixes
+  items: [construx.registry.io/construx-]
+
+# Rules — the detection logic
+- rule: Terminal shell in container
+  desc: >
+    A shell was spawned inside a container. Unless this is a debug session,
+    this is unexpected and likely indicates an intrusion attempt.
+  condition: >
+    spawned_process and container and
+    proc.name in (shell_binaries) and
+    not proc.pname in (shell_binaries)   # Exclude shell-in-shell (scripts)
+  output: >
+    A shell was spawned in a container
+    (user=%user.name container=%container.name cmd=%proc.cmdline)
+  priority: WARNING
+  tags: [container, shell, MITRE_execution]
+
+# Custom rule: detect AWS credential file access
+- rule: Attempt to steal AWS credentials
+  desc: Reading AWS credential files from inside a container
+  condition: >
+    open_read and container and
+    (fd.name startswith "/root/.aws/" or
+     fd.name startswith "/home/" and fd.name contains "/.aws/credentials")
+  output: >
+    AWS credentials read attempt
+    (user=%user.name container=%container.name file=%fd.name proc=%proc.cmdline)
+  priority: CRITICAL
+  tags: [cloud, credentials, MITRE_credential_access]
+
+# Override a default rule (disable or tune severity)
+- rule: Read sensitive file untrusted
+  enabled: false    # Disable noisy rule for specific environment
+```
+
+## Falco Sidekick — alerting and response
+
+```yaml
+# falcosidekick: routes Falco alerts to 60+ destinations
+# docker-compose.yml for local development
+
+services:
+  falcosidekick:
+    image: falcosecurity/falcosidekick:latest
+    ports:
+      - "2801:2801"   # Receives alerts from Falco
+    environment:
+      # Route CRITICAL alerts to PagerDuty
+      PAGERDUTY_ROUTINGKEY: "R01234ABCDEF"
+      PAGERDUTY_MINIMUMPRIORITY: "CRITICAL"
+
+      # Route all alerts to Slack
+      SLACK_WEBHOOKURL: "https://hooks.slack.com/..."
+      SLACK_MINIMUMPRIORITY: "WARNING"
+
+      # Send to Loki for log correlation
+      LOKI_HOSTPORT: "http://loki:3100"
+      LOKI_MINIMUMPRIORITY: "INFO"
+
+      # Automated response: kill the container on CRITICAL
+      KUBELESS_NAMESPACE: "construx"
+      KUBELESS_FUNCTION: "isolate-compromised-pod"
+
+# Configure Falco to forward to Sidekick
+# falco.yaml:
+# http_output:
+#   enabled: true
+#   url: http://falcosidekick:2801
+```
+
+## Kubernetes admission — prevent bad configs at deploy time
+
+```bash
+# Falco complements admission controllers — defence in depth:
+# Admission controller (OPA/Gatekeeper): prevents bad pods from being scheduled
+# Falco: catches bad behavior at runtime after the pod is running
+
+# Example: Gatekeeper prevents privileged containers (admission time)
+# If a supply chain attack adds a privilege escalation AFTER the image is built,
+# Gatekeeper won't catch it — but Falco will when the container tries to execve
+# a setuid binary or write to /proc/sysrq-trigger
+
+# Integration test: verify Falco catches your known-bad scenarios
+# falco-driver-loader && falco -r /etc/falco/falco_rules.yaml &
+# kubectl run test-pod --image=ubuntu -- bash -c "cat /etc/shadow"
+# Should produce: CRIT Read sensitive file trusted_after_startup
+```
+
+Falco vs static analysis: Trivy and Snyk scan images for known CVEs — they catch vulnerabilities in libraries before deployment. Falco catches what happens when code runs — a cryptominer installed via a compromised dependency that passes CVE scans because it's not yet in the vulnerability database, a container that exploits an unpatched zero-day, or an attacker who uses legitimate tools already in the image (curl, bash, python). Both layers matter: static analysis prevents deploying known-bad images; Falco catches runtime exploitation of unknown vulnerabilities.
+
