@@ -65,6 +65,7 @@ import GoReleaserPanel from '@/components/GoReleaserPanel';
 import DaprPanel from '@/components/DaprPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
+import QdrantPanel from '@/components/QdrantPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -674,8 +675,13 @@ export default function NowPage() {
         </div>
 
         {/* debezium change data capture — connectors, events, offsets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DebeziumPanel />
+        </div>
+
+        {/* qdrant — vector database, collections, search, embeddings */}
+        <div className="mt-6 pb-10">
+          <QdrantPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

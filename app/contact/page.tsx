@@ -64,6 +64,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -682,8 +683,13 @@ export default function ContactPage() {
       </section>
 
       {/* goreleaser — release automation, binaries, docker, changelog */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GoReleaserPanel />
+      </section>
+
+      {/* kafka connect — connectors, tasks, offsets, sink source */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KafkaConnectPanel />
       </section>
     </div>
   );

@@ -67,6 +67,7 @@ import AirbytePanel from '@/components/AirbytePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import SpiffePanel from '@/components/SpiffePanel';
+import LinkerdPanel from '@/components/LinkerdPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -722,8 +723,13 @@ export default function StatsPage() {
       </div>
 
       {/* spiffe workload identity — svids, trust bundles, federation */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <SpiffePanel />
+      </div>
+
+      {/* linkerd — service mesh, mTLS, traffic shaping */}
+      <div className="mt-6 pb-10">
+        <LinkerdPanel />
       </div>
     </div>
   );

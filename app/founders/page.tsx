@@ -65,6 +65,7 @@ import DaprPanel from '@/components/DaprPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AtlasPanel from '@/components/AtlasPanel';
+import PulumiPanel from '@/components/PulumiPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -810,8 +811,13 @@ export default function FoundersPage() {
         </div>
 
         {/* atlas database schema management — migrations, drift, ci */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AtlasPanel />
+        </div>
+
+        {/* pulumi — infrastructure as code, stacks, resources */}
+        <div className="mt-6 pb-10">
+          <PulumiPanel />
         </div>
 
         {/* CTA */}
