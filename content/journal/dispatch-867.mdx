@@ -1,0 +1,135 @@
+---
+title: "Arrow and Parquet: columnar data for analytics workloads"
+date: "2032-01-28"
+excerpt: "Apache Arrow is an in-memory columnar format for analytics: data is stored column-by-column rather than row-by-row, making aggregations (sum, count, mean) and scans fast because you only read the columns you need. Apache Parquet is Arrow's on-disk equivalent — a columnar file format with per-column compression and predicate pushdown. DuckDB reads Parquet files directly, ClickHouse imports Arrow IPC streams, and Pandas, Polars, and PyArrow all speak Arrow natively."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Column-first in memory. Parquet on disk. DuckDB and Polars speak both.
+
+## Write Parquet from Python
+
+```python
+# requirements: pyarrow, pandas
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pandas as pd
+
+# Create a PyArrow table
+orders = pa.table({
+    'order_id':    pa.array(['a3f9b2c1', 'b4d7e9f2', 'c5e8a3d1'], type=pa.string()),
+    'customer_id': pa.array(['cust-001', 'cust-002', 'cust-001'], type=pa.string()),
+    'total_cents': pa.array([4999, 3499, 8998], type=pa.int64()),
+    'status':      pa.array(['paid', 'pending', 'paid'], type=pa.dictionary(pa.int8(), pa.string())),
+    'created_at':  pa.array(['2031-12-28', '2031-12-28', '2031-12-29'], type=pa.date32()),
+})
+
+# Write to Parquet with Snappy compression
+pq.write_table(orders, 'orders.parquet',
+    compression='snappy',
+    row_group_size=100_000,    # Rows per row group (affects predicate pushdown)
+    write_statistics=True,      # Write min/max per column for predicate pushdown
+)
+
+# Partition by date (Hive-style partitioning — creates directories)
+pq.write_to_dataset(orders, root_path='orders/',
+    partition_cols=['created_at'],
+    compression='zstd',
+    compression_level=3,
+)
+# orders/
+# └── created_at=2031-12-28/part-0.parquet
+# └── created_at=2031-12-29/part-0.parquet
+```
+
+## Read Parquet with DuckDB — zero-copy SQL
+
+```python
+import duckdb
+
+# DuckDB reads Parquet directly — no import step
+# Pushes predicates and projections into the scan
+result = duckdb.sql("""
+    SELECT
+        customer_id,
+        count(*)                     AS orders,
+        sum(total_cents) / 100.0     AS total_gbp,
+        avg(total_cents) / 100.0     AS avg_order
+    FROM read_parquet('orders/*.parquet')
+    WHERE status = 'paid'
+      AND created_at >= '2031-12-01'
+    GROUP BY customer_id
+    ORDER BY total_gbp DESC
+    LIMIT 20
+""").df()
+
+# Partition pruning: DuckDB skips created_at= directories outside the date range
+# Column pruning: only reads order_id, customer_id, total_cents, status, created_at columns
+# Predicate pushdown: min/max statistics filter row groups before reading rows
+
+print(result)
+```
+
+## Polars — Arrow-native dataframe library
+
+```python
+import polars as pl
+
+# Polars uses Arrow internally — zero-copy with PyArrow
+df = pl.read_parquet('orders/*.parquet', hive_partitioning=True)
+
+# Lazy evaluation — builds a query plan, executes optimally
+result = (
+    df.lazy()
+    .filter(pl.col('status') == 'paid')
+    .filter(pl.col('created_at') >= pl.date(2031, 12, 1))
+    .group_by('customer_id')
+    .agg([
+        pl.count().alias('orders'),
+        (pl.sum('total_cents') / 100).alias('total_gbp'),
+        (pl.mean('total_cents') / 100).alias('avg_order'),
+    ])
+    .sort('total_gbp', descending=True)
+    .limit(20)
+    .collect()    # Execute the query plan
+)
+
+# Polars → Parquet
+result.write_parquet('customer_summary.parquet',
+    compression='zstd',
+    statistics=True,
+)
+```
+
+## Arrow IPC — zero-copy across processes
+
+```python
+# Arrow IPC: share data between processes without serialisation
+import pyarrow as pa
+import pyarrow.ipc as ipc
+
+# Write Arrow IPC format (feather file)
+with ipc.new_file('orders.arrow', orders.schema) as writer:
+    writer.write_table(orders)
+
+# Read with mmap — zero-copy: the OS maps the file into memory
+with pa.memory_map('orders.arrow', 'r') as source:
+    table = ipc.open_file(source).read_all()
+    # table.column('total_cents') is a zero-copy view of the mmap'd file
+
+# Send Arrow IPC over a socket (e.g., Python → DuckDB → ClickHouse)
+import pyarrow.flight as flight
+
+class OrdersServer(flight.FlightServerBase):
+    def do_get(self, context, ticket):
+        table = load_orders_from_db()
+        return flight.RecordBatchStream(table)
+
+# Client reads Arrow IPC directly from the server
+client = flight.connect('grpc://analytics:8815')
+reader = client.do_get(flight.Ticket(b'orders'))
+table = reader.read_all()   # Gets Arrow table without JSON/CSV serialisation
+```
+
+Arrow vs CSV/JSON for analytics: CSV and JSON are row-oriented text formats. Reading 1M orders to compute `sum(total_cents)` requires parsing all columns of all rows even though you only need one column. Arrow stores `total_cents` as a contiguous buffer of int64 values — the sum is a SIMD vectorised operation over a single memory region. A CSV scan of 1M rows: ~2s. An Arrow scan: ~5ms. Parquet adds column-level compression and predicate pushdown: if min(created_at) for a row group is after the query's date filter, the entire row group is skipped without reading.

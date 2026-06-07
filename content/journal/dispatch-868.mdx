@@ -1,0 +1,178 @@
+---
+title: "io_uring: async I/O without syscall overhead"
+date: "2032-01-31"
+excerpt: "io_uring is a Linux kernel interface for asynchronous I/O that avoids the syscall overhead of read/write/send/recv by sharing two ring buffers — a submission queue (SQ) and a completion queue (CQ) — between userspace and the kernel. Applications write I/O requests directly into shared memory; the kernel drains the SQ and posts completions to the CQ. No syscall required per I/O op. At high throughput, io_uring outperforms epoll + non-blocking sockets by eliminating the kernel/userspace boundary crossing. Node.js 20+, Tokio, and NGINX are migrating hot paths to io_uring."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+One ring in, one ring out. The kernel drains both. No syscall per op.
+
+## The submission/completion model
+
+```
+Userspace                        Kernel
+─────────────────────────────────────────────────────
+  SQ ring buffer  ──── push SQE ───▶  io_uring core
+  (shared memory)                      ↓
+                                    executes I/O
+  CQ ring buffer  ◀─── post CQE ───   (disk, net, etc.)
+  (shared memory)
+
+SQE = Submission Queue Entry  (what you want to do)
+CQE = Completion Queue Entry  (result + return code)
+
+No syscall needed to submit: just write to shared memory.
+One io_uring_enter() drains the batch — or SQPOLL kernel thread
+drains it without any syscall at all.
+```
+
+## Set up an io_uring ring in C
+
+```c
+#include <liburing.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+
+#define QUEUE_DEPTH 64
+#define BLOCK_SIZE  4096
+
+int main(void) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+
+    // Initialise the ring: QUEUE_DEPTH SQEs and CQEs
+    io_uring_queue_init(QUEUE_DEPTH, &ring, 0);
+
+    // Open a file for reading
+    int fd = open("/var/log/construx/api.log", O_RDONLY | O_DIRECT);
+    char buf[BLOCK_SIZE] __attribute__((aligned(4096)));
+
+    // Get an SQE slot and fill in a read request
+    sqe = io_uring_get_sqe(&ring);
+    io_uring_prep_read(sqe, fd, buf, BLOCK_SIZE, 0 /* offset */);
+    sqe->user_data = 42;  // Tag: correlate CQE to SQE
+
+    // Submit all pending SQEs — one syscall for the batch
+    io_uring_submit(&ring);
+
+    // Wait for one CQE
+    io_uring_wait_cqe(&ring, &cqe);
+    printf("read %d bytes (user_data=%llu)\n", cqe->res, cqe->user_data);
+
+    // Mark CQE as seen — advances the CQ head pointer
+    io_uring_cqe_seen(&ring, cqe);
+
+    io_uring_queue_exit(&ring);
+    close(fd);
+}
+```
+
+## Batch multiple I/O operations — one submit call
+
+```c
+// Read 16 log segments in parallel with a single io_uring_submit()
+#define N_FILES 16
+
+int fds[N_FILES];
+char bufs[N_FILES][BLOCK_SIZE] __attribute__((aligned(4096)));
+off_t offsets[N_FILES] = {0, 4096, 8192, 12288, /* ... */};
+
+for (int i = 0; i < N_FILES; i++) {
+    sqe = io_uring_get_sqe(&ring);
+    io_uring_prep_read(sqe, fds[i], bufs[i], BLOCK_SIZE, offsets[i]);
+    sqe->user_data = i;
+}
+
+// One syscall submits all 16 reads
+io_uring_submit(&ring);
+
+// Drain all 16 completions
+int completed = 0;
+while (completed < N_FILES) {
+    unsigned head;
+    io_uring_for_each_cqe(&ring, head, cqe) {
+        printf("file[%llu]: %d bytes\n", cqe->user_data, cqe->res);
+        completed++;
+        io_uring_cqe_seen(&ring, cqe);
+    }
+}
+```
+
+## SQPOLL — zero-syscall I/O submission
+
+```c
+// SQPOLL: a kernel thread continuously polls the SQ ring.
+// Userspace writes SQEs; no io_uring_submit() needed at all.
+// CPU cost: the poll thread burns a core while idle.
+// Use only when throughput > ~100k IOPS — otherwise epoll is cheaper.
+
+struct io_uring_params params = {
+    .flags = IORING_SETUP_SQPOLL,
+    .sq_thread_idle = 2000,  // Park poll thread after 2s idle (ms)
+};
+
+io_uring_queue_init_params(QUEUE_DEPTH, &ring, &params);
+
+// Now just write SQEs — the kernel thread drains them with zero syscalls
+sqe = io_uring_get_sqe(&ring);
+io_uring_prep_send(sqe, sockfd, buf, len, 0);
+io_uring_sqe_set_flags(sqe, IOSQE_FIXED_FILE);  // Use registered file table
+// No io_uring_submit() — kernel thread picks it up
+```
+
+## Registered buffers — avoid copy_from_user overhead
+
+```c
+// Registering buffers tells the kernel to pin them in memory.
+// Subsequent reads/writes skip the copy_from_user path entirely.
+
+struct iovec iov[N_FILES];
+for (int i = 0; i < N_FILES; i++) {
+    iov[i].iov_base = bufs[i];
+    iov[i].iov_len  = BLOCK_SIZE;
+}
+
+// Pin buffers — done once at startup, not per I/O
+io_uring_register_buffers(&ring, iov, N_FILES);
+
+// Use prep_read_fixed for pinned reads (buffer_index into the iov table)
+for (int i = 0; i < N_FILES; i++) {
+    sqe = io_uring_get_sqe(&ring);
+    io_uring_prep_read_fixed(sqe, fds[i], bufs[i], BLOCK_SIZE, 0, i);
+}
+```
+
+## io_uring in Rust with tokio-uring
+
+```rust
+// tokio-uring wraps io_uring with an async/await API
+// cargo add tokio-uring
+
+use tokio_uring::fs::File;
+use tokio_uring::buf::BoundedBuf;
+
+#[tokio_uring::main]
+async fn main() -> std::io::Result<()> {
+    let file = File::open("/var/log/construx/api.log").await?;
+
+    // Buffer ownership model: tokio-uring takes ownership of the buffer
+    // while the kernel holds it (avoids use-after-free in async context)
+    let buf = vec![0u8; 4096];
+    let (result, buf) = file.read_at(buf, 0).await;  // Read at offset 0
+    let n = result?;
+    println!("read {} bytes: {:?}", n, &buf[..n.min(64)]);
+
+    // Vectored read — scatter into multiple buffers in one op
+    let bufs: Vec<Vec<u8>> = (0..4).map(|_| vec![0u8; 4096]).collect();
+    let (result, bufs) = file.readv_at(bufs, 0).await;
+    let total: usize = result?;
+    println!("scatter-read {} bytes across {} buffers", total, bufs.len());
+
+    Ok(())
+}
+```
+
+io_uring vs epoll: epoll tells you when a file descriptor is *ready* — you still call read/write (a syscall) to move the data. io_uring *submits the I/O* — the kernel calls read/write on your behalf and posts the result. At 10k req/s, the difference is negligible. At 500k req/s, eliminating per-op syscalls saves 30-40% CPU. The cost: complexity (ring management, buffer lifetime), and security (io_uring has had serious privilege-escalation CVEs; many distros disable it for unprivileged users).

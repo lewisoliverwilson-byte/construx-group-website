@@ -1,0 +1,162 @@
+---
+title: "Firecracker microVMs: the isolation model behind AWS Lambda and Fly.io"
+date: "2032-01-25"
+excerpt: "Firecracker is an open-source virtual machine monitor (VMM) built by AWS. It boots a minimal Linux kernel in ~125ms, presents a stripped-down virtual device model (block device, network device, serial port, nothing else), and runs each function or container in its own VM with full hardware isolation. Lambda runs thousands of Firecracker VMs per physical host. Fly.io machines are Firecracker VMs with a lightweight rootfs. The isolation is stronger than containers (no shared kernel) with startup closer to containers than traditional VMs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+VM isolation, container startup time. Hardware boundary, not namespace.
+
+## Architecture
+
+```
+Physical Host
+├── Firecracker VMM process 1  (one per microVM, ~5MB RSS)
+│   └── Guest VM: Lambda function / Fly.io machine
+│       ├── Guest kernel (minimal — no USB, GPU, sound)
+│       ├── Guest rootfs (read-only overlay)
+│       └── Application process
+├── Firecracker VMM process 2
+│   └── Guest VM: another function / machine
+└── ... (thousands per host)
+
+Host → Guest isolation:
+  ✓ Separate kernel (guest has its own Linux kernel)
+  ✓ Hardware memory isolation (EPT/NPT)
+  ✓ No shared kernel namespaces
+  ✓ seccomp filter on the VMM process itself
+  ✗ No IOMMU (shared physical CPU, mitigated by side-channel patches)
+```
+
+## Start a Firecracker microVM via the API
+
+```bash
+# Firecracker exposes a REST API over a Unix socket
+# Start the VMM
+firecracker --api-sock /tmp/firecracker.sock --log-path /tmp/fc.log
+
+# Configure the kernel (in another terminal)
+curl --unix-socket /tmp/firecracker.sock -X PUT \
+  http://localhost/boot-source \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "kernel_image_path": "/var/lib/firecracker/vmlinux.bin",
+    "boot_args": "console=ttyS0 reboot=k panic=1 pci=off"
+  }'
+
+# Configure the root filesystem
+curl --unix-socket /tmp/firecracker.sock -X PUT \
+  http://localhost/drives/rootfs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "drive_id":       "rootfs",
+    "path_on_host":   "/var/lib/firecracker/ubuntu-22.04.ext4",
+    "is_root_device": true,
+    "is_read_only":   false
+  }'
+
+# Configure vCPUs and memory
+curl --unix-socket /tmp/firecracker.sock -X PUT \
+  http://localhost/machine-config \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "vcpu_count":         2,
+    "mem_size_mib":       512,
+    "smt":                false,
+    "track_dirty_pages":  true
+  }'
+
+# Configure the network interface
+curl --unix-socket /tmp/firecracker.sock -X PUT \
+  http://localhost/network-interfaces/eth0 \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "iface_id":       "eth0",
+    "guest_mac":      "AA:FC:00:00:00:01",
+    "host_dev_name":  "tap0"
+  }'
+
+# Start the VM
+curl --unix-socket /tmp/firecracker.sock -X PUT \
+  http://localhost/actions \
+  -H 'Content-Type: application/json' \
+  -d '{"action_type": "InstanceStart"}'
+
+# Boot time: ~125ms to guest kernel, ~200ms to application ready
+```
+
+## Snapshot and restore — sub-10ms resume
+
+```bash
+# Take a VM snapshot (memory + disk state)
+curl --unix-socket /tmp/firecracker.sock -X PUT \
+  http://localhost/snapshot/create \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "snapshot_type": "Full",
+    "snapshot_path": "/snapshots/vm-001.snap",
+    "mem_file_path": "/snapshots/vm-001.mem"
+  }'
+
+# Restore from snapshot (used by Lambda for warm starts)
+firecracker --api-sock /tmp/firecracker-restore.sock
+
+curl --unix-socket /tmp/firecracker-restore.sock -X PUT \
+  http://localhost/snapshot/load \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "snapshot_path": "/snapshots/vm-001.snap",
+    "mem_backend": {
+      "backend_type": "File",
+      "backend_path": "/snapshots/vm-001.mem"
+    },
+    "enable_diff_snapshots": true,
+    "resume_vm": true
+  }'
+
+# Restored VM is running in ~5-10ms
+# Lambda uses this: first invocation boots fresh, subsequent invocations
+# restore from a snapshot — that's why Lambda "warm starts" are fast
+```
+
+## Minimal guest kernel configuration
+
+```bash
+# The Firecracker team publishes a minimal kernel config
+# Key: remove everything that isn't needed in a microVM
+# No USB, no Bluetooth, no sound, no GPU drivers
+# Reduces kernel from ~8MB to ~3MB, boot time from ~500ms to ~125ms
+
+# Critical options for Firecracker guests:
+CONFIG_VIRTIO=y                    # VirtIO bus (network, block)
+CONFIG_VIRTIO_NET=y                # Network device
+CONFIG_VIRTIO_BLK=y                # Block device
+CONFIG_SERIAL_8250=y               # Serial console (ttyS0)
+CONFIG_9P_FS=y                     # Shared filesystem (optional)
+CONFIG_KVM_GUEST=y                 # Para-virtualisation hooks
+
+CONFIG_USB=n                       # Disabled
+CONFIG_SOUND=n                     # Disabled
+CONFIG_DRM=n                       # Disabled (no GPU)
+CONFIG_AGP=n                       # Disabled
+```
+
+## Security model
+
+```bash
+# Firecracker VMM is sandboxed with seccomp (allow-list syscalls)
+# The guest kernel is isolated by hardware (EPT)
+# The VMM process itself runs with minimal capabilities
+
+# Verify the seccomp filter on the VMM process
+cat /proc/$(pgrep firecracker)/status | grep Seccomp
+# Seccomp: 2  ← seccomp-bpf filter active
+
+# Firecracker allows only ~30 syscalls (vs 400+ available)
+# If the VMM is exploited, the seccomp filter prevents kernel escalation
+strace -e trace=all firecracker 2>&1 | grep "EPERM\|ENOSYS"
+# Any syscall not in the allow-list returns ENOSYS and the process is killed
+```
+
+Firecracker vs gVisor: gVisor intercepts syscalls in a user-space kernel (Sentry) — the guest application makes syscalls that are handled by gVisor rather than the host kernel, with no hardware VM boundary. Firecracker uses hardware virtualisation — the guest has its own kernel with full hardware isolation. gVisor has lower memory overhead (~20MB vs ~50MB+ for a full guest kernel) but slower syscall paths. Firecracker has stronger isolation and faster syscalls within the guest, at the cost of a full kernel image per VM. AWS Lambda uses Firecracker; Google Cloud Run uses gVisor.

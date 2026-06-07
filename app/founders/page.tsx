@@ -17,6 +17,7 @@ import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
+import CgroupsPanel from '@/components/CgroupsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -522,8 +523,13 @@ export default function FoundersPage() {
         </div>
 
         {/* eBPF kernel tracing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EbpfTracePanel />
+        </div>
+
+        {/* Cgroups v2 resource accounting */}
+        <div className="mt-6 pb-10">
+          <CgroupsPanel />
         </div>
 
         {/* CTA */}
