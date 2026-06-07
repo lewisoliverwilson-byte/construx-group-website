@@ -35,6 +35,7 @@ import KubeVirtPanel from '@/components/KubeVirtPanel';
 import SpiceDbPanel from '@/components/SpiceDbPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import K3sPanel from '@/components/K3sPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -328,6 +329,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* nftables netfilter — tables, chains, rules, packet/byte counters */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <NftablesPanel />
+      </section>
+
+      {/* k3s lightweight kubernetes — nodes, system pods, built-in components */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <K3sPanel />
       </section>
 
       {/* Posts */}

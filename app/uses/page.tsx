@@ -30,6 +30,7 @@ import TalosPanel from '@/components/TalosPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import HubblePanel from '@/components/HubblePanel';
 import GVisorPanel from '@/components/GVisorPanel';
+import NomadPanel from '@/components/NomadPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -484,6 +485,11 @@ export default function UsesPage() {
         {/* gvisor sandboxed runtime — runsc, kvm/ptrace, sentry, syscall interception */}
         <div className="mt-6 pb-10">
           <GVisorPanel />
+        </div>
+
+        {/* nomad workload orchestrator — jobs, allocs, datacenters, task drivers */}
+        <div className="mt-6 pb-10">
+          <NomadPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

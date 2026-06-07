@@ -30,6 +30,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import RenovatePanel from '@/components/RenovatePanel';
 import StrimziPanel from '@/components/StrimziPanel';
 import VclusterPanel from '@/components/VclusterPanel';
+import ZitadelPanel from '@/components/ZitadelPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -711,6 +712,11 @@ export default function WorkWithUsPage() {
       {/* vcluster virtual kubernetes clusters — k3s/k0s/eks, sync, multi-tenant */}
       <section className="px-5 pb-10 mx-auto max-w-6xl">
         <VclusterPanel />
+      </section>
+
+      {/* zitadel cloud-native iam — oidc/saml/passkeys, apps, sessions, tokens */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <ZitadelPanel />
       </section>
 
       {/* CTA */}

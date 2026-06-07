@@ -31,6 +31,7 @@ import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -371,6 +372,11 @@ export default function ManifestoPage() {
         {/* containerd cri runtime — images, snapshotter, runc v2 shim, tasks */}
         <div className="mt-4 pb-6">
           <ContainerdPanel />
+        </div>
+
+        {/* cloudnative-pg postgres operator — ha clusters, streaming replication, barman backup */}
+        <div className="mt-4 pb-6">
+          <CloudNativePGPanel />
         </div>
 
         {/* Sign-off */}
