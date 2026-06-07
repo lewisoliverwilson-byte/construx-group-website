@@ -73,6 +73,7 @@ import EnvoyPanel from '@/components/EnvoyPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
+import K8sEventsPanel from '@/components/K8sEventsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -858,8 +859,13 @@ export default function FoundersPage() {
         </div>
 
         {/* jfrog xray — vulnerabilities, licenses, impact graph */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JfrogXrayPanel />
+        </div>
+
+        {/* k8s events — warnings, normal, reasons, namespaces */}
+        <div className="mt-6 pb-10">
+          <K8sEventsPanel />
         </div>
 
         {/* CTA */}

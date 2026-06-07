@@ -75,6 +75,7 @@ import DuckdbPanel from '@/components/DuckdbPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import HubblePanel from '@/components/HubblePanel';
+import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -770,8 +771,13 @@ export default function StatsPage() {
       </div>
 
       {/* hubble — cilium network observability, flows, policies */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <HubblePanel />
+      </div>
+
+      {/* k6 load test — vus, rps, p95 latency, thresholds */}
+      <div className="mt-6 pb-10">
+        <K6LoadTestPanel />
       </div>
     </div>
   );

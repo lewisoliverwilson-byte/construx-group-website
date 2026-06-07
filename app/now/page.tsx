@@ -73,6 +73,7 @@ import FreeMemPanel from '@/components/FreeMemPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
+import K9sPanel from '@/components/K9sPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -722,8 +723,13 @@ export default function NowPage() {
         </div>
 
         {/* journald word count — message rates, units, priorities */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JournalWcPanel />
+        </div>
+
+        {/* k9s — tui kubernetes dashboard, pods, logs, exec */}
+        <div className="mt-6 pb-10">
+          <K9sPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
