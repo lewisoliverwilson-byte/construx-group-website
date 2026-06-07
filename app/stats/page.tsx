@@ -31,6 +31,7 @@ import FlinkPanel from '@/components/FlinkPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import CephPanel from '@/components/CephPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
+import PixiePanel from '@/components/PixiePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -506,8 +507,13 @@ export default function StatsPage() {
       </div>
 
       {/* otelcol receiver processor exporter pipeline — traces metrics logs */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OtelCollectorPanel />
+      </div>
+
+      {/* pixie ebpf auto-telemetry — http service map, flamegraph, pxl scripts */}
+      <div className="mt-6 pb-10">
+        <PixiePanel />
       </div>
     </div>
   );
