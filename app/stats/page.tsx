@@ -55,6 +55,7 @@ import VitessPanel from '@/components/VitessPanel';
 import YugaBytePanel from '@/components/YugaBytePanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import LangfusePanel from '@/components/LangfusePanel';
+import PrefectPanel from '@/components/PrefectPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -650,8 +651,13 @@ export default function StatsPage() {
       </div>
 
       {/* langfuse llm observability — traces, scores, datasets */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LangfusePanel />
+      </div>
+
+      {/* prefect workflow orchestration — flows, runs, tasks */}
+      <div className="mt-6 pb-10">
+        <PrefectPanel />
       </div>
     </div>
   );

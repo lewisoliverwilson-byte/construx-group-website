@@ -53,6 +53,7 @@ import WoodpeckerCIPanel from '@/components/WoodpeckerCIPanel';
 import DronePanel from '@/components/DronePanel';
 import HarborPanel from '@/components/HarborPanel';
 import VeleroPanel from '@/components/VeleroPanel';
+import SynapsePanel from '@/components/SynapsePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -738,8 +739,13 @@ export default function FoundersPage() {
         </div>
 
         {/* velero kubernetes backup — schedules, backups, restores */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VeleroPanel />
+        </div>
+
+        {/* synapse event streaming — topics, consumers, throughput */}
+        <div className="mt-6 pb-10">
+          <SynapsePanel />
         </div>
 
         {/* CTA */}

@@ -53,6 +53,7 @@ import GrypePanel from '@/components/GrypePanel';
 import ThanosPanel from '@/components/ThanosPanel';
 import TetragonPanel from '@/components/TetragonPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
+import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -602,8 +603,13 @@ export default function NowPage() {
         </div>
 
         {/* grafana tempo distributed tracing — traces, spans, services */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaTempoPanel />
+        </div>
+
+        {/* grafana oncall incident management — schedules, alerts, escalations */}
+        <div className="mt-6 pb-10">
+          <GrafanaOnCallPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

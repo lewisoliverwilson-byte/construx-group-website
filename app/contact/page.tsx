@@ -53,6 +53,7 @@ import IstioPanel from '@/components/IstioPanel';
 import OPAPanel from '@/components/OPAPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import NeonPanel from '@/components/NeonPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -616,8 +617,13 @@ export default function ContactPage() {
       </section>
 
       {/* alertmanager prometheus alerts — groups, silences, receivers */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <AlertManagerPanel />
+      </section>
+
+      {/* neon serverless postgres — branches, connections, compute */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NeonPanel />
       </section>
     </div>
   );
