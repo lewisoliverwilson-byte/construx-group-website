@@ -26,6 +26,7 @@ import K9sPanel from '@/components/K9sPanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import TetragonPanel from '@/components/TetragonPanel';
 import IstioPanel from '@/components/IstioPanel';
+import ThanosPanel from '@/components/ThanosPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -339,8 +340,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* istio service mesh — envoy, mtls, virtualservice, authorizationpolicy */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <IstioPanel />
+        </div>
+
+        {/* thanos prometheus long-term storage — s3, global query, deduplication, compaction */}
+        <div className="mt-4 pb-6">
+          <ThanosPanel />
         </div>
 
         {/* Sign-off */}

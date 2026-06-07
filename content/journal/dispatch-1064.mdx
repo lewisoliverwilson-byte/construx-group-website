@@ -1,0 +1,185 @@
+---
+title: "Thanos: Prometheus long-term storage — global query, S3 backend, deduplication"
+date: "2033-09-10"
+excerpt: "Thanos extends Prometheus for long-term metric storage beyond the default 15-day local retention. It runs as a sidecar alongside each Prometheus instance, uploading 2-hour TSDB blocks to object storage (S3, GCS, Azure Blob) as they are sealed. A separate store gateway component exposes those historical blocks over gRPC, making them queryable by the Thanos query layer exactly like live Prometheus data. The query component fans out to all store gateways and Prometheus instances simultaneously, deduplicates results across replicas (by stripping the replica label), and returns a single merged response. Thanos compactor runs separately to progressively consolidate raw 2h blocks into 24h then 1-week blocks, and to enforce retention policies per resolution. This architecture gives you global, multi-cluster query (one PromQL endpoint for all your Prometheus instances), unlimited retention at S3 pricing, and high availability without requiring Prometheus federation or remote_write to a centralised instance."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Long-term storage. Global query. S3 blocks. Store gateway. Deduplication. Compaction.
+
+## Thanos deployment on Kubernetes
+
+```yaml
+# Thanos sidecar: runs alongside Prometheus, uploads blocks to S3
+# Prometheus StatefulSet — abbreviated
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.54.0
+          args:
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.min-block-duration=2h   # block size for Thanos upload
+            - --storage.tsdb.max-block-duration=2h   # lock to 2h (compactor handles the rest)
+            - --storage.tsdb.retention.time=6h        # minimal local retention — Thanos has history
+            - --web.enable-lifecycle
+
+        # Thanos sidecar: watches Prometheus TSDB, uploads sealed 2h blocks to S3
+        - name: thanos-sidecar
+          image: quay.io/thanos/thanos:v0.36.1
+          args:
+            - sidecar
+            - --tsdb.path=/prometheus
+            - --prometheus.url=http://localhost:9090
+            - --grpc-address=0.0.0.0:10901
+            - --http-address=0.0.0.0:10902
+            - --objstore.config-file=/etc/thanos/objstore.yaml
+          ports:
+            - name: grpc
+              containerPort: 10901   # querier connects here
+            - name: http
+              containerPort: 10902
+          volumeMounts:
+            - name: prometheus-data
+              mountPath: /prometheus
+            - name: thanos-objstore-config
+              mountPath: /etc/thanos
+              readOnly: true
+---
+# Object store config: S3 backend
+# /etc/thanos/objstore.yaml (mounted as secret)
+
+type: S3
+config:
+  bucket:    construx-thanos-prod
+  endpoint:  s3.eu-west-2.amazonaws.com
+  region:    eu-west-2
+  # IAM role via IRSA — no static credentials
+  sse_config:
+    type: SSE-S3
+```
+
+```yaml
+# Thanos Store Gateway: serves historical blocks from S3 to querier
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: thanos-store
+  namespace: monitoring
+spec:
+  replicas: 3   # 3 replicas — querier deduplicates
+  template:
+    spec:
+      containers:
+        - name: thanos-store
+          image: quay.io/thanos/thanos:v0.36.1
+          args:
+            - store
+            - --data-dir=/var/thanos/store   # local index cache
+            - --objstore.config-file=/etc/thanos/objstore.yaml
+            - --grpc-address=0.0.0.0:10901
+            - --http-address=0.0.0.0:10902
+            - --index-cache-size=2GB          # hot index segments in memory
+            - --chunk-pool-size=4GB
+          resources:
+            requests:
+              cpu:    1
+              memory: 6Gi
+            limits:
+              memory: 8Gi
+---
+# Thanos Querier: global query frontend — fans out to all stores + Prometheus sidecars
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-query
+  namespace: monitoring
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: thanos-query
+          image: quay.io/thanos/thanos:v0.36.1
+          args:
+            - query
+            - --grpc-address=0.0.0.0:10901
+            - --http-address=0.0.0.0:9090
+            # DNS-based store discovery — resolves all store gateway pods
+            - --store=dnssrv+_grpc._tcp.thanos-store.monitoring.svc.cluster.local
+            # Prometheus sidecars in each cluster
+            - --store=dnssrv+_grpc._tcp.prometheus-operated.monitoring.svc.cluster.local
+            # Deduplicate based on replica label (Prometheus adds this per instance)
+            - --query.replica-label=replica
+            - --query.replica-label=prometheus_replica
+```
+
+## Compactor and retention
+
+```yaml
+# Thanos Compactor: consolidates blocks, enforces retention
+# Runs as a single-instance Job (not StatefulSet — must not have concurrent writers)
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-compactor
+  namespace: monitoring
+spec:
+  replicas: 1   # MUST be 1 — concurrent compactors corrupt blocks
+  template:
+    spec:
+      containers:
+        - name: thanos-compactor
+          image: quay.io/thanos/thanos:v0.36.1
+          args:
+            - compact
+            - --data-dir=/var/thanos/compactor
+            - --objstore.config-file=/etc/thanos/objstore.yaml
+            - --wait              # run continuously, not one-shot
+            - --wait-interval=5m  # check for new blocks every 5m
+            # Downsampling: create 5m and 1h resolution blocks for old data
+            - --downsampling.disable=false
+            # Retention per resolution
+            - --retention.resolution-raw=15d    # keep 15 days of raw (15s) samples
+            - --retention.resolution-5m=90d     # keep 90 days of 5m downsampled
+            - --retention.resolution-1h=365d    # keep 1 year of 1h downsampled
+```
+
+```bash
+# Thanos query: PromQL via the global query endpoint
+
+# Rate of HTTP requests across ALL clusters (single query, global result)
+curl -s 'http://thanos-query:9090/api/v1/query' \
+  --data 'query=sum(rate(http_requests_total[5m])) by (cluster, namespace)' | \
+  jq '.data.result[] | {cluster: .metric.cluster, ns: .metric.namespace, rps: .value[1]}'
+
+# {cluster: "eu-west-2", ns: "construx-prod", rps: "4821.3"}
+# {cluster: "us-east-1", ns: "construx-prod", rps: "2104.8"}
+
+# Check block upload status (sidecar uploads 2h blocks within seconds of sealing)
+thanos tools bucket ls \
+  --objstore.config-file=/etc/thanos/objstore.yaml \
+  --output=table | tail -5
+# ULID                     FROM                TO                LABELS
+# 01J8ZK2H…              2033-09-09 10:00     2033-09-09 12:00  {cluster="eu-west-2",replica="0"}
+# 01J8ZM8Q…              2033-09-09 12:00     2033-09-09 14:00  {cluster="eu-west-2",replica="1"}
+
+# Compactor metrics
+# thanos_compact_group_compactions_total{resolution="raw"} 1821
+# thanos_compact_group_compactions_total{resolution="5m"}  48
+# thanos_objstore_bucket_operations_total{operation="upload"} 5421
+# thanos_store_nodes_grpc_connections{store_type="store"} 3
+```
+
+Thanos vs VictoriaMetrics vs Cortex/Mimir vs Prometheus remote_write: Prometheus remote_write ships raw samples to a centralised write path (VictoriaMetrics, Cortex, Mimir) — it's push-based and adds network overhead proportional to cardinality. Thanos is pull-based: blocks are uploaded only when sealed (every 2h), so the sidecar adds minimal overhead to Prometheus. VictoriaMetrics is a single binary that handles ingestion, storage, and query with excellent compression, but doesn't give you a unified view across multiple independent Prometheus instances without remote_write. Cortex and Mimir (Grafana's Thanos derivative) run as full multi-tenant SaaS backends — correct for managed observability platforms. Thanos is the right choice when you want to keep independent Prometheus instances per cluster (for isolation) but need global query and cheap long-term storage across all of them. The deduplication story is Thanos's key advantage: you run HA Prometheus pairs, both upload to S3, and the querier collapses them into one logical series without you managing dedup at the collection layer.
