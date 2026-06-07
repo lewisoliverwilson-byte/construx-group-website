@@ -1,0 +1,174 @@
+---
+title: "step-cli: certificate issuance, rotation, and inspection with Smallstep CA"
+date: "2032-10-21"
+excerpt: "step is the CLI for Smallstep's certificate ecosystem — it issues, inspects, renews, and revokes X.509 certificates from a Smallstep CA (step-ca), Let's Encrypt via ACME, or any PKI backend. Short-lived certificates (24-hour validity) replace long-lived certs and certificate revocation: instead of maintaining a CRL or OCSP responder, you rotate certificates automatically every 24 hours and revocation is implicit. `step ca certificate` issues a certificate; `step certificate inspect` shows decoded fields; `step ca renew` rotates the certificate and private key. step also decodes and validates JWTs, generates ECDSA/RSA/Ed25519 keypairs, and derives TOTP codes — it's a Swiss Army knife for the PKI and secrets layer."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Short-lived certs. Automatic renewal. `step certificate inspect` to debug. JWT decode inline.
+
+## Certificate issuance and inspection
+
+```bash
+# step ca certificate: issue a certificate from a Smallstep CA
+step ca certificate api.construx.io server.crt server.key \
+  --ca-url https://ca.construx.io \
+  --root root-ca.crt
+
+# Provisioner: the CA uses provisioners to authenticate requests
+# ACME provisioner (like Let's Encrypt — HTTP or DNS challenge)
+# JWK provisioner (JWT-based — for machine-to-machine issuance)
+# OIDC provisioner (uses SSO identity — for human certs)
+
+# With ACME (HTTP-01 challenge) — serve /.well-known/acme-challenge/ on port 80
+step ca certificate api.construx.io server.crt server.key \
+  --ca-url https://ca.construx.io \
+  --provisioner acme \
+  --provisioner-password-file /etc/construx/ca-password
+
+# Output:
+# ✔ Provisioner: construx-acme (ACME)
+# ✔ Generating keypair (ECDSA P-256)
+# ✔ Requesting certificate for api.construx.io
+# ✔ Challenge http-01: /.well-known/acme-challenge/abc123...
+# ✔ Certificate issued — valid for 24h, auto-renew at 22h
+
+# Inspect the certificate (human-readable)
+step certificate inspect server.crt
+# Certificate:
+#   Data:
+#     Version: 3 (0x2)
+#     Subject: api.construx.io
+#     Issuer:  Construx Intermediate CA R1
+#     Validity
+#       Not Before: Oct 21 10:00:00 2032 UTC
+#       Not After:  Oct 22 10:00:00 2032 UTC  ← 24h validity
+#     Subject Alt Names:
+#       DNS: api.construx.io
+#     Key Usage: Digital Signature, Key Encipherment
+#     Extended Key Usage: TLS Web Server Authentication
+
+# --short: concise one-liner output
+step certificate inspect server.crt --short
+# api.construx.io — valid until 2032-10-22T10:00:00Z (23h59m)
+
+# --format json: machine-readable output for automation
+step certificate inspect server.crt --format json | jq '.validity.end'
+```
+
+## Certificate renewal and rotation
+
+```bash
+# step ca renew: rotate the certificate before expiry
+# Run this in a cron job or systemd timer (e.g. every 8 hours)
+step ca renew server.crt server.key \
+  --force \
+  --ca-url https://ca.construx.io
+
+# --force: overwrite existing cert/key without prompting
+# --exec: run a command after renewal (e.g. reload nginx)
+step ca renew server.crt server.key \
+  --force \
+  --exec "systemctl reload nginx" \
+  --ca-url https://ca.construx.io
+
+# Systemd timer for automatic renewal:
+cat /etc/systemd/system/cert-renew.service
+# [Unit]
+# Description=Renew TLS certificate
+# [Service]
+# User=construx
+# ExecStart=/usr/local/bin/step ca renew /etc/construx/server.crt \
+#             /etc/construx/server.key \
+#             --force \
+#             --exec "systemctl reload construx-api" \
+#             --ca-url https://ca.construx.io \
+#             --root /etc/construx/root-ca.crt
+
+cat /etc/systemd/system/cert-renew.timer
+# [Unit]
+# Description=Renew certificate every 8 hours
+# [Timer]
+# OnBootSec=5min
+# OnUnitActiveSec=8h
+# RandomizedDelaySec=30min   # avoid thundering herd
+# [Install]
+# WantedBy=timers.target
+
+# Check when a cert needs renewal
+step certificate inspect server.crt --format json | \
+  jq '"Expires: " + .validity.end + " | Remaining: " + (.validity.end | fromdateiso8601 - now | . / 3600 | floor | tostring) + "h"'
+# "Expires: 2032-10-22T10:00:00Z | Remaining: 23h"
+```
+
+## Certificate verification and chain inspection
+
+```bash
+# Verify a certificate against a CA
+step certificate verify server.crt --roots root-ca.crt
+# ✔ Certificate is valid (chain: server.crt → Construx Intermediate CA → Root CA)
+
+# Verify the TLS certificate presented by a server (like openssl s_client)
+step certificate inspect https://api.construx.io --short
+# api.construx.io — valid until 2032-10-22T10:00:00Z (23h59m)
+
+# Download and inspect the live certificate chain
+step certificate inspect https://api.construx.io
+# (shows full certificate chain from the live connection)
+
+# Fingerprint: verify a certificate's identity (useful for pinning)
+step certificate fingerprint server.crt
+# SHA-256: aa:bb:cc:dd:... (48 hex pairs)
+
+# Check all certs in a bundle
+step certificate bundle server.crt ca.crt | step certificate inspect -
+
+# mTLS: issue client certificate (identifies the client to the server)
+step ca certificate construx-worker client.crt client.key \
+  --ca-url https://ca.construx.io \
+  --provisioner jwk \
+  --san construx-worker.construx.internal \
+  --template templates/client.json
+```
+
+## JWT, TOTP, and crypto utilities
+
+```bash
+# JWT inspection (no signature verification — for debugging)
+step crypto jwt inspect --insecure <<< "$ACCESS_TOKEN"
+# {
+#   "header": { "alg": "ES256", "kid": "abc123" },
+#   "payload": {
+#     "sub": "construx-api",
+#     "aud": "api.construx.io",
+#     "iat": 1729512000,
+#     "exp": 1729598400
+#   }
+# }
+
+# JWT verification (with JWKS endpoint)
+step crypto jwt verify \
+  --jwks https://ca.construx.io/.well-known/jwks \
+  --iss https://ca.construx.io \
+  --aud api.construx.io \
+  <<< "$ACCESS_TOKEN"
+
+# Generate a keypair
+step crypto keypair pub.pem priv.pem --kty EC --crv P-256
+step crypto keypair pub.pem priv.pem --kty OKP --crv Ed25519   # for SSH-style keys
+
+# TOTP: generate a TOTP code from a secret
+step crypto otp generate --secret JBSWY3DPEHPK3PXP
+# 482 193   (valid for 30s)
+
+# Verify a TOTP code
+step crypto otp verify --secret JBSWY3DPEHPK3PXP --otp 482193
+
+# Hashing and password derivation
+step crypto hash digest --alg sha256 sensitive-data.txt
+step crypto bcrypt password    # hash a password (interactive)
+step crypto bcrypt verify hash  # verify hash vs password
+```
+
+step-cli vs openssl vs certbot: openssl is the reference tool — it does everything but requires knowing the exact flags for every operation. certbot is the Let's Encrypt automation tool for web servers — handles ACME, renewal, and web server config, but is opinionated about the web server and certificate paths. step works with any ACME CA (Let's Encrypt, step-ca, ZeroSSL), any server, and any deployment model — and adds non-certificate features (JWT, TOTP, keypair generation) in the same binary. The key advantage of the Smallstep model: short-lived certificates (24h) with automated renewal remove the need for CRL/OCSP. A compromised certificate expires before you've had time to revoke it. This is the same model used inside Google (BeyondCorp) and modern zero-trust networks.

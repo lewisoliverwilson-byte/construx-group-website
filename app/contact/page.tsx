@@ -21,6 +21,7 @@ import WasmComponentPanel from '@/components/WasmComponentPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import DigPanel from '@/components/DigPanel';
+import StepCliPanel from '@/components/StepCliPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -425,8 +426,13 @@ export default function ContactPage() {
       </section>
 
       {/* dig DNS record lookup */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <DigPanel />
+      </section>
+
+      {/* step certificate issuance and rotation */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <StepCliPanel />
       </section>
     </div>
   );
