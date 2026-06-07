@@ -51,6 +51,7 @@ import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import SpiceDBPanel from '@/components/SpiceDBPanel';
 import StrimziPanel from '@/components/StrimziPanel';
 import TypesensePanel from '@/components/TypesensePanel';
+import DuckdbPanel from '@/components/DuckdbPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -608,8 +609,13 @@ export default function UsesPage() {
         </div>
 
         {/* typesense search engine — collections, documents, queries */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TypesensePanel />
+        </div>
+
+        {/* duckdb analytics — queries, schemas, performance */}
+        <div className="mt-6 pb-10">
+          <DuckdbPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

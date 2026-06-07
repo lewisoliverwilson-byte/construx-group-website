@@ -56,6 +56,7 @@ import SynapsePanel from '@/components/SynapsePanel';
 import SeaweedFSPanel from '@/components/SeaweedFSPanel';
 import ScyllaPanel from '@/components/ScyllaPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
+import DruidPanel from '@/components/DruidPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -457,8 +458,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* opensearch distributed search — indices, shards, queries */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OpenSearchPanel />
+      </section>
+
+      {/* druid real-time analytics — datasources, segments, tasks */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DruidPanel />
       </section>
 
       {/* Posts */}

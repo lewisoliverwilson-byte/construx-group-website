@@ -52,6 +52,7 @@ import NomadPanel from '@/components/NomadPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import PineconePanel from '@/components/PineconePanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
+import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -841,8 +842,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* weaviate vector database — classes, objects, semantic search */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <WeaviatePanel />
+      </section>
+
+      {/* tigerbeetle financial database — accounts, transfers, ledger */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <TigerBeetlePanel />
       </section>
 
       {/* CTA */}
