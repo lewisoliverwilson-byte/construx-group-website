@@ -20,6 +20,7 @@ import FioPanel from '@/components/FioPanel';
 import TokioRuntimePanel from '@/components/TokioRuntimePanel';
 import VectorPipelinePanel from '@/components/VectorPipelinePanel';
 import CiliumPanel from '@/components/CiliumPanel';
+import SysdigPanel from '@/components/SysdigPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -404,8 +405,13 @@ export default function NowPage() {
         </div>
 
         {/* Cilium eBPF network policy and Hubble flows */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CiliumPanel />
+        </div>
+
+        {/* sysdig syscall tracing — container-aware */}
+        <div className="mt-6 pb-10">
+          <SysdigPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
