@@ -72,6 +72,7 @@ import DockerStatsPanel from '@/components/DockerStatsPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
+import JournalWcPanel from '@/components/JournalWcPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -716,8 +717,13 @@ export default function NowPage() {
         </div>
 
         {/* helm chart — templates, values, releases, rollbacks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HelmChartPanel />
+        </div>
+
+        {/* journald word count — message rates, units, priorities */}
+        <div className="mt-6 pb-10">
+          <JournalWcPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

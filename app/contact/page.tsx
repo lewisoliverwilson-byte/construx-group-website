@@ -71,6 +71,7 @@ import CosignPanel from '@/components/CosignPanel';
 import DruidPanel from '@/components/DruidPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import HttpArchivePanel from '@/components/HttpArchivePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -724,8 +725,13 @@ export default function ContactPage() {
       </section>
 
       {/* git config — user, remote, branch, protocol settings */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GitConfigPanel />
+      </section>
+
+      {/* http archive — requests, timings, headers, responses */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HttpArchivePanel />
       </section>
     </div>
   );

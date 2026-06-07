@@ -74,6 +74,7 @@ import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
+import HubblePanel from '@/components/HubblePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -764,8 +765,13 @@ export default function StatsPage() {
       </div>
 
       {/* grafana alloy — telemetry pipeline, components, metrics */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GrafanaAlloyPanel />
+      </div>
+
+      {/* hubble — cilium network observability, flows, policies */}
+      <div className="mt-6 pb-10">
+        <HubblePanel />
       </div>
     </div>
   );
