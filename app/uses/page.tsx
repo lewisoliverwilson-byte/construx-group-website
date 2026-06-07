@@ -26,6 +26,7 @@ import OpenFgaPanel from '@/components/OpenFgaPanel';
 import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 import QdrantPanel from '@/components/QdrantPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
+import TalosPanel from '@/components/TalosPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -458,8 +459,13 @@ export default function UsesPage() {
         </div>
 
         {/* opensearch distributed search — inverted index, query dsl, bm25, vector */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenSearchPanel />
+        </div>
+
+        {/* talos linux immutable kubernetes os — no ssh, api-driven, atomic upgrade */}
+        <div className="mt-6 pb-10">
+          <TalosPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

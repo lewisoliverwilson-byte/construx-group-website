@@ -1,0 +1,185 @@
+---
+title: "Dex: federated identity provider — OIDC bridge, connectors, Kubernetes OIDC, kubelogin"
+date: "2033-12-24"
+excerpt: "Dex is an identity federation layer that implements the OpenID Connect (OIDC) protocol and bridges it to upstream identity providers — GitHub, Google Workspace, Microsoft Entra ID (Azure AD), LDAP, SAML — via connectors. Applications and Kubernetes clusters configure Dex as their OIDC provider; Dex handles the upstream authentication and returns a standard JWT ID token. The key use case is Kubernetes OIDC authentication: the Kubernetes API server accepts JWTs from a trusted OIDC issuer (configured via --oidc-issuer-url and --oidc-username-claim flags). When a user runs kubectl with a kubelogin credential plugin, kubelogin exchanges the user's upstream credentials (GitHub OAuth, Google sign-in, LDAP password) for a Dex-issued JWT, which kubectl sends as a Bearer token in API requests. RBAC binds that JWT's claims (email, groups) to Kubernetes roles — so a user's GitHub organisation membership determines their Kubernetes permissions. Dex also federates service-to-service authentication: a microservice authenticates to Dex using a client credential grant and receives a JWT that can be exchanged for access to other services, all with the same OIDC client flow. At Construx, Dex federates GitHub (for developers) and the internal LDAP (for service accounts) into a single OIDC issuer used by Kubernetes, Grafana, ArgoCD, MinIO, and any internal service that needs authentication."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+OIDC. Connector. JWT. kubelogin. Kubernetes OIDC auth. GitHub connector. Static clients.
+
+## Dex configuration and Kubernetes OIDC setup
+
+```yaml
+# Dex configuration: multi-connector OIDC federation
+# Deployed as a Kubernetes Deployment
+
+config.yaml: |
+  issuer: https://dex.construx.internal
+
+  storage:
+    type: kubernetes   # store Dex state (auth codes, refresh tokens) in CRDs
+    config:
+      inCluster: true
+
+  web:
+    https: 0.0.0.0:5556
+    tlsCert: /etc/dex/tls/tls.crt
+    tlsKey: /etc/dex/tls/tls.key
+
+  connectors:
+    # GitHub OAuth connector: authenticate as GitHub user/org member
+    - type: github
+      id: github
+      name: GitHub
+      config:
+        clientID:     "${GITHUB_CLIENT_ID}"
+        clientSecret: "${GITHUB_CLIENT_SECRET}"
+        redirectURI:  https://dex.construx.internal/callback
+        orgs:
+          - name: lewisoliverwilson-byte   # only allow members of this GitHub org
+            teams:                         # optional: restrict to specific teams
+              - engineering
+              - platform
+
+    # LDAP connector: authenticate internal service accounts
+    - type: ldap
+      id: ldap
+      name: LDAP
+      config:
+        host: ldap.construx.internal:636
+        insecureSkipVerify: false
+        rootCAData: "${LDAP_CA_BASE64}"
+        bindDN:     "cn=dex-bind,dc=construx,dc=internal"
+        bindPW:     "${LDAP_BIND_PW}"
+        userSearch:
+          baseDN:    "ou=people,dc=construx,dc=internal"
+          filter:    "(objectClass=posixAccount)"
+          username:  uid
+          idAttr:    uid
+          emailAttr: mail
+          nameAttr:  cn
+        groupSearch:
+          baseDN: "ou=groups,dc=construx,dc=internal"
+          filter: "(objectClass=groupOfNames)"
+          userAttr:  DN
+          groupAttr: member
+          nameAttr:  cn
+
+  staticClients:
+    # Kubernetes API server OIDC client
+    - id: kubernetes
+      redirectURIs:
+        - http://localhost:8000
+        - http://localhost:18000
+      name: Kubernetes
+      secret: "${KUBERNETES_CLIENT_SECRET}"
+
+    # Grafana OIDC client
+    - id: grafana
+      redirectURIs:
+        - https://grafana.construx.internal/login/generic_oauth
+      name: Grafana
+      secret: "${GRAFANA_CLIENT_SECRET}"
+
+    # ArgoCD OIDC client
+    - id: argocd
+      redirectURIs:
+        - https://argocd.construx.internal/auth/callback
+      name: ArgoCD
+      secret: "${ARGOCD_CLIENT_SECRET}"
+
+  oauth2:
+    skipApprovalScreen: true
+    responseTypes: [code]
+
+  expiry:
+    idTokens:      "24h"
+    refreshTokens:
+      validIfNotUsedFor: "720h"   # 30 days
+```
+
+## Kubernetes OIDC and kubelogin
+
+```yaml
+# Talos machine config: configure kube-apiserver OIDC with Dex
+# (equivalent kube-apiserver flags for kubeadm/k3s clusters)
+
+cluster:
+  apiServer:
+    extraArgs:
+      oidc-issuer-url:       https://dex.construx.internal
+      oidc-client-id:        kubernetes
+      oidc-username-claim:   email        # JWT claim to use as username
+      oidc-groups-claim:     groups       # JWT claim to use as groups
+      oidc-username-prefix:  "dex:"       # prefix to avoid collisions
+      oidc-groups-prefix:    "dex:"
+```
+
+```yaml
+# Kubernetes RBAC: bind GitHub org groups to cluster roles
+# dex: prefix matches oidc-groups-prefix above
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dex-platform-team-admin
+subjects:
+  - kind: Group
+    name: dex:lewisoliverwilson-byte:platform   # GitHub org:team
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dex-engineering-readonly
+  namespace: construx-prod
+subjects:
+  - kind: Group
+    name: dex:lewisoliverwilson-byte:engineering
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: view
+  apiGroup: rbac.authorization.k8s.io
+```
+
+```bash
+# kubelogin: kubectl credential plugin for OIDC authentication
+# Intercepts kubectl calls, performs OIDC browser flow, caches tokens
+
+# Install kubelogin
+brew install int128/kubelogin/kubelogin
+
+# Configure kubectl to use kubelogin for this cluster
+kubectl config set-credentials dex-oidc \
+  --exec-api-version=client.authentication.k8s.io/v1beta1 \
+  --exec-command=kubectl \
+  --exec-arg=oidc-login \
+  --exec-arg=get-token \
+  --exec-arg=--oidc-issuer-url=https://dex.construx.internal \
+  --exec-arg=--oidc-client-id=kubernetes \
+  --exec-arg=--oidc-client-secret="${KUBERNETES_CLIENT_SECRET}" \
+  --exec-arg=--oidc-extra-scope=groups \
+  --exec-arg=--oidc-extra-scope=email
+
+kubectl config set-context construx-prod \
+  --cluster=construx-prod \
+  --user=dex-oidc
+
+# First kubectl command triggers browser-based authentication
+kubectl get pods -n construx-prod
+# Opening browser to https://dex.construx.internal/auth?...
+# You are logged in as: lewis.wilson@construx.io (via GitHub)
+# Groups: dex:lewisoliverwilson-byte:platform
+
+# kubelogin caches the JWT in ~/.kube/cache/oidc-login/
+# and refreshes it transparently before expiry
+```
+
+Dex vs Keycloak vs Auth0 vs Okta vs plain Kubernetes ServiceAccount tokens: Keycloak is a full-featured enterprise identity platform — it supports LDAP sync, SAML, OIDC, advanced group management, and a UI for user management. Dex is deliberately minimal — it is an OIDC bridge, not a user management system; it delegates authentication to upstream providers and does not store user identities. For teams where GitHub or Google Workspace is the authoritative identity source, Dex adds almost no complexity. Auth0 and Okta are managed identity platforms — correct for teams that want SaaS identity management without operating any infrastructure. Plain Kubernetes ServiceAccount tokens are for machine-to-machine authentication within the cluster — they are not suitable for human users (no MFA, no identity federation, no group claims). The Dex + kubelogin + RBAC pattern is the standard self-hosted approach for human user authentication to Kubernetes: developers log in with their existing GitHub or corporate identity, groups map directly to RBAC bindings, and there is no separate user database to manage. Every developer authentication flows through SSO, MFA is enforced at the GitHub/LDAP level, and token expiry and rotation are handled automatically.

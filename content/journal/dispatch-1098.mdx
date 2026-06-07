@@ -1,0 +1,188 @@
+---
+title: "Ceph RADOS: distributed storage cluster — CRUSH map, RBD, CephFS, RGW, BlueStore"
+date: "2033-12-21"
+excerpt: "Ceph is a distributed storage system that provides three storage interfaces from a single cluster: block storage (RBD — RADOS Block Device, used as Kubernetes PersistentVolumes), filesystem (CephFS, a POSIX-compliant distributed filesystem with multiple mount points), and object storage (RGW — RADOS Gateway, S3-compatible). All three interfaces are built on top of RADOS, the underlying distributed object store. RADOS distributes objects across OSDs (Object Storage Daemons — one per disk) using the CRUSH algorithm: CRUSH deterministically maps object names to OSDs without a central lookup table, so clients can calculate which OSD holds any object directly. Replication (or erasure coding) is handled at the CRUSH level — a CRUSH rule defines how many copies to write and which failure domains to spread them across (separate racks, separate nodes, separate datacenters). BlueStore is the OSD backend (replacing the legacy FileStore): it writes data directly to block devices without a filesystem layer, achieving better write amplification and enabling checksumming of all data at rest. Rook is the Kubernetes operator for Ceph — it manages the Ceph cluster lifecycle (bootstrap, OSD provisioning, upgrade, failure recovery) as Kubernetes CRDs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+RADOS. CRUSH. OSD. RBD. CephFS. RGW. BlueStore. Rook. Replication. Erasure coding.
+
+## Rook-Ceph cluster configuration
+
+```yaml
+# Rook CephCluster CRD: declare a Ceph cluster on Kubernetes
+# Rook operator watches for CephCluster and bootstraps mon, mgr, OSD pods
+
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: construx-rook-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    image: quay.io/ceph/ceph:v18.2.4   # Reef release
+    allowUnsupported: false
+
+  dataDirHostPath: /var/lib/rook
+
+  mon:
+    count: 3
+    allowMultiplePerNode: false
+
+  mgr:
+    count: 2
+    modules:
+      - name: pg_autoscaler
+        enabled: true
+      - name: dashboard
+        enabled: true
+
+  dashboard:
+    enabled: true
+    ssl: true
+
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+    nodes:
+      - name: "k8s-storage-01"
+        devices:
+          - name: nvme0n1   # BlueStore: OSD owns the full NVMe device
+          - name: nvme1n1
+      - name: "k8s-storage-02"
+        devices:
+          - name: nvme0n1
+          - name: nvme1n1
+      - name: "k8s-storage-03"
+        devices:
+          - name: nvme0n1
+          - name: nvme1n1
+
+  network:
+    provider: host         # use host networking for OSD performance
+    selectors:
+      public: "eth0"
+      cluster: "eth1"      # dedicated storage replication network
+
+  resources:
+    mon:
+      requests: { cpu: "500m", memory: "1Gi" }
+    osd:
+      requests: { cpu: "2",    memory: "4Gi" }
+
+---
+# CephBlockPool: RBD pool with 3-way replication
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: construx-block-pool
+  namespace: rook-ceph
+spec:
+  replicated:
+    size: 3
+    requireSafeReplicaSize: true
+  deviceClass: nvme
+  parameters:
+    bulk: "false"
+
+---
+# StorageClass: Kubernetes CSI driver backed by Ceph RBD
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ceph-rbd
+provisioner: rook-ceph.rbd.csi.ceph.com
+parameters:
+  clusterID: rook-ceph
+  pool: construx-block-pool
+  imageFormat: "2"
+  imageFeatures: layering,fast-diff,object-map,deep-flatten,exclusive-lock
+  csi.storage.k8s.io/provisioner-secret-name:      rook-csi-rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name:       rook-csi-rbd-node
+  csi.storage.k8s.io/node-stage-secret-namespace:  rook-ceph
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+```
+
+```yaml
+# CephFilesystem: CephFS for ReadWriteMany workloads (ML shared datasets)
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystem
+metadata:
+  name: construx-cephfs
+  namespace: rook-ceph
+spec:
+  metadataPool:
+    replicated:
+      size: 3
+  dataPools:
+    - name: data0
+      replicated:
+        size: 3
+  metadataServer:
+    activeCount: 2            # active-active MDS for high throughput
+    activeStandby: true
+    resources:
+      requests: { cpu: "2", memory: "4Gi" }
+
+---
+# StorageClass for CephFS (ReadWriteMany — multiple pods can mount simultaneously)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cephfs
+provisioner: rook-ceph.cephfs.csi.ceph.com
+parameters:
+  clusterID: rook-ceph
+  fsName:    construx-cephfs
+  pool:      construx-cephfs-data0
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+```
+
+```bash
+# Ceph cluster health and performance inspection via Rook toolbox
+
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
+# cluster:
+#   id:     a2f3c9d1-...
+#   health: HEALTH_OK
+#
+# services:
+#   mon: 3 daemons, quorum a,b,c
+#   mgr: a(active), b(standby)
+#   mds: 2/2 daemons up
+#   osd: 6 osds: 6 up, 6 in
+#
+# data:
+#   volumes: 1/1 healthy
+#   pools:   4 pools, 97 pgs
+#   objects: 2.91M objects, 4.7 TiB
+#   usage:   9.6 TiB used, 18 TiB / 28 TiB avail
+#   pgs:     97 active+clean
+
+# OSD performance — check throughput per OSD
+ceph osd perf
+# osd   commit_latency(ms)  apply_latency(ms)
+# 0            1                   1
+# 1            2                   1
+# 2            1                   1
+
+# Pool statistics
+ceph df detail
+# POOLS:  NAME                    USED    OBJECTS  QUOTA  AVAIL
+#         construx-block-pool     4.7TiB  2.8M     N/A    18TiB
+#         construx-cephfs-data0   142GiB  91k      N/A    18TiB
+
+# CRUSH map inspection
+ceph osd crush tree
+# ID   CLASS  WEIGHT  TYPE NAME
+# -1          27.27   root default
+# -3           9.09     host k8s-storage-01
+#  0   nvme    4.55         osd.0
+#  1   nvme    4.55         osd.1
+```
+
+Ceph vs Longhorn vs Portworx vs local storage vs NFS: Longhorn (dispatch-1066) is the simpler distributed block storage option for Kubernetes — it is easier to install and operate than Ceph, but does not provide object storage or CephFS (ReadWriteMany). Longhorn is the right choice for small-to-medium clusters that need replicated block storage. Portworx is an enterprise Kubernetes storage platform with a strong production track record — excellent multi-cloud support and integrated data management, but it is proprietary and expensive. Local storage (hostPath, local PV) gives maximum performance (no network overhead) but no replication — a node failure means data loss if the pod cannot be rescheduled to the same node. NFS is simple and widely understood but a single-node bottleneck — the NFS server is the throughput ceiling. Ceph is the choice when you need all three: block (RBD for database PVCs), filesystem (CephFS for shared ML datasets with ReadWriteMany), and object storage (RGW as an internal S3 endpoint). The operational complexity is real — Ceph requires dedicated storage nodes and operator expertise — but Rook significantly reduces the day-2 burden by automating OSD provisioning, upgrade orchestration, and failure recovery.
