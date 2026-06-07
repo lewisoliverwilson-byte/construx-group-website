@@ -75,6 +75,7 @@ import HelmChartPanel from '@/components/HelmChartPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
+import KubeProxyPanel from '@/components/KubeProxyPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -734,8 +735,13 @@ export default function NowPage() {
         </div>
 
         {/* kubebench — cis benchmark, controls, remediation, pass rate */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubebenchPanel />
+        </div>
+
+        {/* kube proxy — services, iptables, endpoints, modes */}
+        <div className="mt-6 pb-10">
+          <KubeProxyPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

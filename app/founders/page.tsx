@@ -75,6 +75,7 @@ import GVisorPanel from '@/components/GVisorPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import KnativePanel from '@/components/KnativePanel';
+import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -870,8 +871,13 @@ export default function FoundersPage() {
         </div>
 
         {/* knative — serverless, serving, eventing, scale-to-zero */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KnativePanel />
+        </div>
+
+        {/* kubeflow pipelines — experiments, runs, components, artifacts */}
+        <div className="mt-6 pb-10">
+          <KubeflowPipelinesPanel />
         </div>
 
         {/* CTA */}

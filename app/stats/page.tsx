@@ -77,6 +77,7 @@ import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import HubblePanel from '@/components/HubblePanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import KindPanel from '@/components/KindPanel';
+import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -782,8 +783,13 @@ export default function StatsPage() {
       </div>
 
       {/* kind — kubernetes in docker, clusters, nodes, addons */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KindPanel />
+      </div>
+
+      {/* kubectl pods — status, restarts, age, images, nodes */}
+      <div className="mt-6 pb-10">
+        <KubectlPodsPanel />
       </div>
     </div>
   );
