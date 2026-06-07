@@ -1,0 +1,144 @@
+---
+title: "Distributed tracing with OpenTelemetry and Jaeger"
+date: "2031-08-24"
+excerpt: "A distributed trace follows a single request as it moves through multiple services. Each service records spans — units of work with a start time, duration, and attributes. Spans form a tree: the root span is the entry point (usually an HTTP request); child spans are database queries, downstream HTTP calls, queue publishes. Jaeger is the open-source trace storage and UI. OpenTelemetry instruments the code; Jaeger stores and queries the traces."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+One request. Multiple services. One trace that connects them all.
+
+## How it works
+
+A trace is a tree of spans, all sharing a `traceId`. When `web` calls `orders-api`, it injects the `traceparent` header (W3C standard). The downstream service extracts it and creates child spans under the same trace. The result: a complete picture of a single request across all services.
+
+```
+Trace 3f8a2c1e9d4b7f0e
+│
+└── web: HTTP POST /api/orders (312ms)
+    ├── web: middleware.auth (14ms)
+    ├── web: middleware.rateLimit (3ms)
+    └── orders-api: orders.create (280ms)
+        ├── orders-api: db.query SELECT products (18ms)
+        ├── inventory: HTTP GET /inventory/check (88ms)  ← SLOW
+        │   └── inventory: db.query SELECT stock (71ms)
+        ├── payments: HTTP POST /charge (108ms)
+        ├── orders-api: db.insert orders (22ms)
+        ├── orders-api: queue.publish order.created (8ms)
+        └── orders-api: cache.set order:ord_01JA (5ms)
+```
+
+## Jaeger setup — Docker
+
+```yaml
+# docker-compose.yaml
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.62
+    ports:
+      - '16686:16686'  # Jaeger UI
+      - '4317:4317'    # OTLP gRPC
+      - '4318:4318'    # OTLP HTTP
+    environment:
+      SPAN_STORAGE_TYPE: badger
+      BADGER_EPHEMERAL:  false
+      BADGER_DIRECTORY_VALUE: /badger/data
+      BADGER_DIRECTORY_KEY:   /badger/key
+    volumes:
+      - jaeger-data:/badger
+```
+
+## OTel SDK → Jaeger pipeline
+
+```ts
+// instrumentation.ts
+import { NodeSDK }           from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { Resource }          from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+
+new NodeSDK({
+  resource:       new Resource({ [ATTR_SERVICE_NAME]: process.env.SERVICE_NAME! }),
+  traceExporter:  new OTLPTraceExporter({ url: 'http://jaeger:4318/v1/traces' }),
+  instrumentations: [getNodeAutoInstrumentations()],
+}).start();
+```
+
+## Custom spans with attributes
+
+```ts
+import { trace, SpanStatusCode } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('orders-api');
+
+async function createOrder(input: CreateOrderInput) {
+  return tracer.startActiveSpan('orders.create', async (span) => {
+    span.setAttributes({
+      'order.user_id':   input.userId,
+      'order.item_count': input.items.length,
+    });
+
+    try {
+      const [, order] = await Promise.all([
+        checkInventory(input.items),
+        chargeAndInsert(input),
+      ]);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return order;
+    } catch (e) {
+      span.recordException(e as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw e;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+## Query traces with Jaeger CLI
+
+```bash
+# List traces for the orders service in the last hour
+jaeger-query trace \
+  --service orders-api \
+  --operation orders.create \
+  --limit 20 \
+  --start "$(date -d '1 hour ago' +%s)000000"
+
+# Get a specific trace
+jaeger-query trace --id 3f8a2c1e9d4b7f0e
+
+# Find slow traces (over 500ms)
+jaeger-query trace \
+  --service web \
+  --min-duration 500ms \
+  --limit 10
+```
+
+## Trace sampling — production
+
+```ts
+import { ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
+
+// Sample 10% of traces; always follow parent decision
+const sampler = new ParentBasedSampler({
+  root: new TraceIdRatioBasedSampler(0.1),
+});
+
+new NodeSDK({ sampler, ... }).start();
+
+// Always sample errors (custom sampler)
+class AlwaysSampleErrorsSampler implements Sampler {
+  shouldSample(ctx, traceId, name, kind, attrs) {
+    if (attrs?.['http.status_code'] >= 500) {
+      return { decision: SamplingDecision.RECORD_AND_SAMPLED };
+    }
+    return { decision: SamplingDecision.NOT_RECORD };
+  }
+  toString() { return 'AlwaysSampleErrors'; }
+}
+```
+
+Jaeger vs Tempo (Grafana): Jaeger has a more mature UI, better trace search, and dependency graphs. Grafana Tempo is cheaper at scale (object storage, not a database), integrates with Grafana dashboards, and supports exemplars linking metrics to traces. The Construx default: Jaeger for development (local Docker); Grafana Tempo for production (object storage, Grafana integration).

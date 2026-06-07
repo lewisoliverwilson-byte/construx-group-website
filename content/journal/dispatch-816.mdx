@@ -1,0 +1,171 @@
+---
+title: "Wasm-pack: compiling Rust to WebAssembly for the browser"
+date: "2031-08-27"
+excerpt: "wasm-pack compiles Rust crates to WebAssembly and generates JavaScript/TypeScript bindings. The result is a npm package that exports Rust functions as typed JavaScript. The use cases where Wasm earns its complexity: CPU-intensive algorithms (image processing, cryptography, compression), sharing business logic between server (Rust) and browser (Wasm), and code that needs to run at near-native speed in a sandboxed environment."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Rust in the browser. Near-native speed. TypeScript bindings generated.
+
+## Rust crate setup
+
+```toml
+# Cargo.toml
+[package]
+name    = "construx-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen      = "0.2"
+wasm-bindgen-futures = "0.4"
+serde             = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+js-sys            = "0.3"
+web-sys           = { version = "0.3", features = ["console"] }
+
+[profile.release]
+opt-level  = "z"   # Optimise for binary size
+lto        = true
+strip      = true
+panic      = "abort"
+```
+
+## Rust implementation
+
+```rust
+// src/lib.rs
+use wasm_bindgen::prelude::*;
+use serde::{Deserialize, Serialize};
+
+// Export a function to JavaScript
+#[wasm_bindgen]
+pub fn fibonacci(n: u32) -> u64 {
+    match n {
+        0 => 0,
+        1 => 1,
+        _ => {
+            let (mut a, mut b) = (0u64, 1u64);
+            for _ in 2..=n {
+                let c = a + b;
+                a = b;
+                b = c;
+            }
+            b
+        }
+    }
+}
+
+// Export a struct with methods
+#[wasm_bindgen]
+pub struct TextAnalyser {
+    text: String,
+}
+
+#[wasm_bindgen]
+impl TextAnalyser {
+    #[wasm_bindgen(constructor)]
+    pub fn new(text: &str) -> TextAnalyser {
+        TextAnalyser { text: text.to_string() }
+    }
+
+    pub fn word_count(&self) -> usize {
+        self.text.split_whitespace().count()
+    }
+
+    pub fn char_frequency(&self, ch: char) -> usize {
+        self.text.chars().filter(|&c| c == ch).count()
+    }
+
+    pub fn reading_time_secs(&self) -> f64 {
+        self.word_count() as f64 / 4.5  // ~270 words/min
+    }
+}
+
+// Serde-based complex types
+#[derive(Serialize, Deserialize)]
+pub struct AnalysisResult {
+    pub word_count:      usize,
+    pub sentence_count:  usize,
+    pub avg_word_length: f64,
+    pub reading_time_secs: f64,
+}
+
+#[wasm_bindgen]
+pub fn analyse_text(text: &str) -> JsValue {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let result = AnalysisResult {
+        word_count:      words.len(),
+        sentence_count:  text.chars().filter(|&c| c == '.').count(),
+        avg_word_length: words.iter().map(|w| w.len()).sum::<usize>() as f64 / words.len().max(1) as f64,
+        reading_time_secs: words.len() as f64 / 4.5,
+    };
+    serde_wasm_bindgen::to_value(&result).unwrap()
+}
+```
+
+## Build and package
+
+```bash
+# Install wasm-pack
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+# Build for browser (generates ES modules + .wasm)
+wasm-pack build --target web --out-dir pkg
+
+# Build for Node.js
+wasm-pack build --target nodejs
+
+# Build for bundlers (Webpack, Vite)
+wasm-pack build --target bundler
+
+# pkg/ directory after build:
+# construx_wasm.js       — JS glue code
+# construx_wasm_bg.wasm  — WebAssembly binary
+# construx_wasm.d.ts     — TypeScript types (generated!)
+# package.json
+```
+
+## Using in Next.js (Vite / Webpack)
+
+```ts
+// lib/wasm.ts — lazy-load the Wasm module
+let mod: typeof import('../pkg/construx_wasm') | null = null;
+
+export async function getWasm() {
+  if (!mod) {
+    mod = await import('../pkg/construx_wasm');
+    await mod.default();  // initialise Wasm (loads .wasm file)
+  }
+  return mod;
+}
+
+// Usage in a component
+import { getWasm } from '@/lib/wasm';
+
+const wasm    = await getWasm();
+const result  = wasm.analyse_text(longDocument);
+// result is typed: { word_count: number, sentence_count: number, ... }
+
+const analyser = new wasm.TextAnalyser('Hello world');
+console.log(analyser.word_count());     // 2
+console.log(analyser.reading_time_secs()); // 0.44
+```
+
+## vite.config.ts — Wasm support
+
+```ts
+import { defineConfig }  from 'vite';
+import wasm              from 'vite-plugin-wasm';
+import topLevelAwait     from 'vite-plugin-top-level-await';
+
+export default defineConfig({
+  plugins: [wasm(), topLevelAwait()],
+});
+```
+
+Wasm vs JS for CPU-intensive work: JavaScript is fast for most web tasks, but single-threaded and GC-paused. Wasm runs at near-native speed, is memory-managed manually, and can use SIMD instructions. The crossover point: operations over a few milliseconds that run in a tight loop — image filters, text parsing at scale, crypto primitives. Don't use Wasm for DOM manipulation, network I/O, or anything that's already fast in JS.
