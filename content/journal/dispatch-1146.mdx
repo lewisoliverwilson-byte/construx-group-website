@@ -1,0 +1,165 @@
+---
+title: "Kubescape: Kubernetes security compliance scanning — NSA/CISA, RBAC analysis, misconfiguration"
+date: "2034-05-14"
+excerpt: "Kubescape is an open-source Kubernetes security platform from ARMO. It scans Kubernetes clusters and configuration files against multiple security frameworks: NSA/CISA Kubernetes Hardening Guidance, MITRE ATT&CK, CIS Benchmarks, and custom controls. Kubescape produces a risk score for each cluster and a per-control breakdown showing which workloads fail which checks — privileged containers, containers running as root, missing resource limits, secrets in environment variables, RBAC over-permissioning, exposed dashboards. Unlike admission-time tools (OPA Gatekeeper, Kyverno), Kubescape also scans the existing cluster state — it finds misconfiguration that was applied before any policy enforcement was in place. The scanning can run in three modes: CLI (one-shot scan), in-cluster operator (continuous scanning with Prometheus metrics), and CI/CD integration (scan Helm charts or Kustomize manifests before apply). Kubescape's RBAC visualiser generates a graph of who can do what in the cluster — service accounts, roles, and role bindings — making privilege escalation paths visible. At Construx, Kubescape runs as an in-cluster operator scanning every 6 hours, and the compliance score (currently 94%) is published to a Grafana dashboard. Any drop below 90% triggers a Slack alert."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Kubescape. NSA/CISA. MITRE ATT&CK. CIS. Risk score. RBAC graph. Misconfiguration. Operator.
+
+## Kubescape scan and operator configuration
+
+```bash
+# Kubescape CLI: one-shot compliance scan
+
+# Scan cluster against NSA/CISA Kubernetes Hardening Guidance
+kubescape scan framework nsa \
+  --namespace construx-prod \
+  --format pretty-printer \
+  --output /tmp/kubescape-nsa.txt
+
+# Output (summary):
+# ┌─────────────────────────────────────────────────────┐
+# │ FRAMEWORK: NSA
+# │ PASSED:  47  FAILED:  3  SKIPPED: 2
+# │ RISK SCORE: 94%
+# └─────────────────────────────────────────────────────┘
+#
+# Failed controls:
+# C-0044  Container securityContext — 2 containers missing runAsNonRoot: true
+#         → orders-api (init container), legacy-importer
+# C-0055  Linux hardening — 3 containers missing seccompProfile: RuntimeDefault
+# C-0016  Allow privilege escalation — 1 container with allowPrivilegeEscalation: true
+#         → prometheus-node-exporter (requires CAP_SYS_PTRACE)
+
+# Scan against multiple frameworks at once
+kubescape scan framework nsa,mitre,cis-eks-t1.2.0 \
+  --namespace construx-prod \
+  --format json \
+  --output /tmp/full-scan.json
+
+# RBAC analysis: show all service accounts and their permissions
+kubescape scan control C-0220 \   # "Cluster-admin binding" control
+  --format json \
+  | jq '.results[].object | {sa: .name, namespace: .namespace, clusterRole: .rules}'
+
+# Scan a Helm chart before install (CI/CD integration)
+kubescape scan helm ./charts/orders-api \
+  --controls-config ./kubescape-exceptions.json \
+  --format sarif \
+  --output kubescape-results.sarif   # compatible with GitHub Code Scanning
+
+# Exit code: 1 if risk score < threshold
+kubescape scan framework nsa --fail-threshold 90
+# exit 0  ← 94% > 90%, pipeline proceeds
+```
+
+```yaml
+# Kubescape Operator: continuous in-cluster scanning
+# Scans every 6 hours, exposes metrics on :8080/metrics
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubescape
+
+---
+# Installed via Helm:
+# helm repo add kubescape https://kubescape.github.io/helm-charts/
+# helm install kubescape kubescape/kubescape-operator \
+#   --namespace kubescape \
+#   --set clusterName=construx-prod \
+#   --set capabilities.continuousScan=enable \
+#   --set capabilities.relevancyEnabled=enable
+
+# Values configuration
+kubescape-operator:
+  clusterName: construx-prod
+
+  # Scan schedule
+  operator:
+    triggerSecurityFramework: true
+    scanSchedule: "0 */6 * * *"    # every 6 hours
+
+  # Frameworks to scan
+  frameworks:
+    - name: nsa
+    - name: mitre
+    - name: cis-eks-t1.2.0
+
+  # Prometheus metrics export
+  prometheus:
+    enable: true
+    serviceMonitor:
+      enable: true
+
+  # Exception: node-exporter container legitimately needs privilege
+  exceptions:
+    - name: node-exporter-privilege
+      policyType: excludeControlsForWorkload
+      resources:
+        - apiGroups: ["apps"]
+          resources: ["daemonsets"]
+          namespace: monitoring
+          name: prometheus-node-exporter
+      posturePolicies:
+        - frameworkName: NSA
+          controlName: Allow privilege escalation
+
+---
+# Kubescape PrometheusRule: alert on compliance degradation
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubescape-compliance
+  namespace: kubescape
+spec:
+  groups:
+    - name: kubescape
+      rules:
+        - alert: KubescapeComplianceDegraded
+          expr: kubescape_framework_risk_score{framework="NSA"} < 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kubernetes compliance below 90% ({{ $value | humanize }}%)"
+            description: "NSA framework risk score has dropped to {{ $value }}%. Investigate recent deployments."
+```
+
+```bash
+# Kubescape RBAC visualisation
+
+# Export RBAC graph as JSON (service accounts → roles → permissions)
+kubescape scan control C-0034 \    # "Automatic mapping of service account" control
+  --namespace construx-prod \
+  --format json \
+  | jq '.results[] | select(.statusInfo.status == "failed") | .object | {
+      name: .name,
+      namespace: .namespace,
+      automountServiceAccountToken: .spec.automountServiceAccountToken
+    }'
+
+# Output:
+# { "name": "orders-api", "namespace": "construx-prod", "automountServiceAccountToken": null }
+# → null means not explicitly set to false — fix: add automountServiceAccountToken: false
+
+# Generate HTML report for security review
+kubescape scan framework nsa \
+  --namespace construx-prod \
+  --format html \
+  --output /tmp/kubescape-report.html
+
+# View Prometheus metric: current compliance score
+curl -s "http://prometheus.construx-monitoring.svc.cluster.local:9090/api/v1/query" \
+  --data-urlencode 'query=kubescape_framework_risk_score' \
+  | jq '.data.result[] | {framework: .metric.framework, score: .value[1]}'
+
+# Output:
+# { "framework": "NSA",         "score": "94" }
+# { "framework": "MITRE",       "score": "91" }
+# { "framework": "cis-eks",     "score": "88" }
+```
+
+Kubescape vs Falco vs OPA Gatekeeper vs kube-bench vs Trivy: These tools operate at different points in the security lifecycle. OPA Gatekeeper (dispatch-1121) enforces policy at admission time — it prevents non-compliant resources from being created. Kubescape scans both at admission time (via CI/CD integration) and against existing cluster state — it catches what was applied before policy enforcement existed. Falco (dispatch-1110) detects runtime security events — unexpected process execution, file access, network connections — rather than configuration compliance. kube-bench runs the CIS Kubernetes Benchmark specifically against node-level configuration (kubelet flags, etcd permissions, API server settings) — Kubescape covers a broader set of frameworks including workload-level checks. Trivy (TrivyScanPanel) focuses on container image vulnerability scanning and SBOM generation; Kubescape focuses on Kubernetes configuration and RBAC. Together, Kubescape (compliance scan) + Falco (runtime detection) + OPA Gatekeeper (admission enforcement) + Trivy (image scanning) form a four-layer defence-in-depth approach that covers the pre-deploy, deploy, and runtime phases of the security lifecycle. At Construx, Kubescape compliance score is a weekly engineering metric reviewed in the platform team's Monday sync alongside uptime and error rate — a declining score is treated as a bug, not a nice-to-have.

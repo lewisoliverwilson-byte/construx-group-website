@@ -1,0 +1,150 @@
+---
+title: "Hubble: Cilium network observability — flows, policy verdicts, service map, drops"
+date: "2034-05-11"
+excerpt: "Hubble is the observability layer for Cilium — it uses eBPF ring buffers to capture every network flow processed by Cilium's data plane and exposes them via a gRPC streaming API, a CLI, and a UI. Where Cilium enforces network policies, Hubble lets you see every allow and deny decision in real time: which pod tried to talk to which other pod, which policy matched, and whether the connection was forwarded or dropped. The Hubble Relay aggregates flow data from all nodes in the cluster and exposes a single API endpoint. The service map UI auto-generates a dependency graph of all inter-service communication observed over a time window, making it possible to discover undocumented service dependencies before writing network policies. The policy verdict drill-down shows exactly why a packet was dropped — which CiliumNetworkPolicy rule matched — which is invaluable for debugging policy errors without having to read through dozens of YAML files. At Construx, Hubble runs on all 3 nodes of the production cluster and captures 42k flows per second. The service map revealed 3 unexpected cross-namespace connections that weren't captured in the documented architecture — all three were subsequently blocked with egress deny policies and the dependencies resolved properly."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Hubble. Flows. Policy verdict. FORWARDED. DROPPED. Service map. Ring buffer. Relay.
+
+## Hubble flow observation and policy debugging
+
+```bash
+# Hubble CLI: observe live network flows
+
+# Stream all flows from construx-prod namespace in real time
+hubble observe \
+  --namespace construx-prod \
+  --follow \
+  --output compact
+
+# Output:
+# May 11 03:14:22.110  FORWARDED  frontend/frontend-7d4b → orders-api/orders-api-6f8c:8080
+#                      HTTP GET /api/v1/orders?page=1  → 200 OK  4.2ms
+# May 11 03:14:22.114  FORWARDED  orders-api → payments-api/payments-api-9c4d:8080
+#                      gRPC /construx.payments.v1.PaymentsService/Charge → OK
+# May 11 03:14:22.198  DROPPED    unknown-scraper → payments-api:8080
+#                      TCP SYN  verdict: DROPPED  reason: Policy denied
+
+# Filter: only dropped connections (policy debugging)
+hubble observe \
+  --namespace construx-prod \
+  --verdict DROPPED \
+  --since 1h \
+  --output json \
+  | jq '{
+      src: .flow.source.labels,
+      dst: .flow.destination.labels,
+      reason: .flow.drop_reason_desc,
+      policy: .flow.policy_match_type
+    }'
+
+# Output:
+# { "src": ["app=analytics-scraper"], "dst": ["app=payments-api"],
+#   "reason": "Policy denied", "policy": "EGRESS" }
+# { "src": ["app=unknown-pod"], "dst": ["app=orders-api"],
+#   "reason": "Policy denied", "policy": "INGRESS" }
+
+# Policy verdict breakdown: what matched what
+hubble observe \
+  --namespace construx-prod \
+  --verdict DROPPED \
+  --output json \
+  | jq '.flow.policy_match_type' | sort | uniq -c | sort -rn
+
+# 12 "EGRESS"       ← pods blocked from talking out
+#  2 "INGRESS"      ← pods blocked from receiving connections
+
+# Observe only L7 (HTTP/gRPC) traffic with full request details
+hubble observe \
+  --namespace construx-prod \
+  --protocol http \
+  --output compact \
+  | grep -E '5[0-9][0-9]'    # filter for 5xx errors only
+
+# Output:
+# FORWARDED  frontend → orders-api:8080  HTTP POST /api/v1/checkout  → 503 Service Unavailable 34ms
+```
+
+```bash
+# Hubble service map: discover undocumented dependencies
+
+# Export service dependency graph as JSON (for graphing or auditing)
+hubble observe \
+  --namespace construx-prod \
+  --since 24h \
+  --output json \
+  | jq -r '[.flow.source.workload, .flow.destination.workload] | @csv' \
+  | sort | uniq -c | sort -rn | head -20
+
+# Output:
+# 48291  "orders-api","payments-api"
+# 34102  "frontend","orders-api"
+# 12083  "orders-api","postgres"
+# 8471   "analytics","orders-api"        ← undocumented cross-svc dependency
+# 2931   "cron-scheduler","orders-api"
+#   14   "unknown-scraper","payments-api" ← unexpected — now blocked
+
+# Hubble UI: visual service map (in-cluster web UI)
+# Accessible at: https://hubble.construx.io (Istio gateway → Hubble Relay → UI)
+# Shows: live flow graph, per-edge request rate, p99 latency, drop rate
+
+# Hubble Relay: aggregate flows from all nodes (deployed as a Deployment)
+kubectl get deploy -n kube-system hubble-relay
+# NAME           READY   UP-TO-DATE   AVAILABLE
+# hubble-relay   2/2     2            2
+
+# Per-node flow capture stats
+kubectl exec -n kube-system ds/cilium -- hubble-cli status
+# Hubble flows/s:  42,317 total  ← ring buffer usage
+# Max flows/node:  4096 (ring buffer size — increase for longer history)
+# Nodes seen:      3/3
+```
+
+```yaml
+# Hubble: enable in Cilium values (Helm installation)
+
+cilium:
+  hubble:
+    enabled: true
+    relay:
+      enabled: true
+      replicas: 2
+    ui:
+      enabled: true
+      ingress:
+        enabled: true
+        annotations:
+          kubernetes.io/ingress.class: "istio"
+        hosts:
+          - hubble.construx.io
+    tls:
+      auto:
+        enabled: true
+        method: certmanager
+        certManagerIssuerRef:
+          name: letsencrypt-prod
+          kind: ClusterIssuer
+
+    # Metrics: expose flow counts as Prometheus metrics
+    metrics:
+      enabled:
+        - dns:query;ignoreAAAA
+        - drop
+        - flow
+        - http
+        - icmp
+        - port-distribution
+        - tcp
+      serviceMonitor:
+        enabled: true    # Prometheus Operator scrape config
+
+    # Flow export to external system via OTel (Cilium 1.16+)
+    export:
+      static:
+        enabled: true
+        filePath: /var/run/cilium/hubble/events.log
+```
+
+Hubble vs Istio telemetry vs Wireshark vs Datadog NPM vs Calico Enterprise: Istio's telemetry (dispatch-1140) observes HTTP and gRPC at the L7 proxy layer — it knows about HTTP verbs, status codes, and trace IDs. Hubble observes at the kernel level via eBPF, so it sees all L3/L4 traffic regardless of protocol (TCP, UDP, DNS, ICMP) and for L7-aware protocols (HTTP, DNS, Kafka, gRPC) it can parse the protocol when Cilium's L7 policy is enabled. Wireshark/tcpdump capture raw packets but require access to the node network interface and cannot correlate flows with Kubernetes workload identity. Datadog Network Performance Monitoring provides a similar service dependency graph but ties you to the Datadog backend and uses its own eBPF agent. Calico Enterprise includes network flow logs as part of its commercial offering. Hubble's advantage is that it is tightly integrated with Cilium's policy engine — every flow verdict (FORWARDED or DROPPED) includes the exact policy rule that matched, making it the definitive tool for debugging CiliumNetworkPolicy rules. The service map feature emerges from aggregating flows rather than requiring explicit service registration, which means it captures undocumented dependencies (legacy cronjobs, one-off scripts, misconfigured clients) that architecture diagrams miss. At Construx, Hubble's drop feed is routed to an alert rule: more than 100 DROPPED flows per minute to any payments-api endpoint triggers a PagerDuty alert.

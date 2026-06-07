@@ -1,0 +1,194 @@
+---
+title: "OpenTelemetry Operator: auto-instrumentation, target allocator, collector CRDs"
+date: "2034-05-17"
+excerpt: "The OpenTelemetry Operator is a Kubernetes operator that manages the full OpenTelemetry deployment lifecycle: deploying and configuring OTel Collectors via CRD, injecting auto-instrumentation SDKs into pods without code changes, and running the Target Allocator for Prometheus scrape target distribution. The Instrumentation CRD defines which language SDK to inject (Go, Java, Node.js, Python, .NET) and the sampling configuration — any pod with the matching annotation gets the SDK injected as an init container, environment variables set, and the OTLP exporter configured automatically. The Target Allocator is a component that solves the Prometheus scraping problem in Kubernetes: when multiple Collector replicas exist, the Target Allocator distributes scrape targets across replicas so no target is scraped twice and all replicas share the load equally. It reads PodMonitor and ServiceMonitor CRDs (Prometheus Operator's formats) and distributes them to Collector replicas via HTTP. At Construx, the OTel Operator manages 4 Collector deployments (metrics-pipeline, traces-pipeline, logs-pipeline, and a daemonset for node metrics) and auto-instructs 6 Go services and 2 Node.js services, reducing SDK onboarding from a multi-day per-service task to a single annotation."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Instrumentation CRD. Target Allocator. Auto-inject. OTLP. SDK. Sidecar mode. OpAMP.
+
+## OpenTelemetry Operator: Instrumentation and Collector CRDs
+
+```yaml
+# Instrumentation: auto-inject OTel SDK into Go pods
+# Any pod with annotation: instrumentation.opentelemetry.io/inject-go: "true"
+# gets the SDK injected automatically
+
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: construx-go-instrumentation
+  namespace: construx-prod
+spec:
+  exporter:
+    endpoint: http://otelcol-collector.construx-monitoring.svc.cluster.local:4317
+
+  propagators:
+    - tracecontext     # W3C TraceContext
+    - baggage
+    - b3               # B3 for Zipkin-compat (some internal tools still use it)
+
+  sampler:
+    type: parentbased_traceidratio
+    argument: "0.1"     # 10% head sampling — collector applies tail sampling
+
+  go:
+    # Go auto-instrumentation via eBPF (no code changes — uses Beyla-style uprobe injection)
+    image: ghcr.io/open-telemetry/opentelemetry-go-instrumentation/autoinstrumentation-go:v0.15.0
+    env:
+      - name: OTEL_GO_AUTO_TARGET_EXE
+        value: /app/orders-api     # binary path in container
+
+  nodejs:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.52.1
+    env:
+      - name: NODE_OPTIONS
+        value: "--require /otel-auto-instrumentation/autoinstrumentation.js"
+
+  java:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.6.0
+
+---
+# OpenTelemetryCollector: metrics pipeline with Target Allocator
+# Deployed as a 3-replica Deployment; Target Allocator distributes ServiceMonitors
+
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: metrics-pipeline
+  namespace: construx-monitoring
+spec:
+  mode: statefulset          # required for Target Allocator
+  replicas: 3
+
+  # Target Allocator: distributes Prometheus scrape targets across collector replicas
+  targetAllocator:
+    enabled: true
+    serviceAccount: otelcol-targetallocator
+    prometheusCR:
+      enabled: true           # reads ServiceMonitor and PodMonitor CRDs
+      scrapeInterval: 30s
+
+  config:
+    receivers:
+      prometheus:
+        config:
+          scrape_configs: []   # populated dynamically by Target Allocator
+        target_allocator:
+          endpoint: http://metrics-pipeline-targetallocator.construx-monitoring.svc.cluster.local:80
+          interval: 30s
+          collector_id: "${POD_NAME}"
+
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4318 }
+
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1000
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 75
+        spike_limit_percentage: 25
+      resource:
+        attributes:
+          - action: insert
+            key: cluster.name
+            value: construx-prod
+
+    exporters:
+      prometheusremotewrite:
+        endpoint: http://thanos-receive.construx-monitoring.svc.cluster.local:19291/api/v1/receive
+        resource_to_telemetry_conversion:
+          enabled: true
+
+    service:
+      pipelines:
+        metrics:
+          receivers:  [prometheus, otlp]
+          processors: [memory_limiter, batch, resource]
+          exporters:  [prometheusremotewrite]
+```
+
+```yaml
+# OpenTelemetryCollector: traces pipeline with tail sampling
+# Deployed as DaemonSet — every node has a local collector for low-latency trace ingestion
+
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: traces-pipeline
+  namespace: construx-monitoring
+spec:
+  mode: daemonset
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+
+    processors:
+      tail_sampling:
+        decision_wait: 10s
+        num_traces: 100000
+        policies:
+          - name: errors-policy
+            type: status_code
+            status_code: { status_codes: [ERROR] }    # always sample errors
+          - name: slow-policy
+            type: latency
+            latency: { threshold_ms: 200 }            # sample slow requests
+          - name: random-policy
+            type: probabilistic
+            probabilistic: { sampling_percentage: 5 }  # 5% of remaining
+
+      batch:
+        timeout: 5s
+
+    exporters:
+      otlp:
+        endpoint: http://tempo.construx-monitoring.svc.cluster.local:4317
+
+    service:
+      pipelines:
+        traces:
+          receivers:  [otlp]
+          processors: [tail_sampling, batch]
+          exporters:  [otlp]
+```
+
+```bash
+# OTel Operator: verify instrumentation injection
+
+# Add annotation to enable auto-instrumentation for orders-api
+kubectl patch deployment orders-api -n construx-prod \
+  --type merge \
+  -p '{"spec":{"template":{"metadata":{"annotations":{"instrumentation.opentelemetry.io/inject-go":"true"}}}}}'
+
+# Verify init container injected by operator
+kubectl get pod -n construx-prod -l app=orders-api -o jsonpath='{.items[0].spec.initContainers[*].name}'
+# opentelemetry-auto-instrumentation-go
+
+# Check env vars set by operator
+kubectl get pod -n construx-prod -l app=orders-api -o jsonpath='{.items[0].spec.containers[0].env}' \
+  | jq '.[] | select(.name | startswith("OTEL_"))'
+# { "name": "OTEL_SERVICE_NAME",              "value": "orders-api" }
+# { "name": "OTEL_EXPORTER_OTLP_ENDPOINT",    "value": "http://metrics-pipeline-collector:4317" }
+# { "name": "OTEL_RESOURCE_ATTRIBUTES",       "value": "k8s.namespace.name=construx-prod,k8s.node.name=..." }
+
+# Target Allocator: inspect distributed scrape targets
+curl -s http://metrics-pipeline-targetallocator.construx-monitoring.svc.cluster.local:80/jobs \
+  | jq 'keys'
+# ["orders-api-metrics","payments-api-metrics","postgres-exporter","kafka-exporter"]
+
+curl -s "http://metrics-pipeline-targetallocator.construx-monitoring.svc.cluster.local:80/jobs/orders-api-metrics/targets?collector_id=metrics-pipeline-collector-0" \
+  | jq '.[0]'
+# { "targets": ["orders-api-6f8c-x8z2p.construx-prod.svc.cluster.local:9090"],
+#   "labels": {"__meta_kubernetes_pod_name": "orders-api-6f8c-x8z2p"} }
+```
+
+OpenTelemetry Operator vs Prometheus Operator vs manual OTel Collector deployment vs Datadog Operator: Prometheus Operator manages Prometheus instances and AlertManager via CRDs (ServiceMonitor, PodMonitor, PrometheusRule) — it focuses on the scraping and alerting lifecycle but does not handle tracing, logging, or SDK injection. The OTel Operator is complementary: it reads Prometheus Operator's ServiceMonitor CRDs via the Target Allocator, making them coexist in a unified pipeline. A manually deployed OTel Collector (dispatch-1127) as a Deployment or DaemonSet works but requires manual updates to the config ConfigMap and a rolling restart for every configuration change — the Operator manages this declaratively via CRD and rolling update. The Datadog Operator deploys the Datadog Agent and provides similar auto-injection of the Datadog tracer, but it is tightly coupled to the Datadog backend. The OTel Operator's auto-instrumentation distinguishes it from all other options: no other open-source Kubernetes operator provides SDK injection across Go, Java, Python, Node.js, and .NET from a single Instrumentation CRD. At Construx, the OTel Operator reduced new-service observability onboarding from a 2-day SDK integration task to adding one annotation to the Deployment — the Target Allocator eliminated the double-scraping problem that occurred when we scaled Collectors from 1 to 3 replicas.
