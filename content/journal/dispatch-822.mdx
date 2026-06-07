@@ -1,0 +1,115 @@
+---
+title: "WireGuard: a modern VPN in 4,000 lines of code"
+date: "2031-09-14"
+excerpt: "WireGuard is a VPN protocol implemented in 4,000 lines of C (compared to OpenVPN's 100,000+). It uses modern cryptography: Curve25519 for key exchange, ChaCha20-Poly1305 for encryption, BLAKE2 for hashing. Configuration is minimal — public/private key pairs, peer IP ranges, and an endpoint. WireGuard tunnels are stateless: a peer is either configured or it isn't; there's no negotiation, no handshake state to maintain."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+4,000 lines. Modern crypto. Zero handshake state.
+
+## Key generation
+
+```bash
+# Generate a key pair for each peer
+wg genkey | tee private.key | wg pubkey > public.key
+
+# Or in one command
+wg genkey | tee /etc/wireguard/wg0.key | wg pubkey > /etc/wireguard/wg0.pub
+
+# Output:
+# Private: aG7yF2kL9mPwXvR4nD8jSe1tBzUiQc6A3hNbYsWo=
+# Public:  pQrS8vKj2wMnTyL4xZe6aFhBcDuGiP0oX9sN3Ym7=
+```
+
+## Server configuration
+
+```ini
+# /etc/wireguard/wg0.conf — VPS server
+[Interface]
+Address    = 10.0.0.1/24
+ListenPort = 51820
+PrivateKey = aG7yF2kL9mPwXvR4nD8jSe1tBzUiQc6A3hNbYsWo=
+
+# Enable IP forwarding and NAT (for routing client traffic to internet)
+PostUp   = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# Peer: dev laptop
+[Peer]
+PublicKey            = zMnQ4vBjRcXpWs9yLeF7kGhT1uIoP3aD6eC2nZwb=
+AllowedIPs           = 10.0.0.2/32
+
+# Peer: CI runner
+[Peer]
+PublicKey            = hWxK8dNjF3tPcL6mRvB2sQyZ5aGiUeT9oE4rYpCs=
+AllowedIPs           = 10.0.0.3/32
+
+# Peer: production worker
+[Peer]
+PublicKey            = cLpQ7nTgF2vXjM4kRsD8eHbN1wYoZ9aB6uPiW3Ec=
+AllowedIPs           = 10.0.0.4/32
+```
+
+## Client configuration
+
+```ini
+# /etc/wireguard/wg0.conf — dev laptop
+[Interface]
+Address    = 10.0.0.2/24
+PrivateKey = sD9kPxF3wLmNcBjTqE6vGhR4uZyIaO8iW1oMb7Yt=
+
+# Route only VPN traffic through the tunnel (split tunnelling)
+# DNS = 10.0.0.1  # Optional: use VPN DNS server
+
+[Peer]
+PublicKey            = pQrS8vKj2wMnTyL4xZe6aFhBcDuGiP0oX9sN3Ym7=
+Endpoint             = vps.construxgroup.io:51820
+AllowedIPs           = 10.0.0.0/24   # Only route VPN subnet through tunnel
+PersistentKeepalive  = 25            # Keep NAT mapping alive
+```
+
+## Manage with wg-quick
+
+```bash
+# Bring up the interface
+wg-quick up wg0
+
+# Bring down
+wg-quick down wg0
+
+# Enable on boot (systemd)
+systemctl enable wg-quick@wg0
+
+# Show current status
+wg show
+# interface: wg0
+#   public key: pQrS8vKj2wMnTyL4xZe6aFhBcDuGiP0oX9sN3Ym7=
+#   listening port: 51820
+# 
+# peer: zMnQ4vBjRcXpWs9yLeF7kGhT1uIoP3aD6eC2nZwb=
+#   endpoint: 82.194.24.31:44221
+#   allowed ips: 10.0.0.2/32
+#   latest handshake: 14 seconds ago
+#   transfer: 12.4 MiB received, 3.2 MiB sent
+```
+
+## Private network for internal services
+
+```ini
+# wg0.conf — route all database/cache traffic through VPN
+# Database server only listens on 10.0.0.0/24 — not exposed to internet
+[Interface]
+Address   = 10.0.0.2/32
+PrivateKey = ...
+
+[Peer]
+PublicKey  = ...  # Production VPS
+Endpoint   = vps.construxgroup.io:51820
+AllowedIPs = 10.0.0.0/24  # All services in the VPN subnet
+
+# postgres, redis, etc. listen on 10.0.0.1 — reachable from VPN only
+# DATABASE_URL=postgresql://user:pass@10.0.0.1:5432/construx
+```
+
+WireGuard vs OpenVPN: OpenVPN is older, more widely supported, and has a larger configuration surface. WireGuard is smaller, faster (kernel-level implementation), and uses better cryptography by default. The Construx default: WireGuard for all inter-service networking between VPS instances; also used for developer access to staging environments.

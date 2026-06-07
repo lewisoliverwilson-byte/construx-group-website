@@ -1,0 +1,144 @@
+---
+title: "HashiCorp Vault: secrets management at runtime"
+date: "2031-09-17"
+excerpt: "Vault stores secrets and generates short-lived credentials. Instead of hardcoding database passwords in environment variables, services authenticate to Vault with an identity token and request a credential with a 1-hour TTL. When the credential expires, the service requests a new one. Vault also provides dynamic secrets — credentials that are generated on-demand and never stored in plaintext anywhere."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Short-lived credentials. No hardcoded secrets. Audit log for everything.
+
+## Deploy Vault — Docker
+
+```bash
+# Production: use Vault with integrated Raft storage
+docker run -d \
+  --name vault \
+  -p 8200:8200 \
+  -v /vault/data:/vault/data \
+  -e VAULT_LOCAL_CONFIG='{"storage":{"raft":{"path":"/vault/data"}},"listener":[{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}}],"ui":true}' \
+  hashicorp/vault:1.18 server
+
+# Initialize (first run only)
+vault operator init -key-shares=5 -key-threshold=3
+
+# Unseal (requires 3 of the 5 key shares)
+vault operator unseal $UNSEAL_KEY_1
+vault operator unseal $UNSEAL_KEY_2
+vault operator unseal $UNSEAL_KEY_3
+```
+
+## KV secrets engine
+
+```bash
+# Enable KV v2
+vault secrets enable -path=secret kv-v2
+
+# Write a secret
+vault kv put secret/construx/api \
+  RESEND_API_KEY=re_xxxx \
+  POSTHOG_API_KEY=phc_xxxx \
+  STRIPE_SECRET_KEY=sk_live_xxxx
+
+# Read a secret
+vault kv get secret/construx/api
+
+# Get only the secret data as JSON
+vault kv get -format=json secret/construx/api | jq '.data.data'
+
+# Update a single field
+vault kv patch secret/construx/api RESEND_API_KEY=re_new_key
+
+# Version history
+vault kv history secret/construx/api
+```
+
+## Dynamic database credentials
+
+```bash
+# Enable the database secrets engine
+vault secrets enable database
+
+# Configure a PostgreSQL connection
+vault write database/config/construx-db \
+  plugin_name=postgresql-database-plugin \
+  connection_url="postgresql://{{username}}:{{password}}@localhost:5432/construx" \
+  allowed_roles="api-service" \
+  username="vault_admin" \
+  password="$VAULT_DB_PASSWORD"
+
+# Create a role — Vault generates credentials with this template
+vault write database/roles/api-service \
+  db_name=construx-db \
+  creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";" \
+  default_ttl=1h \
+  max_ttl=24h
+
+# Request credentials — Vault creates a real database user
+vault read database/creds/api-service
+# Key                Value
+# ---                -----
+# username           v-api-service-abc123
+# password           A1B2C3D4E5F6G7H8
+# lease_duration     1h
+# lease_id           database/creds/api-service/xyz789
+```
+
+## Node.js — request secrets at startup
+
+```ts
+// lib/vault.ts
+import { NodeVaultClient } from 'node-vault';
+
+const vault = NodeVaultClient({
+  endpoint: process.env.VAULT_ADDR!,
+  token:    process.env.VAULT_TOKEN!,
+});
+
+export async function getSecret(path: string): Promise<Record<string, string>> {
+  const result = await vault.read(`secret/data/${path}`);
+  return result.data.data;
+}
+
+export async function getDatabaseCredentials(): Promise<{ username: string; password: string }> {
+  const result = await vault.read('database/creds/api-service');
+  return { username: result.data.username, password: result.data.password };
+}
+
+// Usage — rotate credentials on startup and refresh before TTL expires
+async function initDatabase() {
+  const creds = await getDatabaseCredentials();
+  const url   = `postgresql://${creds.username}:${creds.password}@${process.env.DB_HOST}/construx`;
+  return new Pool({ connectionString: url });
+}
+```
+
+## AppRole authentication — for services
+
+```bash
+# Enable AppRole auth method
+vault auth enable approle
+
+# Create a policy for the API service
+vault policy write api-service - <<EOF
+path "secret/data/construx/api" { capabilities = ["read"] }
+path "database/creds/api-service" { capabilities = ["read"] }
+EOF
+
+# Create the AppRole
+vault write auth/approle/role/api-service \
+  token_policies=api-service \
+  token_ttl=1h \
+  token_max_ttl=4h
+
+# Get role ID and secret ID
+vault read auth/approle/role/api-service/role-id
+vault write -f auth/approle/role/api-service/secret-id
+
+# Authenticate and get a token
+vault write auth/approle/login \
+  role_id=<role-id> \
+  secret_id=<secret-id>
+```
+
+Vault vs AWS Secrets Manager: Secrets Manager is simpler if you're already on AWS — no server to manage, native IAM integration. Vault is cloud-agnostic, supports dynamic secrets (Secrets Manager stores static credentials), and has a richer policy engine. The Construx default: AWS Secrets Manager for AWS-native secrets; Vault for dynamic database credentials and cross-cloud secret rotation.

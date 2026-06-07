@@ -16,6 +16,7 @@ import BpftracePanel from '@/components/BpftracePanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import WireGuardPanel from '@/components/WireGuardPanel';
 import SystemdStatusPanel from '@/components/SystemdStatusPanel';
+import FioPanel from '@/components/FioPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -380,8 +381,13 @@ export default function NowPage() {
         </div>
 
         {/* systemd service units */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SystemdStatusPanel />
+        </div>
+
+        {/* Disk I/O benchmark */}
+        <div className="mt-6 pb-10">
+          <FioPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
