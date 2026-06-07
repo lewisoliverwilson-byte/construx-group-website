@@ -82,6 +82,7 @@ import LighthousePanel from '@/components/LighthousePanel';
 import LsofPanel from '@/components/LsofPanel';
 import BufPanel from '@/components/BufPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
+import CuePanel from '@/components/CuePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -812,8 +813,13 @@ export default function StatsPage() {
       </div>
 
       {/* ansible playbook — tasks, hosts, roles, handlers */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <AnsiblePlaybookPanel />
+      </div>
+
+      {/* cue — schema, validate, export, format */}
+      <div className="mt-6 pb-10">
+        <CuePanel />
       </div>
     </div>
   );

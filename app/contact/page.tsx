@@ -79,6 +79,7 @@ import KyvernoPanel from '@/components/KyvernoPanel';
 import LshwPanel from '@/components/LshwPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import ActPanel from '@/components/ActPanel';
+import CpuStatsPanel from '@/components/CpuStatsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -772,8 +773,13 @@ export default function ContactPage() {
       </section>
 
       {/* act — github actions local runner, jobs, steps, env */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ActPanel />
+      </section>
+
+      {/* cpu stats — cores, freq, load, iowait, steal */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CpuStatsPanel />
       </section>
     </div>
   );

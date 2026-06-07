@@ -80,6 +80,7 @@ import LokiPanel from '@/components/LokiPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
+import DbMigrationPanel from '@/components/DbMigrationPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -900,8 +901,13 @@ export default function FoundersPage() {
         </div>
 
         {/* clickhouse keeper — raft, leader, quorum, sessions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickHouseKeeperPanel />
+        </div>
+
+        {/* db migration — version, applied, pending, checksum */}
+        <div className="mt-6 pb-10">
+          <DbMigrationPanel />
         </div>
 
         {/* CTA */}
