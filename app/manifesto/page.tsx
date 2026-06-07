@@ -62,6 +62,7 @@ import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import CiliumPanel from '@/components/CiliumPanel';
+import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -555,8 +556,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cilium ebpf networking — endpoints, policy, hubble flows */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CiliumPanel />
+        </div>
+
+        {/* nats jetstream — streams, consumers, messages, acks */}
+        <div className="mt-4 pb-6">
+          <NATSJetStreamPanel />
         </div>
 
         {/* Sign-off */}

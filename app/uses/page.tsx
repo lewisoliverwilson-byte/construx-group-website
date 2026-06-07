@@ -60,6 +60,7 @@ import AirbytePanel from '@/components/AirbytePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import DaprPanel from '@/components/DaprPanel';
 import AirflowPanel from '@/components/AirflowPanel';
+import CiliumPanel from '@/components/CiliumPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -662,8 +663,13 @@ export default function UsesPage() {
         </div>
 
         {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AirflowPanel />
+        </div>
+
+        {/* cilium ebpf networking — endpoints, policy, hubble flows */}
+        <div className="mt-6 pb-10">
+          <CiliumPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

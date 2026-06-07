@@ -65,6 +65,7 @@ import FlinkPanel from '@/components/FlinkPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import DaprPanel from '@/components/DaprPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -511,8 +512,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* airbyte open-source elt — connectors, syncs, data movement */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <AirbytePanel />
+      </section>
+
+      {/* dapr distributed application runtime — actors, pub/sub, state */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DaprPanel />
       </section>
 
       {/* Posts */}

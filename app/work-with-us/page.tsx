@@ -61,6 +61,7 @@ import CiliumPanel from '@/components/CiliumPanel';
 import DaprPanel from '@/components/DaprPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
+import AirbytePanel from '@/components/AirbytePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -895,8 +896,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <FlinkPanel />
+      </section>
+
+      {/* airbyte open-source elt — connectors, syncs, data movement */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <AirbytePanel />
       </section>
 
       {/* CTA */}
