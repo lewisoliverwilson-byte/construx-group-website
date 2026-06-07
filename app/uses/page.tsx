@@ -24,6 +24,7 @@ import ActPanel from '@/components/ActPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import OpenFgaPanel from '@/components/OpenFgaPanel';
 import ScyllaDbPanel from '@/components/ScyllaDbPanel';
+import QdrantPanel from '@/components/QdrantPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -446,8 +447,13 @@ export default function UsesPage() {
         </div>
 
         {/* scylladb wide-column cassandra — shard-per-core, no gc, p99 latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ScyllaDbPanel />
+        </div>
+
+        {/* qdrant vector database — hnsw ann, hybrid bm25+dense, payload filtering */}
+        <div className="mt-6 pb-10">
+          <QdrantPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

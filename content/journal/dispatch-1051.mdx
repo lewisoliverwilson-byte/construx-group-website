@@ -1,0 +1,170 @@
+---
+title: "Temporal: durable execution — workflows that survive process crashes and network failures"
+date: "2033-08-02"
+excerpt: "Temporal is a durable execution platform that makes application code resilient to infrastructure failures. You write a workflow as ordinary code (Go, TypeScript, Python, Java) — the workflow function calls activities (external operations: API calls, database writes, file uploads), and Temporal durably records every state transition in an event history. If the worker process crashes mid-workflow, Temporal replays the event history on restart to restore the exact in-memory state — the workflow continues from where it stopped, not from the beginning. This means you write long-running business processes as sequential code without managing retry logic, state checkpointing, distributed locks, or resume-on-failure yourself. Use cases: order fulfilment pipelines (charge → warehouse → shipping → notify), user onboarding sequences, batch processing jobs with partial progress, sagas (multi-step distributed transactions with compensating actions), and scheduled recurring tasks that need exactly-once execution."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Durable execution. Event history replay. Activities. Signals. Timers. Sagas.
+
+## Workflow and activity definitions
+
+```typescript
+// TypeScript: Temporal workflow — order fulfilment pipeline
+// If the worker crashes at step 3, it resumes at step 3 on restart (not step 1)
+
+import * as workflow from "@temporalio/workflow";
+import type { Activities } from "./activities";
+
+const { chargePayment, reserveInventory, createShipment, sendConfirmationEmail, refundPayment } =
+    workflow.proxyActivities<Activities>({
+        startToCloseTimeout: "30s",   // each activity has 30s to complete
+        retry: {
+            maximumAttempts: 5,
+            initialInterval: "1s",
+            backoffCoefficient: 2,
+            maximumInterval: "30s",
+            nonRetryableErrorTypes: ["InvalidCardError", "FraudDeclined"],
+        },
+    });
+
+export interface FulfilOrderInput {
+    orderId:   string;
+    tenantId:  string;
+    productId: string;
+    quantity:  number;
+    paymentMethodId: string;
+}
+
+export async function fulfilOrder(input: FulfilOrderInput): Promise<void> {
+    // Step 1: charge payment — retried automatically on transient failures
+    const charge = await chargePayment({
+        orderId:         input.orderId,
+        paymentMethodId: input.paymentMethodId,
+    });
+
+    // Step 2: reserve inventory
+    let inventoryReserved = false;
+    try {
+        await reserveInventory({ productId: input.productId, quantity: input.quantity });
+        inventoryReserved = true;
+    } catch (err) {
+        // Saga: compensate — refund if inventory reservation fails
+        await refundPayment({ chargeId: charge.chargeId, reason: "inventory_unavailable" });
+        throw err;
+    }
+
+    // Step 3: create shipment — timer: wait up to 2 days for warehouse pick
+    const shipment = await workflow.condition(
+        () => createShipment({ orderId: input.orderId, warehouseId: charge.warehouseId }),
+        "2d",  // fail if warehouse doesn't respond in 2 days
+    );
+
+    // Step 4: schedule follow-up email 7 days after delivery (durable sleep — no cron)
+    await workflow.sleep("7d");
+
+    // Step 5: send review request
+    await sendConfirmationEmail({
+        orderId:    input.orderId,
+        tenantId:   input.tenantId,
+        shipmentId: shipment.id,
+        kind:       "review_request",
+    });
+}
+
+// Workflow with signal: external event can update in-flight workflow
+export async function processSubscription(tenantId: string): Promise<void> {
+    let cancelled = false;
+
+    // Register a signal handler — external code can cancel this workflow
+    workflow.setHandler(
+        workflow.defineSignal<[{ reason: string }]>("cancel"),
+        ({ reason }) => { cancelled = true; },
+    );
+
+    // Recurring monthly billing — runs indefinitely until cancelled
+    while (!cancelled) {
+        await chargePayment({ orderId: `sub-${tenantId}-${Date.now()}`, paymentMethodId: "saved" });
+        await workflow.sleep("30d");   // durable sleep: survives worker restarts, no cron needed
+    }
+}
+```
+
+## Activity implementations
+
+```typescript
+// activities.ts: the actual side-effecting code
+// Activities are retried on failure — must be idempotent
+
+import { ApplicationFailure, Context } from "@temporalio/activity";
+
+export const activities = {
+    async chargePayment(input: { orderId: string; paymentMethodId: string }) {
+        const ctx = Context.current();
+        ctx.heartbeat("charging payment");   // heartbeat prevents timeout detection false positives
+
+        try {
+            const charge = await stripe.charges.create({
+                amount:   await getOrderAmount(input.orderId),
+                currency: "gbp",
+                source:   input.paymentMethodId,
+                metadata: { orderId: input.orderId },
+                idempotencyKey: input.orderId,   // ensures safe retry
+            });
+            return { chargeId: charge.id, warehouseId: await selectWarehouse(charge) };
+        } catch (err: unknown) {
+            if (isStripeCardDeclined(err)) {
+                // Non-retryable: card declined is a final error, not a transient failure
+                throw ApplicationFailure.nonRetryable("Card declined", "InvalidCardError");
+            }
+            throw err;   // retryable: network error, Stripe timeout, etc.
+        }
+    },
+
+    async reserveInventory(input: { productId: string; quantity: number }) {
+        await db.query(
+            `UPDATE inventory
+             SET reserved = reserved + $1
+             WHERE product_id = $2 AND (stock - reserved) >= $1`,
+            [input.quantity, input.productId],
+        );
+    },
+};
+```
+
+```bash
+# Temporal CLI
+
+# Start the Temporal server (development)
+temporal server start-dev --namespace construx --ui-port 8080
+
+# Start a workflow execution
+temporal workflow start \
+  --workflow-type fulfilOrder \
+  --task-queue construx-orders \
+  --input '{"orderId":"ord-7f2a","tenantId":"10001","productId":"prod-8b2f","quantity":1,"paymentMethodId":"pm_xxx"}' \
+  --workflow-id "order-ord-7f2a"
+
+# List running workflows
+temporal workflow list --query 'WorkflowType="fulfilOrder" AND ExecutionStatus="Running"'
+
+# Describe a specific workflow — see event history
+temporal workflow describe --workflow-id "order-ord-7f2a"
+# Status:          Running
+# WorkflowType:    fulfilOrder
+# HistoryLength:   7          ← 7 events recorded (start, activities, timers)
+
+# Send a signal: cancel a subscription workflow
+temporal workflow signal \
+  --workflow-id "subscription-tenant-10001" \
+  --name cancel \
+  --input '{"reason":"user_requested"}'
+
+# Query: inspect in-flight workflow state (read-only, no side effects)
+temporal workflow query \
+  --workflow-id "order-ord-7f2a" \
+  --type "getStatus"
+```
+
+Temporal vs step functions vs Kafka Streams vs ad-hoc retries: AWS Step Functions is managed (no infrastructure) and integrates natively with AWS services, but is limited to JSON state (no complex objects), is verbose to define (ASL JSON/YAML), and has per-state-transition pricing that adds up for high-throughput workflows. Ad-hoc retry logic (exponential backoff in application code) handles single-step retries but breaks for multi-step sequences — if step 3 of 5 fails, you need to remember to restart at step 3, not step 1. Kafka Streams saga patterns distribute state across topics but require significant boilerplate for saga coordination, compensation, and timeout handling. Temporal's key property is that the workflow code looks like ordinary sequential code — you do not wire up state machines, you do not manage checkpoints explicitly, and you do not build retry infrastructure. The durability comes from the event history replay. The tradeoff: Temporal requires a running Temporal cluster (self-hosted or Temporal Cloud), and the replay model means workflow code must be deterministic (no `Math.random()`, no reading the current time without `workflow.now()`). For business processes with multiple steps, long durations, or failure compensation, Temporal eliminates an entire class of infrastructure complexity.

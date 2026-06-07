@@ -1,0 +1,160 @@
+---
+title: "Citus: distributed PostgreSQL — horizontal sharding with the full PostgreSQL API"
+date: "2033-07-27"
+excerpt: "Citus is a PostgreSQL extension that turns a single PostgreSQL instance into a distributed database cluster. Unlike Vitess (which shards MySQL at the proxy layer) or CockroachDB (which rewrites the storage engine), Citus runs inside PostgreSQL as an extension — your application connects to the Citus coordinator node using a standard PostgreSQL connection string, and the coordinator transparently distributes queries to worker nodes that each hold shards of your data. A distributed table is sharded by a distribution column (typically a tenant_id or user_id) across N worker nodes. Queries that filter by the distribution column are routed to one shard (single-node query); queries without the filter are pushed down to all workers in parallel (scatter-gather). Citus preserves the full PostgreSQL feature set: extensions (pgvector, pg_partman, TimescaleDB), JSONB, array types, CTEs, window functions, and PostGIS all work. The main use case is multi-tenant SaaS: each tenant's data lives on one shard (co-located), so cross-tenant queries are parallelised and per-tenant queries are single-shard efficient."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+PostgreSQL extension. Shard by tenant_id. Co-location. Parallel query. Reference tables.
+
+## Setting up a distributed table
+
+```sql
+-- Citus: distribute tables across worker nodes
+-- coordinator: postgres://coordinator.construx.internal/construx_prod
+
+-- Add worker nodes to the Citus coordinator
+SELECT citus_add_node('worker-1.construx.internal', 5432);
+SELECT citus_add_node('worker-2.construx.internal', 5432);
+SELECT citus_add_node('worker-3.construx.internal', 5432);
+SELECT citus_add_node('worker-4.construx.internal', 5432);
+
+-- Verify cluster topology
+SELECT * FROM citus_get_active_worker_nodes();
+-- node_name                          | node_port
+-- -----------------------------------+----------
+-- worker-1.construx.internal         |      5432
+-- worker-2.construx.internal         |      5432
+-- worker-3.construx.internal         |      5432
+-- worker-4.construx.internal         |      5432
+
+-- Create a table (normal PostgreSQL DDL)
+CREATE TABLE orders (
+    id          UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+    tenant_id   TEXT        NOT NULL,
+    status      TEXT        NOT NULL DEFAULT 'pending',
+    total_pence BIGINT      NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Distribute the table: shard by tenant_id across 32 shards (4 workers × 8 shards each)
+SELECT create_distributed_table('orders', 'tenant_id', shard_count => 32);
+-- Table orders is now distributed with 32 shards on 4 workers
+
+-- Reference table: replicated to every worker (for small lookup tables)
+CREATE TABLE plan_tiers (
+    tier        TEXT PRIMARY KEY,
+    max_orders  INTEGER,
+    price_pence INTEGER
+);
+SELECT create_reference_table('plan_tiers');
+-- Replicated to all 4 workers — joins with distributed tables stay local
+
+-- Co-locate: ensure orders and products for the same tenant land on the same worker
+CREATE TABLE products (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    price_pence INTEGER NOT NULL
+);
+SELECT create_distributed_table('products', 'tenant_id',
+    colocate_with => 'orders');  -- same shard key = same worker
+```
+
+## Query routing and tenant isolation
+
+```sql
+-- Single-tenant query: routed to one shard (no network hop to other workers)
+EXPLAIN SELECT * FROM orders WHERE tenant_id = '10001' AND status = 'completed';
+-- Custom Scan (Citus Adaptive)
+--   Task Count: 1   ← only 1 shard queried
+--   Tasks Shown: One of 1
+--   ->  Seq Scan on orders_102040 (cost=...)
+--         Filter: ((tenant_id = '10001') AND (status = 'completed'))
+
+-- Cross-tenant analytics: parallel scatter-gather across all shards
+EXPLAIN SELECT count(*), sum(total_pence) / 100.0 AS revenue_gbp
+FROM orders WHERE status = 'completed' AND created_at > NOW() - INTERVAL '30 days';
+-- Custom Scan (Citus Adaptive)
+--   Task Count: 32   ← all 32 shards queried in parallel
+--   Tasks Shown: One of 32
+
+-- Local join: orders × products for same tenant (co-located → single worker)
+SELECT o.id, p.name, o.total_pence
+FROM orders o JOIN products p ON o.product_id = p.id
+WHERE o.tenant_id = '10001'    -- co-location key present — join stays on one node
+  AND o.status = 'shipped';
+
+-- Rebalance shards after adding a new worker
+SELECT citus_rebalance_start();
+-- Rebalancing started. Monitor with:
+SELECT * FROM citus_rebalance_status();
+
+-- Shard distribution per worker
+SELECT nodename, count(*) AS shard_count
+FROM pg_dist_placement p
+JOIN pg_dist_node n ON p.groupid = n.groupid
+GROUP BY nodename;
+-- worker-1.construx.internal | 8
+-- worker-2.construx.internal | 8
+-- worker-3.construx.internal | 8
+-- worker-4.construx.internal | 8
+```
+
+## Application integration
+
+```typescript
+// TypeScript: Citus is transparent — use any PostgreSQL client
+// No special Citus SDK needed
+
+import { Pool } from "pg";
+
+const db = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    // Points to coordinator.construx.internal — Citus routes internally
+    max: 20,
+});
+
+// Single-tenant query: fast (one shard)
+async function getTenantOrders(tenantId: string): Promise<Order[]> {
+    const { rows } = await db.query(
+        `SELECT id, status, total_pence, created_at
+         FROM orders
+         WHERE tenant_id = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [tenantId],
+    );
+    return rows;
+}
+
+// Insert: routed to correct shard based on tenant_id hash
+async function createOrder(order: NewOrder): Promise<string> {
+    const { rows } = await db.query(
+        `INSERT INTO orders (tenant_id, status, total_pence)
+         VALUES ($1, $2, $3)
+         RETURNING id`,
+        [order.tenantId, "pending", order.totalPence],
+    );
+    return rows[0].id;
+}
+
+// Cross-tenant analytics: runs in parallel across all shards
+async function getRevenueStats(): Promise<RevenueStats> {
+    const { rows } = await db.query(`
+        SELECT
+            date_trunc('day', created_at)  AS day,
+            count(*)                       AS order_count,
+            sum(total_pence) / 100.0       AS revenue_gbp
+        FROM orders
+        WHERE status = 'completed'
+          AND created_at > NOW() - INTERVAL '7 days'
+        GROUP BY 1
+        ORDER BY 1
+    `);
+    return rows;
+}
+```
+
+Citus vs CockroachDB vs Vitess vs single-node PostgreSQL with partitioning: Single-node PostgreSQL with declarative partitioning (PARTITION BY RANGE/LIST/HASH) can handle hundreds of millions of rows with good query performance — it's worth exhausting single-node options first. CockroachDB is a re-implementation of the PostgreSQL wire protocol with a distributed storage engine — true active-active multi-region but PostgreSQL compatibility is incomplete (no extensions, different planner behaviour). Vitess shards MySQL with a proxy — requires VSchema configuration and loses some MySQL features. Citus's advantage is the full PostgreSQL API with extensions intact: pgvector for embeddings, TimescaleDB for time series, PostGIS for geospatial, pg_partman for partition management — all work because Citus is a PostgreSQL extension, not a rewrite. The tradeoff: Citus cross-shard joins are limited (the distribution column must be present), and operations on undistributed tables run only on the coordinator. For multi-tenant SaaS on PostgreSQL where tenant_id sharding covers 90% of queries, Citus is the most natural scale-out path.
