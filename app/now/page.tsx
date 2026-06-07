@@ -36,6 +36,7 @@ import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import ProwPanel from '@/components/ProwPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import PyroscopePanel from '@/components/PyroscopePanel';
+import KubeflowPanel from '@/components/KubeflowPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -500,8 +501,13 @@ export default function NowPage() {
         </div>
 
         {/* grafana pyroscope continuous profiling — pprof, flamegraph, ebpf */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PyroscopePanel />
+        </div>
+
+        {/* kubeflow mlops — pipelines, experiments, training runs, gpu hours */}
+        <div className="mt-6 pb-10">
+          <KubeflowPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

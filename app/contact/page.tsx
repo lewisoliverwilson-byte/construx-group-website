@@ -35,6 +35,7 @@ import WasmEdgePanel from '@/components/WasmEdgePanel';
 import BazelPanel from '@/components/BazelPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import TemporalPanel from '@/components/TemporalPanel';
+import TeleportPanel from '@/components/TeleportPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -508,8 +509,13 @@ export default function ContactPage() {
       </section>
 
       {/* temporal durable workflow engine — workflows, activities, task queues */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <TemporalPanel />
+      </section>
+
+      {/* teleport zero-trust infra access — nodes, audit log, mTLS */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TeleportPanel />
       </section>
     </div>
   );

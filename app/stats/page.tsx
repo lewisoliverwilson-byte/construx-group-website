@@ -37,6 +37,7 @@ import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import CortexPanel from '@/components/CortexPanel';
 import OpaGatekeeperPanel from '@/components/OpaGatekeeperPanel';
 import MimirPanel from '@/components/MimirPanel';
+import VictoriaLogsPanel from '@/components/VictoriaLogsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -542,8 +543,13 @@ export default function StatsPage() {
       </div>
 
       {/* grafana mimir multi-tenant prometheus tsdb — tenants, series, components */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MimirPanel />
+      </div>
+
+      {/* victorialogs fast log management — streams, logsql queries, compression */}
+      <div className="mt-6 pb-10">
+        <VictoriaLogsPanel />
       </div>
     </div>
   );

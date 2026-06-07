@@ -35,6 +35,7 @@ import CniPanel from '@/components/CniPanel';
 import TerraformCloudPanel from '@/components/TerraformCloudPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
+import TankaPanel from '@/components/TankaPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -630,8 +631,13 @@ export default function FoundersPage() {
         </div>
 
         {/* argo events — event-driven workflows, event sources, sensors, triggers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoEventsPanel />
+        </div>
+
+        {/* tanka jsonnet k8s config — environments, drift diff, applied objects */}
+        <div className="mt-6 pb-10">
+          <TankaPanel />
         </div>
 
         {/* CTA */}
