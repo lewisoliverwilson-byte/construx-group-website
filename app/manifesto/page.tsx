@@ -72,6 +72,7 @@ import CaddyPanel from '@/components/CaddyPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import CortexPanel from '@/components/CortexPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
+import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -615,8 +616,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* clickhouse mv — materialized views, targets, engines */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ClickhouseMvPanel />
+        </div>
+
+        {/* cloudflare workers — routes, bindings, kv, durable objects */}
+        <div className="mt-4 pb-6">
+          <CloudflareWorkersPanel />
         </div>
 
         {/* Sign-off */}

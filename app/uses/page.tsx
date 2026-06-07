@@ -70,6 +70,7 @@ import ConsulPanel from '@/components/ConsulPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
+import DragonflyPanel from '@/components/DragonflyPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -722,8 +723,13 @@ export default function UsesPage() {
         </div>
 
         {/* docker build — layers, cache, stages, push */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DockerBuildPanel />
+        </div>
+
+        {/* dragonfly — redis-compatible, throughput, latency, memory */}
+        <div className="mt-6 pb-10">
+          <DragonflyPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

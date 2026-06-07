@@ -75,6 +75,7 @@ import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
+import DnsLookupPanel from '@/components/DnsLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -571,8 +572,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* disk usage — mount points, sizes, used, available */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DiskUsagePanel />
+      </section>
+
+      {/* dns lookup — queries, records, ttl, resolver */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DnsLookupPanel />
       </section>
 
       {/* Posts */}
