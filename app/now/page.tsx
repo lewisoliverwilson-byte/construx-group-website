@@ -89,6 +89,7 @@ import PgExplainPanel from '@/components/PgExplainPanel';
 import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
 import RekorPanel from '@/components/RekorPanel';
 import RssFeedPanel from '@/components/RssFeedPanel';
+import ScyllaPanel from '@/components/ScyllaPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -818,8 +819,13 @@ export default function NowPage() {
         </div>
 
         {/* rss feed — items, dates, channels, enclosures */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <RssFeedPanel />
+        </div>
+
+        {/* scylla — tablets, vnodes, repairs, compactions */}
+        <div className="mt-6 pb-10">
+          <ScyllaPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

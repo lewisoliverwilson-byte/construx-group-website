@@ -91,6 +91,7 @@ import PackerBuildPanel from '@/components/PackerBuildPanel';
 import PineconePanel from '@/components/PineconePanel';
 import RabbitMQPanel from '@/components/RabbitMQPanel';
 import RiverPanel from '@/components/RiverPanel';
+import ScorecardPanel from '@/components/ScorecardPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -866,8 +867,13 @@ export default function StatsPage() {
       </div>
 
       {/* river — jobs, queues, workers, retries */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <RiverPanel />
+      </div>
+
+      {/* scorecard — checks, scores, risks, remediations */}
+      <div className="mt-6 pb-10">
+        <ScorecardPanel />
       </div>
     </div>
   );

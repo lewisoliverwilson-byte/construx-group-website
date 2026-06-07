@@ -89,6 +89,7 @@ import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PingPanel from '@/components/PingPanel';
 import RclonePanel from '@/components/RclonePanel';
 import RoutingTablePanel from '@/components/RoutingTablePanel';
+import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -954,8 +955,13 @@ export default function FoundersPage() {
         </div>
 
         {/* routing table — destinations, gateways, metrics, flags */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <RoutingTablePanel />
+        </div>
+
+        {/* scylladb — keyspaces, tables, compaction, reads, writes */}
+        <div className="mt-6 pb-10">
+          <ScyllaDbPanel />
         </div>
 
         {/* CTA */}

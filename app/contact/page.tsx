@@ -88,6 +88,7 @@ import OpensslPanel from '@/components/OpensslPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
 import PrometheusMetricsPanel from '@/components/PrometheusMetricsPanel';
 import RenovatePanel from '@/components/RenovatePanel';
+import SbomPanel from '@/components/SbomPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -826,8 +827,13 @@ export default function ContactPage() {
       </section>
 
       {/* renovate — deps, updates, prs, merge confidence */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <RenovatePanel />
+      </section>
+
+      {/* sbom — components, licenses, vulnerabilities, cpe */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <SbomPanel />
       </section>
     </div>
   );
