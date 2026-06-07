@@ -42,6 +42,7 @@ import OpenObservePanel from '@/components/OpenObservePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import DbtPanel from '@/components/DbtPanel';
 import SeaweedFsPanel from '@/components/SeaweedFsPanel';
+import GoReplayPanel from '@/components/GoReplayPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -572,8 +573,13 @@ export default function StatsPage() {
       </div>
 
       {/* seaweedfs distributed blob store — volumes, filer, s3 api */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <SeaweedFsPanel />
+      </div>
+
+      {/* goreplay http traffic replay — shadow testing, rate control */}
+      <div className="mt-6 pb-10">
+        <GoReplayPanel />
       </div>
     </div>
   );

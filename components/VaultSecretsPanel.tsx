@@ -1,239 +1,142 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-interface SecretEntry {
-  path:      string;
-  version:   number;
-  created:   string;
-  ttl:       string;
-  engine:    'kv' | 'database' | 'pki' | 'aws';
-  status:    'active' | 'revoked' | 'expiring';
-  fields:    string[];
-}
-
-const SECRETS: SecretEntry[] = [
-  { path: 'construx/api',              version: 14, created: '2030-11-18 09:12:04', ttl: '∞',      engine: 'kv',       status: 'active',   fields: ['stripe_key', 'sendgrid_key', 'jwt_secret', 'webhook_secret'] },
-  { path: 'construx/db-admin',         version:  3, created: '2030-11-01 00:00:00', ttl: '∞',      engine: 'kv',       status: 'active',   fields: ['username', 'password', 'host', 'port'] },
-  { path: 'construx/cloudflare',       version:  7, created: '2030-10-15 14:33:21', ttl: '∞',      engine: 'kv',       status: 'active',   fields: ['api_token', 'zone_id', 'account_id'] },
-  { path: 'construx/posthog',          version:  2, created: '2030-09-02 08:00:00', ttl: '∞',      engine: 'kv',       status: 'active',   fields: ['project_api_key', 'personal_api_key'] },
-  { path: 'construx/amplify',          version:  5, created: '2030-08-11 11:44:18', ttl: '∞',      engine: 'kv',       status: 'active',   fields: ['access_key_id', 'secret_access_key', 'region'] },
-  { path: 'database/creds/construx-api', version: 0, created: '2030-11-18 08:58:01', ttl: '58m12s', engine: 'database', status: 'active',   fields: ['username', 'password'] },
-  { path: 'database/creds/construx-ro',  version: 0, created: '2030-11-18 06:00:03', ttl: '7m44s',  engine: 'database', status: 'expiring',  fields: ['username', 'password'] },
-  { path: 'database/creds/construx-bg',  version: 0, created: '2030-11-17 22:00:00', ttl: 'revoked',engine: 'database', status: 'revoked',   fields: ['username', 'password'] },
-  { path: 'pki/issue/construxgroup-io',  version: 0, created: '2030-11-01 00:00:00', ttl: '29d',    engine: 'pki',      status: 'active',   fields: ['certificate', 'private_key', 'ca_chain'] },
-  { path: 'aws/creds/construx-deploy',   version: 0, created: '2030-11-18 09:00:00', ttl: '59m58s', engine: 'aws',      status: 'active',   fields: ['access_key', 'secret_key', 'security_token'] },
-  { path: 'construx/railway',          version:  4, created: '2030-10-01 00:00:00', ttl: '∞',      engine: 'kv',       status: 'active',   fields: ['api_key', 'project_id', 'environment_id'] },
-  { path: 'construx/resend',           version:  2, created: '2030-09-15 10:22:00', ttl: '∞',      engine: 'kv',       status: 'active',   fields: ['api_key', 'from_address', 'reply_to'] },
+const SECRETS = [
+  { path: 'secret/construx/db', engine: 'kv-v2', leases: 84, ttl: '24h', status: 'active' },
+  { path: 'pki/construx/cert', engine: 'pki', leases: 12, ttl: '8760h', status: 'active' },
+  { path: 'aws/creds/deploy', engine: 'aws', leases: 4, ttl: '1h', status: 'active' },
+  { path: 'transit/construx/key', engine: 'transit', leases: 0, ttl: 'n/a', status: 'active' },
 ];
 
-interface AuditRow {
-  time:      string;
-  op:        string;
-  path:      string;
-  client:    string;
-  outcome:   'ok' | 'denied';
-}
-
-const AUDIT: AuditRow[] = [
-  { time: '09:12:07', op: 'read',  path: 'construx/data/api',            client: 'k8s/construx-api-7d9f',  outcome: 'ok' },
-  { time: '09:11:58', op: 'read',  path: 'database/creds/construx-api',  client: 'k8s/construx-api-7d9f',  outcome: 'ok' },
-  { time: '09:11:44', op: 'read',  path: 'aws/creds/construx-deploy',    client: 'approle/ci-pipeline',    outcome: 'ok' },
-  { time: '09:10:12', op: 'write', path: 'construx/data/api',            client: 'token/lewis',            outcome: 'ok' },
-  { time: '09:08:33', op: 'read',  path: 'pki/issue/construxgroup-io',   client: 'certbot/renewal',        outcome: 'ok' },
-  { time: '09:05:01', op: 'read',  path: 'construx/data/admin',          client: 'approle/unknown',        outcome: 'denied' },
+const POLICIES = [
+  { name: 'construx-app', paths: 6, capabilities: 'read,list', bound: 'k8s:construx-prod', status: 'OK' },
+  { name: 'construx-ci', paths: 3, capabilities: 'read', bound: 'github:lewisoliverwilson-byte', status: 'OK' },
+  { name: 'construx-ops', paths: 14, capabilities: 'read,create,update', bound: 'ldap:ops-team', status: 'OK' },
+  { name: 'emergency-break', paths: 1, capabilities: 'sudo', bound: 'token:root', status: 'WARN' },
 ];
 
-function engineColor(e: SecretEntry['engine']): string {
-  if (e === 'kv')       return '#60a5fa';
-  if (e === 'database') return '#f97316';
-  if (e === 'pki')      return '#4ade80';
-  return '#fbbf24';
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
-
-function statusColor(s: SecretEntry['status']): string {
-  if (s === 'active')   return '#4ade80';
-  if (s === 'expiring') return '#fbbf24';
-  return '#f87171';
-}
-
-function outcomeColor(o: AuditRow['outcome']): string {
-  return o === 'ok' ? 'rgba(74,222,128,0.5)' : '#f87171';
-}
-
-const TOTAL = SECRETS.length + AUDIT.length;
 
 export default function VaultSecretsPanel() {
-  const [revealed, setRevealed] = useState(0);
-  const [liveTtl,  setLiveTtl]  = useState('58m12s');
-  const ref     = useRef<HTMLDivElement>(null);
-  const started = useRef(false);
+  const [visible, setVisible] = useState(false);
+  const [secRows, setSecRows] = useState(0);
+  const [polRows, setPolRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const leaseRenewals = useCounter(28400, 12, 700);
+  const tokenOps = useCounter(8400, 8, 500);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const id = setTimeout(() => setRevealed((r) => r + 1), 80);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => {
-    if (revealed <= TOTAL) return;
-    const id = setInterval(() => {
-      const mins = Math.floor(Math.random() * 59);
-      const secs = Math.floor(Math.random() * 60);
-      setLiveTtl(`${mins}m${secs < 10 ? '0' : ''}${secs}s`);
-    }, 2500);
-    return () => clearInterval(id);
-  }, [revealed]);
-
-  const allDone = revealed > TOTAL;
-
-  const shownSecrets = SECRETS.slice(0, Math.max(0, Math.min(SECRETS.length, revealed)));
-  const shownAudit   = AUDIT.slice(0, Math.max(0, Math.min(AUDIT.length, revealed - SECRETS.length)));
-
-  const active   = SECRETS.filter((s) => s.status === 'active').length;
-  const expiring = SECRETS.filter((s) => s.status === 'expiring').length;
-  const revoked  = SECRETS.filter((s) => s.status === 'revoked').length;
+    if (!visible) return;
+    const s = setInterval(() => setSecRows((x) => Math.min(x + 1, SECRETS.length)), 160);
+    const p = setInterval(() => setPolRows((x) => Math.min(x + 1, POLICIES.length)), 140);
+    return () => { clearInterval(s); clearInterval(p); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(251,191,36,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(251,191,36,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@vault — vault kv list construx/
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(251,191,36,0.08)', background: 'rgba(251,191,36,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.4)' }}>
+          vault -- secrets management -- kv / pki / aws / transit
         </span>
-        <span className="text-[8px] uppercase tracking-widest tabular-nums" style={{ color: allDone ? 'rgba(74,222,128,0.5)' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${active} active` : 'reading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {tokenOps.toLocaleString()} token ops
         </span>
       </div>
 
       {/* Shell prompt */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@vault:~$</span>
-        <span className="text-[9px] ml-2" style={{ color: 'rgba(240,239,255,0.22)' }}>vault secrets list --detailed</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#fbbf24', fontWeight: 600 }}>vault@construx</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>vault secrets list --detailed && vault lease lookup --prefix secret/construx</span>
       </div>
 
-      {/* Column headers */}
-      {shownSecrets.length > 0 && (
-        <div
-          className="flex items-center px-4 py-1 text-[7px] uppercase tracking-widest select-none"
-          style={{ color: 'rgba(240,239,255,0.16)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ minWidth: '228px', flexShrink: 0 }}>Path</span>
-          <span style={{ minWidth: '60px',  flexShrink: 0 }}>Engine</span>
-          <span style={{ minWidth: '76px',  flexShrink: 0 }}>TTL / Lease</span>
-          <span style={{ minWidth: '64px',  flexShrink: 0 }}>Status</span>
-          <span>Fields</span>
-        </div>
-      )}
-
-      {/* Secret rows */}
-      <div className="px-4 py-1.5 space-y-0.5">
-        {shownSecrets.map((s, i) => (
-          <div key={i} className="flex items-start text-[8px] leading-[1.65]">
-            <span style={{ color: 'rgba(240,239,255,0.55)', minWidth: '228px', flexShrink: 0, fontWeight: 500 }}>
-              {s.path}
-            </span>
-            <span style={{ color: engineColor(s.engine), minWidth: '60px', flexShrink: 0 }}>
-              {s.engine}
-            </span>
-            <span style={{ color: s.status === 'expiring' ? '#fbbf24' : 'rgba(240,239,255,0.25)', minWidth: '76px', flexShrink: 0 }}>
-              {s.path.includes('construx-api') && s.engine === 'database' ? liveTtl : s.ttl}
-            </span>
-            <span style={{ color: statusColor(s.status), minWidth: '64px', flexShrink: 0, fontWeight: 600 }}>
-              {s.status}
-            </span>
-            <span style={{ color: 'rgba(240,239,255,0.2)' }}>
-              {s.fields.join(', ')}
-            </span>
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'lease renewals', value: leaseRenewals.toLocaleString(), color: '#fbbf24' },
+          { label: 'token ops', value: tokenOps.toLocaleString(), color: '#4ade80' },
+          { label: 'secret engines', value: SECRETS.length.toString(), color: '#a78bfa' },
+          { label: 'policies', value: POLICIES.length.toString(), color: '#67e8f9' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
-        {allDone && (
-          <div className="text-[8px] mt-0.5" style={{ color: 'rgba(74,222,128,0.3)' }}>▌</div>
-        )}
       </div>
 
-      {/* Audit log */}
-      {shownAudit.length > 0 && (
-        <div className="px-4 py-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-          <div className="text-[7px] uppercase tracking-widest mb-1" style={{ color: 'rgba(240,239,255,0.16)' }}>
-            — audit log · last 6 events
-          </div>
-          {shownAudit.map((a, i) => (
-            <div key={i} className="flex items-center text-[8px] leading-[1.65] gap-2">
-              <span style={{ color: 'rgba(240,239,255,0.2)', minWidth: '52px', flexShrink: 0 }}>{a.time}</span>
-              <span style={{ color: a.op === 'write' ? '#fbbf24' : '#60a5fa', minWidth: '40px', flexShrink: 0 }}>{a.op}</span>
-              <span style={{ color: 'rgba(240,239,255,0.4)', minWidth: '220px', flexShrink: 0 }}>{a.path}</span>
-              <span style={{ color: 'rgba(240,239,255,0.2)', minWidth: '168px', flexShrink: 0 }}>{a.client}</span>
-              <span style={{ color: outcomeColor(a.outcome), fontWeight: 600 }}>
-                {a.outcome === 'ok' ? '✓ ok' : '✗ denied'}
-              </span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Secret engines */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // secret engines
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {SECRETS.slice(0, secRows).map((sec) => (
+            <div key={sec.path} style={{ display: 'grid', gridTemplateColumns: '1fr 56px 28px 40px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec.path}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{sec.engine}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{sec.leases}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{sec.ttl}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{sec.status}</span>
             </div>
           ))}
         </div>
-      )}
 
-      {/* Summary */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 px-4 py-1 text-[8px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)', color: 'rgba(240,239,255,0.2)' }}
-        >
-          <span style={{ color: '#4ade80' }}>{active} active</span>
-          {expiring > 0 && <span style={{ color: '#fbbf24' }}>{expiring} expiring</span>}
-          {revoked  > 0 && <span style={{ color: '#f87171' }}>{revoked} revoked</span>}
-          <span className="ml-auto">{SECRETS.length} leases total</span>
+        {/* Policies */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // acl policies
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {POLICIES.slice(0, polRows).map((pol) => (
+            <div key={pol.name} style={{ display: 'grid', gridTemplateColumns: '80px 24px 1fr 1fr 40px', alignItems: 'center', gap: 8, padding: '4px 8px', background: pol.status === 'WARN' ? 'rgba(251,191,36,0.06)' : 'rgba(251,191,36,0.03)', border: `1px solid ${pol.status === 'WARN' ? 'rgba(251,191,36,0.18)' : 'rgba(251,191,36,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 7, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pol.name}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{pol.paths}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pol.capabilities}</span>
+              <span style={{ color: 'rgba(240,239,255,0.3)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pol.bound}</span>
+              <span style={{ color: pol.status === 'OK' ? '#4ade80' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{pol.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          vault 1.17.2 · construx.vault.svc · unsealed
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(251,191,36,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          vault v1.17 - bsl-1.1 - secrets management
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? 'rgba(74,222,128,0.35)' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● sealed: false' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {leaseRenewals.toLocaleString()} renewals - {tokenOps.toLocaleString()} token ops
         </span>
       </div>
     </div>

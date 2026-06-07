@@ -41,6 +41,7 @@ import KeycloakPanel from '@/components/KeycloakPanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import PromtailPanel from '@/components/PromtailPanel';
 import FalcoPanel from '@/components/FalcoPanel';
+import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -530,8 +531,13 @@ export default function NowPage() {
         </div>
 
         {/* falco runtime security — syscall rules, k8s audit, alerts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FalcoPanel />
+        </div>
+
+        {/* cloudflare workers — edge runtime, kv namespaces, wrangler */}
+        <div className="mt-6 pb-10">
+          <CloudflareWorkersPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

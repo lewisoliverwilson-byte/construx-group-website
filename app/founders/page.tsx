@@ -40,6 +40,7 @@ import FlaggerPanel from '@/components/FlaggerPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import OpenFgaPanel from '@/components/OpenFgaPanel';
 import TrufflehogPanel from '@/components/TrufflehogPanel';
+import VaultSecretsPanel from '@/components/VaultSecretsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -660,8 +661,13 @@ export default function FoundersPage() {
         </div>
 
         {/* trufflehog secret scanning — git history, verified credentials */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TrufflehogPanel />
+        </div>
+
+        {/* vault secrets management — kv, pki, aws, transit engines */}
+        <div className="mt-6 pb-10">
+          <VaultSecretsPanel />
         </div>
 
         {/* CTA */}

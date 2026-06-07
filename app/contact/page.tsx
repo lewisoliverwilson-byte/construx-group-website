@@ -40,6 +40,7 @@ import PortainerPanel from '@/components/PortainerPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
+import GatlingPanel from '@/components/GatlingPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -538,8 +539,13 @@ export default function ContactPage() {
       </section>
 
       {/* crunchy postgres operator — ha clusters, pgbackrest, replication */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <CrunchyPostgresPanel />
+      </section>
+
+      {/* gatling load testing — simulations, rps, percentiles */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GatlingPanel />
       </section>
     </div>
   );
