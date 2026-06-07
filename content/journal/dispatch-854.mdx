@@ -1,0 +1,143 @@
+---
+title: "Bazel remote execution: distribute builds across a worker fleet"
+date: "2031-12-19"
+excerpt: "Bazel remote execution (RBE) sends build actions to a fleet of remote workers rather than running them locally. Each action is a hermetic sandbox: inputs are fetched from a content-addressable store, the action runs in isolation, and outputs are pushed back to the store. Workers never share state. This means 50 compile actions can run in parallel across 50 workers — a 50-minute local build becomes 1 minute. Buildbuddy and NativeLink provide hosted RBE infrastructure."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Send actions to remote workers. 50 compiles in parallel. 50x faster builds.
+
+## Configure remote execution in .bazelrc
+
+```ini
+# .bazelrc
+# Remote cache — share build outputs across machines
+build --remote_cache=grpcs://remote.buildbuddy.io
+build --remote_header=x-buildbuddy-api-key=YOUR_API_KEY
+
+# Remote execution — run actions on remote workers
+build:remote --remote_executor=grpcs://remote.buildbuddy.io
+build:remote --remote_header=x-buildbuddy-api-key=YOUR_API_KEY
+
+# Platform constraints — tell RBE what OS/arch to use
+build:remote --host_platform=//platforms:linux_amd64
+build:remote --platforms=//platforms:linux_amd64
+
+# Jobs — how many parallel remote actions (default: local CPU count)
+build:remote --jobs=200
+
+# Disable local sandbox for remote builds (RBE provides its own isolation)
+build:remote --strategy=remote
+
+# CI — always use remote
+build:ci --config=remote
+build:ci --remote_download_minimal   # Don't download outputs locally unless needed
+```
+
+## Platform definition
+
+```python
+# platforms/BUILD.bazel
+platform(
+    name = "linux_amd64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    exec_properties = {
+        # Buildbuddy: specify Docker image for RBE workers
+        "container-image": "docker://gcr.io/construx/build-image:latest",
+        "OSFamily":        "Linux",
+        "Arch":            "amd64",
+    },
+)
+```
+
+## Build image for RBE workers
+
+```dockerfile
+# build/Dockerfile — image used by RBE workers
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+  build-essential \
+  git \
+  curl \
+  ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+  && apt-get install -y nodejs
+
+# Install Go
+RUN curl -Lo go.tar.gz https://go.dev/dl/go1.23.4.linux-amd64.tar.gz \
+  && tar -C /usr/local -xzf go.tar.gz && rm go.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+```
+
+## Monitor remote build performance
+
+```bash
+# Run with remote execution and timing
+bazel build //apps/api:api --config=remote --profile=/tmp/build.profile
+
+# View profile in browser
+bazel analyze-profile /tmp/build.profile
+
+# Key metrics to check:
+# - Remote cache hit rate (should be > 90% for unchanged code)
+# - Action upload time (large inputs slow down the first build)
+# - Critical path length (the bottleneck that limits parallelism)
+
+# Buildbuddy UI shows:
+# BUILD CACHE: 216 of 248 actions cached (87%)
+# REMOTE EXEC: 32 actions ran on 32 workers simultaneously
+# CRITICAL PATH: 12.4s (was 8m 42s locally)
+```
+
+## Persistent workers — amortize startup cost
+
+```python
+# BUILD.bazel — mark a toolchain as worker-compatible
+ts_project(
+    name = "api_lib",
+    srcs = glob(["src/**/*.ts"]),
+    # TypeScript compiler supports persistent workers
+    # Bazel starts the compiler once and sends incremental requests
+    supports_workers = True,
+)
+```
+
+```ini
+# .bazelrc — enable persistent workers
+build --strategy=TypeScriptCompile=worker
+build --worker_sandboxing=true
+
+# Workers stay alive between builds — amortizes JVM/Node.js startup cost
+# TypeScript compiler: 8s → 1.2s for incremental compile with warm worker
+```
+
+## Action caching — reproducibility check
+
+```bash
+# Verify that two builds of the same target produce identical outputs
+bazel build //apps/api:api --remote_cache=grpcs://remote.buildbuddy.io
+bazel build //apps/api:api --remote_cache=grpcs://remote.buildbuddy.io \
+  --remote_accept_cached=false   # Force re-execution, don't use cache
+
+# If outputs differ between two runs, the action is not hermetic
+# Common causes: timestamps in build outputs, non-deterministic hash maps,
+# embedded build metadata (Git SHA, build time)
+
+# Use --stamp for explicit metadata injection
+bazel build //apps/api:api --stamp \
+  --workspace_status_command=./scripts/workspace-status.sh
+```
+
+Remote execution vs distributed compilation (distcc, IncrediBuild): distcc distributes compilation of C/C++ translation units across machines but doesn't cache results or enforce hermetic isolation. If the same file compiles twice, it runs twice. Bazel RBE caches every action's output by its input hash — the same action never runs twice across the entire organisation. A developer on their laptop gets the same cache hits as CI. The tradeoff: Bazel RBE requires a BUILD file for every target; distcc works with existing Makefiles.
