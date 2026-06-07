@@ -33,6 +33,7 @@ import CephPanel from '@/components/CephPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import PixiePanel from '@/components/PixiePanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
+import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -518,8 +519,13 @@ export default function StatsPage() {
       </div>
 
       {/* opencost kubernetes cost allocation — namespace breakdown, efficiency, workloads */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpenCostPanel />
+      </div>
+
+      {/* opentelemetry collector — traces/metrics/logs pipelines, spans, exporters */}
+      <div className="mt-6 pb-10">
+        <OpenTelemetryPanel />
       </div>
     </div>
   );

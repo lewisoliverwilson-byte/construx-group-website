@@ -31,6 +31,7 @@ import ClusterApiPanel from '@/components/ClusterApiPanel';
 import PinotPanel from '@/components/PinotPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
+import CniPanel from '@/components/CniPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -606,8 +607,13 @@ export default function FoundersPage() {
         </div>
 
         {/* chaos mesh chaos engineering — podchaos, networkchaos, iochaos, gameday */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ChaosMeshPanel />
+        </div>
+
+        {/* cilium cni ebpf networking — interfaces, network policies, packet counters */}
+        <div className="mt-6 pb-10">
+          <CniPanel />
         </div>
 
         {/* CTA */}

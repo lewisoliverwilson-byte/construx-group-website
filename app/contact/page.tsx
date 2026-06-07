@@ -31,6 +31,7 @@ import TektonPanel from '@/components/TektonPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import KubescapePanel from '@/components/KubescapePanel';
 import IcebergPanel from '@/components/IcebergPanel';
+import WasmEdgePanel from '@/components/WasmEdgePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -484,8 +485,13 @@ export default function ContactPage() {
       </section>
 
       {/* apache iceberg open table format — snapshots, schema evolution, manifests */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <IcebergPanel />
+      </section>
+
+      {/* wasmedge wasi runtime — wasm modules, wasi proposals, edge compute */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <WasmEdgePanel />
       </section>
     </div>
   );

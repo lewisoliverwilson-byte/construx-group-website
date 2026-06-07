@@ -32,6 +32,7 @@ import VaultPkiPanel from '@/components/VaultPkiPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
+import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -476,8 +477,13 @@ export default function NowPage() {
         </div>
 
         {/* delta lake acid lakehouse — medallion, tx log, zorder, vacuum, time travel */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DeltaLakePanel />
+        </div>
+
+        {/* kube-state-metrics k8s object health — resource readiness, firing alerts, series */}
+        <div className="mt-6 pb-10">
+          <KubeStateMetricsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
