@@ -21,6 +21,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import PprofPanel from '@/components/PprofPanel';
+import FlamegraphPanel from '@/components/FlamegraphPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -446,8 +447,13 @@ export default function StatsPage() {
       </div>
 
       {/* Go pprof CPU and memory profiling */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PprofPanel />
+      </div>
+
+      {/* Flamegraph: perf record → stack collapse → SVG */}
+      <div className="mt-6 pb-10">
+        <FlamegraphPanel />
       </div>
     </div>
   );

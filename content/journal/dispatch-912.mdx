@@ -1,0 +1,154 @@
+---
+title: "tc and netem: traffic shaping, rate limiting, and network emulation"
+date: "2032-06-11"
+excerpt: "tc (traffic control) is the Linux kernel tool for shaping outbound traffic — setting rate limits, adding artificial latency, simulating packet loss and reorder, and prioritising packets by class. netem (network emulator) is a tc qdisc that adds controllable delay, jitter, loss, corruption, and reordering to any interface. These tools let you test distributed systems under realistic network conditions without a dedicated test network: simulate a 200ms cross-region link, add 5% packet loss to verify retry logic, or rate-limit a specific service to 10Mbps and observe backpressure."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Add 100ms of latency. Drop 5% of packets. Watch your retry logic break. Fix it.
+
+## Adding latency and packet loss with netem
+
+```bash
+# netem: network emulator — add controlled impairment to an interface
+# WARNING: applies to all traffic leaving the interface — use a VM or separate namespace
+
+# Add 100ms fixed delay to all outbound traffic on eth0
+tc qdisc add dev eth0 root netem delay 100ms
+
+# Add delay with jitter (uniform distribution ± 20ms)
+tc qdisc change dev eth0 root netem delay 100ms 20ms
+
+# Add delay with jitter and correlation (Pareto-normal — more realistic than uniform)
+tc qdisc change dev eth0 root netem delay 100ms 20ms distribution normal
+
+# Add 5% random packet loss
+tc qdisc change dev eth0 root netem loss 5%
+
+# Packet loss with correlation (burst loss model — consecutive packets tend to be lost together)
+tc qdisc change dev eth0 root netem loss 5% 25%
+
+# Combined: 100ms delay + 2% loss + 10% packet reorder
+tc qdisc change dev eth0 root netem delay 100ms loss 2% reorder 10% 50%
+
+# Packet corruption (flip random bits in 0.1% of packets)
+tc qdisc change dev eth0 root netem corrupt 0.1%
+
+# Packet duplication (simulate duplicate ACK scenarios)
+tc qdisc change dev eth0 root netem duplicate 1%
+
+# Show current qdisc
+tc qdisc show dev eth0
+# qdisc netem 8001: root refcnt 2 limit 1000 delay 100ms  loss 2%
+
+# Remove all qdiscs (restore normal networking)
+tc qdisc del dev eth0 root
+```
+
+## Rate limiting with tbf and htb
+
+```bash
+# TBF (Token Bucket Filter) — simple rate limit without traffic classes
+# Rate limit to 10 Mbit/s with burst of 32KB
+tc qdisc add dev eth0 root tbf rate 10mbit burst 32kbit latency 400ms
+
+# HTB (Hierarchical Token Bucket) — rate limit with traffic classes and priorities
+# Useful for: limiting specific services, guaranteeing bandwidth to priority traffic
+
+# Root qdisc and root class
+tc qdisc add dev eth0 root handle 1: htb default 30
+tc class add dev eth0 parent 1: classid 1:1 htb rate 100mbit ceil 100mbit
+
+# Priority class: API traffic — guaranteed 50Mbps, burst to 100Mbps
+tc class add dev eth0 parent 1:1 classid 1:10 htb rate 50mbit ceil 100mbit prio 1
+
+# Background class: batch jobs — guaranteed 10Mbps, burst to 50Mbps
+tc class add dev eth0 parent 1:1 classid 1:20 htb rate 10mbit ceil 50mbit prio 2
+
+# Default class: everything else — 5Mbps guaranteed
+tc class add dev eth0 parent 1:1 classid 1:30 htb rate 5mbit ceil 100mbit prio 3
+
+# Mark packets with iptables and route to classes
+iptables -t mangle -A OUTPUT -p tcp --dport 8080 -j MARK --set-mark 10
+iptables -t mangle -A OUTPUT -p tcp --dport 5432 -j MARK --set-mark 20
+
+# tc filter: route marked packets to their class
+tc filter add dev eth0 parent 1: handle 10 fw classid 1:10
+tc filter add dev eth0 parent 1: handle 20 fw classid 1:20
+
+# Show class statistics
+tc -s class show dev eth0
+# class htb 1:10 parent 1:1 prio 1 rate 50Mbit ceil 100Mbit burst 1600b cburst 1600b
+#  Sent 48372819 bytes 38241 pkt (dropped 0, overlimits 0 requeues 0)
+#  rate 49.8Mbit 4823pps
+```
+
+## Scoped network emulation using network namespaces
+
+```bash
+# Apply netem only to a specific process (not the whole machine)
+# Step 1: create a network namespace
+ip netns add construx-test
+
+# Step 2: create a veth pair
+ip link add veth0 type veth peer name veth1
+ip link set veth1 netns construx-test
+
+# Step 3: configure addresses
+ip addr add 10.100.0.1/24 dev veth0
+ip link set veth0 up
+ip netns exec construx-test ip addr add 10.100.0.2/24 dev veth1
+ip netns exec construx-test ip link set veth1 up
+ip netns exec construx-test ip link set lo up
+
+# Step 4: add netem to the namespace's interface only
+ip netns exec construx-test tc qdisc add dev veth1 root netem delay 200ms loss 3%
+
+# Step 5: run the process in the namespace
+ip netns exec construx-test ./construx-client --target 10.100.0.1:8080
+
+# Step 6: clean up
+ip netns del construx-test
+```
+
+## Testing retry logic and timeouts
+
+```bash
+# Scenario: test that construx-api correctly retries on 5% packet loss
+# Expected: requests succeed with retries, P99 latency increases, no data loss
+
+# Baseline — no impairment
+for i in $(seq 100); do
+  curl -s -o /dev/null -w "%{http_code} %{time_total}\n" http://api.construx.io/v1/health
+done | awk '{code[$1]++; total+=$2} END {for (c in code) print c, code[c]; print "avg", total/NR}'
+# 200 100
+# avg 0.041
+
+# Add 5% loss
+tc qdisc add dev eth0 root netem loss 5%
+
+for i in $(seq 100); do
+  curl -s -o /dev/null -w "%{http_code} %{time_total}\n" http://api.construx.io/v1/health
+done | awk '{code[$1]++; total+=$2} END {for (c in code) print c, code[c]; print "avg", total/NR}'
+# 200 94
+# 000 6    ← 6 connection failures: retry logic not retrying on TCP failure
+# avg 0.089
+
+# Diagnose: 000 means curl couldn't connect — the server isn't retrying at the TCP level
+# Fix: implement application-level retry with exponential backoff + jitter
+# OR: use a service mesh (Linkerd/Envoy) with automatic retry budget
+
+# Restore clean network
+tc qdisc del dev eth0 root
+
+# Simulate cross-region latency: 200ms + 10ms jitter (realistic for EU→US)
+tc qdisc add dev eth0 root netem delay 200ms 10ms distribution normal
+
+# Test timeout configuration: does the client timeout at 500ms as configured?
+time curl --max-time 0.5 http://api.construx.io/v1/health
+# curl: (28) Operation timed out after 500 milliseconds
+# → confirm timeout is configured correctly
+```
+
+tc netem vs testing with chaos engineering tools: netem works at the kernel level and requires root on the host — it's precise and zero-overhead (no proxy in the path). Chaos engineering tools like Chaos Monkey, Toxiproxy, or Gremlin work at the application/proxy level — they're easier to use and don't need root, but they add a proxy hop and can only intercept traffic they're configured to see. For local development and CI testing of retry/timeout logic, netem is the right tool: no extra services, kernel-level accuracy, and controllable from a single tc command. For production chaos testing in Kubernetes, use a chaos mesh operator that injects tc rules via a privileged DaemonSet.

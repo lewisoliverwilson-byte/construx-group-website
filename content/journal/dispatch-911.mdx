@@ -1,0 +1,126 @@
+---
+title: "Flamegraphs: visualising CPU and off-CPU time with perf and eBPF"
+date: "2032-06-08"
+excerpt: "A flamegraph is a visualisation of stack traces sampled over time — the width of each frame shows how much CPU time that code path consumed. Brendan Gregg's flamegraph.pl converts collapsed stacks from perf, eBPF, Java, and other profilers into SVG. The key variants: CPU flamegraphs (where is time spent executing?), off-CPU flamegraphs (where is time spent waiting — locks, I/O, sleep?), and differential flamegraphs (what regressed between two commits?). Together they cover the two ways software is slow: doing too much CPU work, or blocking and waiting."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Red = hot. Width = time. Read bottom-up. Fix the widest frames.
+
+## CPU flamegraph from perf
+
+```bash
+# Step 1: record stack traces at 999Hz for 30s (frame pointer-based)
+perf record -F 999 -g -p $(pgrep construx-api) -- sleep 30
+# [ perf record: Woken up 1 times to write data ]
+# [ perf record: Captured and wrote 14.832 MB perf.data (38,241 samples) ]
+
+# Step 2: export to text format and collapse stacks
+perf script | stackcollapse-perf.pl > out.folded
+
+# Step 3: render to SVG
+flamegraph.pl out.folded > flame.svg
+# → open flame.svg in a browser: interactive, clickable frames, hover for percentages
+
+# One-liner (pipe directly)
+perf script | stackcollapse-perf.pl | flamegraph.pl > flame.svg
+
+# Install the tools
+git clone https://github.com/brendangregg/FlameGraph.git
+export PATH=$PATH:$PWD/FlameGraph
+
+# Frame pointer requirement: most Go binaries have frame pointers by default (Go 1.7+)
+# C/C++ needs -fno-omit-frame-pointer at compile time
+# Java: use -XX:+PreserveFramePointer
+# Rust: RUSTFLAGS="-C force-frame-pointers=yes"
+
+# Annotate the output (top frames by self time)
+flamegraph.pl --title "construx-api CPU 30s" --colors hot out.folded > flame.svg
+```
+
+## Off-CPU flamegraph with eBPF
+
+```bash
+# Off-CPU = time spent blocked, not executing
+# Requires kernel 5.8+ and BCC tools (or bpftrace directly)
+
+# Record off-CPU time for 30s using BCC's offcputime
+offcputime-bpfcc -df -p $(pgrep construx-api) 30 | flamegraph.pl --color=io > offcpu.svg
+
+# Interpretation:
+# epoll_wait at the bottom → expected idle event loop wait (not a problem)
+# futex_wait → mutex/lock contention (real problem — parallel goroutines blocking)
+# tcp_recvmsg → waiting on network I/O (postgres responses, external APIs)
+
+# bpftrace equivalent (no BCC dependency)
+bpftrace -e '
+  tracepoint:sched:sched_switch {
+    if (args->prev_state != TASK_RUNNING && args->prev_pid == $PID) {
+      @start[args->prev_pid] = nsecs;
+    }
+  }
+  tracepoint:sched:sched_switch {
+    if (args->next_pid == $PID && @start[args->next_pid]) {
+      @offcpu_ns = hist(nsecs - @start[args->next_pid]);
+      delete(@start[args->next_pid]);
+    }
+  }
+' -p $(pgrep construx-api)
+
+# Mutex off-CPU: see which goroutines are waiting on locks
+# go tool trace: open trace.out from runtime/trace in a browser for lock contention view
+```
+
+## Differential flamegraph (regression detection)
+
+```bash
+# Record before and after a change
+# BEFORE (e.g., on main branch):
+perf record -F 999 -g -p $(pgrep construx-api) -- sleep 30
+perf script | stackcollapse-perf.pl > before.folded
+
+# AFTER (deploy the new version and re-record):
+perf record -F 999 -g -p $(pgrep construx-api) -- sleep 30
+perf script | stackcollapse-perf.pl > after.folded
+
+# Diff: blue = improved, red = regressed
+difffolded.pl before.folded after.folded | flamegraph.pl > diff.svg
+
+# What to look for:
+# Red widening frames → code path got slower or runs more often
+# Blue narrowing frames → improvement (could be the fix or a collateral change)
+# New red frames at the top → new code path introduced that's expensive
+
+# Normalize sample counts so different-length profiles are comparable
+# (flamegraph.pl normalizes automatically if total count differs)
+```
+
+## Go-specific: pprof to flamegraph
+
+```bash
+# Go's built-in profiler emits pprof format — convert to flamegraph
+go tool pprof -raw -output=cpu.pprof http://localhost:6060/debug/pprof/profile?seconds=30
+stackcollapse-go.pl cpu.pprof | flamegraph.pl > go-flame.svg
+
+# Or use pprof's native SVG output (interactive in browser)
+go tool pprof -svg http://localhost:6060/debug/pprof/profile?seconds=30 > go-flame.svg
+
+# Heap flamegraph (allocations, not retained)
+go tool pprof -alloc_objects -svg http://localhost:6060/debug/pprof/heap > heap-alloc.svg
+# → shows allocation hot paths: which code is creating the most objects
+
+# Block profile (goroutine blocking — equivalent to off-CPU)
+go tool pprof -svg http://localhost:6060/debug/pprof/block > block.svg
+# Requires: runtime.SetBlockProfileRate(1) at startup
+
+# Mutex contention (which mutexes are held longest)
+go tool pprof -svg http://localhost:6060/debug/pprof/mutex > mutex.svg
+# Requires: runtime.SetMutexProfileFraction(1) at startup
+
+# Continuous profiling in production: Pyroscope
+# Pyroscope agent samples at 100Hz continuously and stores the flamegraphs
+pyroscope agent --application-name=construx-api --server-address=http://pyroscope:4040
+```
+
+Flamegraph vs profiling tools directly: pprof, perf report, and oprofile all show the same data in tabular form — top functions by self time. Flamegraphs show the full call hierarchy, so you can see that a function called from three different callers is hot, and which call site is the dominant contributor. For flat profiling (find the single hottest function), tabular output is faster to read. For understanding hot paths through a complex call graph, flamegraphs are better. Off-CPU flamegraphs are the key insight most profiling guides miss: half of latency issues aren't about CPU at all — they're about waiting. A service that does 30% less CPU work but has worse P99 latency is probably blocked on a lock or a slow dependency.
