@@ -34,6 +34,7 @@ import ZitadelPanel from '@/components/ZitadelPanel';
 import RekorPanel from '@/components/RekorPanel';
 import HarborPanel from '@/components/HarborPanel';
 import RiverPanel from '@/components/RiverPanel';
+import EarthlyPanel from '@/components/EarthlyPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -735,6 +736,11 @@ export default function WorkWithUsPage() {
       {/* river postgres-backed job queue — queues, jobs, throughput */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <RiverPanel />
+      </section>
+
+      {/* earthly repeatable builds — earthfile targets, buildkit, cache */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <EarthlyPanel />
       </section>
 
       {/* CTA */}

@@ -35,6 +35,7 @@ import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
+import DaprPanel from '@/components/DaprPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -395,6 +396,11 @@ export default function ManifestoPage() {
         {/* openfga relationship-based authorization — tuples, checks, zanzibar model */}
         <div className="mt-4 pb-6">
           <OpenFgaAuditPanel />
+        </div>
+
+        {/* dapr distributed app runtime — building blocks, service invocation, sidecars */}
+        <div className="mt-4 pb-6">
+          <DaprPanel />
         </div>
 
         {/* Sign-off */}

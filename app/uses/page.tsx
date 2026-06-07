@@ -34,6 +34,7 @@ import NomadPanel from '@/components/NomadPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
 import KedaPanel from '@/components/KedaPanel';
+import ZarfPanel from '@/components/ZarfPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -506,8 +507,13 @@ export default function UsesPage() {
         </div>
 
         {/* keda kubernetes event-driven autoscaler — scaled objects, triggers, scale events */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KedaPanel />
+        </div>
+
+        {/* zarf air-gap k8s packaging — packages, components, internal registry */}
+        <div className="mt-6 pb-10">
+          <ZarfPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
