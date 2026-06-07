@@ -1,0 +1,182 @@
+---
+title: "Dagger: portable CI pipelines as code — containers, SDK, caching, module system"
+date: "2034-02-25"
+excerpt: "Dagger is a programmable CI/CD engine that runs pipelines as containerised functions, written in Go, Python, TypeScript, or any language with an SDK. The key property: a Dagger pipeline runs identically on a developer's laptop and in CI, because it runs inside a Dagger Engine container — not in the CI runner's host environment. This eliminates the 'works on my machine, breaks in CI' problem caused by environment differences (different tool versions, missing env vars, different OS). Dagger uses CAS (content-addressed storage) for aggressive caching: if the inputs to a step haven't changed (source code, dependencies, configuration), the cached output is reused without re-executing — even across different machines if a shared cache is configured. Dagger's module system (Daggerverse) is a registry of reusable pipeline components: `dagger call golang test` invokes the Go test module, `dagger call container build push` invokes a container build module. Modules are versioned and composable — you can call a module from another module, building complex pipelines from audited, reusable building blocks. For Construx, Dagger replaced 600 lines of fragmented Makefile, GitHub Actions YAML, and bash scripts with a typed Go pipeline that runs `dagger run go run ./ci` both locally and in CI."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Portable CI. Container. CAS cache. Module. SDK. Daggerverse. Engine. Function.
+
+## Dagger pipeline in Go SDK
+
+```go
+// ci/main.go — Dagger pipeline for construx/orders-api
+// Run locally: dagger run go run ./ci
+// Run in CI: dagger run go run ./ci --push
+
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+
+    "dagger.io/dagger"
+)
+
+func main() {
+    ctx := context.Background()
+    push := len(os.Args) > 1 && os.Args[1] == "--push"
+
+    if err := run(ctx, push); err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+}
+
+func run(ctx context.Context, push bool) error {
+    client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stdout))
+    if err != nil {
+        return err
+    }
+    defer client.Close()
+
+    src := client.Host().Directory(".", dagger.HostDirectoryOpts{
+        Exclude: []string{".git", "dist", "tmp"},
+    })
+
+    // Go module cache — persists across pipeline runs (CAS-based)
+    goCache := client.CacheVolume("go-mod-cache")
+    buildCache := client.CacheVolume("go-build-cache")
+
+    base := client.Container().
+        From("golang:1.23-alpine").
+        WithMountedCache("/go/pkg/mod", goCache).
+        WithMountedCache("/root/.cache/go-build", buildCache).
+        WithMountedDirectory("/app", src).
+        WithWorkdir("/app")
+
+    // Run tests in parallel with linting
+    testResult := base.
+        WithExec([]string{"go", "test", "-race", "-coverprofile=/tmp/cover.out", "./..."})
+
+    lintResult := client.Container().
+        From("golangci/golangci-lint:v1.60-alpine").
+        WithMountedDirectory("/app", src).
+        WithWorkdir("/app").
+        WithExec([]string{"golangci-lint", "run", "--timeout=5m"})
+
+    // Wait for both (Dagger evaluates lazily — parallel by default)
+    if _, err := testResult.Sync(ctx); err != nil {
+        return fmt.Errorf("tests failed: %w", err)
+    }
+    if _, err := lintResult.Sync(ctx); err != nil {
+        return fmt.Errorf("lint failed: %w", err)
+    }
+
+    // Build container image
+    image := client.Container().
+        From("gcr.io/distroless/static-debian12:nonroot").
+        WithFile("/orders-api",
+            base.WithExec([]string{
+                "go", "build",
+                "-ldflags", "-s -w",
+                "-o", "/orders-api",
+                "./cmd/orders-api",
+            }).File("/orders-api"),
+        ).
+        WithEntrypoint([]string{"/orders-api"})
+
+    if push {
+        ref, err := image.Publish(ctx,
+            fmt.Sprintf("ghcr.io/construx/orders-api:%s", gitSHA()),
+        )
+        if err != nil {
+            return fmt.Errorf("push failed: %w", err)
+        }
+        fmt.Println("pushed:", ref)
+    }
+
+    return nil
+}
+
+func gitSHA() string {
+    sha := os.Getenv("GITHUB_SHA")
+    if sha == "" {
+        sha = "dev"
+    }
+    if len(sha) > 8 {
+        sha = sha[:8]
+    }
+    return sha
+}
+```
+
+```bash
+# Dagger CLI operations
+
+# Run pipeline locally (same as CI)
+dagger run go run ./ci
+
+# Run pipeline with push to registry
+GITHUB_SHA=$(git rev-parse HEAD) dagger run go run ./ci --push
+
+# Call a Dagger module from the Daggerverse (no code needed)
+# Run Go tests using the official Go Dagger module
+dagger -m github.com/dagger/dagger/sdk/go@v0.13.0 call \
+  container from --address golang:1.23-alpine \
+  with-directory --path /app --directory . \
+  with-workdir --path /app \
+  with-exec --args go,test,./... \
+  stdout
+
+# Inspect cached layers
+dagger query <<EOF
+{
+  container {
+    from(address: "golang:1.23-alpine") {
+      withExec(args: ["go", "version"]) {
+        stdout
+      }
+    }
+  }
+}
+EOF
+
+# List installed Dagger modules in the project
+dagger module list
+
+# Develop a reusable module (publish to Daggerverse)
+dagger module init --name construx-pipeline --sdk go
+dagger publish -m .
+```
+
+```yaml
+# GitHub Actions: use Dagger pipeline (thin wrapper around dagger run)
+# The CI runner just installs Dagger and delegates to the pipeline code
+
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | sh
+          mv bin/dagger /usr/local/bin/
+
+      - name: Run pipeline
+        env:
+          GITHUB_SHA:   ${{ github.sha }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUSH: ${{ github.ref == 'refs/heads/main' && '--push' || '' }}
+        run: dagger run go run ./ci $PUSH
+```
+
+Dagger vs GitHub Actions YAML vs Makefile + bash vs Earthly vs Bazel: GitHub Actions YAML is the most common CI format but runs only in GitHub's runner environment — you can't run it locally, so debugging requires pushing commits and waiting for CI. Makefile + bash is the lowest-common-denominator approach: runs anywhere with make installed, but is fragile to environment differences and difficult to compose. Earthly is the closest conceptual alternative to Dagger — it uses Earthfiles (Dockerfile-like syntax) for reproducible builds, with caching similar to Dagger's CAS model. The key difference is programmability: Earthly's Earthfile is a DSL, while Dagger is a library called from real code — you have the full language, IDE, debugger, and test framework available when writing pipeline logic. Bazel is the gold standard for hermetic, reproducible builds at scale (used by Google, Twitter, LinkedIn) — it has extraordinarily fine-grained caching and incremental builds, but the learning curve and migration cost are high. Dagger sits in the pragmatic middle: reproducible-by-default (everything runs in containers), real programming language SDKs, local + CI parity, and a growing module ecosystem that makes common pipeline steps (container build, test, scan, push) reusable without writing them from scratch.

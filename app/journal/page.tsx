@@ -32,6 +32,7 @@ import KyvernoPanel from '@/components/KyvernoPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
+import SpiceDbPanel from '@/components/SpiceDbPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -310,6 +311,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* kubevirt vms on kubernetes — live migration, cdi, virt-launcher, virtctl */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <KubeVirtPanel />
+      </section>
+
+      {/* spicedb zanzibar authz — schema, check, expand, watch, zookies */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <SpiceDbPanel />
       </section>
 
       {/* Posts */}

@@ -1,0 +1,148 @@
+---
+title: "SpiceDB: Zanzibar-style authorisation — schema, check, expand, Watch API, zookies"
+date: "2034-02-19"
+excerpt: "SpiceDB is an open-source authorisation database inspired by Google Zanzibar, the system that powers Google's consistent, scalable fine-grained access control across Docs, Drive, Calendar, and YouTube. Zanzibar's insight is that RBAC (role-based access control) and ABAC (attribute-based) are both insufficient at scale: RBAC struggles with complex relationship graphs (a user can view a document because they are a member of a team that was granted access to a folder that contains the document), and ABAC policy engines evaluate policies at request time against attributes, which becomes slow and inconsistent. Zanzibar models permissions as a directed graph of relationships: user:alice → viewer → document:quarterly-report. The Check API traverses this graph — is user:alice a viewer of document:quarterly-report? — with sub-millisecond latency at millions of RPS. SpiceDB's schema language defines object types, relations, and permissions (permissions are computed from relations). The Watch API streams relation tuple changes in real-time, enabling downstream systems to maintain materialised permission views. Zookies (consistency tokens) solve the new-enemy problem: a zookie captures a point-in-time snapshot of the authorisation database, and passing it in a Check ensures the read is consistent with a prior write, preventing the race condition where a permission is revoked but an old cached read returns permitted."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Schema. Relation. Permission. Check. Expand. Watch. Zookie. New-enemy problem. CockroachDB.
+
+## SpiceDB schema and zed operations
+
+```zed
+// SpiceDB schema: construx multi-tenant document permissions
+// Defines object types, relations, and computed permissions
+
+definition user {}
+
+definition group {
+  relation member: user
+}
+
+definition organisation {
+  relation admin: user
+  relation member: user | group#member
+
+  permission manage = admin
+  permission access = admin + member
+}
+
+definition folder {
+  relation org:       organisation
+  relation viewer:    user | group#member | organisation#member
+  relation editor:    user | group#member
+  relation owner:     user
+
+  // Permissions are computed from relations
+  permission view   = viewer + editor + owner + org->admin
+  permission edit   = editor + owner + org->admin
+  permission delete = owner + org->admin
+}
+
+definition document {
+  relation parent_folder: folder
+  relation viewer:  user | group#member
+  relation editor:  user | group#member
+  relation owner:   user
+
+  // Inherit permissions from parent folder
+  permission view   = viewer + editor + owner + parent_folder->view
+  permission edit   = editor + owner + parent_folder->edit
+  permission delete = owner + parent_folder->delete
+  permission share  = owner + parent_folder->owner
+}
+```
+
+```bash
+# zed CLI: manage SpiceDB relations and check permissions
+
+# Configure zed to connect to the SpiceDB instance
+zed context set construx \
+  --endpoint spicedb.construx-auth.svc.cluster.local:50051 \
+  --token "${SPICEDB_API_KEY}" \
+  --certificate-path /etc/ssl/spicedb-ca.crt
+
+# Write relationships (grant permissions)
+zed relationship create document:construx-roadmap viewer user:alice
+zed relationship create document:construx-roadmap viewer group:engineering#member
+zed relationship create document:construx-roadmap editor user:bob
+zed relationship create folder:q1-planning viewer organisation:construx#member
+
+# Check permission (returns immediately, < 2ms)
+zed permission check document:construx-roadmap view user:alice
+# ✓ PERMISSIONSHIP_HAS_PERMISSION
+
+zed permission check document:construx-roadmap edit user:alice
+# ✗ PERMISSIONSHIP_NO_PERMISSION
+
+# Expand: see full permission tree (debugging)
+zed permission expand document:construx-roadmap view
+# union:
+#   user:alice (direct: viewer)
+#   user:bob (editor → view)
+#   user:carol (from folder:q1-planning → org:construx#member)
+#   group:engineering members (via group:engineering#member)
+
+# Watch API: stream relation changes (real-time authorisation events)
+zed watch --start-cursor="" | jq '.updates[] | {operation: .operation, tuple: .tuple}'
+# {"operation":"OPERATION_TOUCH","tuple":{"resource":"document:construx-roadmap","relation":"viewer","subject":"user:dana"}}
+
+# Bulk read: list all relations for a resource
+zed relationship read document:construx-roadmap
+```
+
+```go
+// Go SDK: Check permission with zookie consistency token
+
+package authz
+
+import (
+    "context"
+    v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+    "github.com/authzed/authzed-go/v1"
+)
+
+type AuthzClient struct {
+    client *authzed.Client
+}
+
+// CheckPermission returns true if subject has permission on resource.
+// zookie ensures consistency with a prior write (prevents new-enemy race).
+func (a *AuthzClient) CheckPermission(
+    ctx context.Context,
+    resourceType, resourceID string,
+    permission string,
+    subjectType, subjectID string,
+    zookie string,
+) (bool, string, error) {
+    req := &v1.CheckPermissionRequest{
+        Resource: &v1.ObjectReference{
+            ObjectType: resourceType,
+            ObjectId:   resourceID,
+        },
+        Permission: permission,
+        Subject: &v1.SubjectReference{
+            Object: &v1.ObjectReference{
+                ObjectType: subjectType,
+                ObjectId:   subjectID,
+            },
+        },
+        Consistency: &v1.Consistency{
+            Requirement: &v1.Consistency_AtLeastAsFresh{
+                AtLeastAsFresh: &v1.ZedToken{Token: zookie},
+            },
+        },
+    }
+
+    resp, err := a.client.CheckPermission(ctx, req)
+    if err != nil {
+        return false, "", err
+    }
+
+    permitted := resp.Permissionship == v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+    return permitted, resp.CheckedAt.Token, nil
+}
+```
+
+SpiceDB vs OPA (Open Policy Agent) vs Casbin vs AWS IAM vs custom RBAC tables: OPA is a policy engine that evaluates Rego policies against any structured input data — it can implement relationship-based access control, but the policy author is responsible for designing the model, the data storage, and the consistency semantics. OPA is general-purpose; SpiceDB is purpose-built for fine-grained authz at scale. Casbin is a RBAC/ABAC library that runs in-process — it works well for simple models but requires you to manage your own storage, and it lacks the Watch API and zookie consistency guarantees that distributed systems need. AWS IAM is excellent for AWS resource authorisation but is closed to application-level permissions — you cannot model "can user:alice view document:construx-roadmap" in IAM without building something on top of it. Custom RBAC tables (users, roles, role_assignments in Postgres) scale to moderate complexity but break down when you need transitive relationships (member of group that has access to folder containing document), and they don't provide the low-latency check performance of a purpose-built graph traversal engine. SpiceDB's value is the combination: expressive schema language, consistent distributed storage (CockroachDB or Postgres), sub-millisecond Check latency, and the Watch API for keeping downstream permission caches consistent.
