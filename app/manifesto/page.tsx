@@ -60,6 +60,7 @@ import TurboRepoPanel from '@/components/TurboRepoPanel';
 import ActPanel from '@/components/ActPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
+import AirbytePanel from '@/components/AirbytePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -543,8 +544,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FlinkPanel />
+        </div>
+
+        {/* airbyte open-source elt — connectors, syncs, data movement */}
+        <div className="mt-4 pb-6">
+          <AirbytePanel />
         </div>
 
         {/* Sign-off */}

@@ -58,6 +58,7 @@ import WebVitalsPanel from '@/components/WebVitalsPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
+import DaprPanel from '@/components/DaprPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -650,8 +651,13 @@ export default function UsesPage() {
         </div>
 
         {/* nats jetstream — streams, consumers, messages, acks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NATSJetStreamPanel />
+        </div>
+
+        {/* dapr distributed application runtime — actors, pub/sub, state */}
+        <div className="mt-6 pb-10">
+          <DaprPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
