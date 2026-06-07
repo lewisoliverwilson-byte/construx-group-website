@@ -76,6 +76,7 @@ import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
+import LokiPanel from '@/components/LokiPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -876,8 +877,13 @@ export default function FoundersPage() {
         </div>
 
         {/* kubeflow pipelines — experiments, runs, components, artifacts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeflowPipelinesPanel />
+        </div>
+
+        {/* loki — log aggregation, streams, labels, queries */}
+        <div className="mt-6 pb-10">
+          <LokiPanel />
         </div>
 
         {/* CTA */}

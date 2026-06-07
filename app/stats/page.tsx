@@ -78,6 +78,7 @@ import HubblePanel from '@/components/HubblePanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import KindPanel from '@/components/KindPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
+import LighthousePanel from '@/components/LighthousePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -788,8 +789,13 @@ export default function StatsPage() {
       </div>
 
       {/* kubectl pods — status, restarts, age, images, nodes */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KubectlPodsPanel />
+      </div>
+
+      {/* lighthouse — performance, accessibility, seo, pwa scores */}
+      <div className="mt-6 pb-10">
+        <LighthousePanel />
       </div>
     </div>
   );

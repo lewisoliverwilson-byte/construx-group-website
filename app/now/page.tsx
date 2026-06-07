@@ -76,6 +76,7 @@ import JournalWcPanel from '@/components/JournalWcPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
+import LokiQueryPanel from '@/components/LokiQueryPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -740,8 +741,13 @@ export default function NowPage() {
         </div>
 
         {/* kube proxy — services, iptables, endpoints, modes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeProxyPanel />
+        </div>
+
+        {/* loki query — logql, streams, range, instant queries */}
+        <div className="mt-6 pb-10">
+          <LokiQueryPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -75,6 +75,7 @@ import HttpArchivePanel from '@/components/HttpArchivePanel';
 import K3sPanel from '@/components/K3sPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
+import KyvernoPanel from '@/components/KyvernoPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -748,8 +749,13 @@ export default function ContactPage() {
       </section>
 
       {/* kubectl logs — pod logs, follow, timestamps, containers */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KubectlLogsPanel />
+      </section>
+
+      {/* kyverno — policy engine, mutations, validations, generates */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KyvernoPanel />
       </section>
     </div>
   );
