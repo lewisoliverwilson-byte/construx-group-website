@@ -1,0 +1,132 @@
+---
+title: "Knative Serving: scale-to-zero serverless on Kubernetes — revision model, traffic splitting, KPA"
+date: "2033-09-28"
+excerpt: "Knative Serving is a Kubernetes extension that adds serverless semantics to container workloads. You define a Knative Service (not a Kubernetes Service) pointing at a container image; Knative creates a Revision (an immutable snapshot of the service configuration at a point in time) and wires up routing. The key Knative feature is the Knative Pod Autoscaler (KPA): it scales pods based on per-pod concurrency, not CPU. When request rate drops to zero, KPA scales the deployment to zero replicas. When a new request arrives, the Activator component (a proxy in the request path during cold starts) buffers the request, triggers KPA to scale up from zero, and forwards the request to the first ready pod — typically within 2-3 seconds for Go/Rust workloads. Traffic splitting across revisions is first-class: you can route 90% to the stable revision and 10% to the canary, then graduate by editing a single percentage field. Knative Serving integrates with standard Kubernetes ingress controllers (Istio, Contour, Kourier) for north-south traffic, and with Prometheus for autoscaler metrics."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Revision model. KPA scale-to-zero. Traffic splitting. Activator. Cold start. Concurrency-based scaling.
+
+## Knative Service and revision configuration
+
+```yaml
+# Knative Service: the top-level unit — manages Revisions and Routes automatically
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: construx-api
+  namespace: construx-prod
+spec:
+  template:
+    metadata:
+      annotations:
+        # KPA: target 10 concurrent requests per pod before scaling out
+        autoscaling.knative.dev/target:         "10"
+        # Scale to zero after 60s of no requests
+        autoscaling.knative.dev/scale-to-zero-pod-retention-period: "60s"
+        # Scale-up rate: max 100 new pods per 60s window
+        autoscaling.knative.dev/max-scale-up-rate: "100"
+        # Minimum pods: 1 during business hours (prevent cold starts)
+        autoscaling.knative.dev/min-scale: "1"
+        autoscaling.knative.dev/max-scale: "20"
+    spec:
+      containerConcurrency: 10    # hard limit per pod (matches KPA target)
+      timeoutSeconds:        300
+      containers:
+        - image: registry.construx.internal/construx-api:v5
+          resources:
+            requests:
+              cpu:    200m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: construx-db-credentials
+                  key:  DB_HOST
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds:       1   # fast readiness for cold-start latency
+  traffic:
+    # Traffic split: 90% to v4 (stable), 10% to v5 (canary)
+    - revisionName: construx-api-v4
+      percent:      90
+    - latestRevision: true
+      percent:      10
+      tag:          canary   # adds canary.construx-api.construx-prod.svc.cluster.local
+```
+
+## Traffic management and blue-green rollout
+
+```bash
+# Knative CLI (kn): manage services, revisions, and traffic
+
+# List services
+kn service list -n construx-prod
+# NAME             URL                               LATEST        AGE   CONDITIONS  READY
+# construx-api     https://api.construx.io           construx-api-v5  4h  3 OK / 3   True
+# construx-worker  https://worker.construx.io        construx-worker-v2 2d 3 OK / 3  True
+
+# List revisions (each deploy creates a new revision)
+kn revision list -n construx-prod
+# NAME                IMAGE                         ACTIVE  AGE   CONDITIONS  READY  REASON
+# construx-api-v5     registry.../construx-api:v5   4       4h    3 OK / 3    True
+# construx-api-v4     registry.../construx-api:v4   27      2d    3 OK / 3    True
+
+# Update traffic split: graduate canary to 50%
+kn service update construx-api \
+  --traffic construx-api-v4=50 \
+  --traffic construx-api-v5=50 \
+  -n construx-prod
+
+# Complete rollout: 100% to v5
+kn service update construx-api \
+  --traffic @latest=100 \
+  -n construx-prod
+
+# Roll back: route 100% to v4 if v5 has issues
+kn service update construx-api \
+  --traffic construx-api-v4=100 \
+  -n construx-prod
+
+# Tag a revision for direct access (A/B testing via subdomain)
+kn service update construx-api \
+  --tag construx-api-v5=experimental \
+  -n construx-prod
+# Access: experimental-construx-api.construx-prod.example.com
+```
+
+```bash
+# Autoscaler metrics and cold start monitoring
+
+# KPA decisions are logged by the autoscaler
+kubectl logs -n knative-serving deploy/autoscaler | \
+  grep construx-api | tail -10
+# {"level":"info","ts":"...","logger":"autoscaler","msg":"Scaling from 0 to 1","namespace":"construx-prod","service":"construx-api","reason":"observed concurrency 1.0"}
+# {"level":"info","ts":"...","logger":"autoscaler","msg":"Scaling from 1 to 3","namespace":"construx-prod","service":"construx-api","reason":"target concurrency 10"}
+
+# Activator: buffers requests during cold start
+kubectl logs -n knative-serving deploy/activator | grep construx-api | tail -5
+# {"msg":"Forwarding request","namespace":"construx-prod","service":"construx-api","latency":"2.1s"}
+
+# Prometheus metrics: Knative autoscaler
+# knative_serving_autoscaler_desired_pods{namespace="construx-prod",service="construx-api"} 3
+# knative_serving_autoscaler_actual_pods{namespace="construx-prod",service="construx-api"}  3
+# knative_serving_activator_request_concurrency{namespace="construx-prod"} 0
+# revision_request_latencies_bucket{le="100",namespace="construx-prod"}    8412
+
+# Queue proxy: per-pod concurrency stats (injected as a sidecar by Knative)
+kubectl exec -n construx-prod construx-api-v5-deployment-xxx -c queue-proxy -- \
+  curl -s localhost:9090/metrics | grep concurrency
+# queue_average_concurrent_requests 4.2
+# queue_requested_concurrent_requests 6
+```
+
+Knative Serving vs Kubernetes HPA vs KEDA vs AWS Lambda vs bare Deployments: HPA scales on CPU/memory — it can't scale to zero (minimum 1 pod) and reacts slowly to bursty traffic because CPU metrics lag behind request arrival. KEDA (Kubernetes Event Driven Autoscaler) scales to zero based on external metrics (queue depth, Kafka consumer lag) — excellent for async workloads, but requires configuring custom scalers per queue type. Knative KPA scales based on concurrency (requests in-flight per pod), which tracks demand more closely than CPU. The scale-to-zero capability is Knative's key advantage for low-traffic or batch workloads — if a service receives 10 requests/day, it runs 0 pods for most of the day and 1-2 pods during the few seconds each request is being processed. AWS Lambda is scale-to-zero with no operational overhead, but it has cold start times (100ms-1s for small functions), runtime restrictions, and vendor lock-in. Knative runs on any Kubernetes cluster and supports any container. For teams on Kubernetes with mixed always-on and bursty workloads, Knative Serving adds scale-to-zero and traffic splitting with minimal changes to existing Deployments.

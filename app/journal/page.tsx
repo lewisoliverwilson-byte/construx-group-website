@@ -30,6 +30,7 @@ import SkaffoldPanel from '@/components/SkaffoldPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
+import KnativePanel from '@/components/KnativePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -298,6 +299,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* debezium WAL-based CDC — postgres change events to kafka */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <DebeziumPanel />
+      </section>
+
+      {/* knative serving — scale-to-zero, traffic split, KPA, revision model */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KnativePanel />
       </section>
 
       {/* Posts */}
