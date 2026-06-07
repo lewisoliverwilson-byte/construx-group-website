@@ -89,6 +89,7 @@ import OpenCostPanel from '@/components/OpenCostPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
 import PrometheusPanel from '@/components/PrometheusPanel';
+import ProwPanel from '@/components/ProwPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -836,8 +837,13 @@ export default function UsesPage() {
         </div>
 
         {/* prometheus — targets, rules, alerts, tsdb */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PrometheusPanel />
+        </div>
+
+        {/* prow — kubernetes ci, jobs, tide, pass rates */}
+        <div className="mt-6 pb-10">
+          <ProwPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

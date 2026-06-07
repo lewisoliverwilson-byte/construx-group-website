@@ -94,6 +94,7 @@ import OPAPanel from '@/components/OPAPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PinotPanel from '@/components/PinotPanel';
 import PprofPanel from '@/components/PprofPanel';
+import PromtailPanel from '@/components/PromtailPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -685,8 +686,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* pprof — heap, cpu, goroutines, mutex, block */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <PprofPanel />
+      </section>
+
+      {/* promtail — scrape targets, pipeline stages, loki push */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <PromtailPanel />
       </section>
 
       {/* Posts */}

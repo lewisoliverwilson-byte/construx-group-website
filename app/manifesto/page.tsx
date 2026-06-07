@@ -91,6 +91,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import PatroniPanel from '@/components/PatroniPanel';
 import PortainerPanel from '@/components/PortainerPanel';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -729,8 +730,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* portainer — containers, stacks, volumes, networks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PortainerPanel />
+        </div>
+
+        {/* network ping — hosts, rtt, loss, jitter */}
+        <div className="mt-4 pb-6">
+          <NetworkPingPanel />
         </div>
 
         {/* Sign-off */}

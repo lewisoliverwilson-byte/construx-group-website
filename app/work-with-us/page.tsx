@@ -90,6 +90,7 @@ import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PostgresReplPanel from '@/components/PostgresReplPanel';
+import PingPanel from '@/components/PingPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1069,8 +1070,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* postgres repl — wal, slots, lag, standby */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <PostgresReplPanel />
+      </section>
+
+      {/* ping — rtt, loss, ttl, icmp, hosts */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <PingPanel />
       </section>
 
       {/* CTA */}
