@@ -71,6 +71,7 @@ import LinkerdPanel from '@/components/LinkerdPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
+import DuckdbPanel from '@/components/DuckdbPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -746,8 +747,13 @@ export default function StatsPage() {
       </div>
 
       {/* cyclonedx — sbom, components, vulnerabilities, licenses */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CycloneDxPanel />
+      </div>
+
+      {/* duckdb — in-process olap, queries, extensions, files */}
+      <div className="mt-6 pb-10">
+        <DuckdbPanel />
       </div>
     </div>
   );

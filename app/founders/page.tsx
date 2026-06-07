@@ -69,6 +69,7 @@ import PulumiPanel from '@/components/PulumiPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import EnvoyPanel from '@/components/EnvoyPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -834,8 +835,13 @@ export default function FoundersPage() {
         </div>
 
         {/* dmesg — kernel ring buffer, hardware events, boot log */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DmesgPanel />
+        </div>
+
+        {/* envoy — sidecar proxy, listeners, clusters, routes */}
+        <div className="mt-6 pb-10">
+          <EnvoyPanel />
         </div>
 
         {/* CTA */}

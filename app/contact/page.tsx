@@ -68,6 +68,7 @@ import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import CosignPanel from '@/components/CosignPanel';
+import DruidPanel from '@/components/DruidPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -706,8 +707,13 @@ export default function ContactPage() {
       </section>
 
       {/* cosign — container signing, verification, keyless */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CosignPanel />
+      </section>
+
+      {/* druid — real-time analytics, datasources, segments */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DruidPanel />
       </section>
     </div>
   );

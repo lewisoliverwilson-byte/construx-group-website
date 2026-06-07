@@ -69,6 +69,7 @@ import QdrantPanel from '@/components/QdrantPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
+import FreeMemPanel from '@/components/FreeMemPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -698,8 +699,13 @@ export default function NowPage() {
         </div>
 
         {/* docker stats — cpu, mem, net, block per container */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DockerStatsPanel />
+        </div>
+
+        {/* free mem — memory usage, buffers, cache, available */}
+        <div className="mt-6 pb-10">
+          <FreeMemPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
