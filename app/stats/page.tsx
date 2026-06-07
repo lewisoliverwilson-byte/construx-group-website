@@ -65,6 +65,7 @@ import DaprPanel from '@/components/DaprPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -710,8 +711,13 @@ export default function StatsPage() {
       </div>
 
       {/* nats jetstream — streams, consumers, messages, acks */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NATSJetStreamPanel />
+      </div>
+
+      {/* goreleaser — release automation, binaries, docker, changelog */}
+      <div className="mt-6 pb-10">
+        <GoReleaserPanel />
       </div>
     </div>
   );

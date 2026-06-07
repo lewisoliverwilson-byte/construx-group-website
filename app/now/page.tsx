@@ -63,6 +63,7 @@ import AirbytePanel from '@/components/AirbytePanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import DaprPanel from '@/components/DaprPanel';
+import AtlasPanel from '@/components/AtlasPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -662,8 +663,13 @@ export default function NowPage() {
         </div>
 
         {/* dapr distributed application runtime — actors, pub/sub, state */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DaprPanel />
+        </div>
+
+        {/* atlas database schema management — migrations, drift, ci */}
+        <div className="mt-6 pb-10">
+          <AtlasPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

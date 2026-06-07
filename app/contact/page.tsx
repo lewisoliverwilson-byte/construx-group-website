@@ -63,6 +63,7 @@ import CiliumPanel from '@/components/CiliumPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
+import AirbytePanel from '@/components/AirbytePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -676,8 +677,13 @@ export default function ContactPage() {
       </section>
 
       {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <FlinkPanel />
+      </section>
+
+      {/* airbyte open-source elt — connectors, syncs, data movement */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <AirbytePanel />
       </section>
     </div>
   );

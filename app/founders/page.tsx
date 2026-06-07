@@ -63,6 +63,7 @@ import FlinkPanel from '@/components/FlinkPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import DaprPanel from '@/components/DaprPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -798,8 +799,13 @@ export default function FoundersPage() {
         </div>
 
         {/* goreleaser — release automation, binaries, docker, changelog */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GoReleaserPanel />
+        </div>
+
+        {/* nats jetstream — streams, consumers, messages, acks */}
+        <div className="mt-6 pb-10">
+          <NATSJetStreamPanel />
         </div>
 
         {/* CTA */}
