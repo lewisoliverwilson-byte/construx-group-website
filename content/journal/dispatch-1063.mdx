@@ -1,0 +1,196 @@
+---
+title: "Karpenter: just-in-time Kubernetes node provisioning — automatic, topology-aware scaling"
+date: "2033-09-07"
+excerpt: "Karpenter is a Kubernetes node autoscaler that provisions new nodes within seconds of a pod becoming unschedulable, then terminates them when they are no longer needed. Unlike the Cluster Autoscaler (which adjusts the size of pre-defined node groups), Karpenter creates individual nodes that are sized exactly for the pending workload — if you have pending pods that need 2 vCPU and 4GB, Karpenter provisions a node with exactly that capacity, not the next available node group size. Karpenter uses NodePool resources (formerly Provisioner) to declare constraints: which instance families are allowed, which AZs to use, what OS/AMI to use, and spending limits. It integrates directly with the cloud API (AWS EC2, Azure VMSS) to launch instances without going through ASG mechanics. Karpenter also handles disruption: it can consolidate underutilised nodes (replacing two small nodes with one larger node), enforce disruption budgets, and respect PodDisruptionBudgets during node termination."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Just-in-time provisioning. NodePool constraints. Instance flexibility. Consolidation. Disruption budgets.
+
+## NodePool and EC2NodeClass configuration
+
+```yaml
+# NodePool: defines constraints for nodes Karpenter can provision
+# Karpenter selects from any instance type that satisfies the requirements
+
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: construx-general
+spec:
+  template:
+    metadata:
+      labels:
+        karpenter.sh/nodepool: construx-general
+    spec:
+      nodeClassRef:
+        group:   karpenter.k8s.aws
+        kind:    EC2NodeClass
+        name:    construx-nodes
+      requirements:
+        - key:  karpenter.sh/capacity-type
+          operator: In
+          values: [spot, on-demand]   # prefer spot, fall back to on-demand
+        - key:  node.kubernetes.io/instance-type
+          operator: In
+          values:
+            # Multiple instance families: Karpenter picks cheapest available
+            - m7i.large
+            - m7i.xlarge
+            - m7i.2xlarge
+            - m6i.large
+            - m6i.xlarge
+            - m6i.2xlarge
+            - c7i.large
+            - c7i.xlarge
+        - key:  topology.kubernetes.io/zone
+          operator: In
+          values: [eu-west-2a, eu-west-2b, eu-west-2c]
+        - key:  kubernetes.io/os
+          operator: In
+          values: [linux]
+      expireAfter: 720h   # force node rotation every 30 days (refreshes AMI, credentials)
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter:    1m    # start consolidating 1m after node is underutilised
+    budgets:
+      - nodes: "20%"           # never disrupt more than 20% of nodes simultaneously
+  limits:
+    cpu:    1000          # max 1000 vCPUs across all Karpenter-managed nodes
+    memory: 4000Gi
+---
+# Separate NodePool for GPU workloads
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: construx-gpu
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind:  EC2NodeClass
+        name:  construx-nodes
+      requirements:
+        - key:  karpenter.sh/capacity-type
+          operator: In
+          values: [spot]   # GPU spot instances = 70% discount
+        - key:  node.kubernetes.io/instance-type
+          operator: In
+          values: [g5.xlarge, g5.2xlarge, g5.4xlarge, g4dn.xlarge, g4dn.2xlarge]
+        - key: nvidia.com/gpu
+          operator: Exists
+  disruption:
+    consolidationPolicy: WhenEmpty   # only terminate when completely idle (GPU workloads are long-running)
+    budgets:
+      - nodes: "1"   # never disrupt more than 1 GPU node at a time
+  limits:
+    cpu:    100
+    memory: 400Gi
+---
+# EC2NodeClass: AMI selection, security groups, IAM profile, storage
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: construx-nodes
+spec:
+  amiSelectorTerms:
+    - alias: al2023@latest   # Amazon Linux 2023, auto-updated AMI
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: construx-prod   # subnets tagged for Karpenter
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: construx-prod
+  instanceProfile: KarpenterNodeInstanceProfile-construx-prod
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 50Gi
+        volumeType: gp3
+        iops:       3000
+        throughput: 125
+        encrypted:  true
+  userData: |
+    #!/bin/bash
+    # Custom node bootstrap: install Datadog agent, set sysctl tuning
+    echo "net.core.somaxconn=65535" >> /etc/sysctl.conf
+    sysctl -p
+```
+
+## Pod configuration for Karpenter scheduling
+
+```yaml
+# Deployment: use node selector and pod topology spread to guide Karpenter
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: construx-api
+  namespace: construx-prod
+spec:
+  replicas: 6
+  template:
+    spec:
+      # Topology spread: distribute across 3 AZs
+      topologySpreadConstraints:
+        - maxSkew:           1
+          topologyKey:       topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: construx-api
+      containers:
+        - name: construx-api
+          resources:
+            requests:
+              cpu:    500m
+              memory: 512Mi
+            limits:
+              memory: 512Mi   # no CPU limit — CPU is compressible
+      # Node affinity: prefer on-demand for API (accept spot for workers)
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key:      karpenter.sh/capacity-type
+                    operator: In
+                    values:   [on-demand]
+      # PodDisruptionBudget: min 4 replicas during node disruption
+      # (defined separately)
+```
+
+```bash
+# Karpenter CLI and monitoring
+
+# Watch Karpenter events (node provisioning decisions)
+kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter -f | grep -E "launched|terminated|consolidated"
+
+# See Karpenter-managed nodes
+kubectl get nodes -l karpenter.sh/nodepool=construx-general
+# NAME                           STATUS  ROLES   AGE   VERSION    INSTANCE-TYPE  CAPACITY-TYPE
+# ip-10-0-2-48.eu-west-2.compute  Ready   <none>  2m    v1.31.0  m7i.large      spot
+# ip-10-0-2-71.eu-west-2.compute  Ready   <none>  14m   v1.31.0  m6i.xlarge     spot
+
+# NodeClaims: low-level Karpenter resource (one per node)
+kubectl get nodeclaims
+# NAME                         TYPE           ZONE        NODE                           READY
+# construx-general-xk2j9       m7i.large      eu-west-2b  ip-10-0-2-48...                True
+# construx-general-p8mn2       m6i.xlarge     eu-west-2a  ip-10-0-2-71...                True
+
+# Prometheus metrics
+# karpenter_nodes_total{provisioner="construx-general"} 8
+# karpenter_pods_startup_time_seconds{quantile="0.99"} 18.4
+# karpenter_nodeclaims_launched_total 142
+# karpenter_nodeclaims_terminated_total 118
+# karpenter_nodeclaims_disrupted_total{reason="consolidation"} 24
+
+# Cost analysis: Karpenter spot instances vs on-demand
+# Spot: ~$0.038/hr for m7i.large (eu-west-2) vs $0.128/hr on-demand = 70% savings
+# At 10 nodes running 24/7: $9.12/day spot vs $30.72/day on-demand = $21.60/day savings
+```
+
+Karpenter vs Cluster Autoscaler vs KEDA vs manual node groups: Cluster Autoscaler scales pre-defined node groups (ASGs) up/down — it can't create heterogeneous nodes or pick the cheapest available instance type. If your ASG is m5.large and there are no m5.large spot instances available, CA gives up. Karpenter tries multiple instance families simultaneously and picks whichever launches first. KEDA scales pods (replicas) based on queue depth, metrics, or events — not nodes. KEDA and Karpenter are complementary: KEDA scales your deployment to more pods, Karpenter provisions the nodes for those pods. Manual node groups require capacity planning upfront — you provision nodes in anticipation of load, which leads to over-provisioning and idle spend. Karpenter's consolidation is the key operational win: it actively removes underutilised nodes throughout the day, not just at peak. For teams running Kubernetes on AWS who want to minimise EC2 spend without managing instance types manually, Karpenter with spot instances is the standard choice.

@@ -26,6 +26,7 @@ import DaggerPanel from '@/components/DaggerPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import KedaPanel from '@/components/KedaPanel';
 import SpiffePanel from '@/components/SpiffePanel';
+import TrinoPanel from '@/components/TrinoPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -440,8 +441,13 @@ export default function NowPage() {
         </div>
 
         {/* SPIFFE/SPIRE workload identity — x.509 SVIDs, zero-trust, no static secrets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SpiffePanel />
+        </div>
+
+        {/* trino distributed sql — federated queries across iceberg, postgres, kafka */}
+        <div className="mt-6 pb-10">
+          <TrinoPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -1,0 +1,172 @@
+---
+title: "Grafana Loki: log aggregation — label-based indexing, LogQL, cheap at scale"
+date: "2033-09-04"
+excerpt: "Grafana Loki is a horizontally scalable log aggregation system inspired by Prometheus. Unlike Elasticsearch (which indexes every field in every log line), Loki only indexes labels (key-value metadata like service, namespace, pod, environment) and stores log lines as compressed chunks. The query language LogQL uses label selectors to narrow down which log streams to read, then applies pipeline operations (filter, regex, parse, aggregate) on the raw text. Because Loki skips full-text indexing, the ingestion cost is dramatically lower — Loki's storage is typically 5-10x cheaper than Elasticsearch for the same log volume. Loki integrates with the OpenTelemetry Collector (logs are shipped via the Loki exporter or the Grafana Alloy agent), with Promtail (the Loki-native log shipper), and with Grafana (log queries display alongside Prometheus metrics in the same dashboard). Loki's ruler component can alert on log content (e.g., alert when error rate in a service exceeds a threshold) using the same AlertManager rules as Prometheus."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Label-based indexing. LogQL. Promtail. Chunks. Ruler alerts. Grafana integration.
+
+## Loki configuration and Promtail
+
+```yaml
+# Loki server config: loki.yaml
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  path_prefix:  /var/loki
+  storage:
+    s3:
+      endpoint:          s3.eu-west-2.amazonaws.com
+      bucketnames:       construx-loki-chunks
+      region:            eu-west-2
+      access_key_id:     ${AWS_ACCESS_KEY_ID}
+      secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+      s3forcepathstyle:  false
+  replication_factor: 3
+  ring:
+    kvstore:
+      store: memberlist
+
+schema_config:
+  configs:
+    - from: 2033-01-01
+      store:          tsdb     # TSDB index (newer, faster than BoltDB)
+      object_store:   s3
+      schema:         v13
+      index:
+        prefix: index_
+        period: 24h
+
+compactor:
+  working_directory: /var/loki/compactor
+  retention_enabled: true
+
+limits_config:
+  retention_period: 744h   # 31 days
+  ingestion_rate_mb:        16
+  ingestion_burst_size_mb:  32
+  max_global_streams_per_user: 10000
+
+ruler:
+  storage:
+    type: s3
+    s3:
+      bucketnames: construx-loki-ruler
+  rule_path: /var/loki/ruler
+  alertmanager_url: http://alertmanager.monitoring.svc.cluster.local:9093
+  enable_api: true
+
+analytics:
+  reporting_enabled: false
+```
+
+```yaml
+# Promtail config: collect pod logs from Kubernetes
+# promtail-config.yaml
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+clients:
+  - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+positions:
+  filename: /var/run/promtail/positions.yaml
+
+scrape_configs:
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+    pipeline_stages:
+      # Parse JSON log lines
+      - json:
+          expressions:
+            level:   level
+            message: message
+            trace_id: trace_id
+      # Set label from JSON field
+      - labels:
+          level:
+          trace_id:
+      # Drop DEBUG logs in prod to reduce cost
+      - drop:
+          expression: '"level":"debug"'
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        target_label: app
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+```
+
+## LogQL queries
+
+```logql
+-- LogQL: Loki's query language (label selector + pipeline)
+
+-- Select all error logs from the construx-api in prod
+{app="construx-api", namespace="construx-prod", level="error"}
+
+-- Filter by text pattern
+{app="construx-api"} |= "payment declined"
+
+-- Parse and extract structured fields
+{app="construx-api"} | json | status_code >= 500
+
+-- Aggregation: error rate per minute (for alerting)
+rate({app="construx-api", level="error"}[1m])
+
+-- Top 10 slowest requests in the last hour
+{app="construx-api"} | json | duration_ms > 0
+  | sort by (duration_ms) desc
+  | limit 10
+
+-- Correlation: find logs near a slow trace (by trace_id from Tempo)
+{app="construx-api"} | json | trace_id = "4bf92f3577b34da6a3ce929d0e0e4736"
+
+-- Label-value counts: which endpoints are erroring?
+topk(5,
+  sum by (path) (
+    rate({app="construx-api", status_code=~"5.."}[5m])
+  )
+)
+```
+
+```yaml
+# Loki ruler: alert on log patterns (same AlertManager integration as Prometheus)
+# /var/loki/ruler/construx-prod/alerts.yaml
+
+groups:
+  - name: construx-api-alerts
+    interval: 1m
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate({app="construx-api", namespace="construx-prod", level="error"}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          team:     platform
+        annotations:
+          summary:     "High error rate in construx-api"
+          description: "Error rate is {{ $value | humanize }} errors/sec"
+
+      - alert: PaymentDeclines
+        expr: |
+          sum(rate({app="construx-payments"} |= "payment declined" [5m])) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Payment decline rate elevated"
+```
+
+Loki vs Elasticsearch/OpenSearch vs Splunk vs CloudWatch Logs: Elasticsearch indexes every token in every log line — fast full-text search, but ingestion and storage cost scales with log volume and the index size. At 100GB/day of logs, Elasticsearch becomes expensive to run at scale. Splunk is powerful but extremely expensive (per-GB ingestion licensing). CloudWatch Logs is convenient for AWS workloads but expensive at scale and limited in query capability. Loki's cost model is fundamentally different: only labels are indexed, so storage cost is proportional to the compressed chunk size (typically 20-30x compression on text logs), not the token count. The tradeoff: LogQL does not support arbitrary full-text search across un-labelled fields — you must have the right labels on the log stream to filter efficiently. A label with high cardinality (like request_id) should not be a label — it should be parsed from the log line in the query. For teams running the Grafana stack who want affordable log aggregation at scale with Grafana dashboard integration, Loki is the standard choice.
