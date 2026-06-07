@@ -54,6 +54,7 @@ import ThanosPanel from '@/components/ThanosPanel';
 import TetragonPanel from '@/components/TetragonPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
+import SkaffoldPanel from '@/components/SkaffoldPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -608,8 +609,13 @@ export default function NowPage() {
         </div>
 
         {/* grafana oncall incident management — schedules, alerts, escalations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaOnCallPanel />
+        </div>
+
+        {/* skaffold kubernetes dev workflow — builds, deploys, sync */}
+        <div className="mt-6 pb-10">
+          <SkaffoldPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

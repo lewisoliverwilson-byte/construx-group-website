@@ -54,6 +54,7 @@ import DronePanel from '@/components/DronePanel';
 import HarborPanel from '@/components/HarborPanel';
 import VeleroPanel from '@/components/VeleroPanel';
 import SynapsePanel from '@/components/SynapsePanel';
+import EarthlyPanel from '@/components/EarthlyPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -744,8 +745,13 @@ export default function FoundersPage() {
         </div>
 
         {/* synapse event streaming — topics, consumers, throughput */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SynapsePanel />
+        </div>
+
+        {/* earthly container builds — targets, images, cache */}
+        <div className="mt-6 pb-10">
+          <EarthlyPanel />
         </div>
 
         {/* CTA */}

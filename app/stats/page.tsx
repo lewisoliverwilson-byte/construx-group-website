@@ -56,6 +56,7 @@ import YugaBytePanel from '@/components/YugaBytePanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import PrefectPanel from '@/components/PrefectPanel';
+import HuggingFacePanel from '@/components/HuggingFacePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -656,8 +657,13 @@ export default function StatsPage() {
       </div>
 
       {/* prefect workflow orchestration — flows, runs, tasks */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PrefectPanel />
+      </div>
+
+      {/* huggingface model hub — models, datasets, inference */}
+      <div className="mt-6 pb-10">
+        <HuggingFacePanel />
       </div>
     </div>
   );
