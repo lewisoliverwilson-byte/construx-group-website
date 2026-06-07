@@ -17,6 +17,7 @@ import OtelTracesPanel from '@/components/OtelTracesPanel';
 import WireGuardPanel from '@/components/WireGuardPanel';
 import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 import FioPanel from '@/components/FioPanel';
+import TokioRuntimePanel from '@/components/TokioRuntimePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -386,8 +387,13 @@ export default function NowPage() {
         </div>
 
         {/* Disk I/O benchmark */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FioPanel />
+        </div>
+
+        {/* Tokio runtime metrics */}
+        <div className="mt-6 pb-10">
+          <TokioRuntimePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

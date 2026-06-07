@@ -1,0 +1,150 @@
+---
+title: "tokio-console: real-time async task diagnostics"
+date: "2031-11-22"
+excerpt: "tokio-console is an instrumented debugger for Tokio async runtimes. It connects to a running process via a gRPC channel and streams real-time task diagnostics: which tasks exist, how long they spend polling, how often they're woken, whether any are stuck. It catches the most common async bug — a task that never yields — before it becomes a production incident. The instrumentation is compiled out in release builds unless explicitly enabled."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+See every task. Catch stuck futures before they cause incidents.
+
+## Setup
+
+```toml
+# Cargo.toml
+[dependencies]
+tokio       = { version = "1", features = ["full", "tracing"] }
+console-subscriber = "0.4"
+
+# Enable in main.rs (development / staging only)
+# console-subscriber adds ~5% overhead — don't enable in prod without a feature flag
+```
+
+```rust
+// src/main.rs
+#[tokio::main]
+async fn main() {
+    // console-subscriber listens on 127.0.0.1:6669 by default
+    // TOKIO_CONSOLE_BIND=0.0.0.0:6669 to expose externally
+    console_subscriber::init();
+
+    // Rest of your application
+    run_server().await;
+}
+```
+
+```bash
+# Install the CLI
+cargo install tokio-console
+
+# Connect to a running process
+tokio-console http://127.0.0.1:6669
+
+# Connect to a remote process (staging)
+tokio-console http://staging.construxgroup.io:6669
+```
+
+## Reading the tasks view
+
+```
+Tokio Console — Tasks (press ? for help)
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ID  │ NAME                 │ STATE   │ TOTAL   │ BUSY    │ IDLE   │ POLLS│
+├─────┼──────────────────────┼─────────┼─────────┼─────────┼────────┼──────┤
+│  1  │ tokio-runtime-worker │ RUNNING │ 1m 42s  │ 1m 32s  │  10s   │      │
+│  2  │ tokio-runtime-worker │ RUNNING │ 1m 42s  │  48s    │  54s   │      │
+│ 241 │ handle_request       │ IDLE    │  142ms  │   42ms  │  100ms │   3  │
+│ 242 │ handle_request       │ IDLE    │  389ms  │  210ms  │  179ms │   8  │
+│ 243 │ db_query             │ IDLE    │  181ms  │    2ms  │  179ms │   1  │
+│ 244 │ background_worker    │ RUNNING │ 1m 42s  │   0ms   │ 1m 42s │   1  │
+│     │                      │  ⚠      │         │         │        │      │
+└─────────────────────────────────────────────────────────────────────────┘
+  ⚠  task 244 has not been polled in 1m 40s — likely stuck
+```
+
+## Diagnosing a stuck task
+
+```rust
+// The classic stuck task — holds a MutexGuard across an .await
+// This prevents the task from yielding the thread
+
+// BAD — std::Mutex held across await
+async fn bad_handler(state: Arc<Mutex<HashMap<String, String>>>) {
+    let guard = state.lock().unwrap();     // Holds the mutex
+    let value = fetch_from_db().await;    // Thread parks here — mutex still held!
+    guard.insert("key".to_string(), value);
+}
+
+// GOOD — drop the guard before await
+async fn good_handler(state: Arc<Mutex<HashMap<String, String>>>) {
+    let cloned = {
+        let guard = state.lock().unwrap();
+        guard.clone()    // Clone what you need
+        // guard drops here
+    };
+    let value = fetch_from_db().await;    // Thread can yield freely
+    state.lock().unwrap().insert("key".to_string(), value);
+}
+
+// BEST — use tokio::sync::Mutex for async code
+use tokio::sync::Mutex;
+async fn best_handler(state: Arc<Mutex<HashMap<String, String>>>) {
+    let value = fetch_from_db().await;
+    state.lock().await.insert("key".to_string(), value);
+}
+```
+
+## Instrument your own tasks
+
+```rust
+use tracing::instrument;
+
+// #[instrument] names the task in tokio-console
+#[instrument(name = "process_order", skip(db), fields(order_id = %order_id))]
+async fn process_order(db: &Pool, order_id: &str) -> Result<()> {
+    let order = db.fetch_order(order_id).await?;
+    charge_payment(&order).await?;
+    ship_order(&order).await?;
+    Ok(())
+}
+
+// Tasks will appear as "process_order{order_id=...}" in console
+// Poll times and state transitions are tracked automatically
+```
+
+## Detecting long polls
+
+```rust
+// tokio-console warns when a task polls for > 200µs by default
+// A long poll means the task is blocking the thread — other tasks can't run
+
+// BAD — CPU-intensive work in an async task
+async fn compute_heavy() {
+    let result = (0..10_000_000).map(|x| x * x).sum::<u64>();  // Blocks thread for ~10ms
+    store_result(result).await;
+}
+
+// GOOD — offload to a blocking thread pool
+async fn compute_heavy_fixed() {
+    let result = tokio::task::spawn_blocking(|| {
+        (0..10_000_000).map(|x| x * x).sum::<u64>()
+    }).await.unwrap();
+    store_result(result).await;
+}
+```
+
+## Resource view — channel and mutex contention
+
+```
+Tokio Console — Resources
+┌──────────────────────────────────────────────────────────────────┐
+│ ID  │ KIND    │ LOCATION              │ WAITERS │ HELD BY        │
+├─────┼─────────┼───────────────────────┼─────────┼────────────────┤
+│  1  │ Mutex   │ state.rs:42           │       8 │ task 244       │
+│  2  │ Channel │ worker.rs:18 (mpsc)   │       0 │ —              │
+│  3  │ Semaphore│ limits.rs:31         │       3 │ —              │
+└──────────────────────────────────────────────────────────────────┘
+  Mutex at state.rs:42 has 8 tasks waiting — contention hotspot
+```
+
+tokio-console vs manual tracing: you can add manual timing with `tokio::time::Instant` and emit spans via `tracing`, then view them in Jaeger. That gives you cross-service distributed traces. tokio-console focuses on a single runtime: it shows the Tokio scheduler's internal view — which worker thread ran which task, how long between polls, whether a waker was ever called. It catches bugs that distributed tracing doesn't surface (stuck tasks, blocked threads, mutex contention inside a process).
