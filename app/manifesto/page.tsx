@@ -41,6 +41,7 @@ import WeaviatePanel from '@/components/WeaviatePanel';
 import DruidPanel from '@/components/DruidPanel';
 import KedaPanel from '@/components/KedaPanel';
 import OpaPanel from '@/components/OpaPanel';
+import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -429,8 +430,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* opa open policy agent — rego, admission, api authz, decisions */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OpaPanel />
+        </div>
+
+        {/* tigerbeetle financial ledger — accounts, transfers, two-phase commit */}
+        <div className="mt-4 pb-6">
+          <TigerBeetlePanel />
         </div>
 
         {/* Sign-off */}

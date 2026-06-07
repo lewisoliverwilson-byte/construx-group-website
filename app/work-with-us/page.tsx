@@ -40,6 +40,7 @@ import PrefectPanel from '@/components/PrefectPanel';
 import SpiceDbPanel from '@/components/SpiceDbPanel';
 import StepSecurityPanel from '@/components/StepSecurityPanel';
 import GrypePanel from '@/components/GrypePanel';
+import CycloneDxPanel from '@/components/CycloneDxPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -771,6 +772,11 @@ export default function WorkWithUsPage() {
       {/* grype vulnerability scanner — cve, cvss, containers, sbom */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <GrypePanel />
+      </section>
+
+      {/* cyclonedx sbom — components, licenses, vex vulnerability exchange */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CycloneDxPanel />
       </section>
 
       {/* CTA */}

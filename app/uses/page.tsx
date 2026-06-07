@@ -39,6 +39,7 @@ import BiomePanel from '@/components/BiomePanel';
 import RabbitMQPanel from '@/components/RabbitMQPanel';
 import SocketPanel from '@/components/SocketPanel';
 import PixiePanel from '@/components/PixiePanel';
+import NatsPanel from '@/components/NatsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -536,8 +537,13 @@ export default function UsesPage() {
         </div>
 
         {/* pixie ebpf observability — no-instrumentation, pxl scripts, live */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PixiePanel />
+        </div>
+
+        {/* nats jetstream messaging — subjects, consumers, streams */}
+        <div className="mt-6 pb-10">
+          <NatsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -45,6 +45,7 @@ import LangfusePanel from '@/components/LangfusePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import SigstorePanel from '@/components/SigstorePanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
+import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -388,6 +389,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* pgbouncer postgres connection pooler — pools, stats, modes */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <PgBouncerPanel />
+      </section>
+
+      {/* jfrog xray artifact security — repos, policies, violations */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <JfrogXrayPanel />
       </section>
 
       {/* Posts */}
