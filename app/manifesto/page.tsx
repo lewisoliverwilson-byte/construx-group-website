@@ -25,6 +25,7 @@ import GrypePanel from '@/components/GrypePanel';
 import K9sPanel from '@/components/K9sPanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import TetragonPanel from '@/components/TetragonPanel';
+import IstioPanel from '@/components/IstioPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -333,8 +334,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* tetragon ebpf runtime security — tracingpolicy, sigkill, process lifecycle */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <TetragonPanel />
+        </div>
+
+        {/* istio service mesh — envoy, mtls, virtualservice, authorizationpolicy */}
+        <div className="mt-4 pb-6">
+          <IstioPanel />
         </div>
 
         {/* Sign-off */}

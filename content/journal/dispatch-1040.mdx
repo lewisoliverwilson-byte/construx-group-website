@@ -1,0 +1,202 @@
+---
+title: "Crossplane: Kubernetes-native infrastructure — provision cloud resources with kubectl"
+date: "2033-06-30"
+excerpt: "Crossplane turns Kubernetes into a universal control plane for cloud infrastructure. Instead of running Terraform or Pulumi outside the cluster, you write YAML manifests that declare cloud resources — an RDS instance, an S3 bucket, a VPC — and Crossplane's controllers reconcile the actual cloud state against your desired state, exactly like a Kubernetes Deployment reconciles pod count. The abstraction layer is Composite Resources (XRs): you define a CompositeResourceDefinition (XRD) that describes a higher-level concept (a 'Database' or a 'Network'), and a Composition that maps it to concrete cloud resources. Platform teams publish XRDs; application teams consume them without knowing whether the underlying database is RDS, Cloud SQL, or CloudNativePG on the cluster itself. Crossplane providers (AWS, GCP, Azure, Helm, Terraform) are installed as Kubernetes operators and handle the actual API calls."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+CRDs as infrastructure. Composite resources. Providers. Reconciliation loop. GitOps-native.
+
+## Providers and managed resources
+
+```yaml
+# Install the AWS provider
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-rds
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-rds:v1.7.0
+---
+# ProviderConfig: credentials for the AWS provider
+apiVersion: aws.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: construx-prod
+spec:
+  credentials:
+    source: IRSA   # IAM Roles for Service Accounts — no static keys
+---
+# Managed resource: an RDS PostgreSQL instance
+# Created by kubectl apply — Crossplane reconciles the actual AWS resource
+apiVersion: rds.aws.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: construx-db-prod
+  namespace: database
+spec:
+  forProvider:
+    region: eu-west-2
+    instanceClass: db.t3.medium
+    engine: postgres
+    engineVersion: "16.2"
+    dbName: construx_prod
+    allocatedStorage: 100
+    storageEncrypted: true
+    multiAz: true
+    backupRetentionPeriod: 14
+    deletionProtection: true
+    vpcSecurityGroupIdSelector:
+      matchLabels:
+        role: database
+    dbSubnetGroupNameSelector:
+      matchLabels:
+        tier: private
+  writeConnectionSecretsToRef:
+    namespace: database
+    name: construx-db-prod-conn   # Crossplane writes DSN, host, port, user, password
+  providerConfigRef:
+    name: construx-prod
+```
+
+## Composite resources and compositions
+
+```yaml
+# CompositeResourceDefinition: define the 'Database' abstraction
+# Platform team writes this once; app teams consume 'Database' objects
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xdatabases.construx.io
+spec:
+  group: construx.io
+  names:
+    kind: XDatabase
+    plural: xdatabases
+  claimNames:
+    kind: Database          # what app teams actually create
+    plural: databases
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  properties:
+                    tier:
+                      type: string
+                      enum: [small, medium, large]
+                    region:
+                      type: string
+                      default: eu-west-2
+                    backupRetentionDays:
+                      type: integer
+                      default: 7
+                  required: [tier]
+---
+# Composition: maps XDatabase → actual AWS RDS resources
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xdatabases-aws-rds
+spec:
+  compositeTypeRef:
+    apiVersion: construx.io/v1alpha1
+    kind: XDatabase
+  resources:
+    - name: rds-instance
+      base:
+        apiVersion: rds.aws.upbound.io/v1beta1
+        kind: Instance
+        spec:
+          forProvider:
+            region: eu-west-2
+            engine: postgres
+            engineVersion: "16.2"
+            storageEncrypted: true
+            multiAz: true
+            providerConfigRef:
+              name: construx-prod
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.region
+          toFieldPath: spec.forProvider.region
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.tier
+          toFieldPath: spec.forProvider.instanceClass
+          transforms:
+            - type: map
+              map:
+                small:  db.t3.small
+                medium: db.t3.medium
+                large:  db.r6g.xlarge
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.backupRetentionDays
+          toFieldPath: spec.forProvider.backupRetentionPeriod
+```
+
+## Application team usage
+
+```yaml
+# App team creates a Database claim — no AWS knowledge required
+apiVersion: construx.io/v1alpha1
+kind: Database
+metadata:
+  name: payments-db
+  namespace: payments
+spec:
+  parameters:
+    tier: medium
+    backupRetentionDays: 14
+  writeConnectionSecretToRef:
+    name: payments-db-conn   # Crossplane writes the DSN here
+---
+# Use the connection secret in the deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-api
+  namespace: payments
+spec:
+  template:
+    spec:
+      containers:
+        - name: payments-api
+          image: registry.construx.internal/payments-api:v2.3.1
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: payments-db-conn
+                  key: endpoint
+```
+
+```bash
+# GitOps: everything is YAML, pushed to git, reconciled by ArgoCD + Crossplane
+
+# Apply a new database claim
+kubectl apply -f payments-db.yaml
+
+# Watch Crossplane create the RDS instance
+kubectl get database payments-db -n payments -w
+# NAME          SYNCED   READY   CONNECTION-SECRET   AGE
+# payments-db   True     False   payments-db-conn    12s
+# payments-db   True     True    payments-db-conn    4m31s
+
+# The RDS instance exists in AWS — created by Crossplane's controller
+aws rds describe-db-instances --query 'DBInstances[?DBName==`payments_db`].[DBInstanceStatus]'
+# [["available"]]
+
+# Delete the claim — Crossplane tears down the RDS instance
+kubectl delete database payments-db -n payments
+```
+
+Crossplane vs Terraform vs Pulumi vs AWS CDK: Terraform and Pulumi run outside the cluster — they are imperative pipelines that apply state changes and store state files. Crossplane runs inside the cluster as Kubernetes controllers: infrastructure is reconciled continuously, not applied once. If someone manually modifies an RDS instance in the AWS console, Crossplane detects the drift and corrects it on the next reconciliation loop. The key advantage for Kubernetes-native teams is that infrastructure and application configuration live in the same Git repository, use the same kubectl tooling, and are deployed by the same ArgoCD pipeline. The constraint: Crossplane is complex to set up, and Compositions are verbose. For teams not already running Kubernetes, Terraform or Pulumi is a lower-friction starting point. For platform teams building internal developer platforms on top of Kubernetes, Crossplane's drift detection and claim/composition model are worth it.
