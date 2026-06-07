@@ -1,0 +1,160 @@
+---
+title: "curl -v: TLS handshake inspection, HTTP headers, and timing breakdown"
+date: "2032-05-30"
+excerpt: "curl -v exposes the full lifecycle of an HTTPS request: DNS resolution, TCP connect, TLS handshake (cipher suite, certificate chain, ALPN negotiation), request headers sent, response headers received, and body transfer. Paired with -w and timing variables (time_namelookup, time_connect, time_appconnect, time_starttransfer, time_total), you get a per-phase timing breakdown without a separate profiling tool. curl -v is the first tool to reach for when debugging TLS misconfigurations, unexpected redirects, missing HSTS headers, or API authentication failures."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+`*` lines are TLS. `>` is your request. `<` is the server's response. `-w` gives you the timing.
+
+## TLS handshake and connection inspection
+
+```bash
+# Full verbose output — TLS handshake, headers, response, timing
+curl -v -o /dev/null -w "\n%{time_total}s total" https://api.construx.io/v1/orders
+
+# *   Trying 203.0.113.47:443...
+# * Connected to api.construx.io (203.0.113.47) port 443
+# * ALPN: curl offers h2,http/1.1
+# * TLSv1.3 (OUT), TLS handshake, Client hello (1)
+# * TLSv1.3 (IN),  TLS handshake, Server hello (2)
+# * TLSv1.3 (IN),  TLS handshake, Encrypted Extensions (8)
+# * TLSv1.3 (IN),  TLS handshake, Certificate (11)
+# * TLSv1.3 (IN),  TLS handshake, CERT verify (15)
+# * TLSv1.3 (IN),  TLS handshake, Finished (20)
+# * TLSv1.3 (OUT), TLS handshake, Finished (20)
+# * SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519 / RSASSA-PSS
+# * Server certificate: api.construx.io — valid 2032-01-14 to 2032-04-14
+# * SSL certificate verify ok.
+
+# Check what cipher suites the server supports
+curl -v https://api.construx.io/ 2>&1 | grep "SSL connection"
+# * SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519 / RSASSA-PSS
+
+# Force a specific TLS version — useful for checking if the server rejects old clients
+curl --tls-max 1.2 -v https://api.construx.io/
+# * TLSv1.2 (OUT), TLS handshake, Client hello (1)
+# ...or: curl: (35) error:0A000102:SSL routines::unsupported protocol  (server is TLS 1.3-only)
+
+# Skip certificate verification (NOT for production — debugging only)
+curl -k -v https://api.construx.io/
+
+# Use a specific CA bundle
+curl --cacert /etc/ssl/certs/ca-certificates.crt -v https://api.construx.io/
+
+# Check HSTS and other security headers
+curl -s -I https://api.construx.io/ | grep -i "strict-transport\|x-content-type\|x-frame"
+# strict-transport-security: max-age=63072000; includeSubDomains
+# x-content-type-options: nosniff
+# x-frame-options: DENY
+```
+
+## Timing breakdown with -w
+
+```bash
+# Full per-phase timing — the most useful curl invocation for debugging latency
+curl -o /dev/null -s -w "
+dns:         %{time_namelookup}s
+tcp:         %{time_connect}s
+tls:         %{time_appconnect}s
+ttfb:        %{time_starttransfer}s
+total:       %{time_total}s
+http_code:   %{http_code}
+size:        %{size_download} bytes
+speed:       %{speed_download} B/s
+" https://api.construx.io/v1/orders
+
+# dns:         0.008s
+# tcp:         0.012s   (time_connect - time_namelookup)
+# tls:         0.097s   (time_appconnect - time_connect = TLS handshake)
+# ttfb:        0.117s   (first byte — server processing time)
+# total:       0.341s
+# http_code:   200
+# size:        3841 bytes
+# speed:       11262 B/s
+
+# Loop 10 times and measure variance — useful for detecting P99 spikes
+for i in $(seq 10); do
+  curl -o /dev/null -s -w "%{time_total}\n" https://api.construx.io/v1/health
+done | sort -n
+# 0.118
+# 0.121
+# 0.124
+# ...
+# 0.891   ← outlier — TLS session wasn't reused
+
+# Reuse the TLS session with a cookie jar (avoids full handshake on repeat requests)
+curl -c /tmp/curl-cookies.txt -b /tmp/curl-cookies.txt \
+  -o /dev/null -s -w "%{time_total}\n" https://api.construx.io/v1/health
+```
+
+## Debugging API requests and redirects
+
+```bash
+# Follow redirects and show each hop
+curl -L -v https://construx.io/ 2>&1 | grep "^[<>*]"
+# * Connected to construx.io
+# > GET / HTTP/2
+# < HTTP/2 301
+# < location: https://www.construx.io/
+# * Issue another request to: https://www.construx.io/
+# < HTTP/2 200
+
+# POST with JSON body — show request + response headers
+curl -v -X POST https://api.construx.io/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -d '{"customer_id":"cust-001","items":[{"sku":"SKU-42","qty":2}]}'
+
+# Rate limit debugging — check x-ratelimit headers
+curl -s -D - https://api.construx.io/v1/orders | grep -i "x-ratelimit"
+# x-ratelimit-limit: 500
+# x-ratelimit-remaining: 497
+# x-ratelimit-reset: 1748592000
+
+# HTTP/2 vs HTTP/1.1 — force HTTP version
+curl --http2 -v https://api.construx.io/
+curl --http1.1 -v https://api.construx.io/
+
+# Send custom headers to debug server routing
+curl -H "X-Canary: true" -H "X-Region: eu-west-1" -v https://api.construx.io/v1/health
+
+# Measure TTFB specifically across environments
+for env in api-eu api-us api-ap; do
+  printf "%-10s " "$env"
+  curl -o /dev/null -s -w "%{time_starttransfer}s TTFB\n" \
+    "https://${env}.construx.io/v1/health"
+done
+# api-eu     0.041s TTFB
+# api-us     0.089s TTFB
+# api-ap     0.193s TTFB
+```
+
+## Certificate and OCSP inspection
+
+```bash
+# Dump full certificate chain
+curl -v https://api.construx.io/ 2>&1 | grep -A 5 "Server certificate"
+# * Server certificate:
+# *  subject: CN=api.construx.io
+# *  start date: Jan 14 00:00:00 2032 GMT
+# *  expire date: Apr 14 23:59:59 2032 GMT
+# *  subjectAltName: host "api.construx.io" matched cert's "api.construx.io"
+# *  issuer: C=US, O=Let's Encrypt, CN=E6
+
+# Check if certificate is about to expire (exit code != 0 if expired)
+curl --fail -v https://api.construx.io/ 2>&1 | grep "expire date"
+
+# OCSP stapling check
+curl -v https://api.construx.io/ 2>&1 | grep -i "ocsp"
+# * SSL certificate status: good (OCSP stapled response)
+
+# Test mutual TLS (mTLS) — client presents its own certificate
+curl -v \
+  --cert /etc/ssl/construx-client.pem \
+  --key /etc/ssl/construx-client-key.pem \
+  https://api-internal.construx.io/v1/admin/metrics
+```
+
+curl -v vs openssl s_client: openssl s_client gives you the raw TLS transcript — certificate details, cipher negotiation, the full chain — but no HTTP layer. curl -v gives you TLS plus the full HTTP exchange (request headers, response headers, status code) in one command. For pure TLS debugging (checking if a cert chain is valid, testing specific cipher suites), use openssl s_client. For end-to-end API debugging (auth failures, header issues, redirect chains, timing), use curl -v. The -w flag is what makes curl indispensable: timing measurements that would otherwise require a separate profiler are available in a single command.

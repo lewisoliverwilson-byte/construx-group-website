@@ -19,6 +19,7 @@ import GrpcCallPanel from '@/components/GrpcCallPanel';
 import PostgresReplPanel from '@/components/PostgresReplPanel';
 import WasmComponentPanel from '@/components/WasmComponentPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -413,8 +414,13 @@ export default function ContactPage() {
       </section>
 
       {/* BGP routing table */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <BgpLookupPanel />
+      </section>
+
+      {/* curl -v TLS handshake + response timing */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CurlVerbosePanel />
       </section>
     </div>
   );

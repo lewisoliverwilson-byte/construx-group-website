@@ -1,0 +1,166 @@
+---
+title: "Linux namespaces: process isolation without a hypervisor"
+date: "2032-06-05"
+excerpt: "Linux namespaces isolate system resources so that processes see only what they're supposed to: their own PID tree, their own network interfaces, their own filesystem root, their own hostname. Containers are built on namespaces — Docker, containerd, and Kubernetes pods are all combinations of pid, net, mnt, uts, ipc, and user namespaces managed by the kernel. Understanding namespaces lets you build minimal isolation primitives, debug container escape attempts, and understand exactly what 'container isolation' means at the kernel level."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+A container is a process with restricted views of the kernel's global tables.
+
+## Namespace types and unshare
+
+```bash
+# Linux namespaces (each isolates a different global resource):
+# pid  — process IDs (containers get their own PID 1)
+# net  — network interfaces, routing tables, iptables rules
+# mnt  — filesystem mount points
+# uts  — hostname and NIS domain name
+# ipc  — System V IPC, POSIX message queues
+# user — UID/GID mappings (unprivileged containers)
+# cgroup — control group root (limits CPU/memory/IO)
+# time — system clock offsets (Linux 5.6+)
+
+# List namespaces for a process
+ls -la /proc/1847/ns/
+# lrwxrwxrwx 1 root root 0 /proc/1847/ns/cgroup -> cgroup:[4026531835]
+# lrwxrwxrwx 1 root root 0 /proc/1847/ns/ipc    -> ipc:[4026531839]
+# lrwxrwxrwx 1 root root 0 /proc/1847/ns/mnt    -> mnt:[4026531841]
+# lrwxrwxrwx 1 root root 0 /proc/1847/ns/net    -> net:[4026531992]
+# lrwxrwxrwx 1 root root 0 /proc/1847/ns/pid    -> pid:[4026531836]
+# lrwxrwxrwx 1 root root 0 /proc/1847/ns/uts    -> uts:[4026531838]
+# lrwxrwxrwx 1 root root 0 /proc/1847/ns/user   -> user:[4026531837]
+
+# unshare: run a command in new namespaces (no Docker required)
+# New PID namespace — the shell sees itself as PID 1
+unshare --pid --fork --mount-proc /bin/bash
+ps aux
+# USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+# root           1  0.0  0.0   4616  3712 pts/0    S    14:32   0:00 /bin/bash
+# root           5  0.0  0.0   6608  2880 pts/0    R+   14:32   0:00 ps aux
+
+# New UTS namespace — set a different hostname
+unshare --uts /bin/bash
+hostname construx-container
+hostname   # construx-container (only visible inside this namespace)
+
+# New network namespace — no network interfaces (except lo)
+unshare --net /bin/bash
+ip addr
+# 1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN
+# (no eth0 — completely isolated network view)
+```
+
+## Building a minimal container from scratch
+
+```bash
+# Full container-style isolation: pid + net + mnt + uts + ipc namespaces
+# Step 1: create a root filesystem (using Alpine as the base)
+mkdir /tmp/container-root
+cd /tmp/container-root
+tar -xzf alpine-minirootfs-3.19.1-x86_64.tar.gz
+
+# Step 2: enter all namespaces with chroot
+unshare \
+  --pid \
+  --net \
+  --mount \
+  --uts \
+  --ipc \
+  --fork \
+  chroot /tmp/container-root /bin/sh
+
+# Now inside the "container":
+hostname construx-demo-container
+ps aux
+# PID   USER     TIME  COMMAND
+#     1 root      0:00 /bin/sh      ← PID 1
+#     2 root      0:00 ps aux
+
+# Step 3: add a network interface (veth pair — from the host side)
+# Create veth pair
+ip link add veth0 type veth peer name veth1
+# Move veth1 into the container's network namespace
+PID=$(unshare --pid --fork sleep inf & echo $!)
+ip link set veth1 netns $PID
+# Configure addresses
+ip addr add 10.0.0.1/24 dev veth0
+ip link set veth0 up
+nsenter --net=/proc/$PID/ns/net ip addr add 10.0.0.2/24 dev veth1
+nsenter --net=/proc/$PID/ns/net ip link set veth1 up
+```
+
+## Inspecting running container namespaces
+
+```bash
+# nsenter: enter a running process's namespaces (exec in a container without docker exec)
+# Find the PID of a container's init process
+docker inspect --format '{{.State.Pid}}' construx-api
+# 8421
+
+# Enter all its namespaces and run a shell
+nsenter --target 8421 --pid --net --mnt --uts --ipc /bin/bash
+# Now you're inside the container's namespace view — without going through Docker
+
+# See the container's network namespace from the host
+nsenter --target 8421 --net ip addr
+# 1: lo: <LOOPBACK,UP,LOWER_UP>
+# 2: eth0@if47: <BROADCAST,MULTICAST,UP,LOWER_UP> inet 172.17.0.4/16
+
+# Check which namespaces are shared between two containers
+# (same inode = same namespace = shared resource)
+ls -lai /proc/8421/ns/ /proc/8422/ns/ | grep "net:"
+# 4026532041 /proc/8421/ns/net   ← different inodes = isolated
+# 4026532087 /proc/8422/ns/net
+
+# Kubernetes pod: containers share the same net/ipc/uts namespaces (same pod sandbox)
+ls -lai /proc/8421/ns/net /proc/8423/ns/net
+# 4026532041 /proc/8421/ns/net
+# 4026532041 /proc/8423/ns/net   ← same inode = same net namespace = same pod
+
+# List all network namespaces on the host
+ip netns list
+# construx-api-8421
+# construx-worker-8422
+
+# Execute in a specific named network namespace
+ip netns exec construx-api-8421 ip route
+```
+
+## User namespaces and privilege escalation prevention
+
+```bash
+# User namespace maps UIDs inside the namespace to different UIDs on the host
+# Rootless containers: UID 0 inside = UID 100000 outside (unprivileged on host)
+
+# Create a user namespace — root inside, unprivileged outside
+unshare --user --map-root-user /bin/bash
+id
+# uid=0(root) gid=0(root) groups=0(root)  ← looks like root inside
+# But on the host: this process runs as UID 1000
+
+# Read the UID mapping
+cat /proc/self/uid_map
+# 0       1000          1       ← uid 0 inside = uid 1000 outside, 1 mapping
+
+# Kubernetes: runAsNonRoot and securityContext enforce this at the pod spec level
+# securityContext:
+#   runAsNonRoot: true
+#   runAsUser: 65534          # nobody
+#   allowPrivilegeEscalation: false
+#   readOnlyRootFilesystem: true
+#   seccompProfile:
+#     type: RuntimeDefault    # Restricts syscalls via seccomp BPF filter
+
+# Container escape: if a process has CAP_SYS_ADMIN inside a privileged container,
+# it can write to host cgroups or create device files — one of many escape vectors.
+# Mitigation: drop all capabilities, use seccomp, never run --privileged.
+capsh --print | grep "Current:"
+# Current: cap_chown,cap_dac_override,...  ← privileged container has everything
+
+# Verify your container has dropped capabilities
+docker run --cap-drop=ALL --security-opt no-new-privileges construx-api capsh --print
+# Current: =   ← empty capability set
+```
+
+Linux namespaces vs cgroups: namespaces control what a process can *see* — they isolate the process's view of the system (PIDs, network, filesystem, hostname). cgroups control what a process can *use* — they limit CPU time, memory, disk I/O, and network bandwidth. A container needs both: namespaces for isolation (preventing a container from seeing other containers' processes or network), cgroups for resource limits (preventing one container from consuming all CPU). Namespaces are free — no overhead beyond the kernel bookkeeping. cgroup enforcement has minor overhead from accounting. Between the two, plus a seccomp syscall filter, you have a container: restricted view, resource limits, restricted syscall surface.
