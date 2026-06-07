@@ -34,6 +34,7 @@ import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import PixiePanel from '@/components/PixiePanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
+import CortexPanel from '@/components/CortexPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -524,8 +525,13 @@ export default function StatsPage() {
       </div>
 
       {/* opentelemetry collector — traces/metrics/logs pipelines, spans, exporters */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpenTelemetryPanel />
+      </div>
+
+      {/* cortex multi-tenant prometheus — tenants, series, ingestion, components */}
+      <div className="mt-6 pb-10">
+        <CortexPanel />
       </div>
     </div>
   );

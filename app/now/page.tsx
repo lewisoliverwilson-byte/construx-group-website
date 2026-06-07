@@ -33,6 +33,7 @@ import AirflowPanel from '@/components/AirflowPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
+import ProwPanel from '@/components/ProwPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -482,8 +483,13 @@ export default function NowPage() {
         </div>
 
         {/* kube-state-metrics k8s object health — resource readiness, firing alerts, series */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeStateMetricsPanel />
+        </div>
+
+        {/* prow kubernetes ci — jobs, tide merge pools, pass rates */}
+        <div className="mt-6 pb-10">
+          <ProwPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
