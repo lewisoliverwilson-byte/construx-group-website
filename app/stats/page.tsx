@@ -60,6 +60,7 @@ import HuggingFacePanel from '@/components/HuggingFacePanel';
 import BiomePanel from '@/components/BiomePanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import TalosPanel from '@/components/TalosPanel';
+import AirflowPanel from '@/components/AirflowPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -680,8 +681,13 @@ export default function StatsPage() {
       </div>
 
       {/* talos immutable kubernetes os — nodes, services, config */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TalosPanel />
+      </div>
+
+      {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
+      <div className="mt-6 pb-10">
+        <AirflowPanel />
       </div>
     </div>
   );

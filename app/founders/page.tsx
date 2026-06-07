@@ -58,6 +58,7 @@ import EarthlyPanel from '@/components/EarthlyPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
+import AirbytePanel from '@/components/AirbytePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -768,8 +769,13 @@ export default function FoundersPage() {
         </div>
 
         {/* git graph commit history — branches, merges, topology */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitGraphPanel />
+        </div>
+
+        {/* airbyte open-source elt — connectors, syncs, data movement */}
+        <div className="mt-6 pb-10">
+          <AirbytePanel />
         </div>
 
         {/* CTA */}

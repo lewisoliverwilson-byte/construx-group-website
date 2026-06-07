@@ -58,6 +58,7 @@ import SkaffoldPanel from '@/components/SkaffoldPanel';
 import MisePanel from '@/components/MisePanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
+import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -632,8 +633,13 @@ export default function NowPage() {
         </div>
 
         {/* git blame annotate — commits, authors, lines */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitBlamePanel />
+        </div>
+
+        {/* nats jetstream — streams, consumers, messages, acks */}
+        <div className="mt-6 pb-10">
+          <NATSJetStreamPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

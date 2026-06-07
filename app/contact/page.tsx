@@ -58,6 +58,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import SpirePanel from '@/components/SpirePanel';
+import DaprPanel from '@/components/DaprPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -646,8 +647,13 @@ export default function ContactPage() {
       </section>
 
       {/* spire workload identity — agents, entries, svids */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <SpirePanel />
+      </section>
+
+      {/* dapr distributed application runtime — actors, pub/sub, state */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DaprPanel />
       </section>
     </div>
   );
