@@ -1,0 +1,163 @@
+---
+title: "gRPC and Protocol Buffers: typed APIs without JSON overhead"
+date: "2031-08-15"
+excerpt: "gRPC uses Protocol Buffers (proto3) as its IDL and wire format. The proto file defines services and message types; the compiler generates typed client and server stubs in any language. The wire format is binary — 3-10x smaller than JSON for most payloads. gRPC supports four communication patterns: unary (request/response), server streaming, client streaming, and bidirectional streaming. For internal service-to-service APIs, gRPC is the right choice over REST."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Binary wire format. Schema-first. Four call patterns.
+
+## Proto definition
+
+```proto
+// proto/orders.proto
+syntax = "proto3";
+
+package construx.orders;
+
+import "google/protobuf/timestamp.proto";
+
+service OrdersService {
+  rpc CreateOrder  (CreateOrderRequest)  returns (Order);
+  rpc GetOrder     (GetOrderRequest)     returns (Order);
+  rpc ListOrders   (ListOrdersRequest)   returns (stream Order);  // server streaming
+  rpc StreamEvents (EventsRequest)       returns (stream OrderEvent);
+}
+
+message Order {
+  string                    order_id   = 1;
+  string                    user_id    = 2;
+  int64                     amount     = 3;  // pence
+  OrderStatus               status     = 4;
+  repeated OrderItem        items      = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message OrderItem {
+  string product_id = 1;
+  int32  quantity   = 2;
+  int64  price      = 3;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING     = 1;
+  ORDER_STATUS_COMPLETED   = 2;
+  ORDER_STATUS_CANCELLED   = 3;
+  ORDER_STATUS_REFUNDED    = 4;
+}
+
+message CreateOrderRequest {
+  string             user_id = 1;
+  repeated OrderItem items   = 2;
+  string             coupon  = 3;
+}
+
+message ListOrdersRequest {
+  string user_id = 1;
+  int32  limit   = 2;
+  string cursor  = 3;
+}
+
+message GetOrderRequest { string order_id = 1; }
+message EventsRequest   { string user_id  = 1; }
+
+message OrderEvent {
+  string      order_id  = 1;
+  OrderStatus new_status = 2;
+  google.protobuf.Timestamp occurred_at = 3;
+}
+```
+
+## Generate TypeScript stubs
+
+```bash
+# Install buf CLI (schema registry + code generation)
+brew install bufbuild/buf/buf
+
+# buf.gen.yaml
+version: v2
+plugins:
+  - remote: buf.build/connectrpc/es:v1.6.1
+    out: src/gen
+  - remote: buf.build/bufbuild/es:v2.2.2
+    out: src/gen
+
+# Generate
+buf generate
+```
+
+## Server — Node.js with ConnectRPC
+
+```ts
+// server/orders-service.ts
+import { ConnectRouter }     from '@connectrpc/connect';
+import { OrdersService }     from '../gen/orders_connect';
+import { Order, OrderStatus } from '../gen/orders_pb';
+
+export function ordersRoutes(router: ConnectRouter) {
+  router.service(OrdersService, {
+    async createOrder(req) {
+      const order = await db.orders.create({
+        data: {
+          userId: req.userId,
+          amount: calculateTotal(req.items),
+          items:  req.items.map((i) => ({ productId: i.productId, qty: i.quantity })),
+          status: 'pending',
+        },
+      });
+      return new Order({ orderId: order.id, userId: order.userId, amount: BigInt(order.amount) });
+    },
+
+    async *listOrders(req) {
+      const orders = await db.orders.findMany({ where: { userId: req.userId }, take: req.limit });
+      for (const o of orders) {
+        yield new Order({ orderId: o.id, userId: o.userId, amount: BigInt(o.amount) });
+      }
+    },
+  });
+}
+```
+
+## Client — TypeScript
+
+```ts
+// client/orders-client.ts
+import { createClient }  from '@connectrpc/connect';
+import { createGrpcTransport } from '@connectrpc/connect-node';
+import { OrdersService } from '../gen/orders_connect';
+
+const transport = createGrpcTransport({
+  baseUrl: process.env.ORDERS_SERVICE_URL!,
+  httpVersion: '2',
+});
+
+const client = createClient(OrdersService, transport);
+
+// Unary call
+const order = await client.getOrder({ orderId: 'ord_01JA9KF2N3' });
+console.log(order.amount);  // bigint — typed from proto
+
+// Server streaming
+for await (const o of client.listOrders({ userId: 'usr_01JA8X2', limit: 10 })) {
+  console.log(o.orderId, o.status);
+}
+```
+
+## Introspect with grpcurl
+
+```bash
+# List services
+grpcurl -plaintext localhost:50051 list
+
+# Describe a service
+grpcurl -plaintext localhost:50051 describe construx.orders.OrdersService
+
+# Make a call
+grpcurl -d '{"userId":"usr_01JA8X2","limit":3}' \
+  -plaintext localhost:50051 \
+  construx.orders.OrdersService/ListOrders
+```
+
+gRPC vs REST: REST is simpler to debug (curl, browser), has better tooling for public APIs, and works everywhere HTTP/1.1 is available. gRPC is faster (binary, HTTP/2 multiplexing), has first-class streaming, and generates typed clients from the proto. The Construx default: REST for public-facing APIs; gRPC for internal service-to-service communication where streaming or performance matters.
