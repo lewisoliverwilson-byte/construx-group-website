@@ -1,0 +1,139 @@
+---
+title: "TiDB: MySQL-compatible distributed HTAP — OLTP and OLAP in one database"
+date: "2033-05-04"
+excerpt: "TiDB is a MySQL-compatible distributed database that handles both OLTP (TiKV, row storage, Raft replication) and OLAP (TiFlash, columnar storage, MPP engine) queries from a single SQL interface. The architecture is split: TiKV stores data in row format across shards with Raft consensus (strong consistency, point reads, transactional writes); TiFlash maintains a columnar replica of the same data that is kept in sync via Raft learner (asynchronously, near real-time). When you run an analytical query, the query planner routes it to TiFlash automatically — no manual ETL, no separate analytics database. This HTAP (Hybrid Transactional/Analytical Processing) architecture means you can run analytical queries against a recent snapshot of your OLTP data without impacting transactional throughput, and without maintaining a separate data pipeline from OLTP to OLAP."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+HTAP. TiKV row storage. TiFlash columnar. MPP engine. MySQL-compatible. Raft consensus.
+
+## Schema, OLTP writes, and OLAP reads
+
+```sql
+-- TiDB: MySQL-wire-compatible
+-- mysql -h tidb.storage.svc -P 4000 -u construx
+
+-- Table: stored in TiKV (row format) for OLTP
+CREATE TABLE orders (
+  id          BIGINT        UNSIGNED NOT NULL AUTO_RANDOM PRIMARY KEY,
+  user_id     BIGINT        UNSIGNED NOT NULL,
+  status      ENUM('pending','processing','shipped','delivered','cancelled') NOT NULL DEFAULT 'pending',
+  total_pence INT           UNSIGNED NOT NULL,
+  currency    CHAR(3)       NOT NULL DEFAULT 'GBP',
+  created_at  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_user_status_created (user_id, status, created_at DESC)
+);
+
+-- Enable TiFlash replica: TiFlash maintains a columnar copy of this table
+-- Used automatically for analytical queries (the planner decides)
+ALTER TABLE orders SET TIFLASH REPLICA 1;
+
+-- Also replicate order_items for analytical joins
+ALTER TABLE order_items SET TIFLASH REPLICA 1;
+
+-- OLTP write: standard MySQL INSERT — goes to TiKV via Raft
+INSERT INTO orders (user_id, total_pence, currency)
+VALUES (10001, 4999, 'GBP');
+
+-- OLTP read: point query — planner uses TiKV index
+SELECT * FROM orders WHERE id = 12345;
+
+-- OLAP query: analytical aggregation — planner routes to TiFlash MPP automatically
+-- No code change needed — same SQL, different execution engine
+SELECT
+  date_format(created_at, '%Y-%m-%d') AS day,
+  status,
+  count(*)                             AS order_count,
+  sum(total_pence) / 100.0            AS revenue_gbp
+FROM orders
+WHERE created_at > now() - INTERVAL 30 DAY
+GROUP BY 1, 2
+ORDER BY 1 DESC, 3 DESC;
+-- Executes across TiFlash MPP nodes in parallel — columnar scan, ~200ms for 100M rows
+
+-- Verify which engine was used
+EXPLAIN SELECT ... ;
+-- estRows: 1000000   task: mpp[tiflash]  ← confirms TiFlash MPP used
+-- estRows: 1         task: cop[tikv]     ← would mean TiKV used (point query)
+```
+
+## Transactions and isolation
+
+```python
+import pymysql
+import os
+
+conn = pymysql.connect(
+    host='tidb.storage.svc',
+    port=4000,
+    user='construx_api',
+    password=os.environ['TIDB_PASSWORD'],
+    database='construx',
+    autocommit=False,
+)
+
+# TiDB supports snapshot isolation (default) and serializable
+# Optimistic locking: transactions don't lock rows during read — conflict detected at commit
+# Pessimistic locking: rows locked on write — more like MySQL InnoDB behaviour
+
+# Switch to pessimistic transactions for workflows with high contention
+cur = conn.cursor()
+cur.execute("SET tidb_txn_mode = 'pessimistic'")
+
+# Standard transaction
+cur.execute("BEGIN")
+try:
+    cur.execute("""
+        UPDATE orders SET status = 'processing' WHERE id = %s AND status = 'pending'
+    """, (order_id,))
+
+    if cur.rowcount == 0:
+        conn.rollback()
+        raise ValueError(f"Order {order_id} not in pending state")
+
+    cur.execute("""
+        INSERT INTO order_events (order_id, event_type, occurred_at)
+        VALUES (%s, 'status_changed', NOW(3))
+    """, (order_id,))
+
+    conn.commit()
+except Exception:
+    conn.rollback()
+    raise
+
+# Stale read: read from a historical snapshot (reduces read latency — reads a local replica)
+cur.execute("SET tidb_read_staleness = -5")   # allow reads up to 5s stale
+cur.execute("SELECT count(*) FROM orders WHERE status = 'delivered'")
+cur.execute("SET tidb_read_staleness = 0")    # reset
+```
+
+```bash
+# TiDB Dashboard: built-in web UI on PD (Placement Driver) port 2379
+# Shows: cluster topology, slow queries, key visualizer (hot ranges), traffic monitoring
+
+# tiup: TiDB deployment and management tool
+tiup cluster display construx-tidb-prod
+# Cluster name: construx-tidb-prod
+# Cluster version: v7.5.1
+# Node  Uptime         Status  TiKV       TiFlash
+# pd-1  30d 4h 12m    Up
+# tikv-1  30d 4h 12m  Up     284 GB / 500 GB
+# tikv-2  30d 4h 12m  Up     291 GB / 500 GB
+# tikv-3  30d 4h 12m  Up     278 GB / 500 GB
+# tiflash-1  30d 4h 12m  Up            192 GB / 400 GB
+# tidb-1  30d 4h 12m  Up     (SQL gateway)
+
+# Check TiFlash replica sync status
+SELECT TABLE_NAME, REPLICA_COUNT, AVAILABLE, PROGRESS
+FROM information_schema.TIFLASH_REPLICA
+WHERE TABLE_SCHEMA = 'construx';
+-- TABLE_NAME  REPLICA_COUNT  AVAILABLE  PROGRESS
+-- orders      1              1          1.0       ← fully synced
+-- order_items 1              1          1.0
+
+# TiFlash sync lag: near real-time (typically <1s behind TiKV)
+```
+
+TiDB vs CockroachDB vs Aurora vs ClickHouse-beside-PostgreSQL: CockroachDB is PostgreSQL-compatible and gives serializable isolation, but it's pure row storage with no columnar OLAP path. Aurora MySQL/PostgreSQL is managed MySQL/PG with read replicas — OLAP queries still run against row storage, which is slow for large aggregations. The common pattern is to run PostgreSQL for OLTP and a separate ClickHouse for OLAP, with a Kafka pipeline between them — which adds operational complexity and data staleness. TiDB collapses that pipeline: TiFlash syncs from TiKV automatically, and the SQL planner routes each query to the right engine. The value is operational simplicity at the cost of less optimization depth — ClickHouse is faster for pure analytics (it's purpose-built), but TiDB is fast enough and eliminates the ETL layer.

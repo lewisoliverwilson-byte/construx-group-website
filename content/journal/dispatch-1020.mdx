@@ -1,0 +1,122 @@
+---
+title: "Dolt: Git for databases — SQL with branches, diffs, and merge"
+date: "2033-05-01"
+excerpt: "Dolt is a MySQL-compatible SQL database where every row and schema change is versioned — you can branch, diff, merge, and revert the database the same way you branch and merge code. The storage engine is a content-addressed block store (similar to Git's object store) where each commit stores a Prolly Tree representing the complete database state. This makes historical queries, schema rollback, and data diffs possible without separate audit tables or point-in-time recovery infrastructure. Dolt is useful in specific contexts: machine learning feature stores (branch off the training dataset, experiment, merge back), compliance environments (immutable audit trail with cryptographic hash of every state), collaborative data workflows (two teams branch the database, work independently, merge with conflict detection), and staging environments (clone production data into a branch for testing schema migrations)."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+MySQL-compatible. Prolly Tree. Branch. Diff. Merge. Content-addressed. Version-controlled data.
+
+## Branching, committing, and diff
+
+```bash
+# Dolt CLI: git-like interface for database operations
+
+# Initialize a new Dolt repository
+dolt init
+dolt sql -q "CREATE TABLE construx_features (
+  feature_name   VARCHAR(128) NOT NULL,
+  version        INT          NOT NULL,
+  computed_at    DATETIME     NOT NULL,
+  user_id        BIGINT       NOT NULL,
+  feature_value  FLOAT        NOT NULL,
+  PRIMARY KEY (feature_name, version, user_id)
+)"
+
+# Commit the schema
+dolt add .
+dolt commit -m "init: construx_features schema"
+
+# Branch: create an experiment branch for a new feature version
+dolt branch experiment/v2-recency-features
+dolt checkout experiment/v2-recency-features
+
+# Make changes on the branch
+dolt sql -q "INSERT INTO construx_features VALUES
+  ('days_since_last_purchase', 2, NOW(), 10001, 14.0),
+  ('days_since_last_purchase', 2, NOW(), 10002, 7.0),
+  ('recency_score_v2',         1, NOW(), 10001, 0.87),
+  ('recency_score_v2',         1, NOW(), 10002, 0.93)"
+
+dolt add .
+dolt commit -m "feat: add v2 recency features for experiment"
+
+# Diff: see what changed between branches
+dolt diff main experiment/v2-recency-features
+# Table: construx_features
+# +  | days_since_last_purchase | 2 | ... | 10001 | 14.0
+# +  | days_since_last_purchase | 2 | ... | 10002 | 7.0
+# +  | recency_score_v2         | 1 | ... | 10001 | 0.87
+# +  | recency_score_v2         | 1 | ... | 10002 | 0.93
+
+# Schema diff: if column added on branch
+dolt diff --schema main experiment/v2-recency-features
+
+# Merge: bring experiment results into main
+dolt checkout main
+dolt merge experiment/v2-recency-features --no-ff -m "merge: v2 recency features — experiment approved"
+```
+
+## SQL on branches and time travel
+
+```sql
+-- Connect: dolt sql-server --host 0.0.0.0 --port 3306
+-- mysql -h dolt.ml.svc -P 3306 -u root
+
+-- Query a specific branch as a schema prefix
+USE `construx_features/main`;
+SELECT * FROM construx_features WHERE feature_name = 'recency_score_v2' LIMIT 5;
+
+-- Query the experiment branch
+USE `construx_features/experiment/v2-recency-features`;
+SELECT feature_name, avg(feature_value) AS avg_val
+FROM construx_features
+GROUP BY feature_name;
+
+-- Time travel: query the database as it was at a specific commit
+SELECT *
+FROM construx_features AS OF 'abc123def456'   -- commit hash
+WHERE feature_name = 'days_since_last_purchase';
+
+-- AS OF with a timestamp
+SELECT count(*) FROM construx_features AS OF '2033-04-01 00:00:00';
+
+-- Dolt system tables: inspect history
+SELECT * FROM dolt_log ORDER BY date DESC LIMIT 10;
+-- commit_hash  committer  date         message
+-- f3a8b12c...  construx   2033-05-01   merge: v2 recency features
+-- 8d4e9f1a...  construx   2033-04-30   feat: add v2 recency features
+
+SELECT * FROM dolt_diff_construx_features
+WHERE from_commit = 'main' AND to_commit = 'experiment/v2-recency-features';
+-- Shows all row-level changes between the two branches
+
+SELECT * FROM dolt_blame_construx_features
+WHERE feature_name = 'recency_score_v2';
+-- Shows which commit introduced each row — like git blame for table rows
+```
+
+```bash
+# DoltHub: hosted Dolt with web UI (like GitHub for databases)
+# Push a database to DoltHub
+dolt remote add origin lewisoliverwilson/construx-features
+dolt push origin main
+
+# Clone a database from DoltHub
+dolt clone lewisoliverwilson/construx-features
+cd construx-features && dolt sql-server &
+
+# Pull updates (like git pull)
+dolt pull origin main
+
+# Use in CI: clone production branch, run migration, check diff, fail if unexpected changes
+dolt clone construx-prod/construx-features
+cd construx-features
+dolt checkout -b migration/add-engagement-score
+dolt sql < migration_v3.sql
+dolt diff main migration/add-engagement-score
+# Review diff in CI output — fail if schema changed unexpectedly
+```
+
+Dolt vs PostgreSQL with temporal tables vs Liquibase vs event sourcing: PostgreSQL temporal tables (WITH SYSTEM TIME) track when rows are valid but don't version the schema. Liquibase and Flyway version schema migrations (the DDL) but not the data. Event sourcing stores the log of mutations (every INSERT, UPDATE, DELETE) from which you can reconstruct any past state — powerful but requires rebuilding state from events. Dolt stores state directly (like Git blobs) with content-addressed commits — queries at any historical state are fast without replaying a log. The use case is specific: Dolt makes sense when the database itself is a collaborative artifact that multiple teams modify, when you need to branch off production data for experiments, or when regulatory requirements demand an immutable audit trail with provenance. For standard transactional workloads, PostgreSQL is simpler.
