@@ -76,6 +76,7 @@ import K3sPanel from '@/components/K3sPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
+import LshwPanel from '@/components/LshwPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -754,8 +755,13 @@ export default function ContactPage() {
       </section>
 
       {/* kyverno — policy engine, mutations, validations, generates */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KyvernoPanel />
+      </section>
+
+      {/* lshw — hardware list, buses, memory, cpus, disks */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LshwPanel />
       </section>
     </div>
   );

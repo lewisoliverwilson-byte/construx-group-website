@@ -79,6 +79,7 @@ import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import KindPanel from '@/components/KindPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import LsofPanel from '@/components/LsofPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -794,8 +795,13 @@ export default function StatsPage() {
       </div>
 
       {/* lighthouse — performance, accessibility, seo, pwa scores */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LighthousePanel />
+      </div>
+
+      {/* lsof — open files, sockets, pids, fds */}
+      <div className="mt-6 pb-10">
+        <LsofPanel />
       </div>
     </div>
   );

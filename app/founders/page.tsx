@@ -77,6 +77,7 @@ import K8sEventsPanel from '@/components/K8sEventsPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import LokiPanel from '@/components/LokiPanel';
+import MeilisearchPanel from '@/components/MeilisearchPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -882,8 +883,13 @@ export default function FoundersPage() {
         </div>
 
         {/* loki — log aggregation, streams, labels, queries */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LokiPanel />
+        </div>
+
+        {/* meilisearch — index, search, filters, facets */}
+        <div className="mt-6 pb-10">
+          <MeilisearchPanel />
         </div>
 
         {/* CTA */}
