@@ -86,6 +86,7 @@ import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
+import PingPanel from '@/components/PingPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -936,8 +937,13 @@ export default function FoundersPage() {
         </div>
 
         {/* pgbouncer — pools, clients, servers, wait */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PgBouncerPanel />
+        </div>
+
+        {/* ping — rtt, loss, ttl, icmp, hosts */}
+        <div className="mt-6 pb-10">
+          <PingPanel />
         </div>
 
         {/* CTA */}

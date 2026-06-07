@@ -85,6 +85,7 @@ import NeofetchPanel from '@/components/NeofetchPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import PgvectorPanel from '@/components/PgvectorPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -808,8 +809,13 @@ export default function ContactPage() {
       </section>
 
       {/* openssl — cert, key, csr, chain, verify */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <OpensslPanel />
+      </section>
+
+      {/* pgvector — embeddings, index, similarity, dimensions */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <PgvectorPanel />
       </section>
     </div>
   );

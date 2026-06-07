@@ -88,6 +88,7 @@ import NetdataPanel from '@/components/NetdataPanel';
 import NomadPanel from '@/components/NomadPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
+import PineconePanel from '@/components/PineconePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -848,8 +849,13 @@ export default function StatsPage() {
       </div>
 
       {/* packer build — builders, provisioners, artifacts, manifests */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PackerBuildPanel />
+      </div>
+
+      {/* pinecone — vectors, indexes, queries, upserts */}
+      <div className="mt-6 pb-10">
+        <PineconePanel />
       </div>
     </div>
   );

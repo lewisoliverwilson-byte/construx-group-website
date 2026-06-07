@@ -86,6 +86,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
+import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -800,8 +801,13 @@ export default function NowPage() {
         </div>
 
         {/* pg explain — plan, cost, rows, nodes, buffers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PgExplainPanel />
+        </div>
+
+        {/* prometheus alert — rules, state, severity, labels */}
+        <div className="mt-6 pb-10">
+          <PrometheusAlertPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
