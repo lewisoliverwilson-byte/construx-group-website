@@ -1,0 +1,138 @@
+---
+title: "age: modern file encryption with small keys and composable recipients"
+date: "2032-09-09"
+excerpt: "age (Actually Good Encryption) is a file encryption tool designed to replace gpg for the common case of encrypting files to one or more recipients. It uses X25519 for key exchange, ChaCha20-Poly1305 for symmetric encryption, and HKDF for key derivation — a small, modern, audited cryptographic stack with no configuration surface. Keys are two lines: a public key starting with 'age1' and a private key starting with 'AGE-SECRET-KEY-'. Recipients can be age public keys, SSH public keys (ed25519 or RSA), or passphrase-based (scrypt). Multiple recipients encrypt the same file once — any recipient can decrypt. The armor flag (-a) outputs ASCII text for pasting into configs or environment variables. age-plugin-yubikey enables hardware key decryption."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Generate once. Encrypt to any recipient. Armor for configs. Plugin for hardware keys.
+
+## Key generation and basic encryption
+
+```bash
+# age: generate a key pair (one public key, one secret key)
+age-keygen -o ~/.age/construx.key
+# Public key: age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqunxcfa2
+# Created:    ~/.age/construx.key
+
+# View the key file
+cat ~/.age/construx.key
+# # created: 2032-09-09T10:00:00Z
+# # public key: age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqunxcfa2
+# AGE-SECRET-KEY-1QJEPZ6HK...
+
+# Encrypt a file to a recipient (public key)
+age -r age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqunxcfa2 \
+    secrets.yaml > secrets.yaml.age
+
+# Decrypt
+age -d -i ~/.age/construx.key secrets.yaml.age > secrets.yaml
+
+# Encrypt to multiple recipients — any recipient can decrypt
+age \
+  -r age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqunxcfa2 \
+  -r age1y9m7j6akn5zgqpa7xpun5az4g2kzl8fmq5xrdz6yze87l9rzwkqsyxr7ph \
+  database-credentials.env > database-credentials.env.age
+
+# The ciphertext contains one encrypted header per recipient
+# Either key can decrypt; neither knows the other's key
+
+# Encrypt to SSH public keys (no age key needed for the recipient)
+age -R ~/.ssh/authorized_keys config.yaml > config.yaml.age
+# Encrypts to all keys in authorized_keys — useful for team secrets
+
+# Decrypt with SSH private key
+age -d -i ~/.ssh/id_ed25519 config.yaml.age > config.yaml
+```
+
+## Armor and stdin/stdout
+
+```bash
+# -a (--armor): ASCII output (base64 armored) — safe for configs, env vars, JSON
+age -a -r age1ql3z7... secrets.yaml > secrets.yaml.age.txt
+
+cat secrets.yaml.age.txt
+# -----BEGIN AGE ENCRYPTED FILE-----
+# YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBnYTRMSm...
+# -----END AGE ENCRYPTED FILE-----
+
+# Pipe stdin → age → stdout (no temp files)
+cat database.env | age -a -r age1ql3z7... | pbcopy   # encrypt + copy to clipboard
+pbpaste | age -d -i ~/.age/construx.key > database.env
+
+# Encrypt environment variables for CI
+env | grep '^CONSTRUX_' | age -a -r "$CI_AGE_PUBLIC_KEY" > ci-secrets.age
+
+# GitHub Actions: decrypt in CI
+# - run: echo "${{ secrets.AGE_ENCRYPTED_ENV }}" | age -d -i <(echo "${{ secrets.AGE_KEY }}") | tee .env
+
+# Passphrase-based encryption (no key pair needed)
+age -p sensitive-data.tar.gz > sensitive-data.tar.gz.age
+# Enter passphrase: ••••••••••••••••••
+# Confirm passphrase: ••••••••••••••••••
+
+# Passphrase decrypt
+age -d sensitive-data.tar.gz.age > sensitive-data.tar.gz
+```
+
+## Integration with secret management
+
+```bash
+# sops + age: structured secret encryption for YAML/JSON/ENV files
+# .sops.yaml: configure which keys can decrypt
+cat .sops.yaml
+# creation_rules:
+#   - path_regex: secrets/.*\.yaml$
+#     age: >-
+#       age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqunxcfa2,
+#       age1y9m7j6akn5zgqpa7xpun5az4g2kzl8fmq5xrdz6yze87l9rzwkqsyxr7ph
+
+# Encrypt a secrets file (sops encrypts values, leaves keys readable)
+SOPS_AGE_KEY_FILE=~/.age/construx.key sops --encrypt secrets/database.yaml > secrets/database.enc.yaml
+
+cat secrets/database.enc.yaml
+# postgres_host: ENC[AES256_GCM,data:abc123...]
+# postgres_password: ENC[AES256_GCM,data:xyz789...]
+# sops:
+#   age:
+#     - recipient: age1ql3z7...
+
+# Decrypt for use
+SOPS_AGE_KEY_FILE=~/.age/construx.key sops --decrypt secrets/database.enc.yaml
+
+# Edit encrypted file in-place (decrypts → opens $EDITOR → re-encrypts on save)
+SOPS_AGE_KEY_FILE=~/.age/construx.key sops secrets/database.enc.yaml
+
+# age with Kubernetes: encrypt secrets before committing to git
+# Use kubeseal + age, or sops + age as the key provider
+kubectl create secret generic construx-db \
+  --from-literal=password="$(age -d -i ~/.age/construx.key db-password.age)" \
+  --dry-run=client -o yaml | \
+  kubeseal --format=yaml > sealed-db-secret.yaml
+```
+
+## age-plugin-yubikey — hardware key decryption
+
+```bash
+# age-plugin-yubikey: decrypt using a YubiKey (PIV slot)
+# The private key never leaves the hardware token
+
+# Setup: generate age identity on YubiKey PIV slot 9a
+age-plugin-yubikey --generate --slot 9a
+# Recipient: age1yubikey1qd9s8gkqhde...
+# Identity:  (stored on YubiKey — cannot be exported)
+
+# Encrypt to YubiKey recipient
+age -r age1yubikey1qd9s8gkqhde... sensitive.tar.gz > sensitive.tar.gz.age
+
+# Decrypt: YubiKey must be present, PIN required
+age -d -i ~/.config/age/yubikey-9a.txt sensitive.tar.gz.age > sensitive.tar.gz
+# (Touches YubiKey LED → enter PIN → decrypted)
+
+# List YubiKey age identities
+age-plugin-yubikey --list
+# Slot 9a: age1yubikey1qd9s8gkqhde...  (PIV key, RSA-2048)
+```
+
+age vs gpg vs openssl: gpg has an enormous configuration surface, a complex web of trust model, a binary that hasn't been redesigned in 25 years, and a history of subtle foot-guns (key expiry, subkey selection, agent interactions). For the common case of "encrypt a file to a recipient", gpg is massively over-engineered. age does exactly that with a 600-line spec, a fixed cipher suite (X25519+ChaCha20-Poly1305), and no configuration. The trade-offs: age doesn't sign (use signify or minisign for that), doesn't have a web of trust, and isn't suitable for email (use S/MIME or PGP for that). For everything else — encrypting secrets, environment variables, database dumps, and config files for storage or transit — age is the right tool. The SSH recipient feature is particularly practical: encrypt team secrets to ~/.ssh/authorized_keys and anyone with their SSH private key can decrypt.

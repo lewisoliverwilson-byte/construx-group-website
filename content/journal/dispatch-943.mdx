@@ -1,0 +1,213 @@
+---
+title: "kustomize: Kubernetes manifest composition without templating"
+date: "2032-09-12"
+excerpt: "kustomize is a Kubernetes-native configuration management tool built into kubectl — it composes, overlays, and transforms YAML manifests without introducing a templating language. The core model: a base directory contains the canonical manifests, and overlays patch the base for environment-specific differences (staging vs prod, different resource limits, different replica counts, different image tags). Patches use strategic merge patch or JSON patch; namePrefix, nameSuffix, and commonLabels apply transformations across all resources. kustomize is preferred over Helm when you own the base manifests and want to compose rather than template — it's the Kubernetes answer to 'how do we manage manifests across environments without copy-paste'."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Base manifests. Overlays per environment. No templating, no `{{ }}`. `kubectl apply -k`.
+
+## Base and overlay structure
+
+```
+# Directory layout: base + overlays
+construx-k8s/
+├── base/
+│   ├── kustomization.yaml   ← base kustomization
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   └── configmap.yaml
+└── overlays/
+    ├── staging/
+    │   ├── kustomization.yaml   ← staging overlay
+    │   └── patch-replicas.yaml
+    └── prod/
+        ├── kustomization.yaml   ← prod overlay
+        ├── patch-resources.yaml
+        └── patch-env.yaml
+```
+
+```yaml
+# base/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+
+commonLabels:
+  app: construx-api
+  managed-by: kustomize
+```
+
+```yaml
+# base/deployment.yaml (the canonical template)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: construx-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: construx-api
+  template:
+    spec:
+      containers:
+        - name: construx-api
+          image: construx/api:latest
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+```
+
+## Overlays with patches
+
+```yaml
+# overlays/prod/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+namePrefix: prod-
+commonLabels:
+  environment: prod
+
+images:
+  - name: construx/api
+    newTag: "1.4.2"   # pin image tag per environment
+
+patchesStrategicMerge:
+  - patch-resources.yaml
+  - patch-env.yaml
+```
+
+```yaml
+# overlays/prod/patch-resources.yaml — strategic merge patch
+# Only the fields here override the base; everything else is inherited
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: construx-api   # must match base resource name
+spec:
+  replicas: 5          # override: 1 → 5
+  template:
+    spec:
+      containers:
+        - name: construx-api
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+```
+
+```yaml
+# overlays/prod/patch-env.yaml — add production environment variables
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: construx-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: construx-api
+          env:
+            - name: LOG_LEVEL
+              value: warn
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: prod-construx-db
+                  key: url
+```
+
+## Build, diff, and apply
+
+```bash
+# Build: render the full manifest (base + overlay patches applied)
+kubectl kustomize overlays/prod/
+# Outputs the merged YAML — all patches applied, labels added, image tags set
+
+# Apply: deploy to cluster
+kubectl apply -k overlays/prod/
+# deployment.apps/prod-construx-api created
+# service/prod-construx-api created
+# configmap/prod-construx-api-config created
+
+# Diff: see what would change before applying (requires a running cluster)
+kubectl diff -k overlays/prod/
+# --- live
+# +++ merged
+# @@ -8,7 +8,7 @@
+#    replicas: 4
+# +  replicas: 5
+
+# Dry-run (server-side validation without applying)
+kubectl apply -k overlays/prod/ --dry-run=server
+
+# kustomize CLI (standalone, without kubectl)
+kustomize build overlays/prod/ | kubectl apply -f -
+kustomize build overlays/prod/ | kubectl diff -f -
+
+# View what resources are in a kustomization
+kustomize build overlays/prod/ | grep -E "^(kind|metadata|  name):"
+```
+
+## Generators and transformers
+
+```yaml
+# configMapGenerator: create ConfigMaps from files or literals
+# The generated name includes a content hash suffix — triggers rolling updates
+# when config changes
+configMapGenerator:
+  - name: construx-config
+    files:
+      - config.yaml
+      - logging.yaml
+    literals:
+      - LOG_FORMAT=json
+      - REGION=eu-west-1
+
+# secretGenerator: same pattern for Secrets (values base64-encoded automatically)
+secretGenerator:
+  - name: construx-db-secret
+    literals:
+      - DATABASE_URL=postgres://construx:secret@db:5432/construx
+
+# generatorOptions: control hash suffix behaviour
+generatorOptions:
+  disableNameSuffixHash: false   # true = stable names (but no auto-rollout on change)
+  labels:
+    kustomize.io/generated: "true"
+```
+
+```yaml
+# replacements: cross-resource value injection (kustomize v4.5+)
+# Copy a value from one resource field to another
+replacements:
+  - source:
+      kind: ConfigMap
+      name: construx-config
+      fieldPath: data.DATABASE_HOST
+    targets:
+      - select:
+          kind: Deployment
+          name: construx-api
+        fieldPaths:
+          - spec.template.spec.containers.[name=construx-api].env.[name=DATABASE_HOST].value
+```
+
+kustomize vs Helm vs raw YAML: raw YAML works fine until you have more than one environment — then you're either copy-pasting (divergence risk) or hacking with sed (fragile). Helm introduces Go templating with `{{ .Values.foo }}` — powerful but reads like a different language embedded in YAML, and `helm template` output is hard to diff. kustomize stays in YAML throughout: patches are valid YAML, overlays are valid YAML, the output is valid YAML. The mental model is composition rather than templating — useful when you own the base manifests. The sweet spot: kustomize for your own services (where you control the base), Helm for third-party charts (where the base is someone else's). They compose: `helmCharts:` in a kustomization pulls in a Helm chart and lets you patch the rendered output with kustomize overlays.
