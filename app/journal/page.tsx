@@ -62,6 +62,7 @@ import ScorecardPanel from '@/components/ScorecardPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import FlinkPanel from '@/components/FlinkPanel';
+import AirflowPanel from '@/components/AirflowPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -493,8 +494,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <FlinkPanel />
+      </section>
+
+      {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <AirflowPanel />
       </section>
 
       {/* Posts */}

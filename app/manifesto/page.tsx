@@ -59,6 +59,7 @@ import CosignPanel from '@/components/CosignPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
 import ActPanel from '@/components/ActPanel';
 import AirflowPanel from '@/components/AirflowPanel';
+import FlinkPanel from '@/components/FlinkPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -537,8 +538,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AirflowPanel />
+        </div>
+
+        {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
+        <div className="mt-4 pb-6">
+          <FlinkPanel />
         </div>
 
         {/* Sign-off */}

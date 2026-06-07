@@ -57,6 +57,7 @@ import SigstorePanel from '@/components/SigstorePanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -644,8 +645,13 @@ export default function UsesPage() {
         </div>
 
         {/* airbyte open-source elt — connectors, syncs, data movement */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AirbytePanel />
+        </div>
+
+        {/* nats jetstream — streams, consumers, messages, acks */}
+        <div className="mt-6 pb-10">
+          <NATSJetStreamPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

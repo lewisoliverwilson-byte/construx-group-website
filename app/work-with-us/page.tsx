@@ -58,6 +58,7 @@ import KindPanel from '@/components/KindPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
 import CiliumPanel from '@/components/CiliumPanel';
+import DaprPanel from '@/components/DaprPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -877,8 +878,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cilium ebpf networking — endpoints, policy, hubble flows */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CiliumPanel />
+      </section>
+
+      {/* dapr distributed application runtime — actors, pub/sub, state */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <DaprPanel />
       </section>
 
       {/* CTA */}
