@@ -18,6 +18,7 @@ import DockerComposePanel from '@/components/DockerComposePanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
+import ArgoCdPanel from '@/components/ArgoCdPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -528,8 +529,13 @@ export default function FoundersPage() {
         </div>
 
         {/* Cgroups v2 resource accounting */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CgroupsPanel />
+        </div>
+
+        {/* Argo CD GitOps sync status */}
+        <div className="mt-6 pb-10">
+          <ArgoCdPanel />
         </div>
 
         {/* CTA */}

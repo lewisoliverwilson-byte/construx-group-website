@@ -1,0 +1,194 @@
+---
+title: "Kubernetes operators: extending the control plane with custom resources"
+date: "2032-04-12"
+excerpt: "A Kubernetes operator is a controller that manages a custom resource (CRD) using domain-specific logic. The control loop is simple: watch for objects of your custom type, compute the desired state, reconcile the actual state toward it. Operators encode operational knowledge that would otherwise live in runbooks: how to take a database backup, how to safely scale a stateful service, how to handle a primary failure in a database cluster. The operator-sdk and kubebuilder scaffolding tools generate the boilerplate; you write the reconciliation logic."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Watch the object. Compute desired state. Reconcile. Repeat.
+
+## Custom Resource Definitions — the schema
+
+```yaml
+# config/crd/bases/construx.io_orderpipelines.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: orderpipelines.construx.io
+spec:
+  group: construx.io
+  names:
+    kind: OrderPipeline
+    listKind: OrderPipelineList
+    plural: orderpipelines
+    singular: orderpipeline
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [replicas, natsSubject]
+              properties:
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                natsSubject:
+                  type: string
+                  pattern: '^orders\.'
+                maxInflight:
+                  type: integer
+                  default: 100
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Running, Degraded, Stopped]
+                activeWorkers:
+                  type: integer
+                processedTotal:
+                  type: integer
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Workers
+          type: integer
+          jsonPath: .status.activeWorkers
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}     # Enable /status subresource — separate RBAC from spec updates
+```
+
+## Writing the reconciler in Go (kubebuilder)
+
+```go
+// internal/controller/orderpipeline_controller.go
+package controller
+
+import (
+    "context"
+    "fmt"
+    construxv1 "github.com/construx/operator/api/v1alpha1"
+    appsv1 "k8s.io/api/apps/v1"
+    corev1 "k8s.io/api/core/v1"
+    "k8s.io/apimachinery/pkg/api/errors"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    ctrl "sigs.k8s.io/controller-runtime"
+    "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+type OrderPipelineReconciler struct {
+    client.Client
+    Scheme *runtime.Scheme
+}
+
+// +kubebuilder:rbac:groups=construx.io,resources=orderpipelines,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=construx.io,resources=orderpipelines/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+
+func (r *OrderPipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+    log := ctrl.LoggerFrom(ctx)
+
+    // Fetch the OrderPipeline object
+    pipeline := &construxv1.OrderPipeline{}
+    if err := r.Get(ctx, req.NamespacedName, pipeline); err != nil {
+        if errors.IsNotFound(err) {
+            return ctrl.Result{}, nil  // Object deleted — nothing to do
+        }
+        return ctrl.Result{}, err
+    }
+
+    // Desired state: a Deployment of workers
+    desired := r.deploymentForPipeline(pipeline)
+
+    // Check if the Deployment already exists
+    found := &appsv1.Deployment{}
+    err := r.Get(ctx, client.ObjectKey{Name: desired.Name, Namespace: desired.Namespace}, found)
+
+    if errors.IsNotFound(err) {
+        log.Info("Creating Deployment", "name", desired.Name)
+        if err := r.Create(ctx, desired); err != nil {
+            return ctrl.Result{}, fmt.Errorf("create deployment: %w", err)
+        }
+    } else if err != nil {
+        return ctrl.Result{}, err
+    } else {
+        // Deployment exists — reconcile replica count
+        if *found.Spec.Replicas != int32(pipeline.Spec.Replicas) {
+            found.Spec.Replicas = ptr(int32(pipeline.Spec.Replicas))
+            if err := r.Update(ctx, found); err != nil {
+                return ctrl.Result{}, fmt.Errorf("update deployment: %w", err)
+            }
+        }
+    }
+
+    // Update status
+    pipeline.Status.Phase = "Running"
+    pipeline.Status.ActiveWorkers = int(pipeline.Spec.Replicas)
+    if err := r.Status().Update(ctx, pipeline); err != nil {
+        return ctrl.Result{}, err
+    }
+
+    return ctrl.Result{}, nil  // No requeue — watches handle future events
+}
+
+func (r *OrderPipelineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+    return ctrl.NewControllerManagedBy(mgr).
+        For(&construxv1.OrderPipeline{}).
+        Owns(&appsv1.Deployment{}).   // Re-reconcile if owned Deployment changes
+        Complete(r)
+}
+```
+
+## Deploying and using the operator
+
+```bash
+# Build and push the operator image
+docker build -t construx.registry.io/construx-operator:v0.1.0 .
+docker push construx.registry.io/construx-operator:v0.1.0
+
+# Install CRDs and deploy the operator
+make install    # Applies CRD manifests to the cluster
+make deploy IMG=construx.registry.io/construx-operator:v0.1.0
+
+# Verify operator is running
+kubectl get pods -n construx-operator-system
+# construx-operator-controller-manager-6d8f5b7c9-xk2pq  Running
+
+# Create an OrderPipeline instance
+kubectl apply -f - <<EOF
+apiVersion: construx.io/v1alpha1
+kind: OrderPipeline
+metadata:
+  name: billing-pipeline
+  namespace: construx
+spec:
+  replicas: 4
+  natsSubject: orders.created
+  maxInflight: 50
+EOF
+
+# Watch the operator reconcile
+kubectl get orderpipeline -w
+# NAME               PHASE     WORKERS   AGE
+# billing-pipeline   Pending   0         1s
+# billing-pipeline   Running   4         3s
+
+# Scale up by editing the spec (triggers reconcile)
+kubectl patch orderpipeline billing-pipeline -p '{"spec":{"replicas":8}}' --type=merge
+# billing-pipeline   Running   8         12s
+```
+
+Operators vs Helm: Helm is a templating engine — it renders YAML and applies it once. An operator is a long-running process that continuously reconciles. Helm doesn't know what to do when a database primary fails; an operator (like the Postgres Operator or Vitess) does. The sweet spot: use Helm to deploy the operator itself (the operator's Deployment, RBAC, CRD), then use custom resources to manage the complex stateful things the operator knows about. This combination — Helm for packaging, operators for lifecycle management — is the pattern used by cert-manager, external-dns, the Postgres Operator, and most production-grade Kubernetes add-ons.
+
