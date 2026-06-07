@@ -48,6 +48,7 @@ import DaggerPanel from '@/components/DaggerPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
+import TerraformPanel from '@/components/TerraformPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -471,8 +472,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* opentelemetry observability — traces, metrics, logs */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OpenTelemetryPanel />
+        </div>
+
+        {/* terraform infrastructure as code — workspaces, plans, state */}
+        <div className="mt-4 pb-6">
+          <TerraformPanel />
         </div>
 
         {/* Sign-off */}

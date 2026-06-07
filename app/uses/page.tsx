@@ -46,6 +46,7 @@ import ClickHousePanel from '@/components/ClickHousePanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import KindPanel from '@/components/KindPanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
+import OpenFGAPanel from '@/components/OpenFGAPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -578,8 +579,13 @@ export default function UsesPage() {
         </div>
 
         {/* kube-state-metrics k8s object metrics — resources, labels, conditions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeStateMetricsPanel />
+        </div>
+
+        {/* openfga fine-grained authorization — stores, tuples, checks */}
+        <div className="mt-6 pb-10">
+          <OpenFGAPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

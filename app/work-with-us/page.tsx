@@ -47,6 +47,7 @@ import SpirePanel from '@/components/SpirePanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
+import PulsarPanel from '@/components/PulsarPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -811,8 +812,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* gatekeeper policy controller — constraints, rego, audit */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GatekeeperPanel />
+      </section>
+
+      {/* apache pulsar messaging — topics, subscriptions, geo-replication */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <PulsarPanel />
       </section>
 
       {/* CTA */}
