@@ -57,6 +57,7 @@ import SeaweedFSPanel from '@/components/SeaweedFSPanel';
 import ScyllaPanel from '@/components/ScyllaPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import DruidPanel from '@/components/DruidPanel';
+import SyftPanel from '@/components/SyftPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -463,8 +464,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* druid real-time analytics — datasources, segments, tasks */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DruidPanel />
+      </section>
+
+      {/* syft sbom generation — packages, licenses, vulnerabilities */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <SyftPanel />
       </section>
 
       {/* Posts */}

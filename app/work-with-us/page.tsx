@@ -53,6 +53,7 @@ import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import PineconePanel from '@/components/PineconePanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
+import ZarfPanel from '@/components/ZarfPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -847,8 +848,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* tigerbeetle financial database — accounts, transfers, ledger */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <TigerBeetlePanel />
+      </section>
+
+      {/* zarf air-gapped deployment — packages, components, registry */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ZarfPanel />
       </section>
 
       {/* CTA */}

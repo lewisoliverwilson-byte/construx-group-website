@@ -52,6 +52,7 @@ import SpiceDBPanel from '@/components/SpiceDBPanel';
 import StrimziPanel from '@/components/StrimziPanel';
 import TypesensePanel from '@/components/TypesensePanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
+import RekorPanel from '@/components/RekorPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -614,8 +615,13 @@ export default function UsesPage() {
         </div>
 
         {/* duckdb analytics — queries, schemas, performance */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DuckdbPanel />
+        </div>
+
+        {/* rekor artifact transparency log — entries, signatures, attestations */}
+        <div className="mt-6 pb-10">
+          <RekorPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

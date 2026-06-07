@@ -54,6 +54,7 @@ import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import CuePanel from '@/components/CuePanel';
 import QdrantPanel from '@/components/QdrantPanel';
 import RiverPanel from '@/components/RiverPanel';
+import PulumiPanel from '@/components/PulumiPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -507,8 +508,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* river data pipeline — jobs, stages, throughput */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <RiverPanel />
+        </div>
+
+        {/* pulumi infrastructure as code — stacks, resources, deployments */}
+        <div className="mt-4 pb-6">
+          <PulumiPanel />
         </div>
 
         {/* Sign-off */}
