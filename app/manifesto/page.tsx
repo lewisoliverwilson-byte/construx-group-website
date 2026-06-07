@@ -86,6 +86,7 @@ import JournalctlPanel from '@/components/JournalctlPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
+import MLflowPanel from '@/components/MLflowPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -699,8 +700,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* litestream — replicas, lag, snapshots, restore */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LitestreamPanel />
+        </div>
+
+        {/* mlflow — experiments, runs, metrics, artifacts */}
+        <div className="mt-4 pb-6">
+          <MLflowPanel />
         </div>
 
         {/* Sign-off */}

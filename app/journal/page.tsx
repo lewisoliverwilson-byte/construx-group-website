@@ -89,6 +89,7 @@ import K6Panel from '@/components/K6Panel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
+import NATSPanel from '@/components/NATSPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -655,8 +656,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* meminfo — ram, swap, buffers, cached, available */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <MemInfoPanel />
+      </section>
+
+      {/* nats — streams, consumers, subjects, messages */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NATSPanel />
       </section>
 
       {/* Posts */}

@@ -84,6 +84,7 @@ import K6SummaryPanel from '@/components/K6SummaryPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import MimirPanel from '@/components/MimirPanel';
+import NetstatPanel from '@/components/NetstatPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -806,8 +807,13 @@ export default function UsesPage() {
         </div>
 
         {/* mimir — ruler, compactor, distributor, ingester */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MimirPanel />
+        </div>
+
+        {/* netstat — connections, states, ports, protocols */}
+        <div className="mt-6 pb-10">
+          <NetstatPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
