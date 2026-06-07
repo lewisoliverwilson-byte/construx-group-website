@@ -35,6 +35,7 @@ import PixiePanel from '@/components/PixiePanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import CortexPanel from '@/components/CortexPanel';
+import OpaGatekeeperPanel from '@/components/OpaGatekeeperPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -530,8 +531,13 @@ export default function StatsPage() {
       </div>
 
       {/* cortex multi-tenant prometheus — tenants, series, ingestion, components */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CortexPanel />
+      </div>
+
+      {/* opa gatekeeper admission control — constraints, violations, rego policies */}
+      <div className="mt-6 pb-10">
+        <OpaGatekeeperPanel />
       </div>
     </div>
   );

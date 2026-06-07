@@ -33,6 +33,7 @@ import KubescapePanel from '@/components/KubescapePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import WasmEdgePanel from '@/components/WasmEdgePanel';
 import BazelPanel from '@/components/BazelPanel';
+import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -496,8 +497,13 @@ export default function ContactPage() {
       </section>
 
       {/* bazel hermetic build — remote cache, targets, action cache stats */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <BazelPanel />
+      </section>
+
+      {/* clickhouse columnar olap — mergetree tables, insert rate, query results */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ClickhouseMigrationPanel />
       </section>
     </div>
   );

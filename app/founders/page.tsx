@@ -33,6 +33,7 @@ import BackstagePanel from '@/components/BackstagePanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CniPanel from '@/components/CniPanel';
 import TerraformCloudPanel from '@/components/TerraformCloudPanel';
+import CaddyPanel from '@/components/CaddyPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -618,8 +619,13 @@ export default function FoundersPage() {
         </div>
 
         {/* terraform cloud remote runs — workspaces, drift detection, run history */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TerraformCloudPanel />
+        </div>
+
+        {/* caddy automatic https — routes, tls certs, acme renewal */}
+        <div className="mt-6 pb-10">
+          <CaddyPanel />
         </div>
 
         {/* CTA */}

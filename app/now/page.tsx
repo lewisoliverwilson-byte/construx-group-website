@@ -34,6 +34,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import ProwPanel from '@/components/ProwPanel';
+import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -488,8 +489,13 @@ export default function NowPage() {
         </div>
 
         {/* prow kubernetes ci — jobs, tide merge pools, pass rates */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ProwPanel />
+        </div>
+
+        {/* dns zones and records — dnssec, spf, dmarc, resolver cache */}
+        <div className="mt-6 pb-10">
+          <DragonFlyDnsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
