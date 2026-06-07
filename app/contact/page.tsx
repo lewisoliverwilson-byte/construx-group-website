@@ -27,6 +27,7 @@ import RedpandaPanel from '@/components/RedpandaPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import CitusPanel from '@/components/CitusPanel';
 import EtcdPanel from '@/components/EtcdPanel';
+import TektonPanel from '@/components/TektonPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -460,8 +461,13 @@ export default function ContactPage() {
         <CitusPanel />
       </section>
 
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <EtcdPanel />
+      </section>
+
+      {/* tekton cloud-native ci/cd — tasks, pipelines, chains, cosign attestation */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TektonPanel />
       </section>
     </div>
   );

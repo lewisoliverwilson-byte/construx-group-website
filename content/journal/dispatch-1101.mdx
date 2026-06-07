@@ -1,0 +1,133 @@
+---
+title: "Istio Ambient Mesh: sidecar-free service mesh — ztunnel, waypoint proxy, L4/L7 separation"
+date: "2033-12-30"
+excerpt: "Istio Ambient Mesh is a sidecar-free architecture for Istio that addresses the two main criticisms of sidecar-based service meshes: the operational overhead of injecting and managing a sidecar proxy in every pod, and the resource cost of running an Envoy proxy per pod even when you only need L4 mTLS. Ambient Mesh separates service mesh functionality into two layers. The ztunnel (zero-trust tunnel) runs as a DaemonSet — one per node — and handles L4 mTLS, RBAC, and telemetry for all pods on that node without any sidecar injection. The waypoint proxy is an Envoy-based proxy deployed per namespace or service account, and handles L7 functions (HTTP routing, retries, rate limiting, header manipulation) only when needed. This means you can get mTLS and L4 observability across the entire cluster for free (just node-level ztunnels), and add L7 capabilities selectively per service. Migrating from sidecar mode to ambient mode in an existing Istio installation is done by labeling namespaces — no pod restarts required, no sidecar injection to disable. Ambient Mesh also simplifies the operational model significantly: no more PodDisruptionBudget issues from sidecar injection, no more mismatched sidecar versions, no more memory overhead from hundreds of Envoy sidecars."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Ambient Mesh. ztunnel. Waypoint proxy. L4 mTLS. L7 routing. Sidecar-free. HBONE.
+
+## Ambient Mesh installation and configuration
+
+```bash
+# Install Istio in ambient mode
+istioctl install --set profile=ambient --set values.global.platform=k8s
+
+# Enable ambient mode for a namespace (replaces sidecar injection label)
+kubectl label namespace construx-prod istio.io/dataplane-mode=ambient
+
+# Check ztunnel status — one pod per node
+kubectl get pods -n istio-system -l app=ztunnel
+# NAME             READY  STATUS   RESTARTS  AGE
+# ztunnel-k9x2p    1/1    Running  0         2d
+# ztunnel-m7q3f    1/1    Running  0         2d
+# ztunnel-p4r8n    1/1    Running  0         2d
+# ztunnel-w2t6v    1/1    Running  0         2d
+
+# Verify L4 mTLS is active (ambient mode — no sidecars)
+kubectl exec -n construx-prod deploy/orders-api -- \
+  curl -s http://payments-service.construx-prod.svc.cluster.local:8080/health
+# All traffic is now encrypted via HBONE (HTTP-based Overlay Network Environment)
+# between ztunnels, transparent to the application
+
+# Add a WaypointProxy for L7 functions on payments-service
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: payments-waypoint
+  namespace: construx-prod
+  annotations:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+EOF
+
+# Label payments-service to route L7 traffic through the waypoint
+kubectl label service payments-service -n construx-prod \
+  istio.io/use-waypoint=payments-waypoint
+```
+
+```yaml
+# HTTPRoute: L7 routing via waypoint proxy (Gateway API)
+# Only applied when a waypoint is configured for the service
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: payments-route
+  namespace: construx-prod
+spec:
+  parentRefs:
+    - group: ""
+      kind: Service
+      name: payments-service
+      port: 8080
+  rules:
+    # Canary: route 10% of traffic to v2
+    - matches:
+        - path: { type: PathPrefix, value: "/api/v1/charge" }
+      backendRefs:
+        - name: payments-service-v1
+          port: 8080
+          weight: 90
+        - name: payments-service-v2
+          port: 8080
+          weight: 10
+
+    # Header-based routing: internal test traffic always hits v2
+    - matches:
+        - headers:
+            - name: X-Testing
+              value: "true"
+      backendRefs:
+        - name: payments-service-v2
+          port: 8080
+          weight: 100
+
+---
+# AuthorizationPolicy: allow only orders-api to call payments-service
+# Enforced at the ztunnel level (L4 RBAC)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payments-allow-orders
+  namespace: construx-prod
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: payments-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/construx-prod/sa/orders-api
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/api/v1/charge"]
+```
+
+```bash
+# Ambient Mesh observability via Prometheus/Grafana
+# ztunnel exports L4 metrics; waypoint exports L7 metrics
+
+# L4 connections per workload pair
+kubectl exec -n istio-system deploy/ztunnel-k9x2p -- \
+  curl -s http://localhost:15020/metrics | grep ztunnel_tcp_connections_opened
+
+# Verify AuthorizationPolicy is enforcing correctly
+kubectl exec -n construx-prod deploy/analytics-service -- \
+  curl -sv http://payments-service.construx-prod.svc.cluster.local:8080/charge
+# < HTTP/1.1 403 Forbidden
+# RBAC: access denied (analytics-service not in allow list for payments-service)
+```
+
+Istio Ambient vs Istio Sidecar vs Linkerd vs Cilium mTLS vs no mesh: Classic Istio sidecar mode injects an Envoy proxy into every pod — powerful L7 capabilities but significant resource overhead (each Envoy uses ~50-200MB RAM) and operational complexity (sidecar injection, version management, disruption during upgrades). Linkerd (dispatch in earlier batches) uses ultra-lightweight Rust-based proxies instead of Envoy — much lower resource cost than Istio sidecars, but fewer L7 features (no WASM filters, no JWT authentication at the proxy level). Cilium provides mTLS via SPIFFE/SPIRE (dispatch-1085) at the eBPF layer — even less overhead than Ambient Mesh for pure mTLS, but no Envoy-based L7 routing without layering on Envoy manually. Istio Ambient is the most complete architecture: zero-overhead L4 mTLS via ztunnels (comparable to Cilium), opt-in L7 routing via per-service waypoints (full Envoy feature set), and a migration path from sidecar mode without pod restarts. For new Kubernetes deployments adopting a service mesh, Ambient is now the recommended Istio architecture.

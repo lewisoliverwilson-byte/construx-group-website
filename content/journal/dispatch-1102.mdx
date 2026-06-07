@@ -1,0 +1,162 @@
+---
+title: "VictoriaMetrics cluster: high-performance TSDB — vminsert, vmselect, vmstorage, MetricsQL"
+date: "2034-01-02"
+excerpt: "VictoriaMetrics is a high-performance time-series database designed as a drop-in replacement for Prometheus. Its single-binary mode (for smaller deployments) handles ingestion and query from one process. The cluster version decomposes into three components: vminsert (receives Prometheus remote_write, statsd, OpenTSDB, InfluxDB, or OTLP and routes series to vmstorage shards), vmstorage (stores data on disk using VictoriaMetrics's proprietary compression — typically 3-10x better compression than Prometheus TSDB blocks), and vmselect (handles MetricsQL queries by fetching from all vmstorage shards). VictoriaMetrics's compression algorithm is the key differentiator: it uses delta-of-delta encoding with XOR compression for values plus a specialised timestamp encoding, achieving significantly better compression than Prometheus's Gorilla/Varbit encoding for real-world counter and gauge workloads. MetricsQL is VictoriaMetrics's PromQL-compatible query language with extensions for common patterns (WITH templates, UNION, limitk for top-K queries without global sorting). vmagent is a lightweight agent for scraping Prometheus targets and remote-writing to VictoriaMetrics — it is significantly lighter than the Prometheus server itself and supports sharding across multiple vmagent instances for large scrape targets."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+vminsert. vmselect. vmstorage. vmagent. MetricsQL. Remote write. Cluster sharding. Compression.
+
+## VictoriaMetrics cluster deployment
+
+```yaml
+# VictoriaMetrics cluster via victoria-metrics-k8s-stack Helm chart
+# values.yaml
+
+vmcluster:
+  enabled: true
+  spec:
+    retentionPeriod: "12"   # 12 months
+
+    vminsert:
+      replicaCount: 3
+      extraArgs:
+        replicationFactor: "2"   # write to 2 vmstorage shards per series
+      resources:
+        requests: { cpu: "1", memory: "1Gi" }
+
+    vmselect:
+      replicaCount: 3
+      cacheMountPath: /select-cache
+      extraArgs:
+        dedup.minScrapeInterval: "15s"   # deduplicate replicated data
+      storage:
+        volumeClaimTemplate:
+          spec:
+            resources:
+              requests:
+                storage: 2Gi
+      resources:
+        requests: { cpu: "2", memory: "4Gi" }
+
+    vmstorage:
+      replicaCount: 4    # 4 shards for horizontal scale
+      storageDataPath: /vm-data
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: longhorn
+            resources:
+              requests:
+                storage: 500Gi   # 500 GB per shard
+      resources:
+        requests: { cpu: "2", memory: "8Gi" }
+
+vmagent:
+  enabled: true
+  spec:
+    replicaCount: 2
+    remoteWrite:
+      - url: "http://vminsert.vm.svc.cluster.local:8480/insert/0/prometheus/"
+    selectAllByDefault: true
+    scrapeInterval: 15s
+    additionalScrapeConfigs:
+      name: vm-additional-scrape-configs
+      key: prometheus-additional.yaml
+```
+
+```yaml
+# VMServiceScrape: scrape configuration via VictoriaMetrics operator CRD
+# Equivalent to Prometheus ServiceMonitor — watches for services with matching labels
+
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: construx-api-scrape
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [construx-prod]
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: construx-api
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+
+---
+# VMRule: recording rules and alerting (equivalent to PrometheusRule)
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: construx-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+    - name: construx_slo
+      interval: 30s
+      rules:
+        - record: job:http_error_ratio:rate5m
+          expr: |
+            sum by (job) (rate(http_errors_total{namespace="construx-prod"}[5m]))
+            /
+            sum by (job) (rate(http_requests_total{namespace="construx-prod"}[5m]))
+
+        - alert: SLOFastBurn
+          expr: job:http_error_ratio:rate5m > (14.4 * 0.001)
+          for: 2m
+          labels:
+            severity: critical
+```
+
+```bash
+# MetricsQL: VictoriaMetrics query language extensions
+
+# WITH templates: reduce repetition in complex queries
+# Equivalent to a PromQL expression but with reusable components
+WITH (
+  error_rate(job) = (
+    sum by (job) (rate(http_errors_total{job=job}[5m]))
+    /
+    sum by (job) (rate(http_requests_total{job=job}[5m]))
+  )
+)
+error_rate("orders-api") > 0.01
+
+# topk with MetricsQL's limitk (efficient — no global sort)
+limitk(10,
+  sum by (pod) (
+    rate(container_cpu_usage_seconds_total{namespace="construx-prod"}[5m])
+  )
+)
+
+# UNION: combine two queries into a single result
+UNION(
+  rate(http_requests_total{namespace="construx-prod", status=~"2.."}[5m]),
+  rate(http_requests_total{namespace="construx-prod", status=~"5.."}[5m])
+)
+
+# vmagent remote write filter: only forward specific metrics to Grafana Cloud
+# (reduces cardinality and cost at the remote end)
+# In vmagent config:
+# remoteWrite:
+#   - url: https://prometheus-us-central1.grafana.net/api/prom/push
+#     writeRelabelConfigs:
+#       - sourceLabels: [__name__]
+#         regex: "(kube_pod_status_phase|http_requests_total|http_errors_total)"
+#         action: keep
+
+# Inspect vmstorage compression ratio
+kubectl exec -n vm vmstorage-0 -- \
+  du -sh /vm-data && df -h /vm-data
+# /vm-data: 41G used (vs ~180G for equivalent Prometheus TSDB)
+```
+
+VictoriaMetrics vs Prometheus vs Grafana Mimir vs Thanos: Prometheus is the scrape-pull engine that generates the data — it is not a long-term storage system (default 15-day retention, single-node TSDB). Thanos and Mimir add long-term storage and global query to Prometheus, each with different architectures (sidecar vs remote_write). VictoriaMetrics replaces the TSDB layer with a much more efficient storage engine and adds native cluster mode. The key VM advantage is compression: VictoriaMetrics consistently achieves 3-7x better disk usage than Prometheus TSDB for the same dataset, which directly reduces storage costs at scale. vmagent is also significantly lighter than the Prometheus server (less memory, faster startup, built-in sharding) — for high-cardinality scraping, replacing Prometheus with vmagent + VictoriaMetrics cluster improves both efficiency and reliability. The trade-off: VictoriaMetrics is a single vendor (Valyala/VM team) without the CNCF ecosystem breadth of Prometheus or the Grafana stack integration of Mimir. For cost-sensitive deployments with high cardinality and long retention requirements, VictoriaMetrics is worth evaluating seriously against the Grafana stack.
