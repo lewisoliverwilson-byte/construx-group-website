@@ -59,6 +59,7 @@ import DmesgPanel from '@/components/DmesgPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import DaprPanel from '@/components/DaprPanel';
+import AirflowPanel from '@/components/AirflowPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -656,8 +657,13 @@ export default function UsesPage() {
         </div>
 
         {/* dapr distributed application runtime — actors, pub/sub, state */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DaprPanel />
+        </div>
+
+        {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
+        <div className="mt-6 pb-10">
+          <AirflowPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

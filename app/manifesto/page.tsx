@@ -61,6 +61,7 @@ import ActPanel from '@/components/ActPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import CiliumPanel from '@/components/CiliumPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -549,8 +550,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* airbyte open-source elt — connectors, syncs, data movement */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AirbytePanel />
+        </div>
+
+        {/* cilium ebpf networking — endpoints, policy, hubble flows */}
+        <div className="mt-4 pb-6">
+          <CiliumPanel />
         </div>
 
         {/* Sign-off */}
