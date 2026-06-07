@@ -63,6 +63,7 @@ import AirflowPanel from '@/components/AirflowPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
+import BenthosPanel from '@/components/BenthosPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -680,8 +681,13 @@ export default function UsesPage() {
         </div>
 
         {/* debezium change data capture — connectors, events, offsets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DebeziumPanel />
+        </div>
+
+        {/* benthos — stream processor, pipelines, transforms */}
+        <div className="mt-6 pb-10">
+          <BenthosPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

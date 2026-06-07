@@ -64,6 +64,7 @@ import FlinkPanel from '@/components/FlinkPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import SpiffePanel from '@/components/SpiffePanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import AuthentikPanel from '@/components/AuthentikPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -913,8 +914,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* goreleaser — release automation, binaries, docker, changelog */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GoReleaserPanel />
+      </section>
+
+      {/* authentik — identity provider, sso, oauth, ldap */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <AuthentikPanel />
       </section>
 
       {/* CTA */}
