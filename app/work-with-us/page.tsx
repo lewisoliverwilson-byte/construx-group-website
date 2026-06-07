@@ -69,6 +69,7 @@ import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import CephPanel from '@/components/CephPanel';
 import CitusPanel from '@/components/CitusPanel';
 import CargoPanel from '@/components/CargoPanel';
+import CpuStatsPanel from '@/components/CpuStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -943,8 +944,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cargo — rust build, deps, features, publish */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CargoPanel />
+      </section>
+
+      {/* cpu stats — usage, load, cores, frequencies */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CpuStatsPanel />
       </section>
 
       {/* CTA */}

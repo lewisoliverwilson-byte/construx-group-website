@@ -70,6 +70,7 @@ import AuditdPanel from '@/components/AuditdPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import BpftracePanel from '@/components/BpftracePanel';
+import CortexPanel from '@/components/CortexPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -603,8 +604,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* bpftrace — kernel tracing, probes, maps, aggregations */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BpftracePanel />
+        </div>
+
+        {/* cortex — multi-tenant prometheus, ruler, compactor */}
+        <div className="mt-4 pb-6">
+          <CortexPanel />
         </div>
 
         {/* Sign-off */}

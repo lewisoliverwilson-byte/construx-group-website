@@ -68,6 +68,7 @@ import CassandraPanel from '@/components/CassandraPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
+import DbtPanel from '@/components/DbtPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -710,8 +711,13 @@ export default function UsesPage() {
         </div>
 
         {/* clickhouse migration — schema versions, runs, checksums */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickhouseMigrationPanel />
+        </div>
+
+        {/* dbt — transforms, models, tests, lineage */}
+        <div className="mt-6 pb-10">
+          <DbtPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
