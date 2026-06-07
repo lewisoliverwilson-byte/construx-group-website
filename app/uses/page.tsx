@@ -29,6 +29,7 @@ import OpenSearchPanel from '@/components/OpenSearchPanel';
 import TalosPanel from '@/components/TalosPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import HubblePanel from '@/components/HubblePanel';
+import GVisorPanel from '@/components/GVisorPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -476,8 +477,13 @@ export default function UsesPage() {
         </div>
 
         {/* hubble cilium network observability — flows, drops, policy verdicts, service map */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HubblePanel />
+        </div>
+
+        {/* gvisor sandboxed runtime — runsc, kvm/ptrace, sentry, syscall interception */}
+        <div className="mt-6 pb-10">
+          <GVisorPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
