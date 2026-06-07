@@ -43,6 +43,7 @@ import TrufflehogPanel from '@/components/TrufflehogPanel';
 import VaultSecretsPanel from '@/components/VaultSecretsPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import CiliumPanel from '@/components/CiliumPanel';
+import AuthentikPanel from '@/components/AuthentikPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -678,8 +679,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cilium ebpf networking — endpoints, policy, hubble */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CiliumPanel />
+        </div>
+
+        {/* authentik identity provider — sso, oauth2, audit */}
+        <div className="mt-6 pb-10">
+          <AuthentikPanel />
         </div>
 
         {/* CTA */}

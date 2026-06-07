@@ -43,6 +43,7 @@ import PromtailPanel from '@/components/PromtailPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import TailscalePanel from '@/components/TailscalePanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
+import TeleportPanel from '@/components/TeleportPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -542,8 +543,13 @@ export default function NowPage() {
         </div>
 
         {/* otel collector telemetry pipeline — traces, metrics, logs */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OtelCollectorPanel />
+        </div>
+
+        {/* teleport infrastructure access — nodes, sessions, audit */}
+        <div className="mt-6 pb-10">
+          <TeleportPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

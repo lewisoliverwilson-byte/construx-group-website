@@ -45,6 +45,7 @@ import SeaweedFsPanel from '@/components/SeaweedFsPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import ParcaPanel from '@/components/ParcaPanel';
+import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -590,8 +591,13 @@ export default function StatsPage() {
       </div>
 
       {/* parca continuous profiling — cpu, heap, flamegraph */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ParcaPanel />
+      </div>
+
+      {/* victoriametrics time series — tenants, metricsql, ingest */}
+      <div className="mt-6 pb-10">
+        <VictoriaMetricsPanel />
       </div>
     </div>
   );
