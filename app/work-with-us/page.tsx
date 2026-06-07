@@ -48,6 +48,7 @@ import GiteaPanel from '@/components/GiteaPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import PulsarPanel from '@/components/PulsarPanel';
+import NomadPanel from '@/components/NomadPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -817,8 +818,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* apache pulsar messaging — topics, subscriptions, geo-replication */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <PulsarPanel />
+      </section>
+
+      {/* nomad workload orchestrator — jobs, allocations, clients */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NomadPanel />
       </section>
 
       {/* CTA */}

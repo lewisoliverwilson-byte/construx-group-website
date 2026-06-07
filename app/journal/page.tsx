@@ -53,6 +53,7 @@ import ArgoCDPanel from '@/components/ArgoCDPanel';
 import CosignPanel from '@/components/CosignPanel';
 import HarborPanel from '@/components/HarborPanel';
 import SynapsePanel from '@/components/SynapsePanel';
+import SeaweedFSPanel from '@/components/SeaweedFSPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -434,8 +435,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* synapse matrix homeserver — rooms, federation, e2ee */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <SynapsePanel />
+      </section>
+
+      {/* seaweedfs distributed file system — volumes, filer, s3-compatible */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <SeaweedFSPanel />
       </section>
 
       {/* Posts */}

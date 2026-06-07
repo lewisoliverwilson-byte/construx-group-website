@@ -47,6 +47,7 @@ import EtcdPanel from '@/components/EtcdPanel';
 import KindPanel from '@/components/KindPanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
+import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -584,8 +585,13 @@ export default function UsesPage() {
         </div>
 
         {/* openfga fine-grained authorization — stores, tuples, checks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenFGAPanel />
+        </div>
+
+        {/* kafka connect data integration — connectors, cdc, sinks */}
+        <div className="mt-6 pb-10">
+          <KafkaConnectPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
