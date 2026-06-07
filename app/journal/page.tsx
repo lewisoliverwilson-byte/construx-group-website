@@ -26,6 +26,7 @@ import PgvectorPanel from '@/components/PgvectorPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import SkaffoldPanel from '@/components/SkaffoldPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -275,6 +276,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* GoReleaser multi-platform build and release */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <GoReleaserPanel />
+      </section>
+
+      {/* skaffold kubernetes inner-loop development */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <SkaffoldPanel />
       </section>
 
       {/* Posts */}

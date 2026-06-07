@@ -1,0 +1,204 @@
+---
+title: "Skaffold: Kubernetes inner-loop development with file sync and profile-based pipelines"
+date: "2032-12-14"
+excerpt: "Skaffold handles the development inner-loop for Kubernetes: watch files, rebuild images, redeploy, stream logs. The critical optimization is file sync — when only static files or interpreted code changes, Skaffold copies the changed files directly into the running container, skipping the full image rebuild and redeployment cycle. This reduces the feedback loop from ~30s (rebuild + redeploy) to ~200ms (file copy). Profiles let you define different build and deploy strategies for dev, staging, and production in one skaffold.yaml. In CI, `skaffold build` produces a build artifact JSON that `skaffold deploy` consumes — ensuring the image promoted from staging to production is the exact digest that was tested, not a rebuilt image."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Watch → build → deploy → logs. File sync for interpreted files. Profiles for each environment.
+
+## skaffold.yaml walkthrough
+
+```yaml
+# skaffold.yaml — complete multi-profile configuration
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: construx-api
+
+# Build: define how images are built
+build:
+  artifacts:
+    - image: registry.construx.io/construx/api
+      context: .           # build context (relative to skaffold.yaml)
+      docker:
+        dockerfile: Dockerfile
+        target: production  # multi-stage: build the production stage
+        buildArgs:
+          VERSION: "{{.SKAFFOLD_IMAGE_TAG}}"
+          GIT_COMMIT: "{{.SKAFFOLD_SOURCE_DATE_EPOCH}}"
+      # File sync: copy changed files into running containers without rebuilding
+      sync:
+        manual:
+          - src: "web/static/**/*.{html,css,js}"
+            dest: /app/static
+            strip: web/static/   # strip this prefix from the dest path
+
+    # Second service in the same repo
+    - image: registry.construx.io/construx/worker
+      context: ./worker
+      docker:
+        dockerfile: Dockerfile
+
+  # Local build (default): uses local Docker daemon
+  local:
+    push: false            # don't push in dev; use local registry
+    useBuildkit: true
+    concurrency: 2         # build both images in parallel
+    tryImportMissing: true # try to pull before rebuilding if image exists
+
+# Deploy: apply to the cluster
+deploy:
+  kubectl:
+    manifests:
+      - k8s/base/*.yaml
+    defaultNamespace: construx-dev
+
+# Port-forward: automatically forward ports during `skaffold dev`
+portForward:
+  - resourceType: service
+    resourceName: construx-api
+    namespace: construx-dev
+    port: 8080
+    localPort: 8080
+  - resourceType: service
+    resourceName: postgres
+    namespace: construx-dev
+    port: 5432
+    localPort: 5433   # 5432 may already be in use locally
+
+# Profiles: override build and deploy config per environment
+profiles:
+  - name: dev
+    activation:
+      - env: ENV=dev             # auto-activate when ENV=dev
+        kubeContext: minikube    # or when kubeContext is minikube
+    build:
+      local:
+        push: false              # no push in local dev
+
+  - name: staging
+    build:
+      local:
+        push: true               # push to registry for staging
+    deploy:
+      helm:
+        releases:
+          - name: construx-api
+            chartPath: ./charts/construx-api
+            valuesFiles: [values.yaml, values.staging.yaml]
+
+  - name: production
+    build:
+      googleCloudBuild:
+        projectId: construx-project
+        machineType: N1_HIGHCPU_8
+    deploy:
+      helm:
+        releases:
+          - name: construx-api
+            chartPath: ./charts/construx-api
+            valuesFiles: [values.yaml, values.production.yaml]
+```
+
+## File sync deep dive
+
+```yaml
+# File sync modes:
+
+# 1. Manual: explicit src → dest mapping
+sync:
+  manual:
+    - src: "templates/**/*.html"
+      dest: /app/templates
+      strip: templates/          # strip prefix from the destination
+    - src: "static/**/*.{css,js,png,svg}"
+      dest: /app/static
+      strip: static/
+
+# 2. Inferred: Skaffold detects source root from Dockerfile COPY instructions
+# For Python/Node/Ruby where the app reloads automatically:
+sync:
+  infer:
+    - "**/*.py"
+    - "**/*.rb"
+    - "**/*.js"
+    - "**/*.ts"
+
+# 3. Auto: for frameworks with built-in file watching (create-react-app, Next.js)
+sync:
+  auto: {}
+
+# Result:
+# Without sync: edit CSS → 28s (build + push + deploy + rollout)
+# With sync:    edit CSS → 150ms (copy file into running container)
+```
+
+```bash
+# Watch sync events during skaffold dev
+# Edit web/static/styles.css:
+# Syncing 1 files for registry.construx.io/construx/api:d3f9a12...
+#   ✔ /tmp/skaffold-sync-12345/web/static/styles.css → api-7f9b-xk2m9:/app/static/styles.css
+# Watching for changes...
+
+# Verify the file arrived
+kubectl exec api-7f9b-xk2m9 -- ls -la /app/static/styles.css
+```
+
+## CI pipeline with image promotion
+
+```bash
+# The key property: skaffold build outputs digests, not tags
+# This ensures staging and production run the same binary
+
+# Step 1: build and push in CI
+skaffold build \
+  --profile staging \
+  --file-output=build-artifacts.json
+
+# build-artifacts.json:
+# {
+#   "builds": [{
+#     "imageName": "registry.construx.io/construx/api",
+#     "tag": "registry.construx.io/construx/api:sha256-abc123..."
+#   }]
+# }
+
+# Step 2: deploy to staging using the exact digest from step 1
+skaffold deploy \
+  --profile staging \
+  --build-artifacts=build-artifacts.json
+
+# Step 3: after staging passes, deploy the same digest to production
+skaffold deploy \
+  --profile production \
+  --build-artifacts=build-artifacts.json
+
+# The same image (same sha256 digest) goes from staging to production
+# No "re-tag and push" that could introduce a different binary
+
+# GitHub Actions integration
+name: Deploy
+on:
+  push:
+    branches: [master]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Skaffold
+        run: |
+          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+          chmod +x skaffold && sudo mv skaffold /usr/local/bin/
+      - name: Build
+        run: skaffold build --profile staging --file-output=build-artifacts.json
+      - name: Deploy staging
+        run: skaffold deploy --profile staging --build-artifacts=build-artifacts.json
+      - name: Deploy production (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: skaffold deploy --profile production --build-artifacts=build-artifacts.json
+```
+
+Skaffold vs Tilt: Tilt uses a Starlark Tiltfile — more expressive (conditional logic, loops, local resource execution) and has a browser UI that shows resource status, logs, and error messages. Tilt handles multi-service setups with resource dependency graphs better. Skaffold is purely YAML — easier to adopt if you're already using Kubernetes manifests or Helm charts without restructuring anything. The practical split: Skaffold for projects with standard Kubernetes manifests and Helm charts where you want CI/CD integration through profiles. Tilt for complex multi-service local development where you need more than YAML can express.
