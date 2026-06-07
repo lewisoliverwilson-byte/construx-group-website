@@ -42,6 +42,7 @@ import LokiPanel from '@/components/LokiPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NeonPanel from '@/components/NeonPanel';
 import LangfusePanel from '@/components/LangfusePanel';
+import HuggingFacePanel from '@/components/HuggingFacePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -370,6 +371,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* langfuse llm observability — traces, evaluations, token cost */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <LangfusePanel />
+      </section>
+
+      {/* huggingface hub — model registry, inference, fine-tunes */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <HuggingFacePanel />
       </section>
 
       {/* Posts */}

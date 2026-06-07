@@ -38,6 +38,7 @@ import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import DaprPanel from '@/components/DaprPanel';
 import BufPanel from '@/components/BufPanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
+import DruidPanel from '@/components/DruidPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -411,8 +412,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* weaviate ml-native vector db — collections, hybrid search, nearText queries */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <WeaviatePanel />
+        </div>
+
+        {/* apache druid real-time olap — datasources, kafka ingest, native sql */}
+        <div className="mt-4 pb-6">
+          <DruidPanel />
         </div>
 
         {/* Sign-off */}
