@@ -82,6 +82,7 @@ import BunBuildPanel from '@/components/BunBuildPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -912,8 +913,13 @@ export default function FoundersPage() {
         </div>
 
         {/* methodology diff — before, after, delta, signal */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MethodologyDiffPanel />
+        </div>
+
+        {/* network ping — hosts, rtt, loss, jitter */}
+        <div className="mt-6 pb-10">
+          <NetworkPingPanel />
         </div>
 
         {/* CTA */}

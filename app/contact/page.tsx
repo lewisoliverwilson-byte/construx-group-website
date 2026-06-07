@@ -81,6 +81,7 @@ import AwsCliPanel from '@/components/AwsCliPanel';
 import ActPanel from '@/components/ActPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import GiteaPanel from '@/components/GiteaPanel';
+import NeofetchPanel from '@/components/NeofetchPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -784,8 +785,13 @@ export default function ContactPage() {
       </section>
 
       {/* gitea — repos, issues, prs, stars */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GiteaPanel />
+      </section>
+
+      {/* neofetch — os, kernel, cpu, mem, uptime */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NeofetchPanel />
       </section>
     </div>
   );

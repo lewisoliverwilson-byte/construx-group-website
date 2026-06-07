@@ -84,6 +84,7 @@ import BufPanel from '@/components/BufPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import CuePanel from '@/components/CuePanel';
 import MaterializePanel from '@/components/MaterializePanel';
+import NetdataPanel from '@/components/NetdataPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -824,8 +825,13 @@ export default function StatsPage() {
       </div>
 
       {/* materialize — views, sources, sinks, latency */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MaterializePanel />
+      </div>
+
+      {/* netdata — real-time metrics, alarms, charts, agents */}
+      <div className="mt-6 pb-10">
+        <NetdataPanel />
       </div>
     </div>
   );
