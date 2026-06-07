@@ -30,6 +30,7 @@ import ThanosPanel from '@/components/ThanosPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import SealedSecretsPanel from '@/components/SealedSecretsPanel';
+import ContainerdPanel from '@/components/ContainerdPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -365,6 +366,11 @@ export default function ManifestoPage() {
         {/* sealed secrets gitops-safe encryption — kubeseal, rsa-4096, strict scope */}
         <div className="mt-4 pb-6">
           <SealedSecretsPanel />
+        </div>
+
+        {/* containerd cri runtime — images, snapshotter, runc v2 shim, tasks */}
+        <div className="mt-4 pb-6">
+          <ContainerdPanel />
         </div>
 
         {/* Sign-off */}
