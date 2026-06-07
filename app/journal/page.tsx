@@ -55,6 +55,7 @@ import HarborPanel from '@/components/HarborPanel';
 import SynapsePanel from '@/components/SynapsePanel';
 import SeaweedFSPanel from '@/components/SeaweedFSPanel';
 import ScyllaPanel from '@/components/ScyllaPanel';
+import OpenSearchPanel from '@/components/OpenSearchPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -451,8 +452,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* scylladb low-latency nosql — nodes, ring, cql */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ScyllaPanel />
+      </section>
+
+      {/* opensearch distributed search — indices, shards, queries */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OpenSearchPanel />
       </section>
 
       {/* Posts */}

@@ -52,6 +52,7 @@ import TerraformPanel from '@/components/TerraformPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import CuePanel from '@/components/CuePanel';
+import QdrantPanel from '@/components/QdrantPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -495,8 +496,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cue data validation — schemas, constraints, code gen */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CuePanel />
+        </div>
+
+        {/* qdrant vector search — collections, points, similarity */}
+        <div className="mt-4 pb-6">
+          <QdrantPanel />
         </div>
 
         {/* Sign-off */}
