@@ -1,0 +1,227 @@
+---
+title: "Sealed Secrets: encrypting Kubernetes secrets for GitOps with Bitnami"
+date: "2032-11-29"
+excerpt: "Sealed Secrets is a Kubernetes controller and CLI (kubeseal) that encrypts Kubernetes Secret manifests so they can be safely committed to git. The encryption uses asymmetric keys: the controller holds the private key in-cluster; you use kubeseal with the public key to encrypt secrets locally. The resulting SealedSecret resource is safe to store in git and is only decryptable by the controller in the target cluster. The workflow: create a Secret locally, seal it with kubeseal, commit the SealedSecret to git, and let the controller decrypt and create the real Secret at apply time. GitOps-compatible, no Vault required for simpler cases."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Asymmetric encryption. Commit ciphertext to git. Controller decrypts in-cluster. GitOps-native.
+
+## Installation and key management
+
+```bash
+# Install the Sealed Secrets controller (Helm)
+helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+helm install sealed-secrets sealed-secrets/sealed-secrets \
+  --namespace kube-system \
+  --version 2.16.1 \
+  --set fullnameOverride=sealed-secrets-controller
+
+# Verify the controller is running and has generated a key pair
+kubectl get pods -n kube-system -l app.kubernetes.io/name=sealed-secrets
+# NAME                                        READY  STATUS   AGE
+# sealed-secrets-controller-7d4b89c9f-xk2m9  1/1    Running  2m
+
+# The controller generates an RSA-4096 key pair on first start
+# Private key: stored as a Kubernetes Secret in kube-system
+# Public key:  used by kubeseal to encrypt (fetched automatically)
+
+# Install kubeseal CLI
+brew install kubeseal          # macOS
+# Linux:
+wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.27.0/kubeseal-0.27.0-linux-amd64.tar.gz
+tar xvf kubeseal-*.tar.gz kubeseal
+mv kubeseal /usr/local/bin/
+
+# Fetch the public key (for offline use or CI)
+kubeseal --fetch-cert \
+  --controller-name=sealed-secrets-controller \
+  --controller-namespace=kube-system \
+  > pub-sealed-secrets.pem
+
+# Verify the cert
+openssl x509 -in pub-sealed-secrets.pem -noout -subject -dates
+# subject=CN=sealed-secrets
+# notBefore=Nov 20 00:00:00 2032 GMT
+# notAfter=Nov 20 00:00:00 2062 GMT
+```
+
+## Sealing secrets
+
+```bash
+# Step 1: create a Kubernetes Secret manifest (do NOT commit this)
+kubectl create secret generic construx-db \
+  --from-literal=password=super-secret-password-here \
+  --from-literal=connection-string="postgres://construx:super-secret@postgres:5432/construx_prod" \
+  --namespace construx-prod \
+  --dry-run=client \
+  -o yaml > /tmp/construx-db-secret.yaml
+
+# Step 2: seal the secret (safe to commit)
+kubeseal \
+  --format=yaml \
+  --cert=pub-sealed-secrets.pem \
+  < /tmp/construx-db-secret.yaml \
+  > k8s/secrets/construx-db-sealed.yaml
+
+# The output is a SealedSecret resource — safe to git commit
+cat k8s/secrets/construx-db-sealed.yaml
+# apiVersion: bitnami.com/v1alpha1
+# kind: SealedSecret
+# metadata:
+#   name: construx-db
+#   namespace: construx-prod
+# spec:
+#   encryptedData:
+#     password: AgBx7Yz...  (RSA-OAEP encrypted ciphertext, ~700 chars)
+#     connection-string: AgCp9Mn...
+#   template:
+#     metadata:
+#       name: construx-db
+#       namespace: construx-prod
+#     type: Opaque
+
+# Step 3: delete the plaintext (never commit /tmp/construx-db-secret.yaml)
+rm /tmp/construx-db-secret.yaml
+
+# Step 4: commit and push the sealed secret
+git add k8s/secrets/construx-db-sealed.yaml
+git commit -m "secrets: add sealed construx-db credentials"
+git push
+
+# Step 5: apply to the cluster (controller decrypts automatically)
+kubectl apply -f k8s/secrets/construx-db-sealed.yaml
+# sealedsecret.bitnami.com/construx-db created
+
+# Verify the controller created the real Secret
+kubectl get secret construx-db -n construx-prod
+# NAME         TYPE    DATA  AGE
+# construx-db  Opaque  2     5s
+```
+
+## Scoping and rotation
+
+```bash
+# Scope: control which namespaces/names can decrypt a secret
+# strict (default): sealed for a specific name + namespace
+# namespace-wide: any name in the namespace can use the key
+# cluster-wide: any name in any namespace
+
+# Strict (default) — most secure
+kubeseal --format=yaml \
+  --scope=strict \
+  --cert=pub-sealed-secrets.pem \
+  < secret.yaml > sealed-secret.yaml
+
+# Namespace-wide — allows renaming the secret
+kubeseal --format=yaml \
+  --scope=namespace-wide \
+  --cert=pub-sealed-secrets.pem \
+  < secret.yaml > sealed-secret.yaml
+
+# Key rotation: the controller generates a new key every 30 days
+# Old keys are retained so existing SealedSecrets can still be decrypted
+# Re-seal with new key to use the latest:
+kubeseal --re-encrypt \
+  --controller-name=sealed-secrets-controller \
+  --controller-namespace=kube-system \
+  --format=yaml \
+  < old-sealed-secret.yaml > new-sealed-secret.yaml
+
+# Backup the controller private key (CRITICAL — keep this safe)
+kubectl get secret \
+  -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key \
+  -o yaml > sealed-secrets-keys-backup.yaml
+# Store in 1Password / Vault — without this, sealed secrets are unrecoverable
+# if the cluster is destroyed
+
+# Restore from backup (disaster recovery)
+kubectl apply -f sealed-secrets-keys-backup.yaml
+kubectl rollout restart deployment/sealed-secrets-controller -n kube-system
+```
+
+## GitOps workflow with ArgoCD
+
+```yaml
+# ArgoCD + Sealed Secrets: full GitOps with no plaintext secrets in git
+
+# Repository structure:
+# k8s/
+#   base/
+#     deployment.yaml
+#     service.yaml
+#   secrets/
+#     construx-db-sealed.yaml    ← SealedSecret (safe in git)
+#     stripe-api-sealed.yaml     ← SealedSecret
+#     redis-url-sealed.yaml      ← SealedSecret
+#   kustomization.yaml
+
+# k8s/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - base/deployment.yaml
+  - base/service.yaml
+  - secrets/construx-db-sealed.yaml
+  - secrets/stripe-api-sealed.yaml
+  - secrets/redis-url-sealed.yaml
+
+---
+# ArgoCD Application pointing to the repo
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: construx-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/construx/k8s-manifests
+    targetRevision: master
+    path: k8s/
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: construx-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+# ArgoCD syncs → applies SealedSecrets → controller decrypts → Secrets appear
+# The Deployment references the Secret (env vars, volume mounts) as normal
+# No plaintext credentials anywhere in the git repository
+```
+
+## Updating a sealed secret
+
+```bash
+# Workflow: rotate the database password
+# 1. Generate a new password
+NEW_PASS=$(openssl rand -base64 32)
+
+# 2. Create the updated Secret manifest
+kubectl create secret generic construx-db \
+  --from-literal=password="$NEW_PASS" \
+  --namespace construx-prod \
+  --dry-run=client \
+  -o yaml > /tmp/construx-db-new.yaml
+
+# 3. Seal it
+kubeseal --format=yaml \
+  --cert=pub-sealed-secrets.pem \
+  < /tmp/construx-db-new.yaml \
+  > k8s/secrets/construx-db-sealed.yaml
+
+# 4. Store the new password in your password manager / Vault
+echo "$NEW_PASS" | vault kv put secret/construx/db password=-
+
+# 5. Commit and push — ArgoCD picks it up automatically
+rm /tmp/construx-db-new.yaml
+git add k8s/secrets/construx-db-sealed.yaml
+git commit -m "secrets: rotate construx-db password"
+git push
+```
+
+Sealed Secrets vs External Secrets Operator vs vals: Sealed Secrets is the simplest path to GitOps with encrypted credentials — one controller, one CLI, no external secret store required. The tradeoff: the private key is in the cluster, so cluster destruction means secret loss (backup the key). External Secrets Operator (ESO) pulls from Vault/SSM/GCP on a schedule — no key management in the cluster, but requires an external secret store. vals resolves references at apply-time — no secrets at rest at all. The decision: Sealed Secrets for teams that want GitOps without an external secret store. ESO when you already have Vault or SSM. vals when you want zero secret storage anywhere.

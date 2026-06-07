@@ -22,6 +22,7 @@ import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import GrypePanel from '@/components/GrypePanel';
+import K9sPanel from '@/components/K9sPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -315,8 +316,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* grype vulnerability scanner — SBOM-aware CVE detection */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GrypePanel />
+        </div>
+
+        {/* k9s kubernetes cluster terminal UI */}
+        <div className="mt-4 pb-6">
+          <K9sPanel />
         </div>
 
         {/* Sign-off */}

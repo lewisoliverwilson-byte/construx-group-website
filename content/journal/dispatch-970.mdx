@@ -1,0 +1,193 @@
+---
+title: "Falco: runtime security and threat detection for Kubernetes workloads"
+date: "2032-12-02"
+excerpt: "Falco is a CNCF runtime security tool that detects threats in real time by monitoring Linux system calls via eBPF or a kernel module. It evaluates a stream of syscall events against a rule set and emits alerts when behavior matches known attack patterns: unexpected shell execution in a container, file reads from /etc/shadow, privilege escalation via setuid, network connections to unexpected IPs, or crypto mining behavior. Falco rules are written in a YAML DSL with macros, lists, and conditions that can reference container metadata, Kubernetes pod labels, and process ancestry. It is the runtime complement to grype (static analysis) and OPA (policy enforcement) — it catches what slips through at runtime."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+syscall-level runtime detection. eBPF driver. Kubernetes-aware. Rules as code.
+
+## Installation and driver
+
+```bash
+# Falco: runtime security via eBPF syscall tracing
+# Install on the host (DaemonSet in Kubernetes)
+
+# Helm install (recommended for Kubernetes)
+helm repo add falcosecurity https://falcosecurity.github.io/charts
+helm install falco falcosecurity/falco \
+  --namespace falco \
+  --create-namespace \
+  --set driver.kind=ebpf \
+  --set falcosidekick.enabled=true \
+  --set falcosidekick.config.slack.webhookurl="https://hooks.slack.com/..." \
+  --set tty=true
+
+# Verify Falco is running
+kubectl get pods -n falco
+# NAME           READY  STATUS   AGE
+# falco-6r8xn   1/1    Running  2m    ← one pod per node (DaemonSet)
+# falco-9kp2m   1/1    Running  2m
+
+# Driver options:
+# ebpf:         CO-RE eBPF (recommended, no kernel headers needed)
+# module:       kernel module (faster but needs kernel headers and signing)
+# modern-ebpf:  newer eBPF APIs (kernel 5.14+)
+
+# Check Falco logs
+kubectl logs -n falco -l app.kubernetes.io/name=falco --tail=20
+```
+
+## Default rule set and alert format
+
+```bash
+# Falco ships with ~80 default rules covering common attack patterns
+# View loaded rules
+kubectl exec -n falco falco-6r8xn -- falco --list
+
+# Example alerts (JSON format):
+{
+  "output": "23:00:01.123456 Warning Shell spawned in a container that is not expected to contain one (evt_type=execve user=root user_uid=0 user_loginuid=-1 process=bash proc_exepath=/bin/bash parent=runc command=bash container_id=4a9f2b1c container_image=construx/api:v1.8.3 container_image_tag=v1.8.3 container_name=api k8s.ns.name=construx-prod k8s.pod.name=api-7f9b-xk2m9 k8s.pod.labels.app=api)",
+  "priority": "Warning",
+  "rule": "Terminal shell in container",
+  "source": "syscall",
+  "tags": ["container", "shell", "mitre_execution"],
+  "time": "2032-11-26T23:00:01.123456Z"
+}
+
+{
+  "output": "Sensitive file opened for reading (user=root command=cat /etc/shadow)",
+  "priority": "Warning",
+  "rule": "Read sensitive file untrusted"
+}
+
+{
+  "output": "Outbound connection to unexpected IP (proc=python3 connection=192.0.2.1:4444)",
+  "priority": "Critical",
+  "rule": "Outbound connection to C2 server"
+}
+
+# Watch alerts in real time
+kubectl logs -n falco -l app.kubernetes.io/name=falco -f | jq .
+```
+
+## Custom rules
+
+```yaml
+# /etc/falco/rules.d/construx.yaml — project-specific rules
+
+# List: allowed image registries
+- list: allowed_registries
+  items:
+    - registry.construx.io
+    - gcr.io/construx-project
+    - public.ecr.aws
+
+# Macro: is this a known system container?
+- macro: is_system_container
+  condition: >
+    container.image.repository in (kube-system, falco)
+
+# Rule: alert on containers from unauthorized registries
+- rule: Container from unauthorized registry
+  desc: A container was started from a registry not in the allowlist
+  condition: >
+    spawned_process
+    and container
+    and not is_system_container
+    and not container.image.repository pmatch (registry.construx.io/*)
+    and not container.image.repository pmatch (gcr.io/construx-project/*)
+  output: >
+    Container started from unauthorized registry
+    (user=%user.name image=%container.image.repository:%container.image.tag
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: Critical
+  tags: [container, supply_chain]
+
+# Rule: alert on unexpected outbound connections from the API pod
+- rule: Unexpected outbound connection from API
+  desc: API pod made an outbound connection to an unexpected destination
+  condition: >
+    outbound
+    and container
+    and k8s.pod.labels.app = "api"
+    and not fd.rip in (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+    and not fd.rport in (443, 5432, 6379, 4222)
+  output: >
+    Unexpected outbound from API pod
+    (connection=%fd.name pod=%k8s.pod.name ip=%fd.rip port=%fd.rport)
+  priority: Warning
+  tags: [network, lateral_movement]
+
+# Rule: alert on privilege escalation
+- rule: Setuid binary executed in container
+  desc: A setuid binary was executed — possible privilege escalation
+  condition: >
+    spawned_process
+    and container
+    and proc.is_suid_root = true
+    and not proc.name in (su, sudo, ping, mount)
+  output: >
+    Setuid binary executed in container
+    (user=%user.name proc=%proc.name pod=%k8s.pod.name)
+  priority: Error
+  tags: [container, privilege_escalation]
+```
+
+## Falcosidekick — alert routing
+
+```yaml
+# Falcosidekick: fan-out Falco alerts to Slack, PagerDuty, Loki, SIEM, etc.
+
+# falcosidekick-values.yaml
+config:
+  slack:
+    webhookurl: "https://hooks.slack.com/services/..."
+    minimumpriority: warning
+    messageformat: |
+      *[{{ .Priority }}]* {{ .Rule }} in `{{ index .OutputFields "k8s.ns.name" }}/{{ index .OutputFields "k8s.pod.name" }}`
+      ```{{ .Output }}```
+
+  pagerduty:
+    routingkey: "..."
+    minimumpriority: critical
+
+  loki:
+    hostport: "http://loki.monitoring.svc.cluster.local:3100"
+    minimumpriority: notice
+    customlabels: "app:falco,env:prod"
+
+  elasticsearch:
+    hostport: "http://elasticsearch.monitoring.svc.cluster.local:9200"
+    index: falco-alerts
+    minimumpriority: notice
+
+  webhook:
+    address: "https://siem.construx.io/api/falco"
+    minimumpriority: warning
+```
+
+## Testing rules
+
+```bash
+# Test that your rules fire correctly (without waiting for an attack)
+# event-generator: simulates common attack patterns against rules
+
+kubectl run event-generator \
+  --image falcosecurity/event-generator \
+  --restart=Never \
+  -- run syscall --loop
+
+# Simulates: shell in container, file read, network scan, privilege escalation
+# Each simulation should trigger the corresponding Falco rule
+
+# Dry-run a rule against a trace file (offline testing)
+falco --validate /etc/falco/rules.d/construx.yaml
+# 0 errors, 0 warnings
+
+# Load rules and dump them (see what Falco actually loaded)
+falco --dry-run --validate /etc/falco/falco.yaml
+```
+
+Falco vs AppArmor vs seccomp: seccomp filters syscalls at the kernel level — it blocks disallowed syscalls before they execute. AppArmor enforces MAC policies (file paths, network, capabilities) per process. Both are preventive. Falco is detective — it observes syscalls and emits alerts when behavior matches attack patterns, but does not block. They are complementary: run seccomp and AppArmor to reduce the attack surface (fewer syscalls allowed), and run Falco to detect what slips through. The combination covers the defense-in-depth model: static analysis (grype) catches vulnerable images before deploy, OPA prevents policy violations at admission, seccomp/AppArmor restrict what containers can do at runtime, and Falco alerts when something anomalous happens anyway.
