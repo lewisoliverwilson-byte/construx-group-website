@@ -90,6 +90,7 @@ import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
 import RekorPanel from '@/components/RekorPanel';
 import RssFeedPanel from '@/components/RssFeedPanel';
 import ScyllaPanel from '@/components/ScyllaPanel';
+import SentryIssuesPanel from '@/components/SentryIssuesPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -824,8 +825,13 @@ export default function NowPage() {
         </div>
 
         {/* scylla — tablets, vnodes, repairs, compactions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ScyllaPanel />
+        </div>
+
+        {/* sentry — issues, errors, events, alerts */}
+        <div className="mt-6 pb-10">
+          <SentryIssuesPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

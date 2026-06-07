@@ -92,6 +92,7 @@ import PineconePanel from '@/components/PineconePanel';
 import RabbitMQPanel from '@/components/RabbitMQPanel';
 import RiverPanel from '@/components/RiverPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
+import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -872,8 +873,13 @@ export default function StatsPage() {
       </div>
 
       {/* scorecard — checks, scores, risks, remediations */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ScorecardPanel />
+      </div>
+
+      {/* sealed secrets — gitops-safe encryption, kubeseal, rsa-4096 */}
+      <div className="mt-6 pb-10">
+        <SealedSecretsPanel />
       </div>
     </div>
   );

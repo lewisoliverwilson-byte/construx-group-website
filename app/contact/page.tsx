@@ -89,6 +89,7 @@ import PgvectorPanel from '@/components/PgvectorPanel';
 import PrometheusMetricsPanel from '@/components/PrometheusMetricsPanel';
 import RenovatePanel from '@/components/RenovatePanel';
 import SbomPanel from '@/components/SbomPanel';
+import IpLinkPanel from '@/components/IpLinkPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -832,8 +833,13 @@ export default function ContactPage() {
       </section>
 
       {/* sbom — components, licenses, vulnerabilities, cpe */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <SbomPanel />
+      </section>
+
+      {/* ip link — interfaces, mtu, state, mac, flags */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <IpLinkPanel />
       </section>
     </div>
   );

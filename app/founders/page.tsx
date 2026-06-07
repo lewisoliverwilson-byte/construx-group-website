@@ -90,6 +90,7 @@ import PingPanel from '@/components/PingPanel';
 import RclonePanel from '@/components/RclonePanel';
 import RoutingTablePanel from '@/components/RoutingTablePanel';
 import ScyllaDbPanel from '@/components/ScyllaDbPanel';
+import SeaweedFSPanel from '@/components/SeaweedFSPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -960,8 +961,13 @@ export default function FoundersPage() {
         </div>
 
         {/* scylladb — keyspaces, tables, compaction, reads, writes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ScyllaDbPanel />
+        </div>
+
+        {/* seaweedfs — volumes, filer, s3-compatible, erasure coding */}
+        <div className="mt-6 pb-10">
+          <SeaweedFSPanel />
         </div>
 
         {/* CTA */}
