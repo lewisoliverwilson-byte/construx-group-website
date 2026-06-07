@@ -87,6 +87,7 @@ import KeycloakPanel from '@/components/KeycloakPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import MLflowPanel from '@/components/MLflowPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -705,8 +706,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* mlflow — experiments, runs, metrics, artifacts */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <MLflowPanel />
+        </div>
+
+        {/* nginx access log — requests, status, bytes, latency */}
+        <div className="mt-4 pb-6">
+          <NginxAccessLogPanel />
         </div>
 
         {/* Sign-off */}

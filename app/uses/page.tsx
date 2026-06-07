@@ -85,6 +85,7 @@ import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import MimirPanel from '@/components/MimirPanel';
 import NetstatPanel from '@/components/NetstatPanel';
+import OpenCostPanel from '@/components/OpenCostPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -812,8 +813,13 @@ export default function UsesPage() {
         </div>
 
         {/* netstat — connections, states, ports, protocols */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NetstatPanel />
+        </div>
+
+        {/* opencost — workloads, namespaces, cost, efficiency */}
+        <div className="mt-6 pb-10">
+          <OpenCostPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

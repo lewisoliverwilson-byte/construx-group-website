@@ -90,6 +90,7 @@ import KubeflowPanel from '@/components/KubeflowPanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import NATSPanel from '@/components/NATSPanel';
+import OPAPanel from '@/components/OPAPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -661,8 +662,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* nats — streams, consumers, subjects, messages */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NATSPanel />
+      </section>
+
+      {/* opa — policies, decisions, bundles, rego */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OPAPanel />
       </section>
 
       {/* Posts */}

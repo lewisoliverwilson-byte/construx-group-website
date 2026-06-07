@@ -86,6 +86,7 @@ import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubescapePanel from '@/components/KubescapePanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import MtrPanel from '@/components/MtrPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1045,8 +1046,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* mtr — hops, loss, latency, jitter, asn */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <MtrPanel />
+      </section>
+
+      {/* nvidia smi — gpu, vram, temp, util, power */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NvidiaSmiPanel />
       </section>
 
       {/* CTA */}
