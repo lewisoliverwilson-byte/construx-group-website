@@ -29,6 +29,7 @@ import DragonflyPanel from '@/components/DragonflyPanel';
 import TiDbPanel from '@/components/TiDbPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import LonghornPanel from '@/components/LonghornPanel';
+import CephPanel from '@/components/CephPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -494,8 +495,13 @@ export default function StatsPage() {
       </div>
 
       {/* longhorn distributed block storage — replicated volumes, snapshots, s3 backup */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LonghornPanel />
+      </div>
+
+      {/* ceph rados distributed storage — rbd, cephfs, rgw, crush, bluestore */}
+      <div className="mt-6 pb-10">
+        <CephPanel />
       </div>
     </div>
   );

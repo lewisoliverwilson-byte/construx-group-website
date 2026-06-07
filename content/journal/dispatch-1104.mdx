@@ -1,0 +1,155 @@
+---
+title: "Kubernetes Gateway API: next-generation ingress — HTTPRoute, GRPCRoute, TLSRoute, ReferenceGrant"
+date: "2034-01-08"
+excerpt: "The Kubernetes Gateway API is the successor to the Ingress API. Where Ingress is a single resource type with limited expressiveness (only HTTP/HTTPS, no gRPC, no TCP, no traffic splitting at the API level — vendors add non-standard annotations), Gateway API is a multi-resource model that cleanly separates infrastructure concerns from application routing concerns. A GatewayClass defines the controller implementing the Gateway (Istio, Envoy Gateway, NGINX, Contour, Cilium). A Gateway binds to a GatewayClass and declares listeners (ports, protocols, TLS configuration). An HTTPRoute (or GRPCRoute, TLSRoute, TCPRoute) attaches to a Gateway and declares routing rules for a specific service or hostname. The split between Gateway and HTTPRoute enables role separation: the platform team manages GatewayClass and Gateway; the application team manages HTTPRoute in their own namespace. ReferenceGrant allows a Route in one namespace to reference a backend Service in another namespace, with the owning namespace's explicit approval. Gateway API supports traffic splitting natively (weight-based, A/B), header-based routing, URL rewriting, request mirroring, and timeouts — all in standard Kubernetes YAML without vendor-specific annotations."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+GatewayClass. Gateway. HTTPRoute. GRPCRoute. ReferenceGrant. Traffic splitting. Role separation.
+
+## Gateway API resources
+
+```yaml
+# GatewayClass: Envoy Gateway as the implementation
+# Cluster-scoped — managed by the platform team
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: construx-envoy
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+
+---
+# Gateway: listener configuration — managed by platform team
+# Binds external TLS and routes to the right namespaces
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: construx-gateway
+  namespace: construx-infra
+spec:
+  gatewayClassName: construx-envoy
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: construx-tls-cert    # Secret managed by cert-manager
+            namespace: construx-infra
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              gateway.construx.io/allowed: "true"   # only opted-in namespaces
+
+    - name: grpc
+      protocol: HTTPS
+      port: 8443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: construx-tls-cert
+            namespace: construx-infra
+      allowedRoutes:
+        namespaces:
+          from: Same
+
+---
+# HTTPRoute: orders-api routing — managed by application team in construx-prod
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: orders-api-route
+  namespace: construx-prod
+spec:
+  parentRefs:
+    - name: construx-gateway
+      namespace: construx-infra
+      sectionName: https
+  hostnames:
+    - api.construxgroup.io
+
+  rules:
+    # Canary: 10% of /api/v1/orders traffic to v2
+    - matches:
+        - path: { type: PathPrefix, value: "/api/v1/orders" }
+          method: POST
+      backendRefs:
+        - name: orders-api-v1
+          port: 8080
+          weight: 90
+        - name: orders-api-v2
+          port: 8080
+          weight: 10
+      timeouts:
+        request: 30s
+        backendRequest: 25s
+
+    # Header-based routing: testing header routes to v2 always
+    - matches:
+        - headers:
+            - name: X-Canary
+              value: "v2"
+      backendRefs:
+        - name: orders-api-v2
+          port: 8080
+
+    # URL rewrite + redirect: /api/orders → /api/v1/orders
+    - matches:
+        - path: { type: PathPrefix, value: "/api/orders" }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/api/v1/orders"
+      backendRefs:
+        - name: orders-api-v1
+          port: 8080
+
+---
+# GRPCRoute: gRPC service routing
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: payments-grpc-route
+  namespace: construx-prod
+spec:
+  parentRefs:
+    - name: construx-gateway
+      namespace: construx-infra
+      sectionName: grpc
+  hostnames:
+    - grpc.construxgroup.io
+  rules:
+    - matches:
+        - method:
+            service: construx.payments.v1.PaymentsService
+            method:  ChargeCard
+      backendRefs:
+        - name: payments-service
+          port: 9090
+
+---
+# ReferenceGrant: allow construx-prod HTTPRoute to reference construx-infra backend
+# Without this, cross-namespace backend references are denied
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-prod-to-infra
+  namespace: construx-infra
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: construx-prod
+  to:
+    - group: ""
+      kind: Service
+```
+
+Gateway API vs Ingress vs Istio VirtualService vs Service Mesh routing: Kubernetes Ingress is limited — it only handles HTTP/HTTPS, all advanced features (header routing, traffic splitting, rate limiting) are implemented via vendor annotations that differ between NGINX, Traefik, HAProxy. This means you cannot switch Ingress controllers without rewriting all your routing config. Istio VirtualService provides L7 routing within the mesh but is Istio-specific — it only works if every service is enrolled in the Istio mesh. AWS ALB Ingress Controller is excellent for EKS on AWS — deep AWS integration, no additional load balancer required — but it is AWS-specific. Gateway API is vendor-neutral and expressive: the same HTTPRoute YAML works with Istio, Envoy Gateway, NGINX, Cilium, or Contour (whichever GatewayClass is active). Traffic splitting, header routing, URL rewriting, gRPC routing, and TLS passthrough are first-class features with no annotations. The role-separation model (platform team owns Gateway, application team owns HTTPRoute) is also significant for multi-team organisations — application teams can manage their own routing without cluster-admin access.

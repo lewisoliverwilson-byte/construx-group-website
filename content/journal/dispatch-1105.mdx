@@ -1,0 +1,179 @@
+---
+title: "ClickHouse: columnar OLAP database — MergeTree, materialized views, Kafka engine, ReplicatedMergeTree"
+date: "2034-01-11"
+excerpt: "ClickHouse is a column-oriented OLAP database designed for analytical queries over billions of rows at interactive latency — sub-second aggregations over hundreds of millions of rows are routine. The core storage engine is MergeTree: data is written in sorted, compressed columnar parts and merged in the background. The compression is dramatically better than row-oriented databases (10-100x for analytical workloads) because all values in a column are the same type, enabling encoding schemes like run-length encoding, delta encoding, and LZ4/ZSTD at the column level. ClickHouse's vectorised query execution processes data in CPU cache-friendly batches rather than row by row, using SIMD instructions. For real-time analytics, the Kafka engine allows ClickHouse to consume directly from Kafka topics as a table — a Materialized View moves data from the Kafka table into a MergeTree table automatically. ReplicatedMergeTree adds replication using ZooKeeper/ClickHouse Keeper — every insert is replicated to all replicas before acknowledgment. Distributed tables shard data across multiple ClickHouse servers. At Construx, ClickHouse stores all product event telemetry (page views, clicks, searches, purchase funnels) — 50 billion rows accumulated over 18 months, query latency under 200ms for most dashboard queries against the full dataset."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+MergeTree. Columnar compression. Kafka engine. Materialized View. ReplicatedMergeTree. Distributed.
+
+## Schema design and real-time ingestion
+
+```sql
+-- MergeTree table: product event telemetry
+-- Sorted by (tenant_id, toStartOfHour(ts), event_type) for efficient range scans
+-- LZ4 compression with Gorilla codec for Float64 columns
+
+CREATE TABLE construx.product_events
+(
+    ts          DateTime64(3, 'UTC'),
+    tenant_id   LowCardinality(String),   -- LowCardinality uses dictionary encoding
+    session_id  String,
+    user_id     Nullable(String),
+    event_type  LowCardinality(String),   -- view, click, search, purchase, etc.
+    product_id  String,
+    page_url    String,
+    referrer    Nullable(String),
+    country     LowCardinality(String),
+    device_type LowCardinality(String),
+    amount      Nullable(Float64)         CODEC(Gorilla, LZ4),
+    metadata    Map(String, String)       -- flexible key-value without schema changes
+)
+ENGINE = ReplicatedMergeTree(
+    '/clickhouse/tables/{shard}/construx.product_events',
+    '{replica}'
+)
+PARTITION BY toYYYYMM(ts)     -- monthly partitions for efficient range drops
+ORDER BY (tenant_id, toStartOfHour(ts), event_type, product_id)
+TTL ts + INTERVAL 2 YEAR
+SETTINGS
+    index_granularity = 8192,
+    min_compress_block_size = 65536;
+
+-- Kafka engine table: read directly from Kafka topic
+CREATE TABLE construx.product_events_kafka
+(
+    ts         Int64,
+    tenant_id  String,
+    session_id String,
+    event_type String,
+    product_id String,
+    payload    String   -- raw JSON
+)
+ENGINE = Kafka(
+    'kafka.construx-infra.svc.cluster.local:9092',
+    'construx.product-events',
+    'clickhouse-consumer-group',
+    'JSONEachRow'
+)
+SETTINGS
+    kafka_max_block_size = 65536,
+    kafka_flush_interval_ms = 7500,
+    kafka_num_consumers = 4;
+
+-- Materialized View: transform and insert from Kafka into MergeTree
+CREATE MATERIALIZED VIEW construx.product_events_mv
+TO construx.product_events
+AS
+SELECT
+    fromUnixTimestamp64Milli(ts)    AS ts,
+    tenant_id,
+    JSONExtractString(payload, 'session_id') AS session_id,
+    JSONExtractString(payload, 'user_id')    AS user_id,
+    event_type,
+    product_id,
+    JSONExtractString(payload, 'page_url')  AS page_url,
+    JSONExtractString(payload, 'referrer')  AS referrer,
+    JSONExtractString(payload, 'country')   AS country,
+    JSONExtractString(payload, 'device')    AS device_type,
+    JSONExtractFloat(payload, 'amount')     AS amount,
+    map()                                   AS metadata
+FROM construx.product_events_kafka;
+```
+
+```sql
+-- Aggregation query: purchase funnel analysis — 50B rows, sub-200ms
+-- Counts unique sessions at each funnel step per tenant in the last 30 days
+
+SELECT
+    tenant_id,
+    countIf(event_type = 'view')    AS views,
+    countIf(event_type = 'click')   AS clicks,
+    countIf(event_type = 'search')  AS searches,
+    countIf(event_type = 'purchase') AS purchases,
+    round(countIf(event_type = 'purchase') / countIf(event_type = 'view') * 100, 2)
+        AS conversion_rate
+FROM construx.product_events
+WHERE
+    ts >= now() - INTERVAL 30 DAY
+    AND tenant_id IN ('acme', 'globex', 'initech')
+GROUP BY tenant_id
+ORDER BY purchases DESC;
+
+-- Time-series: hourly purchase counts with moving average
+SELECT
+    toStartOfHour(ts)          AS hour,
+    count()                    AS purchases,
+    avg(amount)                AS avg_order_value,
+    round(
+        avgMovingWeighted(count(), 24),   -- 24-hour moving average
+        0
+    )                          AS purchases_24h_ma
+FROM construx.product_events
+WHERE
+    event_type = 'purchase'
+    AND ts >= now() - INTERVAL 7 DAY
+    AND tenant_id = 'acme'
+GROUP BY hour
+ORDER BY hour;
+
+-- AggregatingMergeTree: pre-aggregated materialized view for dashboard latency
+CREATE MATERIALIZED VIEW construx.hourly_events_summary
+ENGINE = AggregatingMergeTree()
+PARTITION BY toYYYYMM(hour)
+ORDER BY (tenant_id, hour, event_type)
+AS
+SELECT
+    tenant_id,
+    toStartOfHour(ts)          AS hour,
+    event_type,
+    countState()               AS event_count,   -- unmerged state for incremental updates
+    uniqState(session_id)      AS unique_sessions,
+    sumState(amount)           AS total_amount
+FROM construx.product_events
+GROUP BY tenant_id, hour, event_type;
+
+-- Query the AggregatingMergeTree (merge states on read)
+SELECT
+    hour,
+    event_type,
+    countMerge(event_count)    AS events,
+    uniqMerge(unique_sessions) AS sessions
+FROM construx.hourly_events_summary
+WHERE tenant_id = 'acme' AND hour >= now() - INTERVAL 24 HOUR
+GROUP BY hour, event_type
+ORDER BY hour;
+```
+
+```bash
+# ClickHouse operations
+
+# ClickHouse cluster on Kubernetes via altinity-clickhouse-operator
+kubectl get clickhouseinstallation -n clickhouse
+# NAME                    VERSION   CLUSTERS  HOSTS  STATUS
+# construx-clickhouse     23.8.9    1         4      Completed
+
+# Query from clickhouse-client
+clickhouse-client --host=clickhouse.construx-db.svc.cluster.local --user=construx \
+  --query="SELECT count() FROM construx.product_events"
+# 51,847,293,142
+
+# Check part sizes and compression ratio
+SELECT
+    partition,
+    count() AS parts,
+    formatReadableSize(sum(data_compressed_bytes)) AS compressed,
+    formatReadableSize(sum(data_uncompressed_bytes)) AS uncompressed,
+    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 1) AS ratio
+FROM system.parts
+WHERE table = 'product_events' AND active
+GROUP BY partition
+ORDER BY partition DESC
+LIMIT 5;
+-- 2034-01  12  8.4 GiB   142 GiB  16.9
+-- 2033-12  47  31.2 GiB  521 GiB  16.7
+-- 2033-11  51  33.1 GiB  549 GiB  16.6
+```
+
+ClickHouse vs BigQuery vs Redshift vs DuckDB vs PostgreSQL with TimescaleDB: PostgreSQL (even with TimescaleDB) is a row-oriented database — it can handle analytical queries but at 100-1000x higher latency than ClickHouse for aggregations over billions of rows because it cannot vectorise column scans. BigQuery and Redshift are managed columnar data warehouses — correct for teams that want zero infrastructure management and SQL-over-S3 semantics, but expensive at high query volume (BigQuery bills per byte scanned) and with seconds-level query latency rather than sub-second. DuckDB is an in-process columnar analytical engine — exceptional for ad-hoc analysis on local files (Parquet, CSV) and embedded analytics use cases, but single-process without distributed storage or replication. ClickHouse is the choice when you need sub-second query latency over billions of rows in a self-hosted distributed system: its combination of columnar storage, vectorised execution, and real-time Kafka ingestion covers both the streaming ingest and interactive analytics requirements in a single system. The operational overhead is real — schema design and ORDER BY tuning matter significantly — but nothing else achieves its combination of ingest throughput and query speed at this cost point.
