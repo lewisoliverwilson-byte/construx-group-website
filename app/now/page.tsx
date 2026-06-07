@@ -31,6 +31,7 @@ import PulsarPanel from '@/components/PulsarPanel';
 import VaultPkiPanel from '@/components/VaultPkiPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
+import DeltaLakePanel from '@/components/DeltaLakePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -470,8 +471,13 @@ export default function NowPage() {
         </div>
 
         {/* cloudflare workers — edge compute, kv, r2, d1, durable objects */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CloudflareWorkersPanel />
+        </div>
+
+        {/* delta lake acid lakehouse — medallion, tx log, zorder, vacuum, time travel */}
+        <div className="mt-6 pb-10">
+          <DeltaLakePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

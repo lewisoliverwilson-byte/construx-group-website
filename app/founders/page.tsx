@@ -30,6 +30,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import PinotPanel from '@/components/PinotPanel';
 import BackstagePanel from '@/components/BackstagePanel';
+import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -600,8 +601,13 @@ export default function FoundersPage() {
         </div>
 
         {/* backstage developer portal — service catalog, tech radar, plugins */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BackstagePanel />
+        </div>
+
+        {/* chaos mesh chaos engineering — podchaos, networkchaos, iochaos, gameday */}
+        <div className="mt-6 pb-10">
+          <ChaosMeshPanel />
         </div>
 
         {/* CTA */}
