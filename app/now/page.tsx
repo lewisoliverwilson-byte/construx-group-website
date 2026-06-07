@@ -25,6 +25,7 @@ import VegetaPanel from '@/components/VegetaPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import KedaPanel from '@/components/KedaPanel';
+import SpiffePanel from '@/components/SpiffePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -434,8 +435,13 @@ export default function NowPage() {
         </div>
 
         {/* KEDA event-driven autoscaling — kafka, prometheus, redis triggers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KedaPanel />
+        </div>
+
+        {/* SPIFFE/SPIRE workload identity — x.509 SVIDs, zero-trust, no static secrets */}
+        <div className="mt-6 pb-10">
+          <SpiffePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

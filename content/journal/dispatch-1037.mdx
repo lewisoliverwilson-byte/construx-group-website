@@ -1,0 +1,150 @@
+---
+title: "Modal: serverless GPU compute — run Python functions on cloud GPUs without infrastructure"
+date: "2033-06-21"
+excerpt: "Modal is a serverless compute platform that lets you run Python functions on cloud GPUs without provisioning or managing infrastructure. You decorate a function with @app.function(gpu='A100') and Modal provisions a container with the GPU, runs the function, and tears everything down. The billing is per-second of actual execution — no idle cost, no minimum reservation. Modal handles container builds (base image + pip install, cached between runs), secrets management (no env vars in code), and distributed function calls (map across thousands of parallel workers). It's particularly useful for ML inference pipelines, model fine-tuning, embedding generation, and batch GPU jobs that are too large for a single machine but don't justify a dedicated cluster. Modal integrates with standard Python tooling and can be deployed as a web endpoint, a scheduled job, or called from other Python code."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Serverless GPU. Per-second billing. Container builds. Secrets. Parallel map. Web endpoints.
+
+## Basic usage and GPU functions
+
+```python
+import modal
+
+app = modal.App("construx-ml")
+
+# Define a container image with dependencies
+image = (
+    modal.Image.debian_slim()
+    .pip_install(
+        "torch==2.4.0",
+        "transformers==4.44.0",
+        "sentence-transformers==3.1.0",
+        "Pillow",
+    )
+    .apt_install("libgl1-mesa-glx")
+)
+
+# GPU function: runs on an A100 GPU on Modal's infrastructure
+@app.function(
+    image=image,
+    gpu="A100",
+    timeout=600,
+    secrets=[modal.Secret.from_name("huggingface-token")],
+)
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    from sentence_transformers import SentenceTransformer
+    import torch
+
+    model = SentenceTransformer(
+        "sentence-transformers/all-MiniLM-L6-v2",
+        device="cuda",
+    )
+    with torch.no_grad():
+        embeddings = model.encode(texts, batch_size=256, show_progress_bar=False)
+    return embeddings.tolist()
+
+# CPU function: lightweight, runs on Modal's compute
+@app.function(image=image, cpu=2, memory=4096)
+def preprocess_text(text: str) -> str:
+    return text.lower().strip()[:2048]
+
+# Call locally (Modal runs it in the cloud)
+if __name__ == "__main__":
+    with app.run():
+        result = embed_texts.remote(["hello world", "foo bar"])
+        print(f"Got {len(result)} embeddings")
+```
+
+## Parallel batch processing and web endpoints
+
+```python
+# Parallel map: fan out across thousands of workers
+@app.function(image=image, gpu="T4", timeout=300)
+def process_product(product: dict) -> dict:
+    # Generate embedding for a single product
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer("all-MiniLM-L6-v2", device="cuda")
+    embedding = model.encode(product["description"]).tolist()
+    return {**product, "embedding": embedding}
+
+@app.local_entrypoint()
+def main():
+    import json
+
+    # Load 100k products from S3
+    products = load_products_from_s3("s3://construx-ml/products.json")
+
+    # Process all 100k products in parallel — Modal spins up workers automatically
+    results = list(process_product.map(products, return_exceptions=True))
+
+    # Filter failures
+    successful = [r for r in results if not isinstance(r, Exception)]
+    print(f"Processed {len(successful)}/{len(products)} products")
+
+    # Upload results
+    upload_to_s3(successful, "s3://construx-ml/embeddings.json")
+
+# Web endpoint: deploy as a REST API — no nginx, no Kubernetes
+@app.function(
+    image=image,
+    gpu="A100",
+    keep_warm=1,    # keep one instance warm to avoid cold starts
+    allow_concurrent_inputs=10,
+)
+@modal.web_endpoint(method="POST")
+def embed_endpoint(request: dict) -> dict:
+    texts = request.get("texts", [])
+    if not texts or len(texts) > 100:
+        return {"error": "texts must be 1-100 items"}
+    embeddings = embed_texts(texts)   # calls the GPU function
+    return {"embeddings": embeddings}
+
+# Deploy the web endpoint
+# modal deploy embeddings.py
+# → https://construx-ml--embed-endpoint.modal.run
+
+# Scheduled batch job
+@app.function(
+    image=image,
+    gpu="A100",
+    schedule=modal.Period(hours=6),    # run every 6 hours
+    secrets=[modal.Secret.from_name("postgres-url")],
+)
+def recompute_embeddings():
+    import psycopg2
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    # Query products that have changed in the last 6 hours
+    # Regenerate embeddings and update Qdrant
+    ...
+```
+
+```bash
+# Modal CLI
+
+# Run a function locally (executes in Modal's cloud)
+modal run embeddings.py
+
+# Deploy as a persistent app (web endpoint, scheduled jobs)
+modal deploy embeddings.py
+
+# List running apps
+modal app list
+# App ID             Name          State   Created
+# ap-construx-ml-1   construx-ml   running 2033-06-21 09:00:00
+
+# View logs
+modal app logs construx-ml
+
+# Serve locally (forward Modal's serverless endpoint to localhost for testing)
+modal serve embeddings.py
+# Serving at http://localhost:8000 (forwarded from Modal)
+
+# Secrets: store sensitive values — never appear in code or env vars
+modal secret create huggingface-token HF_TOKEN=hf_...
+modal secret create postgres-url DATABASE_URL=postgresql://...
+```
+
+Modal vs Lambda vs Replicate vs self-hosted GPU: AWS Lambda has no GPU support and is designed for short-lived CPU functions. Replicate is an ML inference platform — you use pre-built models or train your own and deploy them, but it's inference-focused and harder to run arbitrary Python code. Self-hosted GPU on EC2 (p3, g4, p4 instances) is cheaper at scale but requires instance management, spot instance handling, and idle time costs. Modal's advantage is zero infrastructure: no EC2 fleet, no Docker registry, no Kubernetes, no idle GPU cost. You pay only for actual computation seconds. The tradeoff: at high sustained utilisation (GPU always busy), a reserved EC2 instance is cheaper. Modal makes sense for burst workloads — batch embedding jobs, fine-tuning runs, periodic recomputation — where the GPU is busy for hours then idle for days.
