@@ -15,6 +15,7 @@ import CoverageReportPanel from '@/components/CoverageReportPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
+import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -273,8 +274,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* PostgreSQL EXPLAIN ANALYZE */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PgExplainPanel />
+        </div>
+
+        {/* Ansible playbook run */}
+        <div className="mt-4 pb-6">
+          <AnsiblePlaybookPanel />
         </div>
 
         {/* Sign-off */}

@@ -1,0 +1,145 @@
+---
+title: "Storybook 8: component development in isolation"
+date: "2031-07-13"
+excerpt: "Storybook is a UI development environment where you build and test components in isolation from your application. Each component gets stories — small examples that render the component in different states. The v8 release added first-class support for React Server Components, a completely rewritten test runner, and Chromatic integration for visual regression testing. For design systems and component libraries where you need to see every state of every component, Storybook is the standard tool."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Build components in isolation. Document states. Test visually.
+
+## Install
+
+```bash
+bunx storybook@latest init
+```
+
+Detects Next.js and configures `.storybook/main.ts` automatically.
+
+## Writing stories
+
+```ts
+// components/Button/Button.stories.tsx
+import type { Meta, StoryObj } from '@storybook/react';
+import { Button }              from './Button';
+
+const meta: Meta<typeof Button> = {
+  title:     'Components/Button',
+  component: Button,
+  parameters: {
+    layout: 'centered',
+  },
+  tags: ['autodocs'],  // Generate docs page automatically
+  argTypes: {
+    variant: {
+      control: 'select',
+      options: ['primary', 'secondary', 'ghost', 'destructive'],
+    },
+    size: {
+      control: 'radio',
+      options: ['sm', 'md', 'lg'],
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof Button>;
+
+export const Primary: Story = {
+  args: {
+    variant:  'primary',
+    size:     'md',
+    children: 'Get started',
+  },
+};
+
+export const Loading: Story = {
+  args: {
+    variant:  'primary',
+    size:     'md',
+    loading:  true,
+    children: 'Saving…',
+  },
+};
+
+export const Destructive: Story = {
+  args: {
+    variant:  'destructive',
+    children: 'Delete account',
+  },
+};
+```
+
+## Decorators — wrap stories with context
+
+```ts
+// .storybook/preview.tsx
+import type { Preview }   from '@storybook/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '../app/globals.css';
+
+const queryClient = new QueryClient();
+
+const preview: Preview = {
+  decorators: [
+    (Story) => (
+      <QueryClientProvider client={queryClient}>
+        <div className="min-h-screen bg-background p-8">
+          <Story />
+        </div>
+      </QueryClientProvider>
+    ),
+  ],
+  parameters: {
+    backgrounds: {
+      default: 'dark',
+      values: [
+        { name: 'dark',  value: '#010112' },
+        { name: 'light', value: '#ffffff' },
+      ],
+    },
+  },
+};
+
+export default preview;
+```
+
+## Interaction tests
+
+```ts
+import { userEvent, within, expect } from '@storybook/test';
+import type { StoryObj }             from '@storybook/react';
+import { ContactForm }               from './ContactForm';
+
+export const SubmitWithValidData: StoryObj<typeof ContactForm> = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(canvas.getByLabelText('Email'), 'lewis@construxgroup.io');
+    await userEvent.type(canvas.getByLabelText('Message'), 'Hello from a test');
+    await userEvent.click(canvas.getByRole('button', { name: /send/i }));
+
+    // Assert the success state
+    await expect(canvas.getByText('Message sent!')).toBeInTheDocument();
+  },
+};
+```
+
+## Chromatic — visual regression
+
+```bash
+bun add -D chromatic
+bunx chromatic --project-token=$CHROMATIC_TOKEN
+```
+
+```yaml
+# .github/workflows/chromatic.yml
+- uses: chromaui/action@latest
+  with:
+    projectToken: ${{ secrets.CHROMATIC_TOKEN }}
+    onlyChanged:  true   # Only test changed stories
+```
+
+Chromatic renders every story, diffs against the baseline, and comments on PRs with screenshots of visual changes. Accept or reject changes in the Chromatic UI.
+
+## Storybook vs writing tests directly: Storybook doesn't replace unit tests or Playwright E2E tests — it's a development tool for building components and a visual regression system for catching unintended style changes. The three work together: Storybook for visual states, Vitest for business logic, Playwright for user flows. The Construx default: Storybook for the @construx/ui design system components; optional for application-level components.
