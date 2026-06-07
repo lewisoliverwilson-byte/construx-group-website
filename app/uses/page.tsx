@@ -43,6 +43,7 @@ import NatsPanel from '@/components/NatsPanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
+import EtcdPanel from '@/components/EtcdPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -560,8 +561,13 @@ export default function UsesPage() {
         </div>
 
         {/* clickhouse columnar olap — tables, queries, mergetree */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickHousePanel />
+        </div>
+
+        {/* etcd distributed kv — members, raft, operations */}
+        <div className="mt-6 pb-10">
+          <EtcdPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -49,6 +49,7 @@ import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import RenovatePanel from '@/components/RenovatePanel';
 import RekorPanel from '@/components/RekorPanel';
 import TypesensePanel from '@/components/TypesensePanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -410,8 +411,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* typesense instant search — collections, queries, analytics */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <TypesensePanel />
+      </section>
+
+      {/* argocd gitops cd — apps, sync, health */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ArgoCDPanel />
       </section>
 
       {/* Posts */}

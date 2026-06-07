@@ -44,6 +44,7 @@ import CycloneDxPanel from '@/components/CycloneDxPanel';
 import SyftPanel from '@/components/SyftPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
 import SpirePanel from '@/components/SpirePanel';
+import GiteaPanel from '@/components/GiteaPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -793,8 +794,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* spire workload identity — svids, bundles, agents */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <SpirePanel />
+      </section>
+
+      {/* gitea self-hosted git — repos, pushes, ci */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GiteaPanel />
       </section>
 
       {/* CTA */}

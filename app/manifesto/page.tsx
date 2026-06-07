@@ -45,6 +45,7 @@ import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 import TemporalPanel from '@/components/TemporalPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import DaggerPanel from '@/components/DaggerPanel';
+import BackstagePanel from '@/components/BackstagePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -453,8 +454,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* dagger programmable ci — pipelines, cache, services */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DaggerPanel />
+        </div>
+
+        {/* backstage developer portal — catalog, techdocs, plugins */}
+        <div className="mt-4 pb-6">
+          <BackstagePanel />
         </div>
 
         {/* Sign-off */}
