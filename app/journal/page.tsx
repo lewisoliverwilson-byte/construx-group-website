@@ -92,6 +92,7 @@ import MemInfoPanel from '@/components/MemInfoPanel';
 import NATSPanel from '@/components/NATSPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
+import PinotPanel from '@/components/PinotPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -673,8 +674,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* otel traces — spans, services, operations, latency */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OtelTracesPanel />
+      </section>
+
+      {/* pinot — tables, segments, queries, realtime */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <PinotPanel />
       </section>
 
       {/* Posts */}

@@ -88,6 +88,7 @@ import LonghornPanel from '@/components/LonghornPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
+import PerfStatPanel from '@/components/PerfStatPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1057,8 +1058,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* otel collector — pipelines, receivers, processors, exporters */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <OtelCollectorPanel />
+      </section>
+
+      {/* perf stat — cycles, instructions, cache, branches */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <PerfStatPanel />
       </section>
 
       {/* CTA */}

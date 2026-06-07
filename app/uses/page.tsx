@@ -87,6 +87,7 @@ import MimirPanel from '@/components/MimirPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import ParcaPanel from '@/components/ParcaPanel';
+import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -824,8 +825,13 @@ export default function UsesPage() {
         </div>
 
         {/* parca — profiles, flamegraph, cpu, heap, goroutines */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ParcaPanel />
+        </div>
+
+        {/* pnpm workspace — packages, deps, scripts, filters */}
+        <div className="mt-6 pb-10">
+          <PnpmWorkspacePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
