@@ -1,0 +1,166 @@
+---
+title: "Helm advanced patterns: library charts, post-render hooks, OCI registries, chart testing"
+date: "2033-10-25"
+excerpt: "Helm is the standard Kubernetes package manager — it templates YAML manifests, manages releases (install, upgrade, rollback), and tracks deployed state via release records stored in Kubernetes Secrets. Most teams use Helm at the basic level: install a chart, pass some values, upgrade when a new version is published. Advanced Helm usage goes further. Library charts are reusable chart fragments that define named templates other charts can import — instead of copy-pasting a standard Deployment template across 20 microservice charts, the platform team publishes a library chart with a construx.deployment template that embeds org-wide defaults (security contexts, resource limits, Prometheus annotations, topology spread constraints). Post-render hooks let you pipe the rendered Helm output through a transformation (kustomize, sed, custom script) before applying it — useful when a chart doesn't expose the exact value you need. OCI registry support allows pushing and pulling Helm charts from the same container registry as your images, eliminating a separate chart museum. Chart testing (ct lint-and-install) runs each chart through a real cluster install/upgrade/delete cycle in CI, catching rendering bugs before release."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Library charts. Named templates. Post-render. OCI registry. Chart testing. Release lifecycle.
+
+## Library chart and named template patterns
+
+```yaml
+# Library chart: reusable templates for microservices
+# charts/construx-library/templates/_deployment.yaml
+
+{{- define "construx.deployment" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "construx.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "construx.labels" . | nindent 4 }}
+    # Organisation-wide required labels
+    owner: {{ required "values.owner is required" .Values.owner }}
+    team:  {{ required "values.team is required"  .Values.team  }}
+spec:
+  replicas: {{ .Values.replicas | default 2 }}
+  selector:
+    matchLabels: {{- include "construx.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "construx.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Prometheus scrape annotations — always on
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "{{ .Values.metricsPort | default 8080 }}"
+    spec:
+      serviceAccountName: {{ include "construx.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser:    1000
+        fsGroup:      2000
+      # Topology spread: distribute across AZs by default
+      topologySpreadConstraints:
+        - maxSkew:           1
+          topologyKey:       topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels: {{- include "construx.selectorLabels" . | nindent 14 }}
+      containers:
+        - name:  {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.containerPort | default 8080 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # Readiness and liveness from values — no hard-coded paths
+          {{- with .Values.readinessProbe }}
+          readinessProbe: {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end -}}
+```
+
+```yaml
+# Consumer chart: imports the library and calls the named template
+# charts/construx-api/Chart.yaml
+
+apiVersion: v2
+name:    construx-api
+version: 1.42.0
+type:    application
+dependencies:
+  - name:       construx-library
+    version:    ">=1.0.0"
+    repository: oci://registry.construx.internal/helm
+    alias:      lib
+---
+# charts/construx-api/templates/deployment.yaml
+# One line — the library does the work
+
+{{- include "construx.deployment" . }}
+---
+# charts/construx-api/values.yaml
+image:
+  repository: registry.construx.internal/construx-api
+  tag:        v1.42.0
+
+owner:         team-platform
+team:          platform
+replicas:      3
+containerPort: 8080
+metricsPort:   8080
+
+resources:
+  requests:
+    cpu:    200m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+```
+
+## OCI registry, post-render, and chart testing
+
+```bash
+# Push chart to OCI registry (same registry as container images)
+helm package charts/construx-api
+helm push construx-api-1.42.0.tgz oci://registry.construx.internal/helm
+
+# Install from OCI registry
+helm install construx-api \
+  oci://registry.construx.internal/helm/construx-api \
+  --version 1.42.0 \
+  -f values/prod.yaml \
+  -n construx-prod
+
+# Post-render: pipe Helm output through kustomize before applying
+# (adds a ConfigMap that the chart doesn't expose natively)
+cat > /tmp/post-renderer.sh << 'EOF'
+#!/bin/bash
+cat <&0 > /tmp/helm-output.yaml
+kustomize build /tmp/kustomize-overlay/ >> /tmp/helm-output.yaml
+cat /tmp/helm-output.yaml
+EOF
+chmod +x /tmp/post-renderer.sh
+
+helm upgrade construx-api oci://registry.construx.internal/helm/construx-api \
+  --post-renderer /tmp/post-renderer.sh \
+  -n construx-prod
+
+# Chart testing: lint + install + upgrade + delete in a real cluster
+# Uses ct (chart-testing) from the Helm project
+ct lint --all --chart-dirs charts/
+# Linting charts...
+# Validating construx-api...
+# All charts linted successfully
+
+ct install --all --chart-dirs charts/ --cluster-name kind-ct
+# Installing construx-api...
+# PASSED ✓
+
+# Check release history
+helm history construx-api -n construx-prod
+# REVISION  STATUS     CHART              DESCRIPTION
+# 40        superseded construx-api-1.41  Upgrade complete
+# 41        superseded construx-api-1.41  Upgrade complete
+# 42        deployed   construx-api-1.42  Upgrade complete
+
+# Rollback to previous revision
+helm rollback construx-api 41 -n construx-prod
+
+# Diff plugin: show what an upgrade will change before applying
+helm diff upgrade construx-api \
+  oci://registry.construx.internal/helm/construx-api \
+  --version 1.43.0 \
+  -f values/prod.yaml \
+  -n construx-prod
+# Deployment construx-api:
+#   spec.template.spec.containers[0].image:
+#     - registry.construx.internal/construx-api:v1.42.0
+#     + registry.construx.internal/construx-api:v1.43.0
+```
+
+Helm vs Kustomize vs raw YAML vs Terraform Kubernetes provider: Raw YAML is the starting point — straightforward but no templating, no release management, and no rollback. Kustomize is a template-free overlay system: you write base YAML, then apply patches per environment. It's excellent for small modifications but doesn't handle parameterised values (image tags, replica counts) without workarounds. Helm templates everything — values files drive all variable aspects of a release, and Helm's release model tracks what's deployed and enables rollback. The Terraform Kubernetes provider applies Kubernetes manifests via Terraform state — correct for infrastructure teams that manage Kubernetes alongside cloud resources in a single Terraform plan, but the Kubernetes resource lifecycle (rolling updates, wait conditions) is better understood by Kubernetes-native tooling. Library charts are the key pattern for organisations with multiple microservices: they enforce standards across the entire fleet while keeping per-service charts minimal. The investment is building and maintaining the library chart; the return is every new service getting consistent observability, security context, and topology spread for free.

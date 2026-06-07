@@ -28,6 +28,7 @@ import BoundaryPanel from '@/components/BoundaryPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import TiDbPanel from '@/components/TiDbPanel';
 import FlinkPanel from '@/components/FlinkPanel';
+import LonghornPanel from '@/components/LonghornPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -488,8 +489,13 @@ export default function StatsPage() {
       </div>
 
       {/* apache flink stateful stream processing — exactly-once, windows, checkpoint */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <FlinkPanel />
+      </div>
+
+      {/* longhorn distributed block storage — replicated volumes, snapshots, s3 backup */}
+      <div className="mt-6 pb-10">
+        <LonghornPanel />
       </div>
     </div>
   );
