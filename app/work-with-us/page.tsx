@@ -50,6 +50,7 @@ import GatekeeperPanel from '@/components/GatekeeperPanel';
 import PulsarPanel from '@/components/PulsarPanel';
 import NomadPanel from '@/components/NomadPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
+import PineconePanel from '@/components/PineconePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -829,8 +830,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* clickhouse keeper raft coordination — servers, znodes, replication */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ClickHouseKeeperPanel />
+      </section>
+
+      {/* pinecone vector database — indexes, embeddings, similarity search */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <PineconePanel />
       </section>
 
       {/* CTA */}

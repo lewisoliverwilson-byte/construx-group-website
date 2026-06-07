@@ -51,6 +51,7 @@ import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import TerraformPanel from '@/components/TerraformPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
+import CuePanel from '@/components/CuePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -489,8 +490,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kubeflow pipelines mlops — pipelines, runs, experiments */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubeflowPipelinesPanel />
+        </div>
+
+        {/* cue data validation — schemas, constraints, code gen */}
+        <div className="mt-4 pb-6">
+          <CuePanel />
         </div>
 
         {/* Sign-off */}

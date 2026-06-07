@@ -49,6 +49,7 @@ import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import SpiceDBPanel from '@/components/SpiceDBPanel';
+import StrimziPanel from '@/components/StrimziPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -596,8 +597,13 @@ export default function UsesPage() {
         </div>
 
         {/* spicedb zanzibar authorization — schema, relationships, checks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SpiceDBPanel />
+        </div>
+
+        {/* strimzi kafka on kubernetes — topics, consumers, brokers */}
+        <div className="mt-6 pb-10">
+          <StrimziPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
