@@ -18,6 +18,7 @@ import CertInfoPanel from '@/components/CertInfoPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import PostgresReplPanel from '@/components/PostgresReplPanel';
 import WasmComponentPanel from '@/components/WasmComponentPanel';
+import BgpLookupPanel from '@/components/BgpLookupPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -407,8 +408,13 @@ export default function ContactPage() {
       </section>
 
       {/* WASM component model */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <WasmComponentPanel />
+      </section>
+
+      {/* BGP routing table */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BgpLookupPanel />
       </section>
     </div>
   );
