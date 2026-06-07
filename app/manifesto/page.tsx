@@ -17,6 +17,7 @@ import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
+import NixFlakePanel from '@/components/NixFlakePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -285,8 +286,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* git bisect regression hunt */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GitBisectPanel />
+        </div>
+
+        {/* Nix flake reproducible environment */}
+        <div className="mt-4 pb-6">
+          <NixFlakePanel />
         </div>
 
         {/* Sign-off */}

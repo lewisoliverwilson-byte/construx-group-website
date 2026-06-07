@@ -1,0 +1,124 @@
+---
+title: "CockroachDB multi-region: geo-distributed writes with regional tables"
+date: "2031-12-01"
+excerpt: "CockroachDB's multi-region SQL features let you declare the geographic locality of data directly in SQL. Regional tables store each row's leaseholder in the region closest to where that row is typically read and written. Global tables replicate to all regions for fast reads everywhere. Regional by row tables assign a home region per row, routing writes and reads to the right region automatically. The result is low-latency database access for users in any region without application-level sharding."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Declare data locality in SQL. The database routes reads and writes automatically.
+
+## Set up a multi-region cluster
+
+```sql
+-- Add regions to the database
+ALTER DATABASE construx ADD REGION "eu-west-2";
+ALTER DATABASE construx ADD REGION "us-east-1";
+ALTER DATABASE construx ADD REGION "ap-southeast-1";
+
+-- Set the primary region (most writes originate here)
+ALTER DATABASE construx SET PRIMARY REGION "eu-west-2";
+
+-- Show configured regions
+SHOW REGIONS FROM DATABASE construx;
+--  region         | primary
+-- ────────────────┼─────────
+--  eu-west-2      | true
+--  us-east-1      | false
+--  ap-southeast-1 | false
+```
+
+## Regional tables — locality by table
+
+```sql
+-- Default: REGIONAL BY TABLE IN PRIMARY REGION
+-- Leaseholder stays in eu-west-2; cross-region reads pay the latency
+CREATE TABLE orders (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'pending',
+  total_cents BIGINT NOT NULL
+) LOCALITY REGIONAL BY TABLE IN PRIMARY REGION;
+
+-- Serve reads locally in every region (global table)
+-- Writes commit globally before returning — higher write latency, near-zero read latency
+CREATE TABLE product_catalogue (
+  sku         TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  price_cents BIGINT NOT NULL
+) LOCALITY GLOBAL;
+```
+
+## Regional by row — per-row home region
+
+```sql
+-- Each row has a crdb_region column that determines its leaseholder
+CREATE TABLE user_sessions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL,
+  token       TEXT NOT NULL,
+  crdb_region crdb_internal_region NOT NULL DEFAULT gateway_region()
+) LOCALITY REGIONAL BY ROW;
+
+-- Reads automatically route to the row's home region
+-- A user in Singapore reads their session from ap-southeast-1
+-- A user in London reads their session from eu-west-2
+-- No cross-region roundtrip for the common case
+
+-- Insert routes to the row's home region
+INSERT INTO user_sessions (user_id, token, crdb_region)
+VALUES ('usr-001', 'tok-abc', 'eu-west-2');
+```
+
+## Partition indexes for regional tables
+
+```sql
+-- Add a partition index to a REGIONAL BY ROW table
+-- Fast local lookups on secondary index columns
+CREATE INDEX idx_sessions_user
+  ON user_sessions (user_id)
+  PARTITION BY LIST (crdb_region) (
+    PARTITION eu VALUES IN ('eu-west-2'),
+    PARTITION us VALUES IN ('us-east-1'),
+    PARTITION ap VALUES IN ('ap-southeast-1')
+  );
+
+-- Each partition's leaseholder lives in its region
+-- user_id lookups from eu-west-2 never cross regions
+```
+
+## Application routing — connect to nearest node
+
+```ts
+// lib/db.ts — connect to regional endpoint
+const region = process.env.FLY_REGION ?? 'eu-west-2';
+
+const regionalEndpoints: Record<string, string> = {
+  'eu-west-2':       'crdb-eu.construxgroup.io:26257',
+  'us-east-1':       'crdb-us.construxgroup.io:26257',
+  'ap-southeast-1':  'crdb-ap.construxgroup.io:26257',
+};
+
+export const db = drizzle(new Pool({
+  connectionString: `postgresql://root@${regionalEndpoints[region]}/construx?sslmode=require`,
+}));
+
+// CockroachDB routes writes to the correct region based on the data
+// Reads from the local leaseholder when locality matches
+```
+
+## Follower reads — stale but local
+
+```sql
+-- Read slightly stale data (< 4.8s old) from a local follower
+-- Avoids cross-region roundtrip entirely
+SELECT * FROM orders
+AS OF SYSTEM TIME follower_read_timestamp()
+WHERE customer_id = 'cust-001';
+
+-- Bounded staleness — "give me a read as close to now as possible, locally"
+SELECT * FROM product_catalogue
+AS OF SYSTEM TIME with_max_staleness('10s');
+```
+
+CockroachDB multi-region vs read replicas: PostgreSQL read replicas serve reads from a specific region but writes always go to the primary — every write is at least one cross-region roundtrip for data that lives in another region. CockroachDB's regional by row tables route both reads and writes to the nearest region for each row — a user in Singapore reads and writes their session without crossing to Europe. The tradeoff: CockroachDB's serializable isolation requires retry logic, and the multi-region primitives add schema complexity.
