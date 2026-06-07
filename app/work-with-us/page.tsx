@@ -43,6 +43,7 @@ import GrypePanel from '@/components/GrypePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import SyftPanel from '@/components/SyftPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
+import SpirePanel from '@/components/SpirePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -787,8 +788,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* openssf scorecard — supply chain checks, scores */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ScorecardPanel />
+      </section>
+
+      {/* spire workload identity — svids, bundles, agents */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <SpirePanel />
       </section>
 
       {/* CTA */}

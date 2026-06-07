@@ -1,190 +1,144 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'run-ok' | 'run-cached' | 'run-fail' | 'push' | 'artifact' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',    text: '# dagger: portable CI pipelines as code — Go, Python, TypeScript' },
-  { kind: 'prompt',     text: 'dagger run go run ./ci/main.go' },
-  { kind: 'stat',       text: '✔  Dagger Engine v0.14.0 started' },
-  { kind: 'run-ok',     text: '✔  [0.3s] source: Host.directory(".") loaded' },
-  { kind: 'run-cached', text: '●  [0.0s] go-mod-cache hit (go.sum unchanged)' },
-  { kind: 'run-cached', text: '●  [0.0s] go-build-cache hit (no source changes)' },
-  { kind: 'run-ok',     text: '✔  [4.2s] go test -race ./... → 3 packages, 0 failures' },
-  { kind: 'run-ok',     text: '✔  [2.1s] go build -ldflags "-s -w" -o /out/api ./cmd/api' },
-  { kind: 'artifact',   text: '   exported: ./dist/construx-api (12.4 MB)' },
-  { kind: 'blank',      text: '' },
-  { kind: 'comment',    text: '# container build + test + push (secrets never logged)' },
-  { kind: 'prompt',     text: 'dagger call publish --src . --version v1.8.3' },
-  { kind: 'run-ok',     text: '✔  [1.3s] Container.build(Dockerfile)' },
-  { kind: 'run-ok',     text: '✔  [0.8s] container-structure-test: 6/6 passed' },
-  { kind: 'push',       text: '↑  registry.construx.io/construx/api:v1.8.3' },
-  { kind: 'push',       text: '↑  registry.construx.io/construx/api:latest' },
-  { kind: 'stat',       text: 'sha256:4a9f2b1c…  (published 2 tags)' },
-  { kind: 'blank',      text: '' },
-  { kind: 'comment',    text: '# inspect what ran vs what was cached' },
-  { kind: 'prompt',     text: 'dagger run --debug go run ./ci/main.go 2>&1 | tail -8' },
-  { kind: 'run-cached', text: '●  [0ms]  FromImage golang:1.23-alpine  (cache)' },
-  { kind: 'run-cached', text: '●  [0ms]  MountedCache go-mod-cache     (cache)' },
-  { kind: 'run-ok',     text: '✔  [320ms] Exec go test -race ./...      (run)' },
-  { kind: 'run-ok',     text: '✔  [190ms] Exec go build ./cmd/api       (run)' },
-  { kind: 'stat',       text: 'total: 4 ops  cache: 2  run: 2  (510ms elapsed)' },
-  { kind: 'blank',      text: '' },
-  { kind: 'comment',    text: '# list available Dagger module functions' },
-  { kind: 'prompt',     text: 'dagger functions' },
-  { kind: 'stat',       text: 'build    Build binary from source' },
-  { kind: 'stat',       text: 'test     Run tests with race detector' },
-  { kind: 'stat',       text: 'lint     golangci-lint with config' },
-  { kind: 'stat',       text: 'publish  Build image and push to registry' },
+const PIPELINES = [
+  { name: 'build-and-push', trigger: 'push', steps: 8, duration: '4m12s', cacheHit: true, status: 'passed' },
+  { name: 'integration-tests', trigger: 'push', steps: 12, duration: '8m44s', cacheHit: true, status: 'passed' },
+  { name: 'deploy-staging', trigger: 'manual', steps: 6, duration: '2m18s', cacheHit: false, status: 'running' },
+  { name: 'security-scan', trigger: 'schedule', steps: 4, duration: '1m08s', cacheHit: true, status: 'passed' },
 ];
 
-const TOTAL = LINES.length + 3;
+const CACHE_ENTRIES = [
+  { key: 'go-mod-cache', size: '284MB', hits: 48, age: '2d', type: 'volume', status: 'warm' },
+  { key: 'node-modules', size: '840MB', hits: 120, age: '6h', type: 'volume', status: 'warm' },
+  { key: 'docker-layer/base', size: '1.2GB', hits: 240, age: '12h', type: 'layer', status: 'warm' },
+  { key: 'test-fixtures', size: '48MB', hits: 8, age: '4d', type: 'volume', status: 'stale' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':    return 'rgba(240,239,255,0.22)';
-    case 'prompt':     return 'rgba(240,239,255,0.6)';
-    case 'run-ok':     return '#4ade80';
-    case 'run-cached': return '#67e8f9';
-    case 'run-fail':   return '#f87171';
-    case 'push':       return '#fbbf24';
-    case 'artifact':   return '#a78bfa';
-    case 'stat':       return 'rgba(240,239,255,0.45)';
-    default:           return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function DaggerPanel() {
-  const [revealed,   setRevealed]   = useState(0);
-  const [liveDurMs,  setLiveDurMs]  = useState(510);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [pipRows, setPipRows] = useState(0);
+  const [cacheRows, setCacheRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const runsTotal = useCounter(2840, 4, 800);
+  const cacheHits = useCounter(28400, 48, 600);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveDurMs(Math.floor(420 + Math.random() * 180));
-          }, 2050);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const p = setInterval(() => setPipRows((x) => Math.min(x + 1, PIPELINES.length)), 160);
+    const c = setInterval(() => setCacheRows((x) => Math.min(x + 1, CACHE_ENTRIES.length)), 140);
+    return () => { clearInterval(p); clearInterval(c); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(249,115,22,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(249,115,22,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@prod-01 — dagger · pipelines as code
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(249,115,22,0.08)', background: 'rgba(249,115,22,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(249,115,22,0.4)' }}>
+          dagger -- programmatic ci -- pipelines / cache / services
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveDurMs}ms` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {runsTotal.toLocaleString()} runs
         </span>
       </div>
 
       {/* Shell prompt */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@prod-01# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          dagger run · build · test · publish · cache · module
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#f97316', fontWeight: 600 }}>dagger@engine</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>dagger call --mod github.com/construxgroup/ci build --src . && dagger functions</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'runs', value: runsTotal.toLocaleString(), color: '#f97316' },
+          { label: 'cache hits', value: cacheHits.toLocaleString(), color: '#4ade80' },
+          { label: 'pipelines', value: PIPELINES.length.toString(), color: '#a78bfa' },
+          { label: 'passing', value: PIPELINES.filter(p => p.status === 'passed').length.toString(), color: '#67e8f9' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Dagger v0.14.0 ·</span>
-          <span style={{ color: '#4ade80' }}>tests pass</span>
-          <span style={{ color: '#67e8f9' }}>2 cache hits</span>
-          <span style={{ color: '#fbbf24' }}>2 tags pushed</span>
-          <span style={{ color: '#a78bfa' }}>{liveDurMs}ms total</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Pipelines */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // pipelines
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {PIPELINES.slice(0, pipRows).map((pip) => (
+            <div key={pip.name} style={{ display: 'grid', gridTemplateColumns: '1fr 44px 28px 24px 40px 52px', alignItems: 'center', gap: 8, padding: '5px 8px', background: pip.status === 'running' ? 'rgba(249,115,22,0.06)' : 'rgba(249,115,22,0.04)', border: `1px solid ${pip.status === 'running' ? 'rgba(249,115,22,0.2)' : 'rgba(249,115,22,0.1)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#f97316', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pip.name}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{pip.trigger}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{pip.steps}s</span>
+              <span style={{ color: pip.cacheHit ? '#4ade80' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{pip.cacheHit ? 'hit' : 'miss'}</span>
+              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{pip.duration}</span>
+              <span style={{ color: pip.status === 'passed' ? '#4ade80' : pip.status === 'running' ? '#f97316' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{pip.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Cache */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // cache volumes
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {CACHE_ENTRIES.slice(0, cacheRows).map((entry) => (
+            <div key={entry.key} style={{ display: 'grid', gridTemplateColumns: '1fr 44px 28px 28px 44px 36px', alignItems: 'center', gap: 8, padding: '4px 8px', background: entry.status === 'stale' ? 'rgba(251,191,36,0.04)' : 'rgba(249,115,22,0.04)', border: `1px solid ${entry.status === 'stale' ? 'rgba(251,191,36,0.1)' : 'rgba(249,115,22,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.key}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{entry.size}</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{entry.hits}h</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{entry.age}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{entry.type}</span>
+              <span style={{ color: entry.status === 'warm' ? '#4ade80' : '#fbbf24', fontSize: 7, textAlign: 'right', fontWeight: 700 }}>{entry.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          dagger · BuildKit · pipeline-as-code · Go · content-cache · CI/CD
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(249,115,22,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          dagger v0.12 - apache-2.0 - programmable ci/cd engine
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● shipped' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {runsTotal.toLocaleString()} runs - {cacheHits.toLocaleString()} cache hits
         </span>
       </div>
     </div>

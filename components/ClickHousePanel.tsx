@@ -1,176 +1,144 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'row' | 'result' | 'ddl' | 'mv' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment', text: '# clickhouse: columnar analytics — billions of rows in milliseconds' },
-  { kind: 'prompt',  text: 'clickhouse-client --host clickhouse.analytics.svc' },
-  { kind: 'ddl',     text: '  ENGINE = MergeTree() PARTITION BY toYYYYMM(occurred_at)' },
-  { kind: 'ddl',     text: '  ORDER BY (event_type, user_id, occurred_at)  -- sort key = index' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# aggregate 10B rows by event type — columnar scan' },
-  { kind: 'prompt',  text: 'SELECT event_type, count(), countDistinct(user_id) FROM events WHERE occurred_at > now() - INTERVAL 7 DAY GROUP BY event_type ORDER BY 2 DESC' },
-  { kind: 'row',     text: '  page_view  1,847,239,012  2,847,192  (127ms)' },
-  { kind: 'row',     text: '  checkout      41,829,402    8,192,847  (127ms)' },
-  { kind: 'row',     text: '  purchase      12,847,192    7,847,019  (127ms)' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# materialized view: pre-aggregate hourly on INSERT' },
-  { kind: 'mv',      text: '  events → events_hourly_mv → events_hourly_agg' },
-  { kind: 'mv',      text: '  query on agg: 5ms  (vs 2s on raw 10B rows)' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# funnel analysis: page_view → checkout → purchase' },
-  { kind: 'prompt',  text: 'SELECT countIf(has_checkout)/countIf(has_page_view)*100 AS pct FROM (...)' },
-  { kind: 'result',  text: '  page→checkout: 2.3%  checkout→purchase: 30.7%' },
-  { kind: 'stat',    text: '  6 shards  2 replicas each  Kafka sink: 142k rows/s' },
+const TABLES = [
+  { name: 'events', database: 'construx', rows: 284000000, size: '48GB', engine: 'MergeTree', parts: 284, status: 'ok' },
+  { name: 'listings_history', database: 'construx', rows: 48000000, size: '12GB', engine: 'ReplacingMergeTree', parts: 48, status: 'ok' },
+  { name: 'metrics', database: 'infra', rows: 8400000000, size: '840GB', engine: 'AggregatingMergeTree', parts: 8400, status: 'ok' },
+  { name: 'sessions', database: 'construx', rows: 28400000, size: '8GB', engine: 'CollapsingMergeTree', parts: 120, status: 'merging' },
 ];
 
-const TOTAL = LINES.length + 3;
+const QUERIES = [
+  { query: 'SELECT uniq(user_id) FROM events WHERE...', durationMs: 48, memoryMB: 284, rowsRead: 28400000, status: 'ok' },
+  { query: 'SELECT quantile(0.99)(latency) FROM metrics...', durationMs: 840, memoryMB: 1200, rowsRead: 840000000, status: 'ok' },
+  { query: 'SELECT listing_id, count() FROM events GROUP...', durationMs: 28, memoryMB: 48, rowsRead: 4800000, status: 'ok' },
+  { query: 'INSERT INTO events SELECT * FROM s3(\'s3://...\')', durationMs: 2840, memoryMB: 480, rowsRead: 120000000, status: 'running' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment': return 'rgba(240,239,255,0.22)';
-    case 'prompt':  return 'rgba(240,239,255,0.6)';
-    case 'row':     return '#4ade80';
-    case 'result':  return '#67e8f9';
-    case 'ddl':     return '#a78bfa';
-    case 'mv':      return '#fbbf24';
-    case 'stat':    return 'rgba(240,239,255,0.45)';
-    default:        return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function ClickHousePanel() {
-  const [revealed,     setRevealed]     = useState(0);
-  const [liveRowsS,    setLiveRowsS]    = useState(142);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [tableRows, setTableRows] = useState(0);
+  const [qRows, setQRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const insertsPerSec = useCounter(28400, 480, 400);
+  const queriesPerSec = useCounter(2840, 24, 500);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveRowsS(130 + Math.floor(Math.random() * 25));
-          }, 2100);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 81;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const t = setInterval(() => setTableRows((x) => Math.min(x + 1, TABLES.length)), 160);
+    const q = setInterval(() => setQRows((x) => Math.min(x + 1, QUERIES.length)), 140);
+    return () => { clearInterval(t); clearInterval(q); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(103,232,249,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(103,232,249,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@analytics — clickhouse · columnar · olap · mergetree
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(103,232,249,0.08)', background: 'rgba(103,232,249,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(103,232,249,0.4)' }}>
+          clickhouse -- columnar olap -- tables / queries / mergetree
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveRowsS}k rows/s` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {insertsPerSec.toLocaleString()} rows/s
         </span>
       </div>
 
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@analytics# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          clickhouse · mergetree · materialized-views · funnel · olap
-        </span>
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#67e8f9', fontWeight: 600 }}>ch@clickhouse</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>clickhouse-client --query "SELECT * FROM system.replication_queue" && clickhouse-benchmark -i 100</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'inserts/s', value: insertsPerSec.toLocaleString(), color: '#67e8f9' },
+          { label: 'queries/s', value: queriesPerSec.toLocaleString(), color: '#4ade80' },
+          { label: 'tables', value: TABLES.length.toString(), color: '#a78bfa' },
+          { label: 'total rows', value: (TABLES.reduce((a, t) => a + t.rows, 0) / 1000000000).toFixed(1) + 'B', color: '#fbbf24' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>ClickHouse 24.5 ·</span>
-          <span style={{ color: '#4ade80' }}>{liveRowsS}k rows/s</span>
-          <span style={{ color: '#a78bfa' }}>MergeTree</span>
-          <span style={{ color: '#fbbf24' }}>mat. views</span>
-          <span style={{ color: '#67e8f9' }}>10B row scans</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Tables */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // tables
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {TABLES.slice(0, tableRows).map((tbl) => (
+            <div key={tbl.name} style={{ display: 'grid', gridTemplateColumns: '72px 48px 48px 28px 1fr 32px 48px', alignItems: 'center', gap: 8, padding: '5px 8px', background: tbl.status === 'merging' ? 'rgba(251,191,36,0.04)' : 'rgba(103,232,249,0.04)', border: `1px solid ${tbl.status === 'merging' ? 'rgba(251,191,36,0.1)' : 'rgba(103,232,249,0.1)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600 }}>{tbl.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{tbl.database}</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{(tbl.rows / 1000000).toFixed(0)}M</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{tbl.size}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tbl.engine}</span>
+              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'right' }}>{tbl.parts}p</span>
+              <span style={{ color: tbl.status === 'ok' ? '#4ade80' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{tbl.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Queries */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // recent queries
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {QUERIES.slice(0, qRows).map((q, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 44px 44px 56px 36px', alignItems: 'center', gap: 8, padding: '4px 8px', background: q.status === 'running' ? 'rgba(103,232,249,0.06)' : 'rgba(103,232,249,0.04)', border: `1px solid ${q.status === 'running' ? 'rgba(103,232,249,0.2)' : 'rgba(103,232,249,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.query}</span>
+              <span className="tabular-nums" style={{ color: q.durationMs > 500 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{q.durationMs}ms</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{q.memoryMB}MB</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{(q.rowsRead / 1000000).toFixed(0)}M rows</span>
+              <span style={{ color: q.status === 'ok' ? '#4ade80' : '#fbbf24', fontSize: 7, textAlign: 'right' }}>{q.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          clickhouse · mergetree · funnel · olap · materialized-views
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(103,232,249,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          clickhouse v24.5 - apache-2.0 - fast columnar olap database
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● querying' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {insertsPerSec.toLocaleString()} rows/s - {queriesPerSec.toLocaleString()} queries/s
         </span>
       </div>
     </div>

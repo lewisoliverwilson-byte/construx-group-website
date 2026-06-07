@@ -42,6 +42,7 @@ import PixiePanel from '@/components/PixiePanel';
 import NatsPanel from '@/components/NatsPanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
+import ClickHousePanel from '@/components/ClickHousePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -554,8 +555,13 @@ export default function UsesPage() {
         </div>
 
         {/* linkerd service mesh — mtls, golden signals, routes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LinkerdPanel />
+        </div>
+
+        {/* clickhouse columnar olap — tables, queries, mergetree */}
+        <div className="mt-6 pb-10">
+          <ClickHousePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

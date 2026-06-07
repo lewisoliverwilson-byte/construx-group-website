@@ -48,6 +48,7 @@ import PgBouncerPanel from '@/components/PgBouncerPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import RenovatePanel from '@/components/RenovatePanel';
 import RekorPanel from '@/components/RekorPanel';
+import TypesensePanel from '@/components/TypesensePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -404,8 +405,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* rekor transparency log — signed artifacts, monitors, merkle tree */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <RekorPanel />
+      </section>
+
+      {/* typesense instant search — collections, queries, analytics */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <TypesensePanel />
       </section>
 
       {/* Posts */}

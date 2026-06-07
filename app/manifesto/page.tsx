@@ -44,6 +44,7 @@ import OpaPanel from '@/components/OpaPanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 import TemporalPanel from '@/components/TemporalPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
+import DaggerPanel from '@/components/DaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -447,8 +448,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* crossplane infrastructure-as-code — claims, compositions, providers */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CrossplanePanel />
+        </div>
+
+        {/* dagger programmable ci — pipelines, cache, services */}
+        <div className="mt-4 pb-6">
+          <DaggerPanel />
         </div>
 
         {/* Sign-off */}
