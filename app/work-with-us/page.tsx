@@ -74,6 +74,7 @@ import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import GatlingPanel from '@/components/GatlingPanel';
+import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -973,8 +974,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* gatling — load testing, simulations, rps, response times */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GatlingPanel />
+      </section>
+
+      {/* grafana faro — frontend observability, errors, sessions, traces */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GrafanaFaroPanel />
       </section>
 
       {/* CTA */}

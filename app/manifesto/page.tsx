@@ -75,6 +75,7 @@ import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
+import GoReplayPanel from '@/components/GoReplayPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -633,8 +634,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* flux cd — gitops, sources, kustomizations, reconcile */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FluxCDPanel />
+        </div>
+
+        {/* goreplay — http traffic replay, middleware, rate limit */}
+        <div className="mt-4 pb-6">
+          <GoReplayPanel />
         </div>
 
         {/* Sign-off */}
