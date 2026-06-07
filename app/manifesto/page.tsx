@@ -80,6 +80,7 @@ import HttpBenchPanel from '@/components/HttpBenchPanel';
 import IostatPanel from '@/components/IostatPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
+import CurlJwtPanel from '@/components/CurlJwtPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -663,8 +664,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* clickhouse query — sql, rows, duration, bytes */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ClickhouseQueryPanel />
+        </div>
+
+        {/* curl jwt — token, claims, expiry, signature */}
+        <div className="mt-4 pb-6">
+          <CurlJwtPanel />
         </div>
 
         {/* Sign-off */}

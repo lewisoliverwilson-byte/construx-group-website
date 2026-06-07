@@ -79,6 +79,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import CniPanel from '@/components/CniPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1003,8 +1004,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cni — plugins, network, ipam, bridges */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CniPanel />
+      </section>
+
+      {/* curl verbose — dns, connect, tls, transfer timings */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CurlVerbosePanel />
       </section>
 
       {/* CTA */}
