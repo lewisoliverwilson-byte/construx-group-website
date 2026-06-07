@@ -1,0 +1,168 @@
+---
+title: "Buf: Protocol Buffer schema registry — breaking change detection, BSR, lint, generation"
+date: "2034-02-16"
+excerpt: "Buf is a toolchain for Protocol Buffers that solves the operational problems that accumulate when teams manage .proto files manually: inconsistent lint rules, breaking changes silently introduced between API versions, complex protoc plugin invocation chains, and no central schema registry. Buf replaces protoc with a declarative build system (buf.yaml, buf.gen.yaml) that generates code consistently across languages and CI environments. Its breaking change detector identifies the exact category of incompatibility: field number reuse, field removal, type changes, reserved range violations — all the mutations that break wire compatibility in gRPC and Protobuf serialization. The Buf Schema Registry (BSR) is a hosted repository for .proto files: teams push schemas to BSR as versioned modules, consumers depend on specific versions rather than copying .proto files across repositories. BSR generates client SDKs in any language on demand — instead of running protoc locally, a Go service imports the generated package directly from BSR's Go module proxy. This eliminates the proto file copying problem: the canonical schema lives in BSR, and generated code is derived, not committed. At Construx, Buf replaced a chaotic protoc invocation in the Makefile and reduced inter-service breakage incidents — the breaking change detector runs in CI and blocks any merge that would break existing clients."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Breaking change detection. BSR. Lint. buf.gen.yaml. Module. Dependency. protoc replacement.
+
+## Buf config, lint, and breaking change detection
+
+```yaml
+# buf.yaml — Buf module configuration at the root of the proto directory
+# Defines lint rules, breaking change policy, and BSR module name
+
+version: v2
+
+modules:
+  - path: proto
+
+lint:
+  use:
+    - DEFAULT      # Buf's recommended lint rule set
+  except:
+    - PACKAGE_VERSION_SUFFIX    # we don't use v1/v2 package naming
+  ignore:
+    - proto/vendor               # third-party protos not linted
+
+breaking:
+  use:
+    - FILE          # detect file-level breaking changes (safe for evolution)
+  except:
+    - EXTENSION_NO_DELETE       # extensions are not used in this codebase
+  ignore:
+    - proto/internal             # internal-only protos have weaker guarantees
+
+deps:
+  - buf.build/googleapis/googleapis     # google.api annotations
+  - buf.build/grpc-ecosystem/grpc-gateway   # gRPC-Gateway HTTP transcoding
+
+name: buf.build/construx/apis           # BSR module name (push target)
+```
+
+```yaml
+# buf.gen.yaml — code generation config: replaces protoc invocations
+# Run: buf generate proto/
+# Generates Go, TypeScript, and Python clients from the proto directory
+
+version: v2
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/construx/proto/gen/go
+
+plugins:
+  # Go: generate gRPC stubs + protobuf messages
+  - remote: buf.build/protocolbuffers/go
+    out: gen/go
+    opt:
+      - paths=source_relative
+
+  - remote: buf.build/grpc/go
+    out: gen/go
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false
+
+  # TypeScript: generate typed clients for the frontend
+  - remote: buf.build/connectrpc/es
+    out: gen/ts
+    opt:
+      - target=ts
+
+  # Python: generate for data pipeline services
+  - remote: buf.build/protocolbuffers/python
+    out: gen/python
+
+  # gRPC-Gateway: generate HTTP/JSON reverse proxy from gRPC annotations
+  - remote: buf.build/grpc-ecosystem/gateway
+    out: gen/go
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true
+```
+
+```bash
+# Buf CLI operations
+
+# Lint all .proto files against configured rules
+buf lint proto/
+
+# Output on violation:
+# proto/construx/orders/v1/order.proto:14:3:Field name "OrderID" should be lower_snake_case, got "OrderID".
+
+# Detect breaking changes between current state and git main branch
+# Run in CI on every PR — blocks merge if breaking changes found
+buf breaking proto/ --against '.git#branch=main,subdir=proto'
+
+# Output on breaking change:
+# proto/construx/orders/v1/order.proto:22:3:Field "1" on message "Order" changed type from "string" to "int64".
+# proto/construx/orders/v1/order.proto:31:1:Message "ShippingAddress" was deleted.
+
+# Push schema to BSR (Buf Schema Registry)
+buf push proto/ --tag v1.4.2
+
+# Generate code from BSR dependency (no local proto files needed)
+buf generate buf.build/construx/apis:v1.4.2
+
+# Check lint + breaking in one command (CI shorthand)
+buf lint proto/ && buf breaking proto/ --against '.git#branch=main,subdir=proto'
+
+# Format all .proto files
+buf format -w proto/
+
+# Dependency management: update BSR dependencies
+buf dep update
+cat buf.lock   # shows pinned digests for all dependencies
+```
+
+```proto
+// proto/construx/orders/v1/order.proto
+// Example proto with gRPC-Gateway HTTP annotations
+
+syntax = "proto3";
+
+package construx.orders.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/construx/proto/gen/go/construx/orders/v1;ordersv1";
+
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/orders"
+      body: "*"
+    };
+  }
+
+  rpc GetOrder(GetOrderRequest) returns (Order) {
+    option (google.api.http) = {
+      get: "/api/v1/orders/{order_id}"
+    };
+  }
+}
+
+message Order {
+  string order_id    = 1;
+  string tenant_id   = 2;
+  string status      = 3;
+  google.protobuf.Timestamp created_at = 4;
+  repeated OrderLine lines = 5;
+  reserved 6, 7;          // reserved field numbers prevent accidental reuse
+  reserved "deprecated_field";
+}
+
+message OrderLine {
+  string product_id = 1;
+  int32  quantity   = 2;
+  int64  price_pence = 3;
+}
+```
+
+Buf vs raw protoc vs protoc-gen-go-grpc vs gRPC-Web vs Connect: Raw protoc with protoc-gen-go and protoc-gen-go-grpc works but requires managing the protoc binary, its plugins, and their versions — across CI, macOS, and Linux, this becomes a pinning problem. Any discrepancy generates different output. Connect (from Buf) is a modern gRPC protocol that works with HTTP/1.1 and browsers natively, eliminating the need for gRPC-Web proxies like Envoy transcoding or grpc-web-proxy — Connect services speak gRPC, gRPC-Web, and Connect protocol simultaneously. The BSR's value is most clear in multi-repo organisations: instead of the payments-service copying the orders-service proto files into a `vendor/proto/` directory (creating stale copies that diverge), it imports `buf.build/construx/apis` as a versioned dependency. The breaking change detector in CI is what actually enforces API contracts: without it, engineers break existing clients without realising it; with it, breaking changes are an explicit, documented decision rather than an accidental one.

@@ -1,0 +1,138 @@
+---
+title: "OpenCost: Kubernetes cost attribution — namespace, label, and workload cost breakdown"
+date: "2034-02-13"
+excerpt: "OpenCost is an open-source Kubernetes cost monitoring tool that allocates cloud infrastructure costs to namespaces, deployments, pods, labels, and any other Kubernetes dimension. It works by combining cloud billing data (AWS Cost Explorer, GCP Billing, Azure Cost Management) with Kubernetes resource usage metrics from Prometheus to produce per-workload cost attribution: the orders-api deployment in construx-prod cost $1.23 per day in CPU, $0.47 in memory, $0.12 in network egress, totalling $1.82. OpenCost models cost as a function of resource requests vs resource usage vs instance cost — a pod that requested 4 CPU on a $0.20/CPU-hour node costs differently from a pod that requested 4 CPU on a spot instance at $0.04/CPU-hour. The Kubernetes cost allocation model accounts for idle resources (a node that is 30% utilised means 70% of its cost is unattributed — OpenCost can assign this idle cost proportionally or treat it as a cluster overhead). Integration with Goldilocks (VPA recommendations) shows whether a workload is over-provisioned: a deployment requesting 2 CPU but using 0.1 CPU is spending 20x what it needs to. OpenCost exposes a REST API and integrates with Grafana dashboards, and its data feeds the Kubecost commercial product for teams that need multi-cluster cost forecasting, budget alerts, and showback/chargeback reporting."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Cost allocation. Namespace. Workload. Idle cost. Spot vs on-demand. Over-provisioning. Showback.
+
+## OpenCost queries and Goldilocks VPA recommendations
+
+```bash
+# OpenCost REST API: query workload costs
+
+# Cost by namespace for the past 7 days
+curl -s "http://opencost.construx-monitoring.svc.cluster.local:9090/allocation/compute" \
+  -d 'window=7d&aggregate=namespace&accumulate=false' | \
+  jq '.data[0] | to_entries | sort_by(-.value.totalCost) | .[0:10] | 
+    map({namespace: .key, cost: (.value.totalCost | . * 100 | round / 100)})'
+
+# Output:
+# [
+#   {"namespace":"construx-prod",      "cost": 47.23},
+#   {"namespace":"construx-staging",   "cost": 12.87},
+#   {"namespace":"construx-monitoring","cost":  8.41},
+#   {"namespace":"istio-system",       "cost":  3.92}
+# ]
+
+# Cost by deployment (top spenders in construx-prod)
+curl -s "http://opencost.construx-monitoring.svc.cluster.local:9090/allocation/compute" \
+  -d 'window=7d&aggregate=deployment&namespace=construx-prod&accumulate=true' | \
+  jq '.data[0] | to_entries | sort_by(-.value.totalCost) | .[0:5] |
+    map({name: .key, cpu: (.value.cpuCost | . * 100 | round / 100), 
+         mem: (.value.ramCost | . * 100 | round / 100),
+         total: (.value.totalCost | . * 100 | round / 100)})'
+
+# Output:
+# [
+#   {"name":"orders-api",    "cpu": 12.41, "mem": 4.22, "total": 16.63},
+#   {"name":"payments-api",  "cpu":  8.73, "mem": 3.87, "total": 12.60},
+#   {"name":"clickhouse",    "cpu":  2.14, "mem": 8.91, "total": 11.05},
+#   {"name":"analytics-api", "cpu":  6.82, "mem": 1.43, "total":  8.25},
+#   {"name":"worker",        "cpu":  4.91, "mem": 1.12, "total":  6.03}
+# ]
+
+# Efficiency: cost vs actual usage (over-provisioned workloads)
+curl -s "http://opencost.construx-monitoring.svc.cluster.local:9090/allocation/compute" \
+  -d 'window=7d&aggregate=deployment&namespace=construx-prod' | \
+  jq '.data[0] | to_entries | 
+    map({
+      name: .key,
+      cpu_efficiency: (.value.cpuEfficiency | . * 100 | round / 100),
+      mem_efficiency: (.value.ramEfficiency | . * 100 | round / 100)
+    }) | sort_by(.cpu_efficiency) | .[0:5]'
+```
+
+```yaml
+# Goldilocks: VPA recommendations for right-sizing
+# Goldilocks runs VPA in recommendation mode and surfaces results as a dashboard
+
+# Install Goldilocks and enable VPA recommendations for a namespace
+kubectl label namespace construx-prod goldilocks.fairwinds.com/enabled="true"
+
+# Goldilocks VPA recommendation output (from dashboard or kubectl):
+# deployment: analytics-api
+#   container: analytics-api
+#     CPU request:   50m   (currently: 500m)  — 10x over-provisioned
+#     CPU limit:     500m  (currently: 2000m) — 4x over-provisioned
+#     Memory request: 64Mi (currently: 512Mi) — 8x over-provisioned
+#     Memory limit:  128Mi (currently: 1Gi)   — 8x over-provisioned
+#
+# Applying these recommendations would reduce analytics-api cost by ~87%
+
+# OpenCost Prometheus rules: expose cost as Prometheus metrics
+# Scraped by Mimir, alerted on by AlertManager
+
+- alert: HighNamespaceCostWeekly
+  expr: |
+    sum by (namespace) (
+      opencost_allocation_cpu_cost_total{namespace=~"construx-.*"}
+      + opencost_allocation_ram_cost_total{namespace=~"construx-.*"}
+    ) > 50
+  for: 1h
+  labels:
+    severity: warning
+  annotations:
+    summary: "Namespace {{ $labels.namespace }} weekly cost exceeds $50"
+    runbook: "https://runbooks.construx.internal/opencost/high-namespace-cost"
+```
+
+```yaml
+# OpenCost Helm deployment: AWS integration via IRSA
+
+opencost:
+  opencost:
+    externalServices:
+      prometheus:
+        internal:
+          serviceName: mimir-nginx
+          namespaceName: construx-monitoring
+          port: 80
+          path: /prometheus
+
+    cloudProvider:
+      aws:
+        enabled: true
+        # IRSA: pod identity → IAM role with Cost Explorer read access
+        serviceAccountName: opencost
+
+    nodeSelector: {}
+
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/opencost-cost-explorer
+
+  grafana:
+    enabled: false   # use existing Grafana instance
+    dashboardAnnotations:
+      grafana_folder: Cost
+
+# IAM policy for OpenCost (Cost Explorer read access)
+# Attached to the IRSA role above
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [{
+#     "Effect": "Allow",
+#     "Action": [
+#       "ce:GetCostAndUsage",
+#       "ce:GetUsageForecast",
+#       "pricing:GetProducts"
+#     ],
+#     "Resource": "*"
+#   }]
+# }
+```
+
+OpenCost vs Kubecost vs CloudHealth vs native cloud billing: Native cloud billing (AWS Cost Explorer, GCP Cost Management) shows you what you spent on EC2/GKE nodes in total — it has no awareness of Kubernetes workloads, namespaces, or labels. You can't see that the orders-api is responsible for 35% of your node spend; you just see the total node cost. Kubecost is the commercial product built on top of OpenCost — it adds multi-cluster aggregation, budget alerts, team-based cost allocation policies, and a managed SaaS option. CloudHealth and Apptio Cloudability are FinOps platforms targeting large enterprises — excellent for multi-cloud cost governance, but they solve the billing layer, not the Kubernetes allocation layer. OpenCost is the right starting point for most teams: free, integrates with existing Prometheus and Grafana, and gives you the namespace/workload/label breakdown that reveals actual over-provisioning. The typical finding: 40-60% of Kubernetes cluster cost is idle resources — workloads with request:usage ratios of 5:1 or worse. OpenCost makes this visible; Goldilocks makes it actionable.

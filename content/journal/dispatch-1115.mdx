@@ -1,0 +1,156 @@
+---
+title: "Renovate: automated dependency updates — grouping, automerge, datasources, schedules"
+date: "2034-02-10"
+excerpt: "Renovate is an automated dependency update tool that opens pull requests to update dependencies across npm, Go modules, Helm charts, Docker images, GitHub Actions, Terraform modules, and dozens of other package ecosystems. Unlike Dependabot (which opens one PR per dependency per update), Renovate groups updates by configurable rules — all Kubernetes-related Go modules in one PR, all Helm chart updates in another, all patch-level npm updates automerged. Renovate's scheduling system runs updates on a configurable schedule (weekly on Monday before 5am, avoiding the noisy Friday afternoon PR flood), with timezone awareness. Its automerge feature automatically merges PRs that pass CI — for patch-level updates or well-tested ecosystems, this eliminates the manual review overhead of routine dependency hygiene. Renovate's datasource layer supports over 90 package registries: it understands semantic versioning constraints, can pin to specific digests for Docker images (converting mutable tags like `node:22-alpine` to pinned digests for reproducibility), and can extend shared configs via a centrally managed `renovate-config` repository. The result is a repository where `0 outdated dependencies` is the steady state — not aspirational — because Renovate opens the PR, CI validates it, and the branch merges automatically before it can accumulate."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Grouping. Automerge. Schedule. Datasource. Pin digest. Preset. GitHub App. Extends.
+
+## Renovate config: grouping, automerge, and scheduling
+
+```json
+// renovate.json — construx monorepo dependency update config
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separatePatchReleases"
+  ],
+
+  "timezone": "Europe/London",
+  "schedule": ["before 5am on monday"],
+
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 3,
+  "labels": ["renovate", "dependencies"],
+
+  // Pin Docker image digests for reproducibility
+  // node:22-alpine → node:22-alpine@sha256:abc123...
+  "pinDigests": true,
+
+  // Automerge: patch updates that pass CI merge without human review
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch", "digest"],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+
+    // Group all Kubernetes Go dependencies into one PR
+    {
+      "groupName": "kubernetes",
+      "matchPackagePrefixes": [
+        "k8s.io/",
+        "sigs.k8s.io/",
+        "github.com/kubernetes/"
+      ]
+    },
+
+    // Group Helm charts from construx chart museum
+    {
+      "groupName": "helm charts",
+      "matchManagers": ["helm-values", "helmv3"],
+      "automerge": false
+    },
+
+    // Group React ecosystem
+    {
+      "groupName": "react",
+      "matchPackageNames": ["react", "react-dom"],
+      "matchPackagePrefixes": ["@types/react"]
+    },
+
+    // Pin major versions for packages with known breaking changes
+    {
+      "matchPackageNames": ["next"],
+      "allowedVersions": "^15"
+    },
+
+    // Security updates: merge immediately regardless of schedule
+    {
+      "matchCategories": ["security"],
+      "schedule": ["at any time"],
+      "automerge": true,
+      "labels": ["renovate", "security"]
+    },
+
+    // Slow-release packages: update only on major releases
+    {
+      "matchPackagePrefixes": ["github.com/hashicorp/vault"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "enabled": false
+    }
+  ],
+
+  // Custom datasource: internal Helm chart museum
+  "customDatasources": {
+    "construx-charts": {
+      "defaultRegistryUrlTemplate": "https://charts.construx.internal",
+      "format": "helm"
+    }
+  }
+}
+```
+
+```yaml
+# GitHub Actions: run Renovate as a scheduled job
+# Alternative to the hosted Renovate GitHub App — self-hosted for private registries
+
+name: Renovate
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # Monday 03:00 UTC
+  workflow_dispatch:       # allow manual trigger
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@v40
+        with:
+          configurationFile: renovate.json
+          token: ${{ secrets.RENOVATE_TOKEN }}
+        env:
+          LOG_LEVEL: debug
+          RENOVATE_REPOSITORIES: '["construx/orders-api","construx/payments-api","construx/platform"]'
+          # Private npm registry
+          RENOVATE_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Private Helm chart museum
+          RENOVATE_HELM_REPO_CREDENTIALS: >
+            [{"hostType":"helm","matchHost":"charts.construx.internal","token":"${{ secrets.HELM_TOKEN }}"}]
+```
+
+```bash
+# Renovate CLI: dry-run to preview what would be updated
+# Useful before enabling automerge to audit proposed changes
+
+npx renovate \
+  --dry-run=full \
+  --token="${GITHUB_TOKEN}" \
+  construx/orders-api 2>&1 | grep -E "(Found|update|automerge|Group)"
+
+# Output (example):
+# Found 3 package files in repository
+# update: next 15.3.3 -> 15.4.1 (patch) [automerge]
+# update: @types/node 22.4.0 -> 22.5.1 (patch) [automerge]
+# update: typescript 5.4.5 -> 5.5.4 (minor) [grouped: typescript]
+# Group PR: chore(deps): update typescript group
+
+# Check Renovate dependency dashboard issue (shows all pending updates)
+gh issue list --repo construx/orders-api --label renovate --state open
+
+# Force a Renovate run for a specific repository
+gh workflow run renovate.yml --repo construx/platform -f repositories='["construx/platform"]'
+```
+
+Renovate vs Dependabot vs manual updates vs Snyk: Dependabot is GitHub's built-in alternative — it's zero-config, creates one PR per dependency update, and has deep GitHub integration for security alerts. Its limitations are inflexibility: no grouping (so a monorepo with 200 dependencies generates 200 concurrent PRs), no automerge with strategy control, and limited datasource support. Manual updates are what most teams actually do — quarterly dependency audits, manual version bumps, lots of deferred technical debt accumulation. Snyk focuses on security vulnerability scanning and can open PRs for vulnerable packages, but it's primarily a security tool rather than a comprehensive update manager. Renovate's differentiator is its configuration expressiveness: you can encode exactly your team's policy (group these packages, automerge patches, never update major versions of X, schedule updates for Monday morning, pin all Docker digests) into a JSON config that lives in your repository. The outcome is measurable: teams using Renovate with automerge for patch/digest updates report an 80-90% reduction in manual dependency work, with the remaining 10-20% being deliberate decisions about minor/major upgrades.
