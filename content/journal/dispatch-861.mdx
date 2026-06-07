@@ -1,0 +1,177 @@
+---
+title: "Cloudflare Workers: edge compute with the V8 isolate model"
+date: "2032-01-10"
+excerpt: "Cloudflare Workers run JavaScript at 300+ edge locations worldwide, with a cold start measured in microseconds — not seconds. Workers use V8 isolates rather than containers: no OS process boundary, no sandbox spinning up. Each isolate is a JavaScript context within a shared V8 process. Workers can serve HTTP, run business logic, cache with KV, store durable objects for consistent state, and connect to your origin over a private tunnel. The execution model makes them 100x faster to start than Lambda."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+V8 isolates at the edge. Microsecond cold start. No containers.
+
+## Basic Worker
+
+```ts
+// src/index.ts
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
+
+type Env = {
+  ORDERS_KV:   KVNamespace;
+  CACHE_TTL:   string;
+  API_SECRET:  string;
+};
+
+const app = new Hono<{ Bindings: Env }>();
+
+app.use('*', logger());
+app.use('/api/*', cors({ origin: 'https://construxgroup.io' }));
+
+app.get('/api/orders/:id', async (c) => {
+  const id    = c.req.param('id');
+  const env   = c.env;
+
+  // Check KV cache first
+  const cached = await env.ORDERS_KV.get(`order:${id}`, 'json');
+  if (cached) return c.json(cached);
+
+  // Fetch from origin
+  const res = await fetch(`https://api.construxgroup.io/orders/${id}`, {
+    headers: { Authorization: `Bearer ${env.API_SECRET}` },
+  });
+
+  if (!res.ok) return c.json({ error: 'Not found' }, 404);
+
+  const order = await res.json();
+
+  // Cache for 60s
+  await env.ORDERS_KV.put(`order:${id}`, JSON.stringify(order), {
+    expirationTtl: parseInt(env.CACHE_TTL) || 60,
+  });
+
+  return c.json(order);
+});
+
+export default app;
+```
+
+## wrangler.toml — configuration
+
+```toml
+# wrangler.toml
+name           = "construx-edge"
+main           = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# KV namespace bindings
+[[kv_namespaces]]
+binding  = "ORDERS_KV"
+id       = "a3f9b2c1d4e5f6a7b8c9d0e1f2a3b4c5"
+
+# Environment variables
+[vars]
+CACHE_TTL = "60"
+
+# Production environment
+[env.production]
+routes = [
+  { pattern = "construxgroup.io/api/*", zone_name = "construxgroup.io" },
+]
+[env.production.vars]
+CACHE_TTL = "300"
+
+# Service bindings — call another Worker
+[[services]]
+binding = "PAYMENTS_WORKER"
+service = "construx-payments"
+```
+
+## Durable Objects — consistent state at the edge
+
+```ts
+// src/cart.ts — Durable Object for shopping cart
+import { DurableObject } from 'cloudflare:workers';
+
+export class Cart extends DurableObject {
+  private items: Map<string, number> = new Map();
+
+  async fetch(request: Request): Promise<Response> {
+    const url  = new URL(request.url);
+    const body = request.method === 'POST' ? await request.json<{ sku: string; qty: number }>() : null;
+
+    if (url.pathname === '/add' && body) {
+      const current = this.items.get(body.sku) ?? 0;
+      this.items.set(body.sku, current + body.qty);
+      // State is automatically persisted (no explicit storage call needed for Durable Objects)
+      await this.ctx.storage.put('items', Object.fromEntries(this.items));
+    }
+
+    if (url.pathname === '/items') {
+      return Response.json(Object.fromEntries(this.items));
+    }
+
+    return new Response('OK');
+  }
+}
+
+// In the main Worker — route to the correct Durable Object by cart ID
+app.post('/cart/:cartId/add', async (c) => {
+  const cartId = c.req.param('cartId');
+  const stub   = c.env.CART.get(c.env.CART.idFromName(cartId));
+  return stub.fetch(c.req.raw);
+});
+```
+
+## Fetch from origin with Smart Placement
+
+```ts
+// Smart Placement automatically runs the Worker closer to origin
+// when the Worker makes many origin calls — reduces round-trip latency
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // Parallel fetch from two origins
+    const [orders, inventory] = await Promise.all([
+      fetch(`https://api.construxgroup.io/orders`, {
+        headers: { Authorization: `Bearer ${env.API_SECRET}` },
+      }),
+      fetch(`https://inventory.construxgroup.io/available`, {
+        headers: { Authorization: `Bearer ${env.API_SECRET}` },
+      }),
+    ]);
+
+    const [ordersData, inventoryData] = await Promise.all([
+      orders.json(),
+      inventory.json(),
+    ]);
+
+    return Response.json({ orders: ordersData, inventory: inventoryData });
+  },
+};
+```
+
+## Deploy and monitor
+
+```bash
+# Deploy to production
+wrangler deploy --env production
+
+# Tail live logs from the edge
+wrangler tail --env production
+
+# Output:
+# [2031-12-28 14:32:10] GET /api/orders/a3f9b2c1 200 OK 2ms lon01
+# [2031-12-28 14:32:11] GET /api/orders/b4d7e9f2 HIT (KV) 0ms lhr01
+# [2031-12-28 14:32:11] POST /cart/cust-001/add 200 OK 1ms lhr01
+
+# Monitor in the Cloudflare dashboard or via Analytics Engine
+wrangler analytics-engine sql "
+  SELECT timestamp, outcome, colo, cpuTime
+  FROM workers_analytics
+  WHERE scriptName = 'construx-edge'
+  ORDER BY timestamp DESC
+  LIMIT 20
+"
+```
+
+Workers vs Lambda@Edge: Lambda@Edge runs Node.js in containers deployed to CloudFront edge locations (~13 locations). Cold starts are 100-500ms. Workers run V8 isolates at 300+ locations with ~5ms startup (already warm — isolates are reused). Workers have a 128MB memory limit (vs 128-10240MB for Lambda) and a 10ms CPU time limit per request. Lambda@Edge supports any npm package; Workers have some restrictions (no native modules). For latency-sensitive edge logic at global scale, Workers. For complex compute with large memory requirements, Lambda.

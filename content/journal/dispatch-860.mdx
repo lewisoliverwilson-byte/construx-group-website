@@ -1,0 +1,151 @@
+---
+title: "Linkerd service mesh: lightweight mTLS with Rust sidecars"
+date: "2032-01-07"
+excerpt: "Linkerd is a service mesh for Kubernetes with Rust-based sidecar proxies (microproxy). Unlike Istio (which uses Envoy), Linkerd's proxy is purpose-built, has a smaller footprint (~10MB, ~50MB RAM), and focuses on core features: automatic mTLS, load balancing with latency-aware routing (EWMA), retries, timeouts, and per-route observability. Linkerd 2.x is installed with one command and requires no changes to application code."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Rust sidecar. Half the footprint of Envoy. Automatic mTLS with no config.
+
+## Install Linkerd
+
+```bash
+# Install the Linkerd CLI
+curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+
+# Pre-installation check
+linkerd check --pre
+
+# Install Linkerd onto the cluster
+linkerd install --crds | kubectl apply -f -
+linkerd install | kubectl apply -f -
+
+# Verify installation
+linkerd check
+
+# Install the Viz extension (dashboard + metrics)
+linkerd viz install | kubectl apply -f -
+linkerd viz check
+
+# Open the dashboard
+linkerd viz dashboard
+```
+
+## Inject the sidecar
+
+```bash
+# Annotate a namespace for automatic injection
+kubectl annotate namespace production linkerd.io/inject=enabled
+
+# Existing deployments need a rollout to pick up the annotation
+kubectl rollout restart deployment -n production
+
+# Or inject manually (without namespace annotation)
+kubectl get deploy orders-api -n production -o yaml \
+  | linkerd inject - \
+  | kubectl apply -f -
+
+# Verify sidecar injection
+linkerd check --proxy -n production
+
+# List all meshed pods
+kubectl get pods -n production -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.annotations.linkerd\.io/proxy-version}{"\n"}{end}'
+```
+
+## Traffic policy — retries and timeouts
+
+```yaml
+# k8s/orders-service-profile.yaml
+# ServiceProfile defines per-route retry and timeout policies
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name:      orders-api.production.svc.cluster.local
+  namespace: production
+spec:
+  routes:
+    - name:      POST /orders
+      condition:
+        method: POST
+        pathRegex: /orders
+      retryBudget:
+        retryRatio:          0.2    # Retry up to 20% of requests
+        minRetriesPerSecond: 10
+        ttl:                 10s
+      timeout: 30s
+
+    - name:      GET /orders/{id}
+      condition:
+        method: GET
+        pathRegex: /orders/[^/]+
+      isRetryable: true   # Mark idempotent routes as retryable
+      timeout: 5s
+```
+
+## Observe traffic with linkerd viz
+
+```bash
+# Live traffic stats per deployment
+linkerd viz stat deployment -n production
+
+#                   MESHED    SUCCESS     RPS   LATENCY_P50   LATENCY_P95   LATENCY_P99
+#  orders-api        3/3      99.24%   841.2/s          42ms         142ms         280ms
+#  payments-service  2/2      99.73%   420.1/s          88ms         312ms         491ms
+#  inventory-svc     3/3      99.94%  1403.8/s          19ms          52ms          88ms
+
+# Live tap — inspect individual requests in real time
+linkerd viz tap deploy/orders-api -n production \
+  --to deploy/payments-service \
+  -o wide
+
+# ts=2031-12-28T14:32:10 tls=true
+#   req id=0:0 proxy=out src=10.0.0.11:42011 dst=10.0.0.21:3000
+#     :method=POST :path=/api/payments/charge :authority=payments-service
+#   rsp id=0:0 proxy=out src=10.0.0.11:42011 dst=10.0.0.21:3000
+#     :status=200 latency=88ms
+
+# Per-route stats
+linkerd viz routes deploy/orders-api -n production
+```
+
+## mTLS verification
+
+```bash
+# Confirm all connections in the namespace are mTLS encrypted
+linkerd viz edges deployment -n production
+
+# SRC             DST               SECURED
+# orders-api      payments-service  √ (enforced)
+# orders-api      inventory-svc     √ (enforced)
+# api-gateway     orders-api        √ (enforced)
+
+# Check the TLS identity of a pod
+linkerd diagnostics proxy-metrics -n production pod/orders-api-7b9f4-xk2m \
+  | grep tls
+
+# Certificates are rotated automatically every 24h by default
+# Root CA certificate: 1 year validity
+linkerd identity pod/orders-api-7b9f4-xk2m -n production
+```
+
+## Multicluster — extend the mesh across clusters
+
+```bash
+# Install multicluster support on both clusters
+linkerd multicluster install | kubectl apply -f -
+
+# Link the remote cluster (gateway + service mirror controller)
+linkerd multicluster link \
+  --cluster-name remote-cluster \
+  --kubeconfig /path/to/remote.kubeconfig \
+  | kubectl apply -f -
+
+# Export a service to be visible in the other cluster
+kubectl label svc orders-api -n production mirror.linkerd.io/exported=true
+
+# The service appears as orders-api-remote-cluster in the local cluster
+# Traffic is transparently routed across clusters with mTLS
+```
+
+Linkerd vs Istio resource usage at scale (100 pods): Linkerd proxy averages ~50MB RAM and ~2m CPU per pod. Istio's Envoy sidecar averages ~100MB RAM and ~10m CPU per pod. At 100 pods: Linkerd = ~5GB extra RAM; Istio = ~10GB extra RAM. Linkerd's narrower feature set (no WebAssembly extensions, limited custom filter chains) is the tradeoff. For teams that want automatic mTLS and basic traffic policies without Envoy's full complexity, Linkerd's simplicity and lower overhead are significant advantages.
