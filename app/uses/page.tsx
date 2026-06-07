@@ -71,6 +71,7 @@ import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
+import FlamegraphPanel from '@/components/FlamegraphPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -728,8 +729,13 @@ export default function UsesPage() {
         </div>
 
         {/* dragonfly — redis-compatible, throughput, latency, memory */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DragonflyPanel />
+        </div>
+
+        {/* flamegraph — cpu profiling, call stacks, hotspots */}
+        <div className="mt-6 pb-10">
+          <FlamegraphPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
