@@ -24,6 +24,7 @@ import PprofPanel from '@/components/PprofPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import HtopPanel from '@/components/HtopPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -464,8 +465,13 @@ export default function StatsPage() {
       </div>
 
       {/* nvidia-smi GPU monitoring */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NvidiaSmiPanel />
+      </div>
+
+      {/* boundary zero-trust infrastructure access */}
+      <div className="mt-6 pb-10">
+        <BoundaryPanel />
       </div>
     </div>
   );

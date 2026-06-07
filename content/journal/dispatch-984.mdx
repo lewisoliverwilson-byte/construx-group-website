@@ -1,0 +1,236 @@
+---
+title: "Consul: service mesh, service discovery, and distributed configuration"
+date: "2033-01-13"
+excerpt: "Consul is HashiCorp's service networking platform — it provides service discovery (DNS and HTTP API), health checking, distributed key-value storage, and a service mesh (Consul Connect) with mTLS, traffic shaping, and intention-based access control. In service discovery mode, services register themselves with Consul and discover each other via DNS (`postgres.service.consul`) or the HTTP API. The service mesh mode injects Envoy sidecar proxies that handle mTLS between services and enforce traffic intentions — defining which services are allowed to communicate. Consul spans multiple data centers and clouds via WAN federation, making it the foundation for multi-cloud service networking at HashiCorp."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Service discovery via DNS. Health checks. KV store. mTLS service mesh. Multi-datacenter.
+
+## Service discovery
+
+```bash
+# Start a Consul agent (dev mode — single node, in-memory)
+consul agent -dev -client=0.0.0.0
+
+# Register a service
+cat > /etc/consul.d/api.json <<'EOF'
+{
+  "service": {
+    "name": "construx-api",
+    "id":   "construx-api-01",
+    "port": 8080,
+    "tags": ["v1", "production"],
+    "checks": [
+      {
+        "id":       "http-health",
+        "name":     "HTTP health check",
+        "http":     "http://localhost:8080/health",
+        "interval": "10s",
+        "timeout":  "3s"
+      }
+    ]
+  }
+}
+EOF
+consul reload
+
+# Query via DNS
+dig @127.0.0.1 -p 8600 construx-api.service.consul
+# construx-api.service.consul.  0  IN  A  10.0.1.10
+# construx-api.service.consul.  0  IN  A  10.0.1.11
+
+# DNS SRV record (includes port)
+dig @127.0.0.1 -p 8600 construx-api.service.consul SRV
+# construx-api.service.consul.  0  IN  SRV  1 1 8080 ip-10-0-1-10.node.consul.
+
+# Filter by tag
+dig @127.0.0.1 -p 8600 v1.construx-api.service.consul
+
+# Query via HTTP API
+curl http://localhost:8500/v1/catalog/service/construx-api | jq '.[].ServiceAddress'
+# "10.0.1.10"
+# "10.0.1.11"
+
+# Only healthy instances
+curl http://localhost:8500/v1/health/service/construx-api?passing | jq '.[].Service.Address'
+
+# Watch for changes (long-polling with index)
+curl "http://localhost:8500/v1/health/service/construx-api?passing&index=0&wait=60s"
+```
+
+## Health checks
+
+```json
+{
+  "service": {
+    "name": "construx-api",
+    "port": 8080,
+    "checks": [
+      {
+        "id":       "http-health",
+        "name":     "HTTP /health endpoint",
+        "http":     "http://localhost:8080/health",
+        "method":   "GET",
+        "interval": "10s",
+        "timeout":  "3s",
+        "deregister_critical_service_after": "5m"
+      },
+      {
+        "id":          "tcp-port",
+        "name":        "TCP port 8080 open",
+        "tcp":         "localhost:8080",
+        "interval":    "15s",
+        "timeout":     "2s"
+      },
+      {
+        "id":       "script-check",
+        "name":     "Database connection",
+        "args":     ["/opt/construx/check-db.sh"],
+        "interval": "30s",
+        "timeout":  "10s"
+      },
+      {
+        "id":           "ttl-check",
+        "name":         "Application heartbeat",
+        "ttl":          "30s"
+        // Application must call PUT /v1/agent/check/pass/ttl-check every 30s
+      }
+    ]
+  }
+}
+```
+
+```bash
+# Check health of all services
+consul members
+# Node          Address         Status  Type    Build   Protocol
+# prod-eu-01    10.0.1.10:8301  alive   server  1.20.1  2
+# prod-eu-02    10.0.1.11:8301  alive   server  1.20.1  2
+
+# Check specific service health
+consul monitor --log-level=info
+consul catalog services
+consul catalog nodes -service=construx-api
+
+# Watch for failing health checks
+curl "http://localhost:8500/v1/health/state/critical"
+```
+
+## Key-Value store
+
+```bash
+# Consul KV: distributed configuration store
+# Simple, no versioning (unlike Vault), not for secrets
+
+# Write a value
+consul kv put construx/config/log-level warn
+consul kv put construx/config/feature-flags/new-checkout true
+consul kv put construx/config/rate-limit/api 1000
+
+# Read
+consul kv get construx/config/log-level
+# warn
+
+consul kv get -detailed construx/config/log-level
+# CreateIndex: 42
+# ModifyIndex: 67
+# LockIndex:   0
+# Flags:       0
+# Value:       warn
+
+# List all keys under a prefix
+consul kv get -recurse construx/config/
+# construx/config/log-level: warn
+# construx/config/feature-flags/new-checkout: true
+# construx/config/rate-limit/api: 1000
+
+# Watch for changes (blocking query)
+consul watch -type=key -key=construx/config/log-level \
+  sh -c 'jq -r .Value | base64 -d | xargs -I{} echo "Log level changed to: {}"'
+
+# CAS (check-and-set) for optimistic locking
+consul kv put -cas -modify-index=67 construx/config/log-level debug
+# true (updated) or false (index changed — retry)
+
+# Delete
+consul kv delete construx/config/feature-flags/new-checkout
+```
+
+## Service mesh with Consul Connect
+
+```yaml
+# Consul Connect: sidecar proxy (Envoy) with mTLS and intentions
+# Enable in service registration:
+{
+  "service": {
+    "name": "construx-api",
+    "port": 8080,
+    "connect": {
+      "sidecar_service": {
+        "proxy": {
+          "upstreams": [
+            {
+              "destination_name": "postgres",
+              "local_bind_port":  5432   # API connects to localhost:5432
+              # Envoy proxies to postgres.service.consul with mTLS
+            },
+            {
+              "destination_name": "redis",
+              "local_bind_port":  6379
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+```bash
+# Intentions: declare which services can communicate
+# Default: deny all (in L4 mode — service-to-service)
+consul intention create -deny '*' '*'
+
+# Allow construx-api to reach postgres
+consul intention create -allow construx-api postgres
+
+# Allow construx-api to reach redis
+consul intention create -allow construx-api redis
+
+# List intentions
+consul intention list
+# ID  SOURCE           DESTINATION  ACTION
+# 1   construx-api     postgres     allow
+# 2   construx-api     redis        allow
+# 3   *                *            deny
+
+# L7 traffic intentions (requires Consul 1.9+, L7 protocol configured)
+# Allow only GET /orders from construx-api to orders-service
+cat > l7-intention.hcl <<'EOF'
+Kind = "service-intentions"
+Name = "orders-service"
+Sources = [{
+  Name = "construx-api"
+  Permissions = [{
+    Action = "allow"
+    HTTP = {
+      Methods = ["GET"]
+      PathPrefix = "/orders"
+    }
+  }]
+}]
+EOF
+consul config write l7-intention.hcl
+
+# Start the Envoy sidecar proxy
+consul connect envoy -sidecar-for construx-api &
+
+# Traffic now flows:
+# construx-api → localhost:5432 → Envoy → mTLS → postgres Envoy → postgres:5432
+# Both sides authenticate with Consul-issued certificates
+# Intentions are enforced by Envoy at the proxy level
+```
+
+Consul vs Kubernetes DNS vs Istio: Kubernetes DNS (`service.namespace.svc.cluster.local`) covers in-cluster service discovery. Consul adds multi-datacenter, multi-cloud, and cross-cluster discovery — services in AWS, GCP, and on-premises can all discover each other via Consul's WAN federation. Istio is the more feature-rich service mesh (circuit breaking, retries, canary routing with fine-grained traffic control) but is more complex to operate. Consul Connect is lighter and integrates naturally if you're already using HashiCorp's stack (Vault, Boundary, Nomad). The practical split: Kubernetes DNS for single-cluster apps, Consul for multi-cloud service networking, Istio when you need advanced traffic management within a cluster.
