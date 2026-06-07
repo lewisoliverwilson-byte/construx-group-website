@@ -30,6 +30,7 @@ import EtcdPanel from '@/components/EtcdPanel';
 import TektonPanel from '@/components/TektonPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import KubescapePanel from '@/components/KubescapePanel';
+import IcebergPanel from '@/components/IcebergPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -478,8 +479,13 @@ export default function ContactPage() {
       </section>
 
       {/* kubescape kspm — nsa/mitre/cis compliance, control checks, risk score */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <KubescapePanel />
+      </section>
+
+      {/* apache iceberg open table format — snapshots, schema evolution, manifests */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <IcebergPanel />
       </section>
     </div>
   );
