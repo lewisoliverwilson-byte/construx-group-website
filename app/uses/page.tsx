@@ -16,6 +16,7 @@ import LokiQueryPanel from '@/components/LokiQueryPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
+import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -398,8 +399,13 @@ export default function UsesPage() {
         </div>
 
         {/* OAuth 2.0 + PKCE authorization flow */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OAuthFlowPanel />
+        </div>
+
+        {/* Kafka Streams topology */}
+        <div className="mt-6 pb-10">
+          <KafkaStreamsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
