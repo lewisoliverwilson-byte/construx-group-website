@@ -1,0 +1,182 @@
+---
+title: "Istio: service mesh with mTLS, traffic management, and observability"
+date: "2033-05-19"
+excerpt: "Istio is a service mesh that injects an Envoy sidecar into every pod and routes all inter-service traffic through those sidecars. The control plane (istiod) distributes configuration to the sidecars: which services can talk to which (AuthorizationPolicy), how traffic is routed (VirtualService, DestinationRule), and what TLS certificates to use (mTLS via SPIFFE). From the application's perspective, network calls are unmodified — the sidecar intercepts at the socket level. The result is mTLS between every service without code changes, fine-grained traffic control (canary deployments via percentage weight, circuit breaking, retry budgets), and automatic distributed tracing (Istio generates trace spans for every hop). Istio adds operational complexity — the control plane, Envoy, and the many CRDs are significant surface area — but the observability and security benefits are real for teams operating many services."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Envoy sidecar. istiod control plane. mTLS. VirtualService. AuthorizationPolicy. Traffic management.
+
+## Installation and sidecar injection
+
+```bash
+# Install Istio with the default profile
+istioctl install --set profile=default --set hub=gcr.io/istio-release -y
+
+# Verify installation
+istioctl verify-install
+# ✔ Istio core installed
+# ✔ Istiod installed
+# ✔ Ingress gateways installed
+# ✔ Installation complete
+
+# Enable sidecar injection for the namespace
+# Istio injects the Envoy sidecar into every pod in labelled namespaces
+kubectl label namespace construx-prod istio-injection=enabled
+
+# Check if sidecar is injected
+kubectl get pods -n construx-prod -o jsonpath='{.items[*].spec.containers[*].name}'
+# construx-api  istio-proxy   ← two containers: app + sidecar
+
+# Peer authentication: require mTLS for all pods in the namespace
+kubectl apply -f - <<EOF
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: construx-prod
+spec:
+  mtls:
+    mode: STRICT   # reject any non-mTLS traffic
+EOF
+```
+
+## Traffic management — VirtualService and DestinationRule
+
+```yaml
+# DestinationRule: define subsets (stable vs canary) and connection policy
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: construx-api
+  namespace: construx-prod
+spec:
+  host: construx-api.construx-prod.svc.cluster.local
+
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+        pendingRequests: 50
+    # Circuit breaker: eject hosts that return 5xx errors
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+    - name: canary
+      labels:
+        version: canary
+
+---
+# VirtualService: route 90% to stable, 10% to canary
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: construx-api
+  namespace: construx-prod
+spec:
+  hosts:
+    - construx-api.construx-prod.svc.cluster.local
+
+  http:
+    # Header-based routing: X-Canary: true → always canary
+    - match:
+        - headers:
+            x-canary:
+              exact: "true"
+      route:
+        - destination:
+            host: construx-api.construx-prod.svc.cluster.local
+            subset: canary
+
+    # Default: 90/10 split
+    - route:
+        - destination:
+            host: construx-api.construx-prod.svc.cluster.local
+            subset: stable
+          weight: 90
+        - destination:
+            host: construx-api.construx-prod.svc.cluster.local
+            subset: canary
+          weight: 10
+
+      # Retry policy
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: "5xx,retriable-4xx,gateway-error"
+
+      # Timeout
+      timeout: 10s
+```
+
+## Authorization policy and observability
+
+```yaml
+# AuthorizationPolicy: zero-trust — deny all by default, allow only what's needed
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-api-to-db
+  namespace: construx-prod
+spec:
+  selector:
+    matchLabels:
+      app: construx-postgres   # target: the database pods
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              # Only the API service account can reach the database
+              - "cluster.local/ns/construx-prod/sa/construx-api"
+      to:
+        - operation:
+            ports: ["5432"]
+
+---
+# Deny all other traffic to the database
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: construx-prod
+spec:
+  selector:
+    matchLabels:
+      app: construx-postgres
+  action: DENY
+  rules:
+    - {}   # deny everything not explicitly allowed above
+```
+
+```bash
+# Observability: Istio + Prometheus + Kiali
+
+# Traffic metrics (from Envoy) — exported to Prometheus automatically
+# istio_requests_total{source_workload="construx-api", destination_workload="construx-postgres"} 142819
+
+# Distributed tracing: Istio generates trace spans for every hop
+# Zipkin-compatible; works with Grafana Tempo, Jaeger, or Cloud Trace
+# Configure: --set meshConfig.enableTracing=true --set meshConfig.defaultConfig.tracing.zipkin.address=tempo:9411
+
+# Kiali: service topology graph
+kubectl port-forward svc/kiali -n istio-system 20001:20001
+# Navigate to http://localhost:20001 — live traffic graph, error rates, mTLS status
+
+# Check mTLS status
+istioctl x authz check construx-api-pod-name.construx-prod
+# ACTION   AuthorizationPolicy         NAMESPACE       RULE
+# ALLOW    allow-api-to-db             construx-prod   rule[0]
+```
+
+Istio vs Linkerd vs Cilium service mesh vs no mesh + mTLS with cert-manager: Linkerd is lighter (Rust-based, no Envoy sidecar — uses its own proxy) and easier to operate, but has fewer traffic management features than Istio. Cilium's service mesh mode does L7 traffic management in eBPF rather than sidecars, with lower overhead for simple routing but less expressiveness than Envoy. Istio is the heaviest (Envoy sidecar adds memory and CPU per pod) but the most feature-complete: the VirtualService/DestinationRule/AuthorizationPolicy model is powerful. For teams that need fine-grained traffic management (complex canary routing, fault injection, circuit breaking) and comprehensive observability out of the box, Istio is worth the operational cost. For teams that mainly want mTLS and basic observability, Linkerd is simpler and Cilium is lighter.

@@ -1,0 +1,150 @@
+---
+title: "SPIFFE and SPIRE: workload identity without secrets"
+date: "2033-05-16"
+excerpt: "SPIFFE (Secure Production Identity Framework For Everyone) is a standard for workload identity: instead of giving a service a static API key or certificate to prove its identity, SPIFFE issues cryptographically signed SVIDs (SPIFFE Verifiable Identity Documents) that are short-lived and automatically rotated. SPIRE is the reference implementation — a server and agent that attest workload identity using platform-specific mechanisms (Kubernetes ServiceAccount JWT, AWS instance identity, hardware attestation) and issue X.509 SVIDs or JWT-SVIDs. The result is zero-trust authentication between services: every service knows cryptographically who it is talking to, with no long-lived secrets that can leak. Istio, Linkerd, and other service meshes build on SPIFFE/SPIRE for mTLS identity. Vault uses SPIFFE JWTs for authentication. The SPIFFE ID format is a URI: `spiffe://trust-domain/path` — e.g., `spiffe://construx.io/ns/prod/sa/api`."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SVID. X.509 workload certificate. JWT-SVID. Attestation. Automatic rotation. Zero-trust identity.
+
+## SPIRE server and agent setup
+
+```yaml
+# SPIRE: deployed as a StatefulSet (server) and DaemonSet (agent) in Kubernetes
+
+# SPIRE Server: issues SVIDs, manages trust bundles
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  template:
+    spec:
+      containers:
+        - name: spire-server
+          image: ghcr.io/spiffe/spire-server:1.9.6
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          ports:
+            - containerPort: 8081   # gRPC API
+
+---
+# server.conf: SPIRE server configuration
+# trust_domain: the root of your SPIFFE ID namespace
+# key_manager: generates SVIDs — disk or cloud KMS
+
+server {
+  trust_domain = "construx.io"
+  bind_address = "0.0.0.0"
+  bind_port    = "8081"
+  data_dir     = "/run/spire/data"
+  log_level    = "INFO"
+
+  ca_ttl = "24h"       # CA certificate lifetime
+  default_svid_ttl = "1h"  # workload SVID lifetime (auto-rotated)
+
+  # Key manager: store CA key in Kubernetes Secret (or use cloud KMS)
+  KeyManager "disk" {
+    plugin_data {
+      directory = "/run/spire/data/keys"
+    }
+  }
+
+  # NodeAttestor: verify Kubernetes nodes via projected ServiceAccount tokens
+  NodeAttestor "k8s_psat" {
+    plugin_data {
+      clusters = {
+        "construx-prod" = {
+          service_account_allow_list = ["spire:spire-agent"]
+          audience = ["spire-server"]
+        }
+      }
+    }
+  }
+}
+```
+
+## Registration entries and workload attestation
+
+```bash
+# Register a workload: tell SPIRE what SPIFFE ID to assign to a Kubernetes pod
+
+# API server: assign spiffe://construx.io/ns/construx-prod/sa/construx-api
+# to pods in the construx-prod namespace with the construx-api service account
+spire-server entry create \
+  -parentID spiffe://construx.io/k8s-node/node-01 \
+  -spiffeID spiffe://construx.io/ns/construx-prod/sa/construx-api \
+  -selector k8s:ns:construx-prod \
+  -selector k8s:sa:construx-api
+
+# Worker: separate identity for the worker pods
+spire-server entry create \
+  -parentID spiffe://construx.io/k8s-node/node-01 \
+  -spiffeID spiffe://construx.io/ns/construx-prod/sa/construx-worker \
+  -selector k8s:ns:construx-prod \
+  -selector k8s:sa:construx-worker
+
+# List all registration entries
+spire-server entry show
+# Entry ID         : a1b2c3d4-...
+# SPIFFE ID        : spiffe://construx.io/ns/construx-prod/sa/construx-api
+# Parent ID        : spiffe://construx.io/k8s-node/node-01
+# TTL              : 3600
+# Selector         : k8s:ns:construx-prod
+# Selector         : k8s:sa:construx-api
+
+# Check the trust bundle (public key that verifies SVIDs)
+spire-server bundle show
+# -----BEGIN CERTIFICATE-----
+# (SPIRE CA root certificate — distribute to all services that need to verify SVIDs)
+# -----END CERTIFICATE-----
+```
+
+## Using SVIDs in applications
+
+```go
+// Go: use the SPIFFE Workload API to get an auto-rotating X.509 SVID
+
+import (
+    "context"
+    "github.com/spiffe/go-spiffe/v2/spiffeid"
+    "github.com/spiffe/go-spiffe/v2/spiffetls"
+    "github.com/spiffe/go-spiffe/v2/workloadapi"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // Connect to the SPIRE agent workload API socket
+    // The agent runs as a DaemonSet and exposes a Unix socket at /run/spire/sockets/agent.sock
+    source, err := workloadapi.NewX509Source(ctx,
+        workloadapi.WithClientOptions(
+            workloadapi.WithAddr("unix:///run/spire/sockets/agent.sock"),
+        ),
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer source.Close()
+
+    // The source auto-rotates SVIDs — your TLS connections use the latest cert
+    // Connect to another service with mTLS — both sides present their SVID
+    tlsConfig := spiffetls.TLSClientConfig(
+        tlsconfig.AuthorizeID(spiffeid.RequireIDFromString("spiffe://construx.io/ns/construx-prod/sa/construx-worker")),
+    )
+
+    conn, err := tls.Dial("tcp", "construx-worker.construx-prod.svc:8080", tlsConfig)
+    // Both ends verified — construx-api proved it is spiffe://construx.io/.../construx-api
+    // Worker proved it is spiffe://construx.io/.../construx-worker
+    // No API keys, no static certificates, no secrets in environment variables
+}
+```
+
+SPIFFE/SPIRE vs mTLS with cert-manager vs service mesh identity vs API keys: cert-manager issues certificates from a CA (Let's Encrypt or internal) but doesn't attest that the service holding the cert is the correct workload — any pod that can get cert-manager to issue a cert can claim any identity. Service meshes (Istio, Linkerd) use SPIFFE identities internally and handle mTLS transparently without requiring application changes — easier to adopt but ties identity to the mesh control plane. SPIFFE/SPIRE gives you the identity infrastructure that service meshes build on, without requiring a mesh — useful when you have Go or Rust services that can consume SVIDs directly, or when you want a trust root that spans multiple service meshes or cloud environments. API keys are the simplest but require rotation, storage, and distribution — every new service needs a new secret. SPIFFE/SPIRE eliminates that: identity is derived from what the workload is, not what secret it holds.

@@ -23,6 +23,7 @@ import MisePanel from '@/components/MisePanel';
 import ActPanel from '@/components/ActPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import OpenFgaPanel from '@/components/OpenFgaPanel';
+import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -440,8 +441,13 @@ export default function UsesPage() {
         </div>
 
         {/* openfga fine-grained authorization — zanzibar model */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenFgaPanel />
+        </div>
+
+        {/* scylladb wide-column cassandra — shard-per-core, no gc, p99 latency */}
+        <div className="mt-6 pb-10">
+          <ScyllaDbPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
