@@ -1,0 +1,170 @@
+---
+title: "eBPF observability: tracing production systems without instrumentation"
+date: "2031-11-13"
+excerpt: "eBPF observability is zero-instrumentation: you attach probes to the running kernel and read data out. No code changes, no redeploys, no performance agents. bpftrace scripts run one-time investigations; BCC programs run persistent collectors. You can trace any system call, any kernel function, any userspace function in any language — Go, Rust, Node.js, Python — using uprobes. The kernel verifier ensures programs are safe: they cannot crash the kernel, loop forever, or access arbitrary memory."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Probe the running kernel. No instrumentation, no redeploy, no overhead.
+
+## Latency histograms — read() system call
+
+```bash
+# Distribution of read() latency across all processes
+bpftrace -e '
+  tracepoint:syscalls:sys_enter_read { @start[tid] = nsecs; }
+  tracepoint:syscalls:sys_exit_read  {
+    @usecs = hist((nsecs - @start[tid]) / 1000);
+    delete(@start[tid]);
+  }
+  interval:s:10 { exit(); }
+'
+
+# @usecs:
+# [0]               4012 |@@@@@@@@@@@@@@@@@@@@@@@@@              |
+# [1]               6883 |@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+# [2, 4)            3741 |@@@@@@@@@@@@@@@@@@@@                   |
+# [4, 8)            1822 |@@@@@@@@@                              |
+# [8, 16)            447 |@@                                     |
+# [32, 64)            28 |                                       |
+
+# Latency by process — find the slow outlier
+bpftrace -e '
+  tracepoint:syscalls:sys_enter_read { @start[tid] = nsecs; @comm[tid] = comm; }
+  tracepoint:syscalls:sys_exit_read  {
+    $lat = (nsecs - @start[tid]) / 1000;
+    if ($lat > 1000) {
+      printf("SLOW %-20s %d µs\n", @comm[tid], $lat);
+    }
+    delete(@start[tid]); delete(@comm[tid]);
+  }
+'
+```
+
+## File I/O — what is postgres reading?
+
+```bash
+bpftrace -e '
+  tracepoint:syscalls:sys_enter_openat /comm == "postgres"/ {
+    printf("open: %s\n", str(args->filename));
+  }
+  tracepoint:syscalls:sys_enter_read /comm == "postgres"/ {
+    @pg_reads = count();
+    @pg_bytes += args->count;
+  }
+  interval:s:5 {
+    printf("reads: %d, bytes: %d\n", @pg_reads, @pg_bytes);
+    clear(@pg_reads); clear(@pg_bytes);
+  }
+'
+```
+
+## uprobe — trace a Go function by name
+
+```bash
+# Trace construx-api's HTTP handler latency without changing the binary
+bpftrace -e '
+  uprobe:/usr/local/bin/construx-api:"net/http.(*ServeMux).ServeHTTP" {
+    @start[tid] = nsecs;
+  }
+  uretprobe:/usr/local/bin/construx-api:"net/http.(*ServeMux).ServeHTTP" {
+    $lat = (nsecs - @start[tid]) / 1000000;
+    @handler_ms = hist($lat);
+    delete(@start[tid]);
+  }
+  interval:s:15 { print(@handler_ms); exit(); }
+'
+
+# @handler_ms:
+# [1]     1204 |@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+# [2, 4)  488  |@@@@@@@@@@@@@@@                        |
+# [4, 8)  103  |@@@                                    |
+# [8, 16)  22  |                                       |
+```
+
+## TCP retransmits — detect packet loss
+
+```bash
+bpftrace -e '
+  kprobe:tcp_retransmit_skb {
+    $sk  = (struct sock *)arg0;
+    printf("retransmit %-16s -> %s:%d\n",
+      comm,
+      ntop(AF_INET, $sk->__sk_common.skc_daddr),
+      $sk->__sk_common.skc_dport >> 8
+    );
+    @retransmits[comm] = count();
+  }
+'
+```
+
+## CPU profiling — find hot functions
+
+```bash
+# Sample all on-CPU processes at 99Hz for 30 seconds
+bpftrace -e '
+  profile:hz:99 { @[kstack(5), ustack(5), comm] = count(); }
+  interval:s:30 { exit(); }
+' > /tmp/stacks.txt
+
+# Convert to FlameGraph
+stackcollapse-bpftrace.pl /tmp/stacks.txt | flamegraph.pl > /tmp/cpu.svg
+
+# Or — on-CPU by function name only (no stacks)
+bpftrace -e '
+  profile:hz:99 /pid == 18241/ { @[func] = count(); }
+  interval:s:10 { print(@); exit(); }
+'
+# @:
+# [tcp_poll]                     3
+# [__switch_to]                  7
+# [copy_user_generic_string]    12
+# [construx-api`main.handleOrder] 41
+```
+
+## BCC Python — persistent read latency collector
+
+```python
+#!/usr/bin/env python3
+# collect-read-latency.py — write percentiles to Prometheus every 5s
+from bcc import BPF
+from prometheus_client import start_http_server, Gauge
+import time
+
+BPF_PROGRAM = """
+#include <uapi/linux/ptrace.h>
+BPF_HASH(start, u32, u64);
+BPF_HISTOGRAM(dist);
+
+TRACEPOINT_PROBE(syscalls, sys_enter_read) {
+    u32 tid = bpf_get_current_pid_tgid();
+    u64 ts  = bpf_ktime_get_ns();
+    start.update(&tid, &ts);
+    return 0;
+}
+
+TRACEPOINT_PROBE(syscalls, sys_exit_read) {
+    u32  tid  = bpf_get_current_pid_tgid();
+    u64 *tsp  = start.lookup(&tid);
+    if (!tsp) return 0;
+    u64 delta = (bpf_ktime_get_ns() - *tsp) / 1000;
+    dist.increment(bpf_log2l(delta));
+    start.delete(&tid);
+    return 0;
+}
+"""
+
+b = BPF(text=BPF_PROGRAM)
+p99_gauge = Gauge('read_latency_p99_us', 'read() P99 latency in microseconds')
+start_http_server(9100)
+
+while True:
+    time.sleep(5)
+    dist = b.get_table('dist')
+    p99  = dist.quantile(0.99)
+    p99_gauge.set(p99)
+    dist.clear()
+```
+
+eBPF safety: every eBPF program is verified before loading. The verifier statically proves the program terminates (no unbounded loops), cannot access out-of-bounds memory, and cannot call arbitrary kernel functions. Programs are JIT-compiled to native machine code and run in kernel context — but sandboxed. If the verifier rejects the program, it never loads. This makes eBPF safe for production tracing in a way that kernel modules are not.

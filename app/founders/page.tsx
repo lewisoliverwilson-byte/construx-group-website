@@ -16,6 +16,7 @@ import DockerBuildPanel from '@/components/DockerBuildPanel';
 import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import GitSignPanel from '@/components/GitSignPanel';
+import EbpfTracePanel from '@/components/EbpfTracePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -516,8 +517,13 @@ export default function FoundersPage() {
         </div>
 
         {/* GPG-signed commit log */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitSignPanel />
+        </div>
+
+        {/* eBPF kernel tracing */}
+        <div className="mt-6 pb-10">
+          <EbpfTracePanel />
         </div>
 
         {/* CTA */}

@@ -1,0 +1,179 @@
+---
+title: "CockroachDB: distributed SQL with serializable isolation"
+date: "2031-11-16"
+excerpt: "CockroachDB is a distributed SQL database that replicates data across nodes using Raft consensus. It presents a standard PostgreSQL wire protocol — you use psql, Prisma, Drizzle, any Postgres client — but under the hood every range of rows is a Raft group, replicated to multiple nodes. Serializable isolation is the default: every transaction sees a consistent snapshot and CockroachDB detects and aborts write-write conflicts. There is no eventual consistency to reason about."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+PostgreSQL wire protocol. Distributed Raft underneath. Serializable by default.
+
+## Start a local 3-node cluster
+
+```bash
+# Node 1
+cockroach start \
+  --insecure \
+  --store=node1 \
+  --listen-addr=localhost:26257 \
+  --http-addr=localhost:8080 \
+  --join=localhost:26257,localhost:26258,localhost:26259
+
+# Node 2
+cockroach start \
+  --insecure \
+  --store=node2 \
+  --listen-addr=localhost:26258 \
+  --http-addr=localhost:8081 \
+  --join=localhost:26257,localhost:26258,localhost:26259
+
+# Node 3
+cockroach start \
+  --insecure \
+  --store=node3 \
+  --listen-addr=localhost:26259 \
+  --http-addr=localhost:8082 \
+  --join=localhost:26257,localhost:26258,localhost:26259
+
+# Initialise the cluster (one-time)
+cockroach init --insecure --host=localhost:26257
+```
+
+## Schema — same SQL as PostgreSQL
+
+```sql
+-- Connect with standard psql
+psql "postgresql://root@localhost:26257/defaultdb?sslmode=disable"
+
+CREATE TABLE orders (
+  id          UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID           NOT NULL,
+  status      TEXT           NOT NULL DEFAULT 'pending',
+  total_cents BIGINT         NOT NULL,
+  created_at  TIMESTAMPTZ    NOT NULL DEFAULT now(),
+  INDEX idx_orders_customer (customer_id),
+  INDEX idx_orders_status   (status)
+);
+
+-- CockroachDB partitions data by primary key ranges across nodes
+-- Prefix partition key for locality affinity
+CREATE TABLE orders_by_region (
+  region      TEXT           NOT NULL,
+  id          UUID           NOT NULL DEFAULT gen_random_uuid(),
+  customer_id UUID           NOT NULL,
+  PRIMARY KEY (region, id)
+) PARTITION BY LIST (region) (
+  PARTITION eu VALUES IN ('eu-west-2', 'eu-central-1'),
+  PARTITION us VALUES IN ('us-east-1', 'us-west-2')
+);
+```
+
+## Serializable transactions
+
+```sql
+-- CockroachDB uses SERIALIZABLE isolation by default
+-- Conflicting transactions are automatically retried or aborted
+
+-- Transaction 1
+BEGIN;
+  SELECT balance FROM accounts WHERE id = 'acc-001' FOR UPDATE;
+  UPDATE accounts SET balance = balance - 100 WHERE id = 'acc-001';
+  UPDATE accounts SET balance = balance + 100 WHERE id = 'acc-002';
+COMMIT;
+
+-- CockroachDB implements optimistic concurrency:
+-- Reads don't block writes. On commit, conflicts are detected.
+-- If a conflict is found, you get: ERROR: restart transaction: ...
+-- The application must retry the transaction from the beginning.
+```
+
+## Application-level retry loop
+
+```ts
+// lib/db.ts — CockroachDB transaction retry pattern
+import { Pool } from 'pg';
+
+const pool = new Pool({ connectionString: process.env.CRDB_URL });
+
+async function withRetry<T>(
+  fn: (client: PoolClient) => Promise<T>,
+  maxRetries = 5,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    let attempt = 0;
+    while (true) {
+      try {
+        await client.query('BEGIN');
+        const result = await fn(client);
+        await client.query('COMMIT');
+        return result;
+      } catch (err: any) {
+        await client.query('ROLLBACK');
+        // CockroachDB restart error code: 40001 (serialization failure)
+        if (err.code === '40001' && attempt < maxRetries) {
+          attempt++;
+          await new Promise((r) => setTimeout(r, Math.min(100 * 2 ** attempt, 2000)));
+          continue;
+        }
+        throw err;
+      }
+    }
+  } finally {
+    client.release();
+  }
+}
+
+// Usage
+const result = await withRetry(async (client) => {
+  const { rows } = await client.query(
+    'SELECT balance FROM accounts WHERE id = $1 FOR UPDATE',
+    ['acc-001'],
+  );
+  await client.query(
+    'UPDATE accounts SET balance = balance - $1 WHERE id = $2',
+    [100, 'acc-001'],
+  );
+  return rows[0];
+});
+```
+
+## Inspect distribution across nodes
+
+```sql
+-- Show range distribution — where does this table's data live?
+SHOW RANGES FROM TABLE orders WITH DETAILS;
+-- start_key | end_key | range_id | lease_holder | replicas
+-- <min>      | <max>   | 42       | 2            | {1, 2, 3}
+
+-- Check node health
+SELECT node_id, address, is_available, is_live
+FROM crdb_internal.gossip_nodes;
+
+-- Show leaseholder distribution (which node handles reads/writes per range)
+SELECT lease_holder, count(*)
+FROM crdb_internal.ranges
+GROUP BY lease_holder
+ORDER BY count(*) DESC;
+```
+
+## Drizzle ORM — same as PostgreSQL
+
+```ts
+// drizzle.config.ts — no change needed; CockroachDB speaks PostgreSQL wire
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+
+const pool = new Pool({ connectionString: process.env.CRDB_URL });
+export const db = drizzle(pool);
+
+// Queries are identical to PostgreSQL
+const orders = await db
+  .select()
+  .from(ordersTable)
+  .where(eq(ordersTable.customerId, customerId))
+  .orderBy(desc(ordersTable.createdAt))
+  .limit(20);
+```
+
+CockroachDB vs Postgres: CockroachDB is a drop-in PostgreSQL replacement for applications that need horizontal scaling and multi-region writes. For a single-region application with predictable load, managed Postgres (RDS, Supabase, Neon) is simpler: no retry logic, no Raft overhead, cheaper at small scale. CockroachDB shines when you outgrow a single Postgres node and need to shard across multiple regions without rewriting your application.
