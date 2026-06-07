@@ -1,0 +1,167 @@
+---
+title: "dig: DNS record lookup, authoritative tracing, and debugging"
+date: "2032-08-10"
+excerpt: "dig (Domain Information Groper) is the primary command-line tool for DNS queries — it resolves A, AAAA, MX, TXT, NS, CNAME, SRV, and PTR records and shows the full DNS response including query time, server used, TTL, and the authoritative answer flag. The +short flag suppresses the verbose output for scripting. The +trace flag follows the delegation chain from root servers down to the authoritative nameserver — essential for debugging DNS propagation, misconfigured NS records, and split-horizon DNS. dig @resolver queries a specific nameserver, bypassing the system resolver."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+`+short` for scripts. `+trace` for delegation debugging. `@1.1.1.1` to bypass local cache.
+
+## Record types and basic lookup
+
+```bash
+# A record: IPv4 address
+dig construx.io A
+dig construx.io A +short   # Just the IP, no formatting
+# 203.0.113.47
+# 203.0.113.48
+
+# AAAA record: IPv6 address
+dig construx.io AAAA +short
+# 2001:db8::1
+
+# MX records: mail servers (priority + hostname)
+dig construx.io MX +short
+# 10 mx1.construx.io.
+# 20 mx2.construx.io.
+
+# TXT records: SPF, DMARC, DKIM, verification tokens
+dig construx.io TXT +short
+# "v=spf1 include:_spf.google.com ip4:203.0.113.0/24 ~all"
+# "v=DMARC1; p=reject; rua=mailto:dmarc@construx.io"
+# "google-site-verification=a3f9b2c1d4e5f6a7b8c9"
+
+# NS records: authoritative nameservers for the domain
+dig construx.io NS +short
+# ns1.cloudflare.com.
+# ns2.cloudflare.com.
+
+# CNAME record: canonical name (alias)
+dig www.construx.io CNAME +short
+# construx.io.
+
+# SOA record: Start of Authority (zone info, serial, refresh intervals)
+dig construx.io SOA +short
+
+# PTR record: reverse DNS (IP → hostname)
+dig -x 203.0.113.47 +short
+# api.construx.io.
+
+# SRV record: service discovery (used by Kubernetes, Consul)
+dig _https._tcp.construx.io SRV +short
+# 0 5 443 api.construx.io.
+
+# CAA record: which CAs are allowed to issue certs for this domain
+dig construx.io CAA +short
+# 0 issue "letsencrypt.org"
+# 0 issuewild ";"
+```
+
+## Querying specific resolvers and tracing delegation
+
+```bash
+# Query a specific resolver (bypass system /etc/resolv.conf)
+dig @1.1.1.1 construx.io A           # Cloudflare's public resolver
+dig @8.8.8.8 construx.io A           # Google's public resolver
+dig @9.9.9.9 construx.io A           # Quad9 public resolver
+
+# Query the domain's own authoritative nameserver directly
+# First find the NS:
+AUTH_NS=$(dig construx.io NS +short | head -1)
+# Then query it directly:
+dig @$AUTH_NS construx.io A +short
+
+# +trace: follow the full delegation chain from root servers
+dig +trace construx.io A
+# .                  roots (13 root servers)
+# io.                TLD nameservers
+# construx.io.       Cloudflare nameservers
+# construx.io.  60   IN  A  203.0.113.47
+
+# Compare results between resolvers (check for split-horizon or propagation lag)
+for resolver in 1.1.1.1 8.8.8.8 9.9.9.9 208.67.222.222; do
+  printf "%-20s " $resolver
+  dig @$resolver construx.io A +short | tr '\n' ' '
+  echo
+done
+# 1.1.1.1              203.0.113.47 203.0.113.48
+# 8.8.8.8              203.0.113.47 203.0.113.48
+# 9.9.9.9              203.0.113.47
+# 208.67.222.222       203.0.113.47 203.0.113.48
+
+# Check TTL remaining on a cached record (different resolvers may have different caches)
+dig @1.1.1.1 construx.io A | grep "ANSWER SECTION" -A 3
+# construx.io.  47  IN  A  203.0.113.47  ← 47 seconds remaining in Cloudflare's cache
+```
+
+## Kubernetes and internal DNS debugging
+
+```bash
+# Kubernetes DNS: CoreDNS resolves service names in-cluster
+# Service FQDN format: <service>.<namespace>.svc.cluster.local
+
+# Query from inside a pod
+kubectl exec -it construx-api-xxx -- dig postgres.construx.svc.cluster.local A +short
+# 10.96.100.42  ← ClusterIP of the postgres service
+
+# Check which CoreDNS pod is resolving
+kubectl exec -it construx-api-xxx -- dig +short construx.io @kube-dns.kube-system.svc.cluster.local
+
+# Headless service: returns individual pod IPs (not ClusterIP)
+kubectl exec -it construx-api-xxx -- dig postgres-headless.construx.svc.cluster.local A +short
+# 10.0.1.4    ← pod 1
+# 10.0.1.5    ← pod 2
+# 10.0.1.6    ← pod 3
+
+# DNS search domains — a pod searches these before FQDN
+kubectl exec -it construx-api-xxx -- cat /etc/resolv.conf
+# search construx.svc.cluster.local svc.cluster.local cluster.local
+# nameserver 10.96.0.10   ← CoreDNS ClusterIP
+
+# So just "postgres" resolves as "postgres.construx.svc.cluster.local"
+kubectl exec -it construx-api-xxx -- dig postgres A +short
+# 10.96.100.42
+
+# CoreDNS slow? Check for 5-second DNS timeouts (ndots issue)
+# A search for "api.construx.io" with ndots:5 (default) tries:
+# api.construx.io.construx.svc.cluster.local   (NXDOMAIN)
+# api.construx.io.svc.cluster.local             (NXDOMAIN)
+# api.construx.io.cluster.local                 (NXDOMAIN)
+# api.construx.io.                              (resolves)
+# Fix: add a trailing dot (api.construx.io.) or set ndots:1 in pod resolv.conf
+```
+
+## Monitoring DNS propagation and health
+
+```bash
+# Check TTL on a record (important during migrations — low TTL = faster propagation)
+dig construx.io A | awk '/ANSWER SECTION/{getline; print $2, "seconds TTL"}'
+# 60 seconds TTL
+
+# Propagation check: query from multiple geographic locations
+# (Or use an online tool like dnschecker.org equivalent via API)
+for region in eu-west-1 us-east-1 ap-southeast-1; do
+  echo "=== $region ==="
+  # query from an EC2/Lambda in each region via AWS CLI
+done
+
+# DNSSEC: check if a domain has valid DNSSEC signatures
+dig construx.io +dnssec A
+# flags: qr rd ra ad   ← 'ad' flag = Authenticated Data (DNSSEC valid)
+
+# Check DNSSEC chain of trust
+dig construx.io DNSKEY +short
+dig construx.io DS +short   # Delegation Signer at parent zone
+
+# Negative caching: check NXDOMAIN TTL (set in SOA's minimum field)
+dig nonexistent.construx.io A
+# status: NXDOMAIN  (TTL from SOA minimum — typically 300-3600s)
+
+# Monitoring: alert if DNS resolves to wrong IP (detect hijacking/misconfiguration)
+EXPECTED="203.0.113.47"
+ACTUAL=$(dig @1.1.1.1 api.construx.io A +short | head -1)
+[ "$ACTUAL" = "$EXPECTED" ] || echo "ALERT: DNS mismatch! Got $ACTUAL, expected $EXPECTED"
+```
+
+dig vs nslookup vs host: nslookup is the older, interactive interface — still works but less feature-rich. host is simpler than dig, good for quick A/MX lookups but doesn't expose TTL, response flags, or query time. dig is the full-featured tool: it shows everything in the DNS response, supports all record types, and has flags for every corner case (+trace, +dnssec, +tcp, +notcp, +noidnout, +bufsize). For scripting, +short and combining with awk covers most needs. For debugging, the full dig output (with flags, TTL, server, query time) is what you need. Modern alternative: doggo and drill have cleaner output formats but are less universally available. dig is on every Linux system by default — know it well.

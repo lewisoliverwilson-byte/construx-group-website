@@ -20,6 +20,7 @@ import PostgresReplPanel from '@/components/PostgresReplPanel';
 import WasmComponentPanel from '@/components/WasmComponentPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
+import DigPanel from '@/components/DigPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -419,8 +420,13 @@ export default function ContactPage() {
       </section>
 
       {/* curl -v TLS handshake + response timing */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <CurlVerbosePanel />
+      </section>
+
+      {/* dig DNS record lookup */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DigPanel />
       </section>
     </div>
   );
