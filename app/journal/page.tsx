@@ -46,6 +46,7 @@ import HuggingFacePanel from '@/components/HuggingFacePanel';
 import SigstorePanel from '@/components/SigstorePanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
+import RenovatePanel from '@/components/RenovatePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -394,6 +395,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* jfrog xray artifact security — repos, policies, violations */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <JfrogXrayPanel />
+      </section>
+
+      {/* renovate dependency automation — repos, updates, automerge */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <RenovatePanel />
       </section>
 
       {/* Posts */}

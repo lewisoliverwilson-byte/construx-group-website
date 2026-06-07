@@ -41,6 +41,7 @@ import SpiceDbPanel from '@/components/SpiceDbPanel';
 import StepSecurityPanel from '@/components/StepSecurityPanel';
 import GrypePanel from '@/components/GrypePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
+import SyftPanel from '@/components/SyftPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -777,6 +778,11 @@ export default function WorkWithUsPage() {
       {/* cyclonedx sbom — components, licenses, vex vulnerability exchange */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <CycloneDxPanel />
+      </section>
+
+      {/* syft sbom generator — packages, cpes, ecosystems */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <SyftPanel />
       </section>
 
       {/* CTA */}

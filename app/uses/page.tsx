@@ -40,6 +40,7 @@ import RabbitMQPanel from '@/components/RabbitMQPanel';
 import SocketPanel from '@/components/SocketPanel';
 import PixiePanel from '@/components/PixiePanel';
 import NatsPanel from '@/components/NatsPanel';
+import EnvoyPanel from '@/components/EnvoyPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -542,8 +543,13 @@ export default function UsesPage() {
         </div>
 
         {/* nats jetstream messaging — subjects, consumers, streams */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NatsPanel />
+        </div>
+
+        {/* envoy service proxy — clusters, listeners, admin api */}
+        <div className="mt-6 pb-10">
+          <EnvoyPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

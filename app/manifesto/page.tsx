@@ -42,6 +42,7 @@ import DruidPanel from '@/components/DruidPanel';
 import KedaPanel from '@/components/KedaPanel';
 import OpaPanel from '@/components/OpaPanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
+import TemporalPanel from '@/components/TemporalPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -435,8 +436,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* tigerbeetle financial ledger — accounts, transfers, two-phase commit */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <TigerBeetlePanel />
+        </div>
+
+        {/* temporal workflow orchestration — workflows, activities, namespaces */}
+        <div className="mt-4 pb-6">
+          <TemporalPanel />
         </div>
 
         {/* Sign-off */}
