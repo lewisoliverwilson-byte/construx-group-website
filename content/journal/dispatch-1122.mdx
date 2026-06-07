@@ -1,0 +1,152 @@
+---
+title: "Headscale: self-hosted Tailscale control plane — mesh VPN, ACLs, MagicDNS, DERP"
+date: "2034-03-03"
+excerpt: "Headscale is an open-source, self-hosted implementation of the Tailscale control plane. Tailscale builds a secure mesh VPN using WireGuard between devices — phones, laptops, cloud servers, Kubernetes pods — with zero manual firewall rule management. The Tailscale client handles NAT traversal, key rotation, and route advertisement automatically; the control plane (Tailscale's coordination server, or Headscale when self-hosting) distributes public keys and ACL policies to all nodes. MagicDNS assigns stable DNS names to every node in the tailnet (device hostname.tailnet.ts.net), so services are reachable by name regardless of their IP. Headscale adds the self-hosted dimension: instead of routing control plane traffic through Tailscale's infrastructure, all coordination happens on your own server. This is essential for air-gapped environments, compliance requirements that prohibit third-party control planes, and organisations that need to integrate the control plane with their own identity provider. DERP (Designated Encrypted Relay for Packets) is Tailscale's fallback relay network — when direct peer-to-peer WireGuard connections cannot be established due to symmetric NAT, traffic relays through DERP servers. Headscale supports custom DERP server configuration, so teams with strict data residency requirements can run DERP relays in their own AWS or GCP regions."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Tailnet. MagicDNS. WireGuard. DERP relay. ACL. Headscale. Subnet router. Exit node.
+
+## Headscale deployment and ACL config
+
+```yaml
+# Headscale configuration: config.yaml
+# Self-hosted Tailscale control plane
+
+server_url: https://headscale.construx.internal
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 0.0.0.0:9090
+
+private_key_path: /etc/headscale/private.key
+noise:
+  private_key_path: /etc/headscale/noise_private.key
+
+ip_prefixes:
+  - fd7a:115c:a1e0::/48   # IPv6 prefix for Tailscale addresses
+  - 100.64.0.0/10          # IPv4 CGNAT range (standard Tailscale range)
+
+database:
+  type: postgres
+  postgres:
+    host: postgres-0.construx-prod.svc.cluster.local
+    port: 5432
+    name: headscale
+    user: headscale
+    password: "${HEADSCALE_DB_PASSWORD}"
+    ssl: require
+
+derp:
+  server:
+    enabled: true           # Run a built-in DERP relay
+    region_id: 901
+    region_code: "construx-eu"
+    region_name: "Construx EU West"
+    stun_listen_addr: "0.0.0.0:3478"
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default  # also use Tailscale public DERPs as fallback
+
+dns_config:
+  magic_dns: true
+  base_domain: construx.ts.net
+  nameservers:
+    - 1.1.1.1
+    - 8.8.8.8
+  override_local_dns: false
+
+oidc:
+  issuer: https://dex.construx.internal
+  client_id: headscale
+  client_secret: "${OIDC_CLIENT_SECRET}"
+  scope: ["openid", "profile", "email"]
+  # Map OIDC user to Headscale namespace (user group)
+  strip_email_domain: false
+```
+
+```yaml
+# Tailscale ACL policy (HuJSON format, applied via Headscale API)
+# Controls which devices can communicate with which services
+
+{
+  // Tag-based ACL: devices tagged with :k8s-node can reach each other on any port
+  // Developers (tagged :developer) can SSH into nodes but not reach prod databases
+  "tagOwners": {
+    "tag:k8s-node":   ["autogroup:admin"],
+    "tag:developer":  ["autogroup:admin"],
+    "tag:ci-runner":  ["autogroup:admin"]
+  },
+
+  "acls": [
+    // K8s nodes can communicate freely on the cluster network
+    {
+      "action": "accept",
+      "src": ["tag:k8s-node"],
+      "dst": ["tag:k8s-node:*"]
+    },
+
+    // Developers can SSH into k8s nodes (bastion-less access)
+    {
+      "action": "accept",
+      "src": ["tag:developer"],
+      "dst": ["tag:k8s-node:22"]
+    },
+
+    // CI runners can push to the container registry and reach the k8s API
+    {
+      "action": "accept",
+      "src": ["tag:ci-runner"],
+      "dst": ["tag:k8s-node:6443", "tag:k8s-node:5000"]
+    },
+
+    // Developers can access Grafana, Alertmanager, and internal tooling
+    {
+      "action": "accept",
+      "src": ["tag:developer"],
+      "dst": ["100.64.0.0/10:443", "100.64.0.0/10:3000"]
+    }
+  ],
+
+  // MagicDNS: short names for key services within the tailnet
+  "hosts": {
+    "grafana":      "100.64.1.10",
+    "alertmanager": "100.64.1.11",
+    "vault":        "100.64.1.12",
+    "headscale":    "100.64.1.13"
+  }
+}
+```
+
+```bash
+# Headscale CLI: node and user management
+
+# Register a new device
+headscale nodes register --user construx-prod --key nodekey:abc123...
+
+# List all nodes in the tailnet
+headscale nodes list
+# ID  | HOSTNAME           | USER         | IP             | ONLINE | EXPIRY
+# 1   | k8s-worker-1       | construx-prod| 100.64.0.1     | yes    | 2034-08-01
+# 2   | k8s-worker-2       | construx-prod| 100.64.0.2     | yes    | 2034-08-01
+# 3   | lewis-macbook      | developers   | 100.64.10.1    | yes    | 2034-08-01
+# 4   | ci-runner-1        | ci           | 100.64.20.1    | yes    | never
+
+# Tag a node (used for ACL matching)
+headscale nodes tag -i 1 --tags tag:k8s-node
+headscale nodes tag -i 3 --tags tag:developer
+
+# Pre-approve a subnet route (advertise k8s cluster CIDR via subnet router)
+headscale routes enable --route 10.96.0.0/12   # ClusterIP range
+headscale routes enable --route 10.244.0.0/16  # Pod CIDR
+
+# On k8s subnet router pod:
+tailscale up --advertise-routes=10.96.0.0/12,10.244.0.0/16 \
+  --login-server=https://headscale.construx.internal \
+  --authkey="${TAILSCALE_AUTHKEY}"
+
+# Test connectivity through the tailnet
+tailscale ping grafana.construx.ts.net
+# pong from grafana.construx.ts.net (100.64.1.10) via DERP(construx-eu) in 8ms
+# pong from grafana.construx.ts.net (100.64.1.10) via 10.0.1.5:41521 in 1ms (direct)
+```
+
+Headscale vs Tailscale (hosted) vs WireGuard manual vs Nebula vs ZeroTier: Tailscale hosted is the easiest option by a significant margin — sign in, install the client, and every device on your account is in a mesh VPN with automatic NAT traversal, MagicDNS, and ACLs. The control plane is managed; you never touch key distribution or DERP relay setup. Headscale trades this convenience for sovereignty: your control plane, your data, your infrastructure. WireGuard manual requires you to manage key distribution, peer configuration, and NAT traversal yourself — it is the underlying cryptographic primitive, not a solution to the operational problem. Nebula (from Slack) is similar to Tailscale but fully self-hosted — it uses its own lighthouse nodes for peer discovery rather than DERP relays. ZeroTier is another peer-to-peer VPN with self-hosted controller support. For Construx, Headscale is the answer to "Tailscale ergonomics + self-hosted control plane" — developers connect their laptops to the tailnet with a single `tailscale up` command and immediately have SSH access to all nodes and HTTPS access to internal tooling, with no VPN client configuration, no static IP management, and no firewall rule updates.

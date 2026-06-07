@@ -27,6 +27,7 @@ import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 import QdrantPanel from '@/components/QdrantPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import TalosPanel from '@/components/TalosPanel';
+import GatekeeperPanel from '@/components/GatekeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -464,8 +465,13 @@ export default function UsesPage() {
         </div>
 
         {/* talos linux immutable kubernetes os — no ssh, api-driven, atomic upgrade */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TalosPanel />
+        </div>
+
+        {/* opa gatekeeper admission control — constraints, rego, audit, violations */}
+        <div className="mt-6 pb-10">
+          <GatekeeperPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
