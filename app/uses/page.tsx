@@ -33,6 +33,7 @@ import GVisorPanel from '@/components/GVisorPanel';
 import NomadPanel from '@/components/NomadPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
+import KedaPanel from '@/components/KedaPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -502,6 +503,11 @@ export default function UsesPage() {
         {/* sonarqube code quality — coverage, security gates, open issues */}
         <div className="mt-6 pb-10">
           <SonarQubePanel />
+        </div>
+
+        {/* keda kubernetes event-driven autoscaler — scaled objects, triggers, scale events */}
+        <div className="mt-6 pb-10">
+          <KedaPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

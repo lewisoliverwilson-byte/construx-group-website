@@ -34,6 +34,7 @@ import ContainerdPanel from '@/components/ContainerdPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
+import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -389,6 +390,11 @@ export default function ManifestoPage() {
         {/* kube-bench cis kubernetes benchmark — control plane, nodes, policies */}
         <div className="mt-4 pb-6">
           <KubebenchPanel />
+        </div>
+
+        {/* openfga relationship-based authorization — tuples, checks, zanzibar model */}
+        <div className="mt-4 pb-6">
+          <OpenFgaAuditPanel />
         </div>
 
         {/* Sign-off */}

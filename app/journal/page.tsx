@@ -38,6 +38,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import K3sPanel from '@/components/K3sPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import AtlasPanel from '@/components/AtlasPanel';
+import LokiPanel from '@/components/LokiPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -346,6 +347,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* atlas schema migrations — versioned, lint, apply history */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <AtlasPanel />
+      </section>
+
+      {/* grafana loki log aggregation — streams, logql, ingest rate */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LokiPanel />
       </section>
 
       {/* Posts */}
