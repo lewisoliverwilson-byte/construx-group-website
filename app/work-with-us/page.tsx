@@ -29,6 +29,7 @@ import MinIOPanel from '@/components/MinIOPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import RenovatePanel from '@/components/RenovatePanel';
 import StrimziPanel from '@/components/StrimziPanel';
+import VclusterPanel from '@/components/VclusterPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -703,8 +704,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* strimzi kafka on kubernetes — kraft, topics, mtls, cruise-control */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <StrimziPanel />
+      </section>
+
+      {/* vcluster virtual kubernetes clusters — k3s/k0s/eks, sync, multi-tenant */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <VclusterPanel />
       </section>
 
       {/* CTA */}
