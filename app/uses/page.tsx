@@ -86,6 +86,7 @@ import LatencyMapPanel from '@/components/LatencyMapPanel';
 import MimirPanel from '@/components/MimirPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
+import ParcaPanel from '@/components/ParcaPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -818,8 +819,13 @@ export default function UsesPage() {
         </div>
 
         {/* opencost — workloads, namespaces, cost, efficiency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenCostPanel />
+        </div>
+
+        {/* parca — profiles, flamegraph, cpu, heap, goroutines */}
+        <div className="mt-6 pb-10">
+          <ParcaPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

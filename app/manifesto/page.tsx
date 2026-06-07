@@ -88,6 +88,7 @@ import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
+import OpenObservePanel from '@/components/OpenObservePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -711,8 +712,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nginx access log — requests, status, bytes, latency */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NginxAccessLogPanel />
+        </div>
+
+        {/* openobserve — streams, alerts, dashboards, ingestion */}
+        <div className="mt-4 pb-6">
+          <OpenObservePanel />
         </div>
 
         {/* Sign-off */}

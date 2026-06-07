@@ -87,6 +87,7 @@ import KubescapePanel from '@/components/KubescapePanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
+import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1051,8 +1052,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* nvidia smi — gpu, vram, temp, util, power */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NvidiaSmiPanel />
+      </section>
+
+      {/* otel collector — pipelines, receivers, processors, exporters */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <OtelCollectorPanel />
       </section>
 
       {/* CTA */}
