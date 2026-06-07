@@ -1,0 +1,153 @@
+---
+title: "Pyroscope: continuous profiling — always-on flame graphs in production"
+date: "2033-05-31"
+excerpt: "Pyroscope is a continuous profiling backend: it collects CPU profiles, memory profiles, and goroutine traces from running applications at low overhead (typically 1-2% CPU), stores them efficiently, and makes them queryable by time range, label, and service. Where a traditional profiler requires attaching to a process and running for a short window, Pyroscope runs always-on — when a production incident causes a latency spike, you can query 'what was the CPU profile of the API service during those five minutes' without having deployed any special instrumentation beforehand. Pyroscope integrates with OpenTelemetry traces (trace-to-profile linking: click on a slow span and see the CPU flame graph for that exact execution), with Grafana (as a datasource for the Flame Graph panel), and with Parca (CNCF's equivalent). The eBPF-based profiler runs as a DaemonSet and profiles every process on the node without any code changes."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Always-on profiling. Flame graphs. eBPF profiler. Trace-to-profile linking. Grafana integration.
+
+## eBPF profiler as DaemonSet
+
+```yaml
+# Pyroscope: deployed as server + eBPF profiler DaemonSet
+
+helm repo add grafana https://grafana.github.io/helm-charts
+helm upgrade --install pyroscope grafana/pyroscope \
+  --namespace pyroscope \
+  --create-namespace \
+  --set pyroscope.replicationFactor=1 \
+  --set storage.backend=s3 \
+  --set storage.s3.bucketName=construx-pyroscope \
+  --set storage.s3.region=eu-west-1
+
+---
+# Grafana Alloy: eBPF profiler — profiles all processes on the node, no code changes
+# Add to your Alloy River config:
+
+pyroscope.ebpf "default" {
+  forward_to = [pyroscope.write.grafana_cloud_pyroscope.receiver]
+
+  targets_only = false   # profile all processes, not just labelled ones
+
+  # Kubernetes metadata: label profiles by pod, namespace, service
+  kubernetes_node_name = sys.env("KUBE_NODE_NAME")
+}
+
+pyroscope.write "grafana_cloud_pyroscope" {
+  endpoint {
+    url = "http://pyroscope.pyroscope.svc:4040"
+  }
+}
+
+---
+# Alternative: pull-mode eBPF profiler DaemonSet (profiles every pod automatically)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: pyroscope-ebpf-profiler
+  namespace: pyroscope
+spec:
+  selector:
+    matchLabels:
+      app: pyroscope-ebpf-profiler
+  template:
+    spec:
+      hostPID: true       # required for eBPF process profiling
+      containers:
+        - name: profiler
+          image: grafana/alloy:v1.4.0
+          securityContext:
+            privileged: true   # required for eBPF
+          volumeMounts:
+            - name: alloy-config
+              mountPath: /etc/alloy
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+```
+
+## SDK instrumentation and trace-to-profile linking
+
+```go
+// Go: push-mode profiling with trace correlation
+// Useful when you need custom labels (user tier, request type) on profiles
+
+import "github.com/grafana/pyroscope-go"
+
+func main() {
+    profiler, err := pyroscope.Start(pyroscope.Config{
+        ApplicationName: "construx.api",
+        ServerAddress:   "http://pyroscope.pyroscope.svc:4040",
+        Logger:          pyroscope.StandardLogger,
+
+        // Labels: filter profiles by these dimensions in Pyroscope
+        Tags: map[string]string{
+            "environment": os.Getenv("ENV"),
+            "version":     os.Getenv("APP_VERSION"),
+        },
+
+        // Profile types to collect
+        ProfileTypes: []pyroscope.ProfileType{
+            pyroscope.ProfileCPU,
+            pyroscope.ProfileAllocObjects,
+            pyroscope.ProfileAllocSpace,
+            pyroscope.ProfileInuseObjects,
+            pyroscope.ProfileInuseSpace,
+            pyroscope.ProfileGoroutines,
+        },
+    })
+    if err != nil {
+        panic(err)
+    }
+    defer profiler.Stop()
+}
+
+// Per-request labelling: tag profiles with request-specific context
+// Allows querying "what was slow for premium users vs standard users"
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+    userTier := getUserTier(r)
+
+    // This request's profile will be labelled with the user tier
+    pyroscope.TagWrapper(r.Context(), pyroscope.Labels(
+        "endpoint",  r.URL.Path,
+        "user_tier", userTier,
+        "method",    r.Method,
+    ), func(ctx context.Context) {
+        // All CPU time here is attributed to these labels
+        processRequest(ctx, w, r)
+    })
+}
+```
+
+```bash
+# Query Pyroscope via API or Grafana
+
+# HTTP API: get aggregated profile for a time range
+curl "http://pyroscope.pyroscope.svc:4040/pyroscope/render?query=construx.api.cpu{}\
+&from=now-5m&until=now&format=json" | jq '.flamebearer.names[:5]'
+
+# Grafana: add Pyroscope as a data source
+# Data Sources → Add → Grafana Pyroscope
+# URL: http://pyroscope.pyroscope.svc:4040
+# Then use the Flame Graph panel type in any dashboard
+
+# Trace-to-profile: link a Grafana Tempo trace to its Pyroscope profile
+# In Grafana Tempo data source config:
+# tracesToProfiles:
+#   datasourceUid: pyroscope-uid
+#   profileTypeId: process_cpu:cpu:nanoseconds:cpu:nanoseconds
+#   customQuery: true
+#   query: select(service_name="${__tags.service_name}")
+# Now: click on a slow span in Tempo → opens the CPU flame graph for that time window
+
+# Compare two time ranges: before and after a deploy
+# In Grafana Pyroscope: use the "comparison" mode
+# Left: 09:00-09:15 (before deploy)  Right: 09:30-09:45 (after deploy)
+# Diff view shows functions that grew (red) or shrank (green) in CPU time
+```
+
+Pyroscope vs Parca vs Datadog APM profiling vs manual pprof: pprof (Go's built-in profiler) requires attaching to a specific process for a specific window — you can only profile what you planned to profile. Datadog APM has continuous profiling as a feature but requires the Datadog agent and incurs the associated cost. Parca is the CNCF alternative to Pyroscope — similar eBPF-based always-on approach, compatible with pprof format, slightly less mature. Pyroscope integrates most tightly with Grafana (it's a Grafana Labs project) and supports the trace-to-profile linking via Tempo. The key insight that continuous profiling solves: production performance incidents happen at unpredictable times, and starting a profiler after the fact means you miss the data. Always-on profiling at 1-2% overhead means the data is always there when you need it.

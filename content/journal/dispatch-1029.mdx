@@ -1,0 +1,167 @@
+---
+title: "Pulumi: infrastructure as code in TypeScript, Python, and Go"
+date: "2033-05-28"
+excerpt: "Pulumi is an infrastructure-as-code tool that uses general-purpose programming languages — TypeScript, Python, Go, Java, C# — instead of a domain-specific language like HCL. The practical difference: you can write functions, loops, conditional logic, and import existing libraries to build your infrastructure. A Pulumi program is a normal program that imports the Pulumi SDK and declares resources as class instances; the Pulumi CLI evaluates the program and computes the diff between the desired state and the current state (stored in a state backend — Pulumi Cloud, S3, or Azure Blob). Pulumi supports the same providers as Terraform — AWS, GCP, Azure, Kubernetes — plus generates Pulumi providers from any Terraform provider. For TypeScript teams already writing frontend and backend code, Pulumi removes the cognitive overhead of learning HCL and lets you apply the same tooling (IDE, linting, testing) to infrastructure."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+TypeScript. General-purpose language. Stack. Provider. State backend. Preview and update.
+
+## Project setup and first resource
+
+```typescript
+// Pulumi TypeScript: infrastructure defined as a normal TypeScript program
+// Install: npm install @pulumi/pulumi @pulumi/aws @pulumi/awsx @pulumi/kubernetes
+
+import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+import * as awsx from "@pulumi/awsx";
+import * as k8s from "@pulumi/kubernetes";
+
+// Config: read stack-specific values
+const config = new pulumi.Config();
+const environment = pulumi.getStack();       // "prod" or "staging"
+const region = config.require("awsRegion"); // "eu-west-1"
+
+// VPC: create a full VPC with public and private subnets
+const vpc = new awsx.ec2.Vpc(`construx-${environment}`, {
+    cidrBlock: "10.0.0.0/16",
+    numberOfAvailabilityZones: 3,
+    natGateways: { strategy: "Single" },
+    subnetStrategy: awsx.ec2.SubnetAllocationStrategy.Auto,
+    tags: {
+        Name:        `construx-${environment}`,
+        Environment: environment,
+        ManagedBy:   "pulumi",
+    },
+});
+
+// RDS: production PostgreSQL
+const dbSubnetGroup = new aws.rds.SubnetGroup(`construx-db-${environment}`, {
+    subnetIds: vpc.privateSubnetIds,
+    tags: { Environment: environment },
+});
+
+const db = new aws.rds.Instance(`construx-postgres-${environment}`, {
+    engine:                 "postgres",
+    engineVersion:          "16.2",
+    instanceClass:          environment === "prod" ? "db.t3.large" : "db.t3.micro",
+    allocatedStorage:       environment === "prod" ? 100 : 20,
+    dbName:                 "construx",
+    username:               "construx",
+    password:               config.requireSecret("dbPassword"),
+    dbSubnetGroupName:      dbSubnetGroup.name,
+    multiAz:                environment === "prod",
+    deletionProtection:     environment === "prod",
+    backupRetentionPeriod:  environment === "prod" ? 14 : 1,
+    skipFinalSnapshot:      environment !== "prod",
+    tags: { Environment: environment },
+});
+
+// Export the connection string as a stack output
+export const dbEndpoint = db.endpoint;
+```
+
+## Kubernetes resources and component resources
+
+```typescript
+// Component resource: encapsulate a group of related resources as a reusable class
+
+class ConstructxApi extends pulumi.ComponentResource {
+    public readonly endpoint: pulumi.Output<string>;
+
+    constructor(name: string, args: {
+        namespace: string;
+        image: string;
+        replicas: number;
+        dbSecret: k8s.core.v1.Secret;
+    }, opts?: pulumi.ComponentResourceOptions) {
+        super("construx:index:ConstructxApi", name, {}, opts);
+
+        const deployment = new k8s.apps.v1.Deployment(`${name}-deploy`, {
+            metadata: { namespace: args.namespace },
+            spec: {
+                replicas: args.replicas,
+                selector: { matchLabels: { app: name } },
+                template: {
+                    metadata: { labels: { app: name } },
+                    spec: {
+                        containers: [{
+                            name: "api",
+                            image: args.image,
+                            ports: [{ containerPort: 8080 }],
+                            env: [{
+                                name: "DATABASE_URL",
+                                valueFrom: {
+                                    secretKeyRef: {
+                                        name: args.dbSecret.metadata.name,
+                                        key: "DATABASE_URL",
+                                    },
+                                },
+                            }],
+                            resources: {
+                                requests: { memory: "256Mi", cpu: "200m" },
+                                limits:   { memory: "512Mi", cpu: "500m" },
+                            },
+                        }],
+                    },
+                },
+            },
+        }, { parent: this });
+
+        const svc = new k8s.core.v1.Service(`${name}-svc`, {
+            metadata: { namespace: args.namespace },
+            spec: {
+                selector: { app: name },
+                ports: [{ port: 80, targetPort: 8080 }],
+                type: "ClusterIP",
+            },
+        }, { parent: this });
+
+        this.endpoint = svc.status.apply(s => s.loadBalancer?.ingress?.[0]?.hostname ?? "pending");
+        this.registerOutputs({ endpoint: this.endpoint });
+    }
+}
+
+// Use the component
+const api = new ConstructxApi("construx-api", {
+    namespace: "construx-prod",
+    image:     `registry.construx.internal/api:${process.env.IMAGE_TAG}`,
+    replicas:  3,
+    dbSecret:  dbSecret,
+});
+```
+
+```bash
+# Pulumi workflow
+
+# Preview: compute the diff — what will change
+pulumi preview --stack prod
+# Previewing update (prod):
+#   + aws:rds/instance:Instance  construx-postgres-prod  create
+#   + aws:ec2/vpc:Vpc           construx-prod-vpc        create
+#   + kubernetes:apps/v1:Deployment  construx-api-deploy  create
+# Resources: 3 to create
+
+# Update: apply the changes
+pulumi up --stack prod --yes
+
+# Destroy a stack (staging environments after testing)
+pulumi destroy --stack staging --yes
+
+# Secrets: encrypted in state, never visible in plaintext in git
+pulumi config set --secret dbPassword "super-secret-value"
+# Stored as ciphertext in Pulumi.staging.yaml
+
+# Import existing AWS resources into Pulumi state (no re-creation)
+pulumi import aws:rds/instance:Instance construx-postgres-legacy \
+  construx-postgres-legacy \
+  --stack prod
+
+# Stack outputs: reference values from other stacks
+const infraStack = new pulumi.StackReference("construx-org/infra/prod");
+const vpcId = infraStack.getOutput("vpcId");
+```
+
+Pulumi vs Terraform vs CDK vs CloudFormation: Terraform's HCL is purpose-built for infrastructure — readable and well-understood by ops teams, but loops and conditionals are verbose and there is no IDE type-checking. CDK (AWS) generates CloudFormation, which limits you to AWS and has CloudFormation's limits. CloudFormation directly is verbose and slow. Pulumi's advantage is full language capability: IDE autocomplete, type checking at write time, existing testing frameworks (Jest, pytest), and the ability to use any npm/PyPI package in your infrastructure code. The downside is that Pulumi programs can become complex application code, requiring the same engineering discipline as other code — a Terraform module is generally easier to read for an ops engineer than a TypeScript class hierarchy. For TypeScript-heavy teams, Pulumi fits naturally; for multi-team environments with mixed backgrounds, Terraform's simpler mental model is often worth the HCL limitations.

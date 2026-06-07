@@ -24,6 +24,7 @@ import DigPanel from '@/components/DigPanel';
 import StepCliPanel from '@/components/StepCliPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import RedpandaPanel from '@/components/RedpandaPanel';
+import CockroachDbPanel from '@/components/CockroachDbPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -443,8 +444,13 @@ export default function ContactPage() {
       </section>
 
       {/* redpanda kafka-compatible streaming — no JVM, raft built in */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <RedpandaPanel />
+      </section>
+
+      {/* cockroachdb distributed sql — raft replication, serializable isolation */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CockroachDbPanel />
       </section>
     </div>
   );
