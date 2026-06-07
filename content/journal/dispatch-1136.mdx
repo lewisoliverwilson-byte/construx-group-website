@@ -1,0 +1,134 @@
+---
+title: "Sealed Secrets: GitOps-safe Kubernetes secret encryption — kubeseal, cert rotation, scope"
+date: "2034-04-14"
+excerpt: "Sealed Secrets (from Bitnami, now Bitnami Labs) is a Kubernetes operator that solves the GitOps secret problem: Kubernetes Secrets are base64-encoded, not encrypted — storing them in Git exposes credentials in plaintext to anyone with repository access. Sealed Secrets encrypts Kubernetes Secrets with the cluster's public key using RSA-OAEP, producing a SealedSecret resource that is safe to commit to Git. The controller running in the cluster decrypts SealedSecrets using its private key, creating the corresponding Kubernetes Secret. The encryption is cluster-specific: a SealedSecret encrypted for the production cluster cannot be decrypted in staging (unless the same sealing key is used), and a stolen SealedSecret YAML is useless without access to the cluster's private key. The scoping mechanism controls which namespaces can use each SealedSecret: cluster-wide (any namespace), namespace-wide (only the specified namespace, any secret name), or strict (only the exact namespace and secret name). Strict scope is the most secure — a SealedSecret with scope: strict for `namespace: construx-prod / name: orders-api-secrets` cannot be moved to a different namespace or renamed, preventing privilege escalation. Certificate rotation happens automatically: the controller generates a new sealing certificate every 30 days, and existing SealedSecrets continue to work (decrypted with the old key), but new secrets are encrypted with the new key. The `kubeseal --rotate` command re-encrypts existing SealedSecrets with the new certificate."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+kubeseal. RSA-OAEP. Strict scope. Certificate rotation. Flux. GitOps. Private key.
+
+## Sealed Secrets workflow and scope config
+
+```bash
+# Sealed Secrets: the complete GitOps secret workflow
+
+# 1. Fetch the cluster's public sealing certificate
+kubeseal --fetch-cert \
+  --controller-name=sealed-secrets \
+  --controller-namespace=kube-system \
+  > sealing-cert.pem
+
+# Verify certificate fingerprint (against known-good value in documentation)
+openssl x509 -in sealing-cert.pem -fingerprint -sha256 -noout
+# SHA256 Fingerprint=7F:3A:...:E9:C2
+
+# 2. Create a Kubernetes Secret (in a temp file — never committed)
+kubectl create secret generic orders-api-secrets \
+  --namespace construx-prod \
+  --dry-run=client \
+  --from-literal=STRIPE_API_KEY="${STRIPE_API_KEY}" \
+  --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
+  --from-literal=JWT_SIGNING_KEY="${JWT_SIGNING_KEY}" \
+  --output yaml > /tmp/secret.yaml
+
+# 3. Seal the secret with strict scope (namespace + name bound)
+kubeseal \
+  --cert sealing-cert.pem \
+  --format=yaml \
+  --scope=strict \           # strictly bound to namespace + name
+  < /tmp/secret.yaml \
+  > k8s/construx-prod/secrets/orders-api-secrets.yaml
+
+# 4. Delete the plaintext secret file immediately
+rm /tmp/secret.yaml
+
+# 5. Commit the SealedSecret to Git (safe — RSA-OAEP encrypted)
+git add k8s/construx-prod/secrets/orders-api-secrets.yaml
+git commit -m "chore: update orders-api Stripe API key"
+git push
+
+# The controller in the cluster detects the SealedSecret, decrypts it,
+# and creates/updates the Kubernetes Secret automatically.
+
+# Inspect a deployed SealedSecret
+kubectl get sealedsecret orders-api-secrets -n construx-prod -o yaml
+
+# Check the resulting Kubernetes Secret (decrypted by controller)
+kubectl get secret orders-api-secrets -n construx-prod \
+  -o jsonpath='{.data.STRIPE_API_KEY}' | base64 -d
+```
+
+```yaml
+# SealedSecret YAML: what gets committed to Git
+# Safe to store — RSA-OAEP encrypted with the cluster's public key
+
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: orders-api-secrets
+  namespace: construx-prod
+  annotations:
+    # Strict scope: cannot be moved to another namespace or renamed
+    sealedsecrets.bitnami.com/namespace-wide: "false"
+    sealedsecrets.bitnami.com/cluster-wide: "false"
+spec:
+  encryptedData:
+    STRIPE_API_KEY:  AgBy8hmkLz4vGqRpXm7Tn9wJ...XqR3kF2mN8pL7vQ4hT6yX9cK3rZ5qA
+    DB_PASSWORD:     AgCwVqp9nkTmR4hJx2Lp8dN7...Zm4fK9yP3qM6wL1nX8cT7vB5rJ2kH
+    JWT_SIGNING_KEY: AgDqR7sL2mK9nPxT4vW8jH6b...Yt5gF3cN1kM7pR4qL9xZ8wJ6vT2hB
+  template:
+    metadata:
+      name: orders-api-secrets
+      namespace: construx-prod
+    type: Opaque
+
+---
+# Sealed Secrets controller deployment (Helm)
+# bitnami-labs/sealed-secrets chart
+
+sealed-secrets:
+  keyrenewperiod: "720h"      # rotate sealing key every 30 days
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+```
+
+```bash
+# Certificate rotation: re-seal after key rotation
+
+# List all sealing keys (controller generates new key every 30 days)
+kubectl get secrets -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o jsonpath='{.items[*].metadata.name}'
+
+# Re-seal all existing SealedSecrets with the new certificate
+# (after key rotation, existing secrets still work — but best practice is to re-seal)
+for secret_file in $(find k8s/ -name "*-sealed.yaml"); do
+  namespace=$(yq '.metadata.namespace' "$secret_file")
+  name=$(yq '.metadata.name' "$secret_file")
+
+  # Fetch current Secret (decrypted by controller)
+  kubectl get secret "$name" -n "$namespace" -o yaml > /tmp/current.yaml
+
+  # Re-seal with new certificate
+  kubeseal --cert sealing-cert-new.pem --format=yaml \
+    --scope=strict < /tmp/current.yaml > "$secret_file"
+
+  rm /tmp/current.yaml
+done
+
+git add k8s/
+git commit -m "chore: rotate all SealedSecrets to new sealing certificate"
+
+# Flux integration: Flux reconciles SealedSecrets from Git automatically
+# No manual kubectl apply needed — the GitOps loop handles it
+flux reconcile source git construx-platform --with-source
+flux reconcile kustomization construx-prod-secrets
+```
+
+Sealed Secrets vs SOPS vs External Secrets Operator vs Vault Agent vs HashiCorp Vault: SOPS (Secrets OPerationS) encrypts entire files (YAML/JSON) or specific values using KMS (AWS KMS, GCP KMS, Azure Key Vault) or age/PGP. It's the preferred approach in Flux's gitops toolkit — `sops.yaml` beside each secrets file tells Flux how to decrypt. SOPS requires key management (KMS keys or PGP keys), but the encryption is more flexible than Sealed Secrets — it works for any file format, not just Kubernetes Secrets. External Secrets Operator (dispatch-1113) doesn't store secrets in Git at all — it syncs from an external store. This is architecturally cleaner but requires an external secrets store to exist and be accessible. Sealed Secrets is the simplest option that makes secrets Git-safe: no external dependencies, no key management infrastructure, works with any GitOps tool. The limitation: if you lose the cluster's private key (and the backup), all SealedSecrets are permanently unrecoverable — the private key must be backed up. At Construx, Sealed Secrets handles secrets for Flux-managed clusters where simplicity matters; ESO handles secrets for Vault-backed environments where centralised rotation and policy enforcement are required.

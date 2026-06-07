@@ -1,0 +1,196 @@
+---
+title: "Prometheus Operator: CRD-driven monitoring — ServiceMonitor, PodMonitor, PrometheusRule"
+date: "2034-04-17"
+excerpt: "The Prometheus Operator is a Kubernetes operator that manages Prometheus, Alertmanager, and related components via CRDs (Custom Resource Definitions). Before the operator, deploying Prometheus in Kubernetes meant manually writing scrape configs listing every target's IP and port — as pods scaled and restarted, the config drifted. The operator introduces ServiceMonitor and PodMonitor resources that declaratively describe which Kubernetes services and pods to scrape, and the operator automatically generates Prometheus scrape configuration from them. A ServiceMonitor selects services by label, specifies which port to scrape, the metrics path, and the scrape interval — when a new instance of orders-api is deployed with the correct label, Prometheus automatically discovers and scrapes it. PrometheusRule CRDs define recording rules and alerting rules as code — instead of editing Prometheus's rule files manually, teams define PrometheusRule resources that the operator syncs. This GitOps-compatible workflow means all Prometheus configuration is stored in Git, reviewed via pull request, and applied by the cluster's GitOps tool. The kube-prometheus-stack Helm chart bundles the operator, Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, and a comprehensive set of default dashboards and alerts — it is the standard starting point for Kubernetes monitoring and the approach used across all Construx clusters."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+ServiceMonitor. PodMonitor. PrometheusRule. Operator. kube-prometheus-stack. CRD. Scrape config.
+
+## Prometheus Operator CRDs and kube-prometheus-stack
+
+```yaml
+# ServiceMonitor: scrape orders-api metrics endpoint
+# Selected by Prometheus based on namespaceSelector + selector labels
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: orders-api
+  namespace: construx-monitoring     # where Prometheus operator watches
+  labels:
+    release: kube-prometheus         # must match Prometheus's serviceMonitorSelector
+spec:
+  namespaceSelector:
+    matchNames:
+      - construx-prod
+      - construx-staging
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orders-api  # selects Services with this label
+
+  endpoints:
+    - port: metrics        # must match Service port name
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      scheme: http
+
+      # Add relabeling: drop high-cardinality labels before storage
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+
+      # Metric relabeling: drop metrics we don't need
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: "go_gc_.*"
+          action: drop
+
+---
+# PodMonitor: scrape pods that don't expose a Service
+# Useful for DaemonSets and batch workloads
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: worker-pods
+  namespace: construx-monitoring
+  labels:
+    release: kube-prometheus
+spec:
+  namespaceSelector:
+    matchNames: [construx-prod]
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+
+---
+# PrometheusRule: alerting and recording rules as CRDs
+# Operator syncs these to Prometheus's rule files automatically
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: orders-api-alerts
+  namespace: construx-monitoring
+  labels:
+    release: kube-prometheus
+spec:
+  groups:
+    - name: orders-api.rules
+      interval: 30s
+      rules:
+        # Recording rule: pre-compute error rate for dashboard performance
+        - record: job:orders_api_error_rate:rate5m
+          expr: |
+            rate(http_requests_total{job="orders-api",status=~"5.."}[5m])
+            /
+            rate(http_requests_total{job="orders-api"}[5m])
+
+        # Alert: high error rate
+        - alert: OrdersApiHighErrorRate
+          expr: job:orders_api_error_rate:rate5m > 0.01
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "orders-api error rate above 1%"
+            description: "Error rate is {{ humanizePercentage $value }} over the last 5 minutes"
+            runbook: "https://runbooks.construx.internal/orders-api/high-error-rate"
+            dashboard: "https://grafana.construx.internal/d/orders-api?var-env=prod"
+
+        # Alert: SLO burn rate (14x over 1h = critical)
+        - alert: OrdersApiSLOBurnRateCritical
+          expr: |
+            (
+              rate(http_requests_total{job="orders-api",status=~"5.."}[1h])
+              / rate(http_requests_total{job="orders-api"}[1h])
+            ) > (14 * 0.001)  # 14x the error budget rate
+          for: 2m
+          labels:
+            severity: page
+```
+
+```yaml
+# kube-prometheus-stack Helm values (key configuration)
+# prometheus-community/kube-prometheus-stack
+
+prometheus:
+  prometheusSpec:
+    # Only scrape ServiceMonitors with release=kube-prometheus label
+    serviceMonitorSelector:
+      matchLabels:
+        release: kube-prometheus
+    serviceMonitorNamespaceSelector:
+      matchLabels: {}   # all namespaces
+
+    podMonitorSelector:
+      matchLabels:
+        release: kube-prometheus
+
+    ruleSelector:
+      matchLabels:
+        release: kube-prometheus
+
+    # Remote write to Mimir for long-term storage
+    remoteWrite:
+      - url: http://mimir-nginx.construx-monitoring.svc.cluster.local/api/v1/push
+        queueConfig:
+          maxSamplesPerSend: 10000
+          maxShards: 30
+
+    retention: 2d        # local retention (kept longer in Mimir)
+    retentionSize: "10GB"
+
+    resources:
+      requests:
+        cpu: "500m"
+        memory: 2Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 50Gi
+
+alertmanager:
+  alertmanagerSpec:
+    configSecret: alertmanager-config   # from Sealed Secrets
+
+grafana:
+  enabled: true
+  adminPassword: "${GRAFANA_ADMIN_PASSWORD}"
+  persistence:
+    enabled: true
+    storageClassName: gp3
+    size: 10Gi
+  sidecar:
+    dashboards:
+      enabled: true   # auto-load dashboards from ConfigMaps with grafana_dashboard label
+
+# Node exporter: OS-level metrics from every node
+nodeExporter:
+  enabled: true
+
+# kube-state-metrics: Kubernetes object state metrics
+kubeStateMetrics:
+  enabled: true
+```
+
+Prometheus Operator vs manual Prometheus vs Thanos vs VictoriaMetrics Operator vs Datadog: Manual Prometheus configuration (editing prometheus.yml, restarting pods) doesn't scale to dynamic Kubernetes environments where pod IPs change constantly — the operator's service discovery makes this manageable. Thanos adds global query federation (query across multiple Prometheus instances) and long-term object storage (S3) — it is often deployed alongside the Prometheus Operator for multi-cluster monitoring. VictoriaMetrics has its own operator (vm-operator) with compatible CRDs (VMServiceScrape vs ServiceMonitor) — teams migrating from Prometheus Operator can often reuse most of their monitoring config with minor changes. Datadog Agent collects metrics, logs, and traces in one agent — excellent out-of-the-box dashboards and correlation, but per-host pricing becomes significant for large clusters. The kube-prometheus-stack is the pragmatic default for self-hosted Kubernetes monitoring: install it, get node metrics, Kubernetes object state metrics, Alertmanager, and Grafana with 20+ default dashboards in under 10 minutes. The operator's CRD-driven approach means monitoring configuration is managed the same way as application configuration — in Git, reviewed via PR, applied by the GitOps tool.

@@ -29,6 +29,7 @@ import IstioPanel from '@/components/IstioPanel';
 import ThanosPanel from '@/components/ThanosPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -357,8 +358,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* alertmanager routing, silences, inhibitions — prometheus alerting */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AlertManagerPanel />
+        </div>
+
+        {/* sealed secrets gitops-safe encryption — kubeseal, rsa-4096, strict scope */}
+        <div className="mt-4 pb-6">
+          <SealedSecretsPanel />
         </div>
 
         {/* Sign-off */}
