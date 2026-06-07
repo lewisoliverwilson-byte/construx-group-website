@@ -59,6 +59,7 @@ import NixFlakePanel from '@/components/NixFlakePanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import FlinkPanel from '@/components/FlinkPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -774,8 +775,13 @@ export default function FoundersPage() {
         </div>
 
         {/* airbyte open-source elt — connectors, syncs, data movement */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AirbytePanel />
+        </div>
+
+        {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
+        <div className="mt-6 pb-10">
+          <FlinkPanel />
         </div>
 
         {/* CTA */}

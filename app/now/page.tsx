@@ -59,6 +59,7 @@ import MisePanel from '@/components/MisePanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
+import AirbytePanel from '@/components/AirbytePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -638,8 +639,13 @@ export default function NowPage() {
         </div>
 
         {/* nats jetstream — streams, consumers, messages, acks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NATSJetStreamPanel />
+        </div>
+
+        {/* airbyte open-source elt — connectors, syncs, data movement */}
+        <div className="mt-6 pb-10">
+          <AirbytePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

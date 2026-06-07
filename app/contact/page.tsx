@@ -59,6 +59,7 @@ import GrpcurlPanel from '@/components/GrpcurlPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import SpirePanel from '@/components/SpirePanel';
 import DaprPanel from '@/components/DaprPanel';
+import CiliumPanel from '@/components/CiliumPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -652,8 +653,13 @@ export default function ContactPage() {
       </section>
 
       {/* dapr distributed application runtime — actors, pub/sub, state */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DaprPanel />
+      </section>
+
+      {/* cilium ebpf networking — endpoints, policy, hubble flows */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CiliumPanel />
       </section>
     </div>
   );

@@ -61,6 +61,7 @@ import BiomePanel from '@/components/BiomePanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import TalosPanel from '@/components/TalosPanel';
 import AirflowPanel from '@/components/AirflowPanel';
+import DaprPanel from '@/components/DaprPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -686,8 +687,13 @@ export default function StatsPage() {
       </div>
 
       {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <AirflowPanel />
+      </div>
+
+      {/* dapr distributed application runtime — actors, pub/sub, state */}
+      <div className="mt-6 pb-10">
+        <DaprPanel />
       </div>
     </div>
   );
