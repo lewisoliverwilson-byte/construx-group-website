@@ -1,0 +1,224 @@
+---
+title: "Karpenter: right-sized Kubernetes nodes with Spot handling and consolidation"
+date: "2032-12-23"
+excerpt: "Karpenter provisions individual Kubernetes nodes from a pool of instance types rather than scaling predefined node groups. When a pod is pending, Karpenter evaluates its CPU, memory, GPU, and architecture requirements against all available instance types, selects the cheapest option that fits, and launches it in seconds. Consolidation runs continuously: when pods can fit on fewer nodes, Karpenter drains the underutilized nodes and terminates them, reducing cost. Spot interruption handling is built-in: a 2-minute interruption notice triggers graceful pod migration before the instance is reclaimed. The typical result: 40-65% lower EC2 cost compared to static node groups with Cluster Autoscaler."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Pod shape → cheapest instance. Spot with graceful interruption. Continuous consolidation.
+
+## NodePool and EC2NodeClass
+
+```yaml
+# NodePool: tells Karpenter what kinds of nodes it can provision
+# EC2NodeClass: AWS-specific configuration (AMI, subnets, security groups)
+
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: construx-general
+spec:
+  template:
+    metadata:
+      labels:
+        karpenter.sh/nodepool: construx-general
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: construx-default
+
+      requirements:
+        # Accept both x86_64 and ARM (Graviton) — ARM is ~20% cheaper
+        - key: kubernetes.io/arch
+          operator: In
+          values: [amd64, arm64]
+        # Prefer Spot, fall back to on-demand
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: [spot, on-demand]
+        # General purpose and compute-optimized families
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: [c, m, r]
+        # 4th generation and newer only
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["3"]
+        # No tiny instances — minimum 2 vCPU
+        - key: karpenter.k8s.aws/instance-size
+          operator: NotIn
+          values: [nano, micro, small]
+
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m        # wait 1 minute before consolidating
+    expireAfter: 720h           # replace nodes older than 30 days (AMI rotation)
+
+  limits:
+    cpu: "500"                  # cap total Karpenter-managed CPU
+    memory: 2000Gi
+
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: construx-default
+spec:
+  # Always use the latest EKS-optimized AMI (automatic drift detection)
+  amiSelectorTerms:
+    - alias: al2023@latest
+
+  # Find subnets and security groups by tag
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: construx-prod
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: construx-prod
+
+  # IAM role for the nodes (must have AmazonEKSWorkerNodePolicy, ECR access)
+  role: KarpenterNodeRole-construx-prod
+
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 50Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+```
+
+## Pod scheduling and node selection
+
+```yaml
+# Pods can influence which instance type Karpenter selects via nodeAffinity
+# and topologySpreadConstraints
+
+# Prefer ARM (Graviton) instances for this workload
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: construx-api
+spec:
+  replicas: 6
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 80
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: [arm64]   # prefer Graviton
+
+      # Spread across AZs for HA
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: construx-api
+
+      containers:
+        - name: api
+          image: registry.construx.io/construx/api:v1.8.3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+              # No CPU limits — CPU throttling hurts latency-sensitive services
+```
+
+```bash
+# What happens when you scale to 30 replicas and there's no room:
+kubectl scale deployment construx-api --replicas=30
+
+# Karpenter output (kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter):
+# INFO  found 14 pending pods requiring 7000m CPU, 7168Mi memory
+# INFO  best fit: 2x m7g.2xlarge (arm64, spot) @ $0.0284/hr each → $0.0568/hr total
+# INFO  provisioning NodeClaim construx-general-4k9p2m (m7g.2xlarge, eu-west-1a)
+# INFO  provisioning NodeClaim construx-general-7r3n8v (m7g.2xlarge, eu-west-1c)
+# INFO  nodes ready in 48s, 14 pods scheduled
+
+# Monitor new nodes
+kubectl get nodes -l karpenter.sh/nodepool=construx-general --watch
+# NAME                       STATUS  ROLES   AGE   VERSION
+# ip-10-0-1-15.ec2.internal  Ready   <none>  2m    v1.31.2
+# ip-10-0-3-22.ec2.internal  Ready   <none>  49s   Ready (just provisioned)
+```
+
+## Spot interruption and replacement
+
+```bash
+# Karpenter watches for Spot interruption warnings via EventBridge
+# When a 2-minute warning arrives:
+
+# 1. Karpenter immediately cordons the node
+# 2. Provisions a replacement node (parallel to drain)
+# 3. Drains pods (respects PodDisruptionBudgets — won't evict if PDB blocks)
+# 4. Pods are scheduled on the replacement node
+# 5. Old node is terminated by AWS
+
+# The 2-minute window is usually enough for:
+# - API pods (drain + reschedule: ~15s with fast probes)
+# - Worker pods (if they checkpoint work before exiting on SIGTERM)
+# - Stateful workloads (if PDB is configured correctly)
+
+# PodDisruptionBudget: protect against simultaneous disruption
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: construx-api-pdb
+spec:
+  minAvailable: 3         # at least 3 pods must be running at all times
+  selector:
+    matchLabels:
+      app: construx-api
+# Without PDB: Karpenter drains all pods on a node simultaneously
+# With PDB:    Karpenter respects the minimum available count
+
+# Monitor interruptions
+kubectl get events -n default --field-selector reason=SpotInterrupted
+# 2m  Warning  SpotInterrupted  Node/ip-10-0-1-15  Spot interruption warning received
+# 2m  Normal   NodeCordon       Node/ip-10-0-1-15  Cordoned for spot interruption
+```
+
+## Consolidation in practice
+
+```bash
+# Consolidation: Karpenter moves pods to reduce node count
+# Runs continuously — checks every 30 seconds
+
+# Scenario: cluster scaled down from 20 to 6 pods
+# Before: 4 nodes, each 40% utilized
+# After consolidation:
+#   Karpenter identifies that 6 pods fit on 2 nodes
+#   Cordons node A and B
+#   Migrates pods (respects PDB)
+#   Terminates nodes A and B
+# Result: 2 nodes instead of 4, 50% cost reduction
+
+# Watch consolidation logs
+kubectl logs -n kube-system \
+  -l app.kubernetes.io/name=karpenter \
+  -f | grep -i consolidat
+
+# consolidation: evaluating 4 nodes
+# consolidation: found 2 nodes to consolidate, saving $0.38/hr
+# consolidation: draining ip-10-0-1-15 (4 pods → ip-10-0-2-22)
+# consolidation: draining ip-10-0-3-44 (3 pods → ip-10-0-4-11)
+# consolidation: terminated 2 nodes
+
+# Disable consolidation for a specific node (e.g., during maintenance)
+kubectl annotate node ip-10-0-1-15 \
+  karpenter.sh/do-not-disrupt=true
+```
+
+Karpenter vs Cluster Autoscaler: Cluster Autoscaler requires you to pre-define node groups (instance types, sizes, labels). It scales those groups up and down. The limitation: the right instance types for today's workload may not be in your predefined groups. Karpenter selects from all available instance types at provision time — if a c7g.4xlarge is 30% cheaper than a c6i.4xlarge and both fit your workload, Karpenter picks the cheaper one. Combined with Spot and Graviton, the typical saving is 40-65% vs static on-demand node groups with Cluster Autoscaler.

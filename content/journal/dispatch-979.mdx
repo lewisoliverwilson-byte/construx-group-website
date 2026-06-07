@@ -1,0 +1,270 @@
+---
+title: "Flux CD: GitOps continuous delivery for Kubernetes with source and image automation"
+date: "2032-12-29"
+excerpt: "Flux is a CNCF GitOps tool that continuously reconciles a Kubernetes cluster against git repositories. It watches for changes in git (or OCI registries), applies them to the cluster, and reports status back as Kubernetes conditions. The toolkit model: Flux is composed of discrete controllers — Source Controller (watches git/OCI), Kustomize Controller (applies manifests), Helm Controller (manages Helm releases), Notification Controller (alerts Slack/Teams on changes), and Image Automation Controller (updates git when a new container image is available). Each controller is independent and composable. Flux differs from ArgoCD in its operator model — it's entirely pull-based, has no UI by default, and is configured entirely via Kubernetes CRDs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Pull-based GitOps. Source, Kustomize, Helm, and Image controllers. CRD-native config.
+
+## Bootstrap and installation
+
+```bash
+# Bootstrap Flux into a cluster (creates the fleet-infra repo if needed)
+flux bootstrap github \
+  --owner=construx \
+  --repository=fleet-infra \
+  --branch=master \
+  --path=clusters/prod-eu \
+  --personal
+
+# What bootstrap does:
+# 1. Creates the GitHub repo (or uses existing)
+# 2. Generates Flux manifests in clusters/prod-eu/flux-system/
+# 3. Applies them to the cluster
+# 4. Flux watches the repo — any push to clusters/prod-eu/ is applied
+
+# Verify Flux components are running
+flux check
+# ✔ Kubernetes 1.31.2 >=1.28.0-0
+# ✔ controllers:
+# ✔  source-controller: v1.4.1
+# ✔  kustomize-controller: v1.4.0
+# ✔  helm-controller: v1.1.0
+# ✔  notification-controller: v1.4.0
+# ✔  image-reflector-controller: v0.33.0
+# ✔  image-automation-controller: v0.39.0
+
+# Get overall status
+flux get all
+```
+
+## GitRepository and Kustomization
+
+```yaml
+# GitRepository: defines a git repo to watch
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: construx-api
+  namespace: flux-system
+spec:
+  interval: 1m         # poll git every minute
+  url: https://github.com/construx/construx-api
+  ref:
+    branch: master
+  secretRef:
+    name: construx-api-auth   # SSH key or HTTPS token
+
+---
+# Kustomization: apply manifests from the git repo to the cluster
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: construx-api
+  namespace: flux-system
+spec:
+  interval: 5m                # reconcile every 5 minutes even without new commits
+  retryInterval: 1m
+  timeout: 3m
+  sourceRef:
+    kind: GitRepository
+    name: construx-api
+  path: ./k8s/overlays/production    # path within the repo to apply
+  prune: true                         # delete resources removed from git
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: construx-api
+      namespace: construx-prod
+  postBuild:
+    # Substitute variables in manifests before applying
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-config
+      - kind: Secret
+        name: cluster-secrets
+```
+
+## Helm releases
+
+```yaml
+# HelmRepository: Helm chart repository source
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: construx-charts
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://charts.construx.io
+
+---
+# HelmRelease: manage a Helm release via Flux
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: construx-api
+  namespace: construx-prod
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: construx-api
+      version: ">=1.8.0 <2.0.0"    # semver range
+      sourceRef:
+        kind: HelmRepository
+        name: construx-charts
+        namespace: flux-system
+
+  values:
+    replicaCount: 3
+    image:
+      repository: registry.construx.io/construx/api
+      # tag: updated automatically by Image Automation Controller
+
+  valuesFrom:
+    - kind: Secret
+      name: construx-api-values    # inject secrets into values
+      valuesKey: values.yaml
+
+  # Rollback on failure
+  rollback:
+    cleanupOnFail: true
+    timeout: 5m
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+```
+
+## Image Automation — auto-update on new image push
+
+```yaml
+# ImageRepository: scan a container registry for new tags
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: construx-api
+  namespace: flux-system
+spec:
+  image: registry.construx.io/construx/api
+  interval: 5m
+  secretRef:
+    name: registry-credentials
+
+---
+# ImagePolicy: select which tag to use (semver, regex, or alphabetical)
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: construx-api
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: construx-api
+  policy:
+    semver:
+      range: ">=1.8.0 <2.0.0"   # only accept v1.8.x releases
+
+---
+# ImageUpdateAutomation: push new image tags back to git
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: construx-api
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: construx-api
+  git:
+    checkout:
+      ref:
+        branch: master
+    commit:
+      author:
+        name: Flux Bot
+        email: flux@construx.io
+      messageTemplate: |
+        chore: update construx-api image to {{range .Updated.Images}}{{.NewTag}}{{end}}
+    push:
+      branch: master
+  update:
+    strategy: Setters
+    path: ./k8s/overlays/production
+```
+
+```yaml
+# Annotate your Deployment to tell Flux which field to update
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: construx-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          image: registry.construx.io/construx/api:v1.8.2  # {"$imagepolicy": "flux-system:construx-api"}
+          # ↑ Flux replaces this tag automatically when a new image passes the ImagePolicy
+```
+
+## Notifications
+
+```yaml
+# Notification Controller: alert on Flux events
+# Provider: Slack webhook
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: slack
+  namespace: flux-system
+spec:
+  type: slack
+  channel: "#deploys"
+  secretRef:
+    name: slack-webhook
+
+---
+# Alert: notify on deploy success or failure
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: construx-api-deploy
+  namespace: flux-system
+spec:
+  summary: "Construx API deployment"
+  providerRef:
+    name: slack
+  eventSeverity: info
+  eventSources:
+    - kind: Kustomization
+      name: construx-api
+    - kind: HelmRelease
+      name: construx-api
+```
+
+```bash
+# Useful Flux CLI commands
+flux get sources git                  # git repos being watched
+flux get kustomizations               # kustomization reconciliation status
+flux get helmreleases -A              # all Helm releases across namespaces
+flux get images repository            # image scans
+flux get images policy                # image policy evaluations
+
+# Force reconciliation (don't wait for the interval)
+flux reconcile source git construx-api
+flux reconcile kustomization construx-api
+
+# Suspend/resume reconciliation (e.g., during maintenance)
+flux suspend kustomization construx-api
+flux resume kustomization construx-api
+
+# Trace: see what Flux applied recently
+flux logs --since=1h --level=info | grep construx-api
+```
+
+Flux vs ArgoCD: ArgoCD has a polished UI, a strong RBAC model, and per-application health status — it's easier to adopt for teams that want a dashboard to see what's deployed where. Flux is pure Kubernetes-native: all configuration is CRDs, it has no UI by default, and everything is composed from independent controllers. The Image Automation Controller is a significant Flux advantage — it can automatically update image tags in git when new images are pushed, closing the CD loop without external tooling. The practical split: ArgoCD for teams that want UI-first GitOps. Flux for platform teams that want CRD-native composition and the image automation feature.
