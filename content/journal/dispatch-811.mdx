@@ -1,0 +1,178 @@
+---
+title: "OpenTelemetry: traces, metrics, and logs without vendor lock-in"
+date: "2031-08-12"
+excerpt: "OpenTelemetry (OTel) is the open standard for observability instrumentation. It provides SDKs for traces, metrics, and logs that emit to any backend — Grafana Tempo, Jaeger, Honeycomb, Datadog, or your own collector. The key design: instrument once with the OTel SDK, choose your backend later. Auto-instrumentation handles HTTP, database, and fetch calls automatically; custom spans cover business logic."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Instrument once. Choose your backend later.
+
+## SDK setup — Node.js
+
+```ts
+// instrumentation.ts (Next.js 15 instrumentation hook)
+import { NodeSDK }                  from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter }        from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter }       from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { Resource }                 from '@opentelemetry/resources';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+
+const sdk = new NodeSDK({
+  resource: new Resource({
+    [SemanticResourceAttributes.SERVICE_NAME]:    'construx-api',
+    [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version,
+    [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV,
+  }),
+  traceExporter: new OTLPTraceExporter({
+    url: `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`,
+  }),
+  metricReader: new PeriodicExportingMetricReader({
+    exporter:       new OTLPMetricExporter(),
+    exportIntervalMillis: 15_000,
+  }),
+  instrumentations: [getNodeAutoInstrumentations({
+    '@opentelemetry/instrumentation-http':   { enabled: true },
+    '@opentelemetry/instrumentation-pg':     { enabled: true },
+    '@opentelemetry/instrumentation-redis':  { enabled: true },
+    '@opentelemetry/instrumentation-fetch':  { enabled: true },
+  })],
+});
+
+sdk.start();
+```
+
+## Custom spans
+
+```ts
+import { trace, SpanStatusCode, context, propagation } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('construx-api', '1.0.0');
+
+async function processOrder(orderId: string, userId: string) {
+  return tracer.startActiveSpan('order.process', async (span) => {
+    span.setAttributes({
+      'order.id':   orderId,
+      'user.id':    userId,
+      'order.type': 'subscription',
+    });
+
+    try {
+      const order = await db.orders.findUnique({ where: { id: orderId } });
+
+      // Nested span for a sub-operation
+      await tracer.startActiveSpan('order.validate', async (childSpan) => {
+        childSpan.setAttributes({ 'order.amount': order!.amount });
+        await validateInventory(order!.items);
+        childSpan.end();
+      });
+
+      await chargePayment(order!);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return order;
+    } catch (err) {
+      span.recordException(err as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error).message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+## Metrics — counters, histograms, gauges
+
+```ts
+import { metrics } from '@opentelemetry/api';
+
+const meter = metrics.getMeter('construx-api');
+
+// Counter — monotonically increasing
+const requestCounter = meter.createCounter('http.requests.total', {
+  description: 'Total HTTP requests',
+});
+
+// Histogram — latency distribution
+const latencyHistogram = meter.createHistogram('http.request.duration', {
+  description: 'HTTP request duration in ms',
+  unit:        'ms',
+});
+
+// Observable gauge — current value
+const activeConnections = meter.createObservableGauge('db.connections.active', {
+  description: 'Active database connections',
+});
+activeConnections.addCallback((obs) => {
+  obs.observe(db.$pool.totalCount - db.$pool.idleCount);
+});
+
+// Usage
+function recordRequest(method: string, path: string, status: number, durationMs: number) {
+  const attrs = { 'http.method': method, 'http.route': path, 'http.status_code': status };
+  requestCounter.add(1, attrs);
+  latencyHistogram.record(durationMs, attrs);
+}
+```
+
+## Collector config — YAML
+
+```yaml
+# otel-collector.yaml
+receivers:
+  otlp:
+    protocols:
+      http: { endpoint: '0.0.0.0:4318' }
+      grpc: { endpoint: '0.0.0.0:4317' }
+
+processors:
+  batch:        { timeout: 10s, send_batch_size: 1024 }
+  memory_limiter: { limit_mib: 512, check_interval: 1s }
+  resource:
+    attributes:
+      - { key: deployment.environment, value: production, action: insert }
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+  prometheusremotewrite:
+    endpoint: 'http://prometheus:9090/api/v1/write'
+
+service:
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters:  [otlp/tempo]
+    metrics:
+      receivers:  [otlp]
+      processors: [memory_limiter, batch]
+      exporters:  [prometheusremotewrite]
+```
+
+## Trace propagation across services
+
+```ts
+// Inject context into outgoing HTTP request (W3C TraceContext headers)
+const headers: Record<string, string> = {};
+propagation.inject(context.active(), headers);
+
+await fetch('https://api.construx.internal/orders', {
+  method:  'POST',
+  headers: { ...headers, 'Content-Type': 'application/json' },
+  body:    JSON.stringify(payload),
+});
+
+// Extract context from incoming request (in the downstream service)
+const ctx = propagation.extract(context.active(), incomingHeaders);
+context.with(ctx, () => {
+  tracer.startActiveSpan('downstream.handler', (span) => {
+    // This span is now a child of the upstream span
+  });
+});
+```
+
+OTel vs Datadog/Honeycomb agents: vendor agents auto-instrument with less setup, but they couple you to a specific backend. OTel is more setup but you own the data pipeline — swap backends without re-instrumenting. The Construx default: OTel SDK with a self-hosted collector, exporting to Grafana Tempo for traces and Prometheus for metrics.

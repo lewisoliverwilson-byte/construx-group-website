@@ -14,6 +14,7 @@ import LsofPanel from '@/components/LsofPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import NixShellPanel from '@/components/NixShellPanel';
+import TurboRepoPanel from '@/components/TurboRepoPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -386,8 +387,13 @@ export default function UsesPage() {
         </div>
 
         {/* Nix dev shell */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NixShellPanel />
+        </div>
+
+        {/* Turborepo monorepo build pipeline */}
+        <div className="mt-6 pb-10">
+          <TurboRepoPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
