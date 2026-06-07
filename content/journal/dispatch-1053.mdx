@@ -1,0 +1,171 @@
+---
+title: "Boundary: identity-based access control — dynamic credentials, no shared passwords"
+date: "2033-08-08"
+excerpt: "Boundary is a HashiCorp open-source tool for identity-based access to infrastructure. Instead of giving engineers SSH keys or database passwords that they store locally and share, Boundary acts as a proxy: engineers authenticate to Boundary (via OIDC/SSO), and Boundary connects them to the target (SSH server, PostgreSQL, Kubernetes API) through an encrypted session — the engineer never sees the actual credentials. Boundary integrates with Vault to issue dynamic, short-lived credentials on demand: when you open a database session, Boundary calls Vault's database secrets engine to generate a unique PostgreSQL user that expires when the session ends. This eliminates long-lived shared credentials, provides a full audit log of every session (who connected to what, when, for how long), and enables fine-grained access policies (only the payments team can connect to the payments database, and only during business hours). Boundary Desktop and the CLI support SSH port-forwarding, database tunnelling, and Kubernetes API proxy."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Identity-based access. Dynamic credentials. Session recording. OIDC. Vault integration.
+
+## Boundary server configuration and targets
+
+```hcl
+# Boundary controller config (HCL)
+# controller.hcl
+
+controller {
+  name        = "construx-controller-1"
+  description = "Construx Group primary controller"
+
+  database {
+    url = "postgresql://boundary:password@postgres.construx.internal/boundary"
+  }
+}
+
+listener "tcp" {
+  address     = "0.0.0.0:9200"
+  purpose     = "api"
+  tls_disable = false
+  tls_cert_file = "/etc/boundary/tls/cert.pem"
+  tls_key_file  = "/etc/boundary/tls/key.pem"
+}
+
+listener "tcp" {
+  address = "0.0.0.0:9201"
+  purpose = "cluster"
+}
+
+listener "tcp" {
+  address = "0.0.0.0:9203"
+  purpose = "ops"
+}
+
+kms "awskms" {
+  purpose    = "root"
+  region     = "eu-west-2"
+  kms_key_id = "alias/construx-boundary-root"
+}
+
+kms "awskms" {
+  purpose    = "worker-auth"
+  region     = "eu-west-2"
+  kms_key_id = "alias/construx-boundary-worker-auth"
+}
+```
+
+```bash
+# Boundary CLI: configure targets and credentials
+
+# Authenticate via OIDC (Google Workspace SSO)
+boundary authenticate oidc \
+  -auth-method-id amoidc_abc123 \
+  -addr https://boundary.construx.internal
+
+# List available targets (filtered by your OIDC groups)
+boundary targets list -scope-id p_abc123
+# Target ID             Name                    Type    Address
+# ttcp_xxx001           construx-api-ssh         tcp     10.0.2.10:22
+# ttcp_xxx002           payments-postgres         tcp     postgres.construx.internal:5432
+# ttcp_xxx003           staging-k8s-api           tcp     10.0.1.100:6443
+
+# Connect to a target: Boundary proxies the connection
+# No direct network access to 10.0.2.10 — all traffic through Boundary worker
+
+# SSH to a production host (Boundary injects short-lived SSH key via Vault)
+boundary connect ssh \
+  -target-id ttcp_xxx001 \
+  -addr https://boundary.construx.internal
+# Connecting to target ttcp_xxx001 (construx-api-ssh)
+# Generating SSH credential via Vault...
+# Connecting to ssh://10.0.2.10:22 as construx-eng-lew@
+# SSH session active. Session ID: s_xyz789abc
+
+# Database connection via Boundary tunnel (PostgreSQL)
+boundary connect postgres \
+  -target-id ttcp_xxx002 \
+  -addr https://boundary.construx.internal
+# Connecting to target ttcp_xxx002 (payments-postgres)
+# Vault credential: user=v-oidc-lew-xYzAbc123 ttl=1h
+# Local proxy: 127.0.0.1:63241 → postgres.construx.internal:5432
+# Run: psql -h 127.0.0.1 -p 63241 -U v-oidc-lew-xYzAbc123 -d payments
+
+# Session audit log (stored in Boundary database)
+boundary sessions list -scope-id p_abc123
+# Session ID    Target              Auth Token   Created        Duration  Status
+# s_xyz789abc   construx-api-ssh   at_abc123    2033-08-08 09  00:14:32  terminated
+# s_abc456def   payments-postgres  at_abc123    2033-08-08 11  00:08:14  active
+```
+
+## Terraform: Boundary as code
+
+```hcl
+# Manage Boundary configuration with Terraform
+
+terraform {
+  required_providers {
+    boundary = { source = "hashicorp/boundary", version = "~> 1.1" }
+  }
+}
+
+provider "boundary" {
+  addr                   = "https://boundary.construx.internal"
+  auth_method_login_name = var.boundary_admin_user
+  auth_method_password   = var.boundary_admin_password
+}
+
+# Project scope: production
+resource "boundary_scope" "production" {
+  scope_id     = "global"
+  name         = "production"
+  description  = "Production infrastructure"
+  auto_create_default_role = true
+  auto_create_admin_role   = true
+}
+
+# Host catalogue: static hosts
+resource "boundary_host_catalog_static" "construx_hosts" {
+  scope_id = boundary_scope.production.id
+  name     = "construx-prod-hosts"
+}
+
+resource "boundary_host_static" "api_servers" {
+  for_each        = toset(["10.0.2.10", "10.0.2.11", "10.0.2.12"])
+  host_catalog_id = boundary_host_catalog_static.construx_hosts.id
+  address         = each.value
+  name            = "api-${replace(each.value, ".", "-")}"
+}
+
+# SSH target with Vault credential injection
+resource "boundary_target" "ssh_api" {
+  type                    = "ssh"
+  scope_id                = boundary_scope.production.id
+  name                    = "construx-api-ssh"
+  default_port            = 22
+  host_source_ids         = [boundary_host_set_static.api_servers.id]
+  injected_application_credential_source_ids = [
+    boundary_credential_library_vault_ssh_certificate.api_ssh.id
+  ]
+}
+
+# Vault credential library: issues SSH certificates on demand
+resource "boundary_credential_library_vault_ssh_certificate" "api_ssh" {
+  credential_store_id = boundary_credential_store_vault.main.id
+  path                = "ssh/sign/construx-eng"   # Vault SSH secrets engine role
+  username            = "construx-eng"
+  key_type            = "ed25519"
+  ttl                 = "1h"
+}
+
+# Access policy: engineering team can SSH to API servers
+resource "boundary_role" "eng_ssh_access" {
+  scope_id     = boundary_scope.production.id
+  name         = "eng-api-ssh"
+  principal_ids = [boundary_group.engineering.id]
+  grant_strings = [
+    "id=${boundary_target.ssh_api.id};actions=authorize-session"
+  ]
+}
+```
+
+Boundary vs bastion hosts vs VPN vs AWS SSM Session Manager: A bastion host requires SSH key management (distributing, rotating, revoking keys across the team), leaves a persistent SSH server exposed to the internet, and has no session recording or fine-grained access control. VPN gives network-level access — if you're on the VPN, you can reach everything on the VPN subnet, which is too broad for zero-trust principles. AWS SSM Session Manager is excellent for AWS-hosted infrastructure (no open ports, IAM-controlled access, session logging to CloudWatch), but it's AWS-only and doesn't support non-AWS targets (on-prem databases, other cloud providers). Boundary's advantage is the identity-based access model that works across any infrastructure: the target is unreachable directly, all access is proxied through Boundary workers, credentials are dynamic (generated per-session via Vault), and every session is logged. The tradeoff: Boundary adds operational complexity (database, workers, controller HA), and the Terraform-based configuration takes time to set up correctly. For teams at the scale where shared passwords and SSH keys are a compliance or security risk, Boundary with Vault integration is the zero-trust access pattern.
