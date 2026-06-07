@@ -1,0 +1,173 @@
+---
+title: "OpenTelemetry: the unified observability API — traces, metrics, and logs"
+date: "2033-06-03"
+excerpt: "OpenTelemetry (OTel) is a CNCF project that standardises how applications emit traces, metrics, and logs. Before OTel, every observability vendor had a different SDK — switching from Datadog to Honeycomb meant rewriting all your instrumentation. OTel defines a vendor-neutral API and SDK: you instrument once with the OTel SDK, export to an OTel Collector, and the Collector routes telemetry to any backend (Grafana Tempo, Jaeger, Honeycomb, Datadog, New Relic, ClickHouse) by changing config rather than code. The three signals — traces (distributed request flows), metrics (numeric time-series), and logs (structured event records) — share a common context (trace ID, span ID) so you can correlate them. Traces link to Pyroscope profiles. Metrics link to exemplars (specific trace IDs). Logs carry trace context. The OTel Collector runs as a sidecar or DaemonSet and handles buffering, batching, retry, and fan-out."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Traces. Metrics. Logs. Collector. OTLP. Vendor-neutral. Context propagation.
+
+## SDK instrumentation — traces
+
+```go
+// Go: OpenTelemetry SDK setup and trace instrumentation
+
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    "go.opentelemetry.io/otel/sdk/resource"
+    sdktrace "go.opentelemetry.io/otel/sdk/trace"
+    semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+    "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+    "google.golang.org/grpc"
+)
+
+func initTracer(ctx context.Context) (func(), error) {
+    // Exporter: sends traces via OTLP gRPC to the OTel Collector
+    exp, err := otlptracegrpc.New(ctx,
+        otlptracegrpc.WithEndpoint("otel-collector.observability.svc:4317"),
+        otlptracegrpc.WithInsecure(),
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    // Resource: describes this service — appears on every span
+    res, _ := resource.Merge(
+        resource.Default(),
+        resource.NewWithAttributes(
+            semconv.SchemaURL,
+            semconv.ServiceName("construx-api"),
+            semconv.ServiceVersion(os.Getenv("APP_VERSION")),
+            semconv.DeploymentEnvironment(os.Getenv("ENV")),
+        ),
+    )
+
+    tp := sdktrace.NewTracerProvider(
+        sdktrace.WithBatcher(exp),
+        sdktrace.WithResource(res),
+        // Sample 100% in staging, 10% in prod (tail-based sampling is better)
+        sdktrace.WithSampler(sdktrace.ParentBased(
+            sdktrace.TraceIDRatioBased(0.1),
+        )),
+    )
+    otel.SetTracerProvider(tp)
+    return func() { tp.Shutdown(context.Background()) }, nil
+}
+
+// Manual span: wrap a critical code path
+tracer := otel.Tracer("construx.api")
+ctx, span := tracer.Start(ctx, "processOrder",
+    trace.WithAttributes(
+        attribute.String("order.id",     orderID),
+        attribute.String("user.tier",    userTier),
+        attribute.Int("order.total_pence", totalPence),
+    ),
+)
+defer span.End()
+
+// Auto-instrumentation: HTTP handler wraps automatically
+http.Handle("/api/", otelhttp.NewHandler(handler, "construx-api"))
+// Generates a span for every incoming request with HTTP method, path, status code
+```
+
+## OTel Collector configuration
+
+```yaml
+# otel-collector-config.yaml
+# The Collector receives OTLP, processes, and exports to multiple backends
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Host metrics: CPU, memory, disk — from the node
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+      memory:
+      disk:
+      network:
+
+processors:
+  # Batch: reduce export calls by grouping spans
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  # Memory limiter: prevent the Collector from OOMing under load
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+
+  # Resource detection: add Kubernetes pod/node metadata to all telemetry
+  k8sattributes:
+    auth_type: "serviceAccount"
+    extract:
+      metadata:
+        - k8s.pod.name
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.deployment.name
+
+  # Tail sampling: sample 100% of traces with errors, 5% of healthy traces
+  tail_sampling:
+    decision_wait: 10s
+    policies:
+      - name: errors-policy
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: slow-traces-policy
+        type: latency
+        latency:
+          threshold_ms: 1000
+      - name: probabilistic-policy
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 5
+
+exporters:
+  # Traces → Grafana Tempo
+  otlp/tempo:
+    endpoint: tempo.monitoring.svc:4317
+    tls:
+      insecure: true
+
+  # Metrics → Victoria Metrics or Prometheus
+  prometheusremotewrite:
+    endpoint: http://victoriametrics.monitoring.svc:8428/api/v1/write
+
+  # Logs → Loki
+  loki:
+    endpoint: http://loki.monitoring.svc:3100/loki/api/v1/push
+
+  # Debug: print to stdout (development only)
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers:   [otlp]
+      processors:  [memory_limiter, k8sattributes, tail_sampling, batch]
+      exporters:   [otlp/tempo]
+
+    metrics:
+      receivers:   [otlp, hostmetrics]
+      processors:  [memory_limiter, k8sattributes, batch]
+      exporters:   [prometheusremotewrite]
+
+    logs:
+      receivers:   [otlp]
+      processors:  [memory_limiter, k8sattributes, batch]
+      exporters:   [loki]
+```
+
+OpenTelemetry vs vendor SDKs vs Prometheus + Jaeger directly: Vendor SDKs (Datadog, New Relic) give you tight integration with their platforms but create lock-in — all your instrumentation code imports vendor libraries. Prometheus (metrics) and Jaeger (traces) directly requires two different instrumentation APIs and two different exporters. OTel's value is the single unified API: one SDK call creates a span, emits a metric, and attaches a log line with correlated trace context. The Collector is the routing layer — change exporters in config without touching application code. The tradeoff: OTel is a standard, not an implementation, so some advanced vendor features (AI-based anomaly detection, specific UI integrations) require vendor-specific instrumentation on top.

@@ -1,0 +1,170 @@
+---
+title: "ArgoCD: GitOps continuous delivery for Kubernetes — declarative, automated, observable"
+date: "2033-06-09"
+excerpt: "ArgoCD is a Kubernetes controller that implements GitOps: it watches a Git repository for Kubernetes manifests or Helm charts and continuously reconciles the cluster's live state to match what's in Git. Any drift — a manual kubectl apply, a ConfigMap edit in the console, a Deployment rollback — is detected and either auto-synced back to Git state or flagged for manual review. ArgoCD runs entirely in the cluster: no external CD server to maintain, no CI system credentials stored outside Kubernetes. Applications are defined as Application CRDs (pointing to a Git repo, path, and target namespace) or ApplicationSets (generating Applications dynamically from a template and a generator — useful for deploying the same chart to 20 clusters from one definition). The web UI shows a live dependency graph of all Kubernetes resources, their health, and their sync status — the most useful operational view of a running application I've seen."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Application CRD. Sync. Health. ApplicationSet. Multi-cluster. RBAC. Helm and Kustomize.
+
+## Application setup and sync
+
+```yaml
+# Application: defines what to deploy, where to deploy it, and from which git path
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: construx-api
+  namespace: argocd     # ArgoCD itself lives in the argocd namespace
+spec:
+  project: default
+
+  source:
+    repoURL:        https://github.com/lewisoliverwilson-byte/construx-infra.git
+    targetRevision: HEAD   # or a specific branch, tag, or SHA
+    path:           k8s/construx-api   # directory containing manifests
+
+  destination:
+    server:    https://kubernetes.default.svc   # the local cluster
+    namespace: construx-prod
+
+  syncPolicy:
+    automated:
+      prune:    true    # delete resources removed from git
+      selfHeal: true    # re-sync on any drift detected
+
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+
+    retry:
+      limit: 5
+      backoff:
+        duration:    5s
+        factor:      2
+        maxDuration: 3m
+
+---
+# Helm Application: deploy a Helm chart from a chart repo
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: construx-api-helm
+  namespace: argocd
+spec:
+  source:
+    repoURL:        https://charts.construx.internal
+    chart:          construx-api
+    targetRevision: 2.18.4
+
+    helm:
+      valueFiles:
+        - values.prod.yaml
+      values: |
+        image:
+          tag: a1b2c3d4   # inject from CI
+        replicaCount: 3
+
+  destination:
+    server:    https://kubernetes.default.svc
+    namespace: construx-prod
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+## ApplicationSet — multi-cluster and environment deployments
+
+```yaml
+# ApplicationSet: generate Applications from a template + generator
+# Deploy the same app to multiple clusters or environments from one definition
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: construx-api-environments
+  namespace: argocd
+spec:
+  generators:
+    # List generator: enumerate environments explicitly
+    - list:
+        elements:
+          - cluster: construx-prod
+            url:     https://prod-api.construx.internal
+            env:     prod
+            replicas: "3"
+          - cluster: construx-staging
+            url:     https://staging-api.construx.internal
+            env:     staging
+            replicas: "1"
+
+  template:
+    metadata:
+      name: "construx-api-{{env}}"
+    spec:
+      project: default
+      source:
+        repoURL:        https://github.com/lewisoliverwilson-byte/construx-infra.git
+        targetRevision: HEAD
+        path:           k8s/construx-api
+        helm:
+          values: |
+            environment: "{{env}}"
+            replicaCount: {{replicas}}
+      destination:
+        server:    "{{url}}"
+        namespace: construx-prod
+      syncPolicy:
+        automated:
+          prune:    true
+          selfHeal: "{{env}}" == "prod" ? false : true   # manual sync for prod
+```
+
+## CLI and operational workflow
+
+```bash
+# ArgoCD CLI
+argocd login argocd.construx.internal --username admin
+
+# List all applications
+argocd app list
+# NAME                  CLUSTER         NAMESPACE      PROJECT  STATUS  HEALTH   SYNCPOLICY  CONDITIONS
+# construx-api          in-cluster      construx-prod  default  Synced  Healthy  Auto-Prune
+# construx-api-staging  staging-cluster construx-prod  default  Synced  Healthy  Auto-Prune
+
+# Check sync status
+argocd app get construx-api
+# Summary:
+#   Name: construx-api
+#   Project: default
+#   Status: Synced
+#   Health: Healthy
+#   Repo: https://github.com/lewisoliverwilson-byte/construx-infra.git
+#   Path: k8s/construx-api
+#   Revision: a1b2c3d4e5f6 (HEAD)
+# Resources:
+#   apps/Deployment  construx-api  Synced  Healthy
+#   v1/Service       construx-api  Synced  Healthy
+
+# Manually sync (useful when selfHeal is false for prod)
+argocd app sync construx-api
+
+# Rollback to a previous revision
+argocd app rollback construx-api 3   # revision 3
+
+# Diff: see what ArgoCD would change on next sync
+argocd app diff construx-api
+
+# App history
+argocd app history construx-api
+# ID  DATE                   REVISION
+#  3  2033-06-09 12:00:00Z   a1b2c3d4 (HEAD)
+#  2  2033-06-08 10:30:00Z   b2c3d4e5
+#  1  2033-06-07 09:00:00Z   c3d4e5f6
+```
+
+ArgoCD vs Flux vs manual CI/CD via kubectl apply vs Helm: Flux (GitOps Toolkit) is the other major GitOps controller — more modular (separate controllers for git sourcing, Helm, and reconciliation) and lighter weight, but the ArgoCD UI is significantly better for operational visibility. Manual CI/CD (Jenkins/GitHub Actions running kubectl apply) works but doesn't reconcile drift — if someone manually edits a Deployment in production, your CI doesn't know about it. Helm alone has no reconciliation — it tracks what it deployed but doesn't watch for drift. ArgoCD's operational advantage is the dependency graph in the UI: you can see every resource that belongs to an application, its health (from liveness/readiness probes and custom health checks), and which resources are in sync. The web UI is worth the deployment overhead on its own — it's the clearest runtime view of what's actually running in the cluster.

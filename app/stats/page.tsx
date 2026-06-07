@@ -26,6 +26,7 @@ import HtopPanel from '@/components/HtopPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
+import TiDbPanel from '@/components/TiDbPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -476,8 +477,13 @@ export default function StatsPage() {
       </div>
 
       {/* dragonfly redis-compatible multi-threaded in-memory store */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DragonflyPanel />
+      </div>
+
+      {/* tidb htap — tikv row storage + tiflash columnar, no separate analytics pipeline */}
+      <div className="mt-6 pb-10">
+        <TiDbPanel />
       </div>
     </div>
   );
