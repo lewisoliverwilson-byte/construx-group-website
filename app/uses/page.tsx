@@ -61,6 +61,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import DaprPanel from '@/components/DaprPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import CiliumPanel from '@/components/CiliumPanel';
+import FlinkPanel from '@/components/FlinkPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -668,8 +669,13 @@ export default function UsesPage() {
         </div>
 
         {/* cilium ebpf networking — endpoints, policy, hubble flows */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CiliumPanel />
+        </div>
+
+        {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
+        <div className="mt-6 pb-10">
+          <FlinkPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

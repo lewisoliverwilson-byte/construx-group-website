@@ -63,6 +63,7 @@ import FlinkPanel from '@/components/FlinkPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -561,8 +562,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nats jetstream — streams, consumers, messages, acks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NATSJetStreamPanel />
+        </div>
+
+        {/* goreleaser — release automation, binaries, docker, changelog */}
+        <div className="mt-4 pb-6">
+          <GoReleaserPanel />
         </div>
 
         {/* Sign-off */}

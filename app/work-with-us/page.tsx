@@ -62,6 +62,7 @@ import DaprPanel from '@/components/DaprPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import SpiffePanel from '@/components/SpiffePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -901,8 +902,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* airbyte open-source elt — connectors, syncs, data movement */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <AirbytePanel />
+      </section>
+
+      {/* spiffe workload identity — svids, trust bundles, federation */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <SpiffePanel />
       </section>
 
       {/* CTA */}

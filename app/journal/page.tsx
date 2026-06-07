@@ -66,6 +66,7 @@ import AirflowPanel from '@/components/AirflowPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import DaprPanel from '@/components/DaprPanel';
+import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -517,8 +518,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* dapr distributed application runtime — actors, pub/sub, state */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DaprPanel />
+      </section>
+
+      {/* nats jetstream — streams, consumers, messages, acks */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NATSJetStreamPanel />
       </section>
 
       {/* Posts */}
