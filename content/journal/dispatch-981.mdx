@@ -1,0 +1,213 @@
+---
+title: "tracing with Jaeger: distributed traces, span analysis, and sampling strategies"
+date: "2033-01-04"
+excerpt: "Jaeger is a distributed tracing system — it collects spans from instrumented services, assembles them into traces, and provides a UI for analyzing latency, finding bottlenecks, and understanding request flow across microservices. A trace is a tree of spans; each span represents a unit of work (an HTTP handler, a database query, a cache lookup) with start time, duration, tags, and logs. Jaeger integrates with OpenTelemetry: you instrument your code with the OTel SDK, the OTel Collector receives spans, and Jaeger stores and visualizes them. Sampling is the critical operational decision: collecting 100% of traces is expensive; probabilistic or tail-based sampling (sample traces that contain errors or exceed a latency threshold) is the production approach."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Spans → traces. Latency analysis. Root cause in milliseconds. Tail-based sampling.
+
+## Instrumentation with OpenTelemetry
+
+```go
+// Go: instrument with OTel SDK → export to Jaeger
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    "go.opentelemetry.io/otel/sdk/trace"
+    "go.opentelemetry.io/otel/sdk/resource"
+    semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+)
+
+func initTracer(ctx context.Context) (func(context.Context) error, error) {
+    // Export to OTel Collector (which forwards to Jaeger)
+    exporter, err := otlptracegrpc.New(ctx,
+        otlptracegrpc.WithEndpoint("otel-collector.monitoring.svc.cluster.local:4317"),
+        otlptracegrpc.WithInsecure(),
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    tp := trace.NewTracerProvider(
+        trace.WithBatcher(exporter),
+        // Sampling: capture 10% in production, 100% in dev
+        trace.WithSampler(trace.ParentBased(
+            trace.TraceIDRatioBased(0.1),
+        )),
+        trace.WithResource(resource.NewWithAttributes(
+            semconv.SchemaURL,
+            semconv.ServiceName("construx-api"),
+            semconv.ServiceVersion("v1.8.3"),
+            attribute.String("deployment.environment", "production"),
+        )),
+    )
+    otel.SetTracerProvider(tp)
+    return tp.Shutdown, nil
+}
+
+// Create spans in handlers
+func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    ctx, span := otel.Tracer("construx-api").Start(r.Context(), "CreateOrder")
+    defer span.End()
+
+    // Annotate the span with business context
+    span.SetAttributes(
+        attribute.String("order.currency", "GBP"),
+        attribute.String("customer.tier", "premium"),
+    )
+
+    // Database query: automatic span via instrumented driver
+    order, err := h.repo.Create(ctx, req)
+    if err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
+        http.Error(w, "failed to create order", http.StatusInternalServerError)
+        return
+    }
+
+    // Nested span for downstream call
+    _, checkoutSpan := otel.Tracer("construx-api").Start(ctx, "ProcessPayment")
+    defer checkoutSpan.End()
+    payment, err := h.stripe.Charge(ctx, order.Total)
+    checkoutSpan.SetAttributes(attribute.Float64("payment.amount_gbp", order.Total))
+    if err != nil {
+        checkoutSpan.RecordError(err)
+    }
+}
+```
+
+## Jaeger deployment
+
+```yaml
+# Deploy Jaeger via the Jaeger Operator (Kubernetes)
+# Install the operator first
+helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+helm install jaeger-operator jaegertracing/jaeger-operator \
+  --namespace monitoring
+
+# Jaeger instance: all-in-one for dev, production mode for prod
+---
+# Development: all-in-one (in-memory storage)
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: construx-jaeger-dev
+  namespace: monitoring
+spec:
+  strategy: allinone
+  allInOne:
+    image: jaegertracing/all-in-one:1.62
+
+---
+# Production: distributed components with Elasticsearch storage
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: construx-jaeger
+  namespace: monitoring
+spec:
+  strategy: production
+  collector:
+    replicas: 3
+    resources:
+      limits:
+        memory: 512Mi
+        cpu: 500m
+  query:
+    replicas: 2
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: https://elasticsearch.monitoring.svc.cluster.local:9200
+        index-prefix: jaeger-construx
+        username: jaeger
+        password:
+          valueFrom:
+            secretKeyRef:
+              name: jaeger-es-credentials
+              key: password
+    esIndexCleaner:
+      enabled: true
+      numberOfDays: 14       # delete traces older than 14 days
+      schedule: "55 23 * * *"
+```
+
+## Sampling strategies
+
+```yaml
+# OTel Collector: tail-based sampling (sample after seeing the full trace)
+# More powerful than head-based — can sample based on error status or duration
+
+# otel-collector-config.yaml
+processors:
+  # Tail-based sampling: decide after collecting all spans in a trace
+  tail_sampling:
+    decision_wait: 10s         # wait up to 10s for all spans to arrive
+    num_traces: 50000          # max traces held in memory
+    expected_new_traces_per_sec: 100
+    policies:
+      # Always sample traces with errors
+      - name: errors
+        type: status_code
+        status_code: {status_codes: [ERROR]}
+
+      # Always sample slow traces (>500ms end-to-end)
+      - name: slow-traces
+        type: latency
+        latency: {threshold_ms: 500}
+
+      # Sample 5% of everything else
+      - name: probabilistic-catch-all
+        type: probabilistic
+        probabilistic: {sampling_percentage: 5}
+
+      # Always sample traces for specific customers (VIP)
+      - name: vip-customers
+        type: string_attribute
+        string_attribute:
+          key: customer.tier
+          values: [enterprise, platinum]
+          enabled_regex_matching: false
+```
+
+## Querying and analysis
+
+```bash
+# Jaeger UI: http://jaeger-query.monitoring.svc.cluster.local:16686
+
+# Jaeger HTTP API (for programmatic access)
+# Find traces for a service in the last hour
+curl "http://jaeger-query:16686/api/traces?service=construx-api&lookback=1h&limit=20"
+
+# Find traces with errors
+curl "http://jaeger-query:16686/api/traces?service=construx-api&tags=%7B%22error%22%3Atrue%7D"
+
+# Get a specific trace by ID
+curl "http://jaeger-query:16686/api/traces/4bf92f3577b34da6a3ce929d0e0e4736"
+
+# Trace anatomy in the UI:
+# Trace: POST /orders (root span)
+# ├── CreateOrder (handler: 182ms)
+# │   ├── db.query INSERT orders (postgres: 12ms)
+# │   ├── cache.set order:12345 (redis: 1ms)
+# │   └── ProcessPayment (stripe: 162ms)
+# │       ├── http.POST stripe.com/v1/charges (145ms)
+# │       └── db.query UPDATE orders SET status (3ms)
+# └── notifications.send (async: 8ms)
+
+# What you find in the UI:
+# - Which span is the bottleneck (stripe: 162ms / 182ms = 89% of latency)
+# - Which queries are slow (N+1 patterns show as many similar db.query spans)
+# - Error propagation (where did the error originate in the call tree)
+# - Service dependency map (which services call which)
+
+# Prometheus integration: Jaeger exposes span count and latency metrics
+# for dashboards without querying the trace store
+kubectl port-forward -n monitoring svc/construx-jaeger-collector 14269:14269 &
+curl http://localhost:14269/metrics | grep jaeger_tracer
+```
+
+Jaeger vs Zipkin vs Tempo: Zipkin is the original open-source tracer — simpler, lighter, good for small deployments. Jaeger is the CNCF standard with better UI, adaptive sampling, and Elasticsearch/Cassandra backends. Grafana Tempo is the storage-only backend (no UI) that integrates with Grafana — you query traces from Grafana dashboards alongside metrics and logs, with TraceQL for structured queries. The stack choice: Jaeger if you want a self-contained tracing solution with its own UI and storage. Tempo if you're already on Grafana and want traces, metrics, and logs in one place. Both accept spans via the OTLP protocol — instrumentation code is the same regardless of backend.

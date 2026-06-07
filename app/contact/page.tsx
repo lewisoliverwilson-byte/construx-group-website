@@ -22,6 +22,7 @@ import BgpLookupPanel from '@/components/BgpLookupPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import DigPanel from '@/components/DigPanel';
 import StepCliPanel from '@/components/StepCliPanel';
+import CrossplanePanel from '@/components/CrossplanePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -431,8 +432,13 @@ export default function ContactPage() {
       </section>
 
       {/* step certificate issuance and rotation */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <StepCliPanel />
+      </section>
+
+      {/* crossplane cloud infrastructure as Kubernetes CRDs */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CrossplanePanel />
       </section>
     </div>
   );
