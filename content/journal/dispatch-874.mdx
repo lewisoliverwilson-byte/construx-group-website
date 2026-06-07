@@ -1,0 +1,145 @@
+---
+title: "Linux perf: CPU profiling, flame graphs, and hardware counters"
+date: "2032-02-18"
+excerpt: "perf is the Linux kernel's built-in profiling tool. It samples the CPU at a fixed rate (e.g., 99Hz), records the call stack at each sample, and builds a statistical profile of where your program spends its time. perf stat counts hardware events (cache misses, branch mispredictions, cycles, instructions). perf record + perf report shows hot functions. Brendan Gregg's FlameGraph tool converts perf output into an interactive SVG that makes the hot path instantly obvious. Together they explain why a process is slow at the hardware level."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Sample the CPU. Stack of every pause. Heat-map of real cost.
+
+## perf stat — hardware event counters
+
+```bash
+# Count hardware events during a command's execution
+perf stat -e cycles,instructions,cache-misses,cache-references \
+  ./construx-api --benchmark-mode
+
+# Performance counter stats for './construx-api --benchmark-mode':
+#
+#     4,821,337,412      cycles                    #    3.21 GHz
+#     3,982,114,088      instructions              #    0.83  insn per cycle
+#        42,834,901      cache-misses              #   31.4% of cache refs
+#       136,412,890      cache-references
+#
+#       1.503394129 seconds time elapsed
+
+# Low instructions-per-cycle (0.83) signals memory-bound workload.
+# Ideal IPC for compute-bound: 2.0+. Cache miss rate >20% is a red flag.
+
+# Watch live hardware counters for a running process
+perf stat -p $(pgrep construx-api) -e cycles,cache-misses --interval-print 1000
+# Prints counts every 1000ms — useful for tracking changes under load
+
+# Count specific microarchitecture events
+perf stat -e \
+  branch-misses,\
+  dTLB-load-misses,\
+  L1-dcache-load-misses,\
+  LLC-load-misses \
+  -- ./construx-api
+```
+
+## perf record — sampling profiler
+
+```bash
+# Sample at 99Hz (avoids aliasing with 100Hz timer) across all CPUs
+# -g: capture call graphs (stack traces, not just leaf functions)
+perf record -F 99 -g -p $(pgrep construx-api) -- sleep 30
+
+# Equivalent: record a command from start to finish
+perf record -F 99 -g -- ./construx-api --load-test
+
+# perf report — interactive TUI for exploring samples
+perf report --stdio | head -40
+
+# Overhead  Command        Shared Object       Symbol
+# --------  -------  ------------------  -----------------------
+#   18.42%  construx  libpq.so.5          pg_query_execute
+#   12.31%  construx  [construx-api]      json_serialize_response
+#    9.87%  construx  libc.so.6           __memcpy_avx_unaligned
+#    7.44%  construx  [construx-api]      route_dispatch
+#    5.12%  construx  libc.so.6           malloc
+
+# Annotate a specific function — see the hot instructions
+perf annotate pg_query_execute --stdio
+```
+
+## Flame graphs — visualise the profile
+
+```bash
+# Flame graphs: x-axis = sample count (width = time spent)
+# y-axis = call stack (bottom = kernel, top = leaf function)
+# Wide plateaus at the top = hot code — optimise these
+
+# Step 1: generate perf data with stacks
+perf record -F 99 -g --call-graph dwarf -p $(pgrep construx-api) -- sleep 60
+
+# Step 2: fold stacks with Brendan Gregg's tools
+perf script | \
+  stackcollapse-perf.pl | \
+  flamegraph.pl --title "construx-api 60s profile" \
+                --width 1600 \
+                --colors java \
+  > flamegraph.svg
+
+# Or: use cargo-flamegraph for Rust (wraps perf automatically)
+cargo flamegraph --bin construx-api -- --load-test
+
+# async-profiler (JVM, no perf) — async-safe, handles JIT
+java -jar ap-2.0.jar -d 60 -f flamegraph.html $(pgrep java)
+```
+
+## Off-CPU profiling — what's blocking, not burning
+
+```bash
+# perf record captures on-CPU time (spinning).
+# Off-CPU profiling captures blocking time: I/O waits, lock contention, sleep.
+# Use BPF for off-CPU (kernel-level, zero overhead when idle):
+
+# offcputime: show stacks of threads blocked in kernel
+/usr/share/bcc/tools/offcputime -p $(pgrep construx-api) -u 30
+
+# Output: stack trace → total blocked microseconds
+#     construx-api
+#       poll                        ← blocked in poll() syscall
+#       epoll_wait
+#       uv__io_poll                 ← Node.js libuv event loop
+#       uv_run
+#       node::Start
+#     total: 18,342,819 us         ← 18 seconds blocked over 30s window
+
+# For database-heavy services: most off-CPU time will be in pg_query_execute
+# → waiting for PostgreSQL response over the network socket
+# This is normal. Abnormal: high off-CPU in futex_wait → lock contention.
+
+# Lock contention profiler (perf + BPF)
+/usr/share/bcc/tools/lockstat -p $(pgrep construx-api) 10
+# FUNC                         COUNT  AVG us  MAX us
+# pthread_mutex_lock           4,821   12.3    8,841  ← high max = contention spike
+```
+
+## Differential flame graphs — before vs after
+
+```bash
+# Compare two profiles: identify regressions or improvements
+
+# Profile version A (before the change)
+perf record -F 99 -g -p $(pgrep construx-api) -- sleep 30
+perf script | stackcollapse-perf.pl > before.folded
+
+# Deploy the change, profile again
+perf record -F 99 -g -p $(pgrep construx-api) -- sleep 30
+perf script | stackcollapse-perf.pl > after.folded
+
+# Differential flame graph: blue = slower after, red = faster after
+difffolded.pl before.folded after.folded | \
+  flamegraph.pl --negate \
+                --title "Before vs After — json_serialize_response fix" \
+  > diff.svg
+
+# A wide blue plateau at json_serialize_response confirms the regression was there.
+# A thin red area after the fix confirms the optimisation worked.
+```
+
+perf vs application-level profiling (py-spy, rbspy, async-profiler): Application profilers work in userspace and understand your runtime (GC pauses, JIT compilation, coroutine scheduling). perf works at the hardware level and sees everything — kernel code, JIT-compiled code, native libraries. For "why is this Python function slow," py-spy is faster to use. For "why does my Rust server burn 18% of CPU in memcpy," perf with flamegraphs is the only tool that shows you the answer at the instruction level. Use both: application profilers to find what's slow, hardware profilers to find why.

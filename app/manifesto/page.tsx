@@ -18,6 +18,7 @@ import PgExplainPanel from '@/components/PgExplainPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -291,8 +292,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* Nix flake reproducible environment */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NixFlakePanel />
+        </div>
+
+        {/* Prometheus AlertManager firing alerts */}
+        <div className="mt-4 pb-6">
+          <PrometheusAlertPanel />
         </div>
 
         {/* Sign-off */}
