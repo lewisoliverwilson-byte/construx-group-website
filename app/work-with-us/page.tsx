@@ -24,6 +24,7 @@ import RclonePanel from '@/components/RclonePanel';
 import ValsPanel from '@/components/ValsPanel';
 import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 import MaterializePanel from '@/components/MaterializePanel';
+import VitessPanel from '@/components/VitessPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -674,8 +675,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* materialize streaming sql — incremental views over kafka */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <MaterializePanel />
+      </section>
+
+      {/* vitess mysql sharding — vtgate, vtctldclient, vschema, resharding */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <VitessPanel />
       </section>
 
       {/* CTA */}
