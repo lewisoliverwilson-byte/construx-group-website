@@ -71,6 +71,7 @@ import BoundaryPanel from '@/components/BoundaryPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import CortexPanel from '@/components/CortexPanel';
+import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -609,8 +610,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cortex — multi-tenant prometheus, ruler, compactor */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CortexPanel />
+        </div>
+
+        {/* clickhouse mv — materialized views, targets, engines */}
+        <div className="mt-4 pb-6">
+          <ClickhouseMvPanel />
         </div>
 
         {/* Sign-off */}

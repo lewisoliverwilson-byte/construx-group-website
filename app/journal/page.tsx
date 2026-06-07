@@ -74,6 +74,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
+import DiskUsagePanel from '@/components/DiskUsagePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -565,8 +566,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* crunchy postgres — clusters, ha, backup, monitoring */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CrunchyPostgresPanel />
+      </section>
+
+      {/* disk usage — mount points, sizes, used, available */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DiskUsagePanel />
       </section>
 
       {/* Posts */}

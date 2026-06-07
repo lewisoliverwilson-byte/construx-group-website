@@ -69,6 +69,7 @@ import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
+import DockerBuildPanel from '@/components/DockerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -716,8 +717,13 @@ export default function UsesPage() {
         </div>
 
         {/* dbt — transforms, models, tests, lineage */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DbtPanel />
+        </div>
+
+        {/* docker build — layers, cache, stages, push */}
+        <div className="mt-6 pb-10">
+          <DockerBuildPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
