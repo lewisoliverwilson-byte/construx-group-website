@@ -68,6 +68,7 @@ import AtlasPanel from '@/components/AtlasPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
+import CaddyPanel from '@/components/CaddyPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -591,8 +592,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* boundary — zero-trust access, targets, sessions, credentials */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BoundaryPanel />
+        </div>
+
+        {/* caddy — reverse proxy, https, routes, upstreams */}
+        <div className="mt-4 pb-6">
+          <CaddyPanel />
         </div>
 
         {/* Sign-off */}

@@ -71,6 +71,7 @@ import SpiffePanel from '@/components/SpiffePanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import BazelPanel from '@/components/BazelPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -547,8 +548,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cert-manager — certificate lifecycle, issuers, renewals */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CertManagerPanel />
+      </section>
+
+      {/* cluster api — machine management, providers, bootstrap */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ClusterApiPanel />
       </section>
 
       {/* Posts */}

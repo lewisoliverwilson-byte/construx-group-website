@@ -67,6 +67,7 @@ import GoReleaserPanel from '@/components/GoReleaserPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import CephPanel from '@/components/CephPanel';
+import CitusPanel from '@/components/CitusPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -931,8 +932,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* ceph — distributed storage, osds, pools, pg health */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CephPanel />
+      </section>
+
+      {/* citus — distributed postgres, shards, workers, tables */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CitusPanel />
       </section>
 
       {/* CTA */}

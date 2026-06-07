@@ -66,6 +66,7 @@ import DebeziumPanel from '@/components/DebeziumPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
+import ConsulPanel from '@/components/ConsulPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -698,8 +699,13 @@ export default function UsesPage() {
         </div>
 
         {/* cockroachdb — distributed sql, ranges, leases, replication */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CockroachDbPanel />
+        </div>
+
+        {/* consul — service mesh, kv, health checks, intentions */}
+        <div className="mt-6 pb-10">
+          <ConsulPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
