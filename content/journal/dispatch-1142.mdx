@@ -1,0 +1,179 @@
+---
+title: "Grafana Beyla: eBPF auto-instrumentation — RED metrics and traces without code changes"
+date: "2034-05-02"
+excerpt: "Grafana Beyla is an eBPF-based auto-instrumentation tool that attaches to running processes via uprobes and kprobes to generate OpenTelemetry traces and RED metrics (Rate, Errors, Duration) without modifying application code or restarting services. Beyla runs as a DaemonSet, attaching to every process on the node — Go, Python, Node.js, Java, Ruby, .NET — and intercepting HTTP, gRPC, and SQL calls at the kernel level. Because the instrumentation happens in the kernel via eBPF, it cannot be disabled by the application and does not require language-specific agents or SDK integration. The traces Beyla emits are W3C TraceContext-compliant and compatible with Grafana Tempo and any OpenTelemetry-compatible backend. Beyla's service graph feature generates per-route latency histograms (p50, p95, p99) and request rate metrics that are indistinguishable from SDK-instrumented data, making it possible to onboard a service to observability in seconds rather than days. At Construx, Beyla instruments all services in the construx-prod namespace without any application-side changes — the orders-api, payments-api, and frontend emit RED metrics and traces from day one of deployment."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+eBPF. uprobes. kprobes. DaemonSet. RED metrics. TraceContext. Service graph. Zero-code.
+
+## Grafana Beyla configuration and deployment
+
+```yaml
+# Beyla DaemonSet: auto-instrument all pods in construx-prod namespace
+# Attaches via eBPF uprobes — no sidecar injection, no SDK required
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: beyla
+  namespace: beyla
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: beyla
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: beyla
+    spec:
+      hostPID: true   # required: beyla needs to see all PIDs on the host
+      serviceAccountName: beyla
+
+      # Privileged init: load eBPF programs into kernel
+      initContainers:
+        - name: beyla-config
+          image: grafana/beyla:1.8.3
+          command: ["/beyla", "--config", "/etc/beyla/config.yaml", "--check-config"]
+          volumeMounts:
+            - name: beyla-config
+              mountPath: /etc/beyla
+
+      containers:
+        - name: beyla
+          image: grafana/beyla:1.8.3
+          securityContext:
+            privileged: false
+            capabilities:
+              add:
+                - SYS_ADMIN     # required for eBPF program loading
+                - SYS_PTRACE    # required for uprobe attachment
+                - NET_ADMIN
+          env:
+            - name: BEYLA_OPEN_PORT
+              value: "80,443,8080,9090"
+            - name: BEYLA_TRACE_PRINTER
+              value: "none"         # traces go to OTel exporter, not stdout
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otelcol.construx-monitoring.svc.cluster.local:4317"
+            - name: OTEL_SERVICE_NAMESPACE
+              value: "construx"
+            # Node name for metric labeling
+            - name: BEYLA_KUBE_METADATA_ENABLE
+              value: "true"         # enriches spans with k8s pod/ns/node labels
+          volumeMounts:
+            - name: beyla-config
+              mountPath: /etc/beyla
+            - name: kernel-debug
+              mountPath: /sys/kernel/debug
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+      volumes:
+        - name: beyla-config
+          configMap:
+            name: beyla-config
+        - name: kernel-debug
+          hostPath:
+            path: /sys/kernel/debug
+            type: Directory
+```
+
+```yaml
+# Beyla ConfigMap: instrumentation targets and export config
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: beyla-config
+  namespace: beyla
+data:
+  config.yaml: |
+    # Instrument: all processes matching these executables
+    # Beyla discovers them via /proc on the host
+    open_port: 8080,9090,50051
+
+    # Kubernetes metadata enrichment
+    attributes:
+      kubernetes:
+        enable: true
+        cluster_name: construx-prod
+
+    # Route patterns: collapse dynamic path segments for metric cardinality control
+    # /api/v1/orders/ord_1234 → /api/v1/orders/:id
+    routes:
+      patterns:
+        - "/api/v1/orders/{id}"
+        - "/api/v1/payments/{id}"
+        - "/api/v1/tenants/{tenant}/resources/{resource}"
+
+    # Metrics: enable RED (Rate, Errors, Duration) for HTTP and gRPC
+    metrics:
+      enable: true
+      features:
+        - RED_HTTP_SERVER
+        - RED_HTTP_CLIENT
+        - RED_GRPC_SERVER
+        - RED_GRPC_CLIENT
+        - DB_QUERY_DURATION   # SQL query duration histograms
+
+    # Tracing: emit spans to OTel Collector
+    traces:
+      sampler:
+        name: "parentbased_traceidratio"
+        arg: "0.1"    # 10% head sampling — tail sampling applied in OTel Collector
+
+    # Export: OpenTelemetry Protocol (OTLP) over gRPC
+    otel_metrics_export:
+      endpoint: http://otelcol.construx-monitoring.svc.cluster.local:4317
+      interval: 15s    # scrape interval for metric export
+
+    otel_traces_export:
+      endpoint: http://otelcol.construx-monitoring.svc.cluster.local:4317
+```
+
+```bash
+# Beyla: verify instrumentation and inspect emitted spans
+
+# Check Beyla DaemonSet status
+kubectl get ds beyla -n beyla
+# NAME    DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE
+# beyla   3         3         3       3            3         6m
+
+# View discovered services (Beyla auto-detects processes)
+kubectl logs -n beyla ds/beyla -c beyla | grep '\[discover\]' | head -10
+# [discover] orders-api  pid: 4821  lang: go  runtime: go1.23.4  open-port: 8080
+# [discover] payments-api  pid: 6302  lang: go  runtime: go1.23.4  open-port: 8080
+# [discover] frontend  pid: 7101  lang: node  runtime: v22.3.0  open-port: 3000
+# [discover] pg-pooler  pid: 8043  lang: c  runtime: pgbouncer-1.22  open-port: 5432
+
+# Query Prometheus for Beyla-emitted RED metrics
+curl -s "http://prometheus.construx-monitoring.svc.cluster.local:9090/api/v1/query" \
+  --data-urlencode 'query=histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{service_name="orders-api"}[5m])) by (le, http_route))' \
+  | jq '.data.result[] | {route: .metric.http_route, p99: .value[1]}'
+
+# Output:
+# { "route": "/api/v1/orders/{id}", "p99": "0.034" }   # 34ms p99
+# { "route": "/api/v1/orders",      "p99": "0.009" }   # 9ms p99
+
+# Check emitted trace in Tempo (via LogQL in Grafana)
+# Beyla emits W3C TraceContext headers — traces correlate with Istio sidecar spans
+
+# Verify Beyla is reading eBPF uprobe counts
+kubectl exec -n beyla ds/beyla -- cat /sys/kernel/debug/tracing/uprobe_events | wc -l
+# 14    ← 14 uprobes attached (Go HTTP, net/http, database/sql)
+
+# Beyla service graph: request flow between services
+# (rendered in Grafana Service Graph panel using Tempo's service graph feature)
+# orders-api → payments-api  (gRPC, p99: 18ms)
+# frontend → orders-api      (HTTP, p99: 12ms)
+# orders-api → postgres       (SQL, p99: 6ms)
+```
+
+Grafana Beyla vs OpenTelemetry SDK vs Istio sidecar vs Pixie vs Datadog Agent: OpenTelemetry SDK requires code changes — developers add instrumentation calls to their application, which gives the most precise semantic conventions and custom spans but requires per-service adoption. Beyla covers any service instantly without code changes, making it ideal for legacy services or teams where SDK adoption is slow. Istio's sidecar (dispatch-1140) also provides zero-code instrumentation for HTTP and gRPC at the proxy layer, but it cannot see inside the application — it misses SQL queries, async goroutines, and application-layer context. Beyla operates at the kernel level via eBPF, so it captures database queries (database/sql, psycopg2), and with Go-specific uprobes, it can read goroutine context to propagate trace IDs even through goroutine boundaries. Pixie is a similar eBPF observability tool from New Relic — it also instruments at the kernel level but ships as a Kubernetes-native SaaS with its own query language (PxL). Beyla is self-hosted and OTel-native. Datadog Agent supports eBPF-based tracing (Universal Service Monitoring) but ties you to the Datadog backend. At Construx, Beyla provides the baseline RED metrics and traces for all services from deployment day one; services that need custom spans and business-logic instrumentation add the OTel SDK on top — the two coexist because Beyla propagates W3C trace context, so SDK-emitted child spans attach to Beyla's root spans correctly.

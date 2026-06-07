@@ -1,0 +1,158 @@
+---
+title: "Tanka: Jsonnet-based Kubernetes configuration — environments, libs, vendor, GitOps"
+date: "2034-05-08"
+excerpt: "Tanka is a Kubernetes configuration tool built on Jsonnet — a data templating language that is a strict superset of JSON. Where Helm uses Go templates (and the limitations that come with them: no real data types, no first-class functions, string-heavy logic), Jsonnet is a full language with functions, imports, conditionals, list comprehensions, and object-oriented inheritance. Tanka organises configuration into environments — each environment maps to a cluster namespace and inherits from shared library code, so a `dev` environment and a `prod` environment share the same service definitions but override resource limits, replica counts, and domain names. The `k.libsonnet` library (generated from the Kubernetes OpenAPI spec) provides typed Kubernetes object builders — instead of writing raw YAML, you call `k.apps.v1.deployment.new(name, replicas, containers)` and get back a correctly typed Deployment. Tanka's `vendor` directory pins library versions (similar to Go modules), ensuring builds are reproducible. At Construx, Tanka manages the configuration for all stateless services in construx-prod — 14 Deployments, 14 Services, 8 HorizontalPodAutoscalers, and 3 VirtualServices, all defined as Jsonnet with per-environment overrides and applied to the cluster via ArgoCD's Tanka plugin."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Jsonnet. Environment. k.libsonnet. vendor. Tanka. GitOps. ArgoCD plugin. Object inheritance.
+
+## Tanka environment structure and Jsonnet configuration
+
+```jsonnet
+// environments/prod/main.jsonnet
+// Construx production environment — inherits shared service library
+
+local k    = import 'github.com/jsonnet-libs/k8s-libsonnet/1.30/main.libsonnet';
+local app  = import '../../lib/construx-app/main.libsonnet';
+local vars = import './vars.libsonnet';
+
+// Override: prod uses higher replicas and resource limits than dev
+local prodOverrides = {
+  replicas:  3,
+  resources: {
+    requests: { cpu: '200m', memory: '256Mi' },
+    limits:   { cpu: '1',    memory: '1Gi'   },
+  },
+};
+
+// Render all services with prod overrides
+{
+  // orders-api: core service, 3 replicas, HPA to 20
+  'orders-api': app.service.new(
+    name      = 'orders-api',
+    image     = 'ghcr.io/construx/orders-api:' + vars.versions['orders-api'],
+    port      = 8080,
+    overrides = prodOverrides {
+      hpa: { minReplicas: 3, maxReplicas: 20, targetCPU: 70 },
+      env: [
+        { name: 'DB_URL',        valueFrom: { secretKeyRef: { name: 'orders-db', key: 'url' } } },
+        { name: 'KAFKA_BROKERS', value: vars.kafka.brokers },
+      ],
+    },
+  ),
+
+  // payments-api: PCI scope, separate namespace policy
+  'payments-api': app.service.new(
+    name      = 'payments-api',
+    image     = 'ghcr.io/construx/payments-api:' + vars.versions['payments-api'],
+    port      = 8080,
+    overrides = prodOverrides {
+      annotations: {
+        'vault.hashicorp.com/agent-inject': 'true',
+        'vault.hashicorp.com/role':         'payments-api',
+      },
+    },
+  ),
+}
+```
+
+```jsonnet
+// lib/construx-app/main.libsonnet
+// Shared service library: generates Deployment + Service + HPA from a spec
+
+local k = import 'github.com/jsonnet-libs/k8s-libsonnet/1.30/main.libsonnet';
+
+{
+  service:: {
+    // new: returns { deployment, service, hpa } object for a Kubernetes service
+    new(name, image, port, overrides={}):: {
+      local spec = {
+        replicas:  1,
+        resources: { requests: { cpu: '50m', memory: '64Mi' }, limits: { cpu: '200m', memory: '256Mi' } },
+        env:       [],
+        hpa:       null,
+        annotations: {},
+      } + overrides,
+
+      // Deployment: typed via k.apps.v1.deployment.*
+      deployment:
+        k.apps.v1.deployment.new(name, spec.replicas, [
+          k.core.v1.container.new(name, image)
+          + k.core.v1.container.withPorts([k.core.v1.containerPort.new('http', port)])
+          + k.core.v1.container.withEnv(spec.env)
+          + k.core.v1.container.resources.withRequests(spec.resources.requests)
+          + k.core.v1.container.resources.withLimits(spec.resources.limits)
+          + k.core.v1.container.readinessProbe.httpGet.withPath('/health')
+          + k.core.v1.container.readinessProbe.httpGet.withPort(port),
+        ])
+        + k.apps.v1.deployment.metadata.withAnnotations(spec.annotations),
+
+      // Service: ClusterIP, port named 'http' for Istio compatibility
+      service:
+        k.core.v1.service.new(name, { app: name }, [
+          k.core.v1.servicePort.new('http', port),
+        ]),
+
+      // HPA: optional, only added when hpa override is provided
+      [if spec.hpa != null then 'hpa']:
+        k.autoscaling.v2.horizontalPodAutoscaler.new(name)
+        + k.autoscaling.v2.horizontalPodAutoscaler.spec.withMinReplicas(spec.hpa.minReplicas)
+        + k.autoscaling.v2.horizontalPodAutoscaler.spec.withMaxReplicas(spec.hpa.maxReplicas)
+        + k.autoscaling.v2.horizontalPodAutoscaler.spec.scaleTargetRef.withApiVersion('apps/v1')
+        + k.autoscaling.v2.horizontalPodAutoscaler.spec.scaleTargetRef.withKind('Deployment')
+        + k.autoscaling.v2.horizontalPodAutoscaler.spec.scaleTargetRef.withName(name),
+    },
+  },
+}
+```
+
+```bash
+# Tanka CLI: diff, show, apply
+
+# Show rendered Kubernetes manifests for prod environment (dry-run)
+tk show environments/prod
+
+# Output:
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: orders-api
+#   namespace: construx-prod
+# spec:
+#   replicas: 3
+#   ...
+
+# Diff: show what would change vs current cluster state
+tk diff environments/prod
+
+# Output:
+# ~ Deployment/construx-prod/orders-api
+#   spec.template.spec.containers[0].image:
+#     - ghcr.io/construx/orders-api:v2.4.1
+#     + ghcr.io/construx/orders-api:v2.5.0
+
+# Apply: push rendered manifests to the cluster
+tk apply environments/prod
+# Applying to namespace construx-prod... 14 objects unchanged, 1 updated.
+
+# Export: write rendered YAML to disk (for ArgoCD to pick up via git)
+tk export rendered/ environments/prod
+# Writes: rendered/deployment-orders-api.yaml, rendered/service-orders-api.yaml, ...
+
+# Jsonnet evaluation: test a single expression without applying
+jsonnet -J vendor environments/prod/main.jsonnet | yq '.["orders-api"].deployment.spec.replicas'
+# 3
+
+# Update vendor libs (Jsonnet package management via jsonnet-bundler)
+jb update
+# Updated: github.com/jsonnet-libs/k8s-libsonnet 1.30.1 → 1.30.2
+
+# Lint: validate Jsonnet syntax and detect formatting issues
+tk lint environments/prod
+# environments/prod/main.jsonnet: OK
+# lib/construx-app/main.libsonnet: OK
+```
+
+Tanka vs Helm vs Kustomize vs CUE vs Pulumi vs raw YAML: Helm is the dominant Kubernetes package manager — it uses Go templates to parameterise YAML and a Chart model to package and distribute configuration. Go templates in Helm are difficult to debug (no real types, no first-class functions) and complex charts become hard to read. Kustomize is overlay-based — you start with a base YAML and apply patches, which is simpler than Helm for straightforward cases but lacks the power of a real programming language for complex logic. CUE is a constraint-based configuration language from Russ Cox — stricter than Jsonnet (all values must satisfy constraints), which catches errors earlier but has a steeper learning curve. Pulumi (dispatch-1138) writes Kubernetes configuration in TypeScript, Python, or Go — full programming languages with IDE support, types, and testing. It is more powerful than Jsonnet but also heavier: you need a Pulumi state backend and the full SDK. Tanka/Jsonnet sits between Kustomize and Pulumi — a real functional language (comprehensions, imports, inheritance) without the infrastructure of a full programming language runtime. For teams already fluent in Jsonnet (Grafana, Prometheus Operator, and many CNCF projects use Jsonnet extensively), Tanka is the natural Kubernetes configuration layer. At Construx, Tanka is used for service configuration because the shared library model eliminates copy-paste between dev/staging/prod environments, and the diff command gives exact change visibility before applying — something raw YAML and Kustomize both lack without wrapper tooling.
