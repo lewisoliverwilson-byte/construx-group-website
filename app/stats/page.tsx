@@ -87,6 +87,7 @@ import MaterializePanel from '@/components/MaterializePanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NomadPanel from '@/components/NomadPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
+import PackerBuildPanel from '@/components/PackerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -842,8 +843,13 @@ export default function StatsPage() {
       </div>
 
       {/* openfga audit — checks, tuples, store, model */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpenFgaAuditPanel />
+      </div>
+
+      {/* packer build — builders, provisioners, artifacts, manifests */}
+      <div className="mt-6 pb-10">
+        <PackerBuildPanel />
       </div>
     </div>
   );

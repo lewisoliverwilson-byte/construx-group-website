@@ -84,6 +84,7 @@ import GiteaPanel from '@/components/GiteaPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
+import OpensslPanel from '@/components/OpensslPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -802,8 +803,13 @@ export default function ContactPage() {
       </section>
 
       {/* oauth flow — authorize, token, introspect, revoke */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <OAuthFlowPanel />
+      </section>
+
+      {/* openssl — cert, key, csr, chain, verify */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <OpensslPanel />
       </section>
     </div>
   );

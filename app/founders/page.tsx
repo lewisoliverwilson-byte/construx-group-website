@@ -85,6 +85,7 @@ import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
+import PgBouncerPanel from '@/components/PgBouncerPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -930,8 +931,13 @@ export default function FoundersPage() {
         </div>
 
         {/* openfga — relationships, tuples, model, store */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenFGAPanel />
+        </div>
+
+        {/* pgbouncer — pools, clients, servers, wait */}
+        <div className="mt-6 pb-10">
+          <PgBouncerPanel />
         </div>
 
         {/* CTA */}

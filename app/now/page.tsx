@@ -85,6 +85,7 @@ import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
+import PgExplainPanel from '@/components/PgExplainPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -794,8 +795,13 @@ export default function NowPage() {
         </div>
 
         {/* opensearch — indices, shards, queries, cluster health */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenSearchPanel />
+        </div>
+
+        {/* pg explain — plan, cost, rows, nodes, buffers */}
+        <div className="mt-6 pb-10">
+          <PgExplainPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
