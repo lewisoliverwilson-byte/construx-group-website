@@ -2,27 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const MODELS = [
-  { name: 'stg_listings', materialization: 'view', rows: '284k', freshness: '2m ago', status: 'success' },
-  { name: 'int_listing_metrics', materialization: 'table', rows: '48k', freshness: '4m ago', status: 'success' },
-  { name: 'mart_daily_kpis', materialization: 'incremental', rows: '8.4k', freshness: '4m ago', status: 'success' },
-  { name: 'mart_user_cohorts', materialization: 'incremental', rows: '2.8k', freshness: '12m ago', status: 'warn' },
+const TARGETS = [
+  { job: 'construx-web', path: '/var/log/app/*.log', labels: 'app=web,env=prod', state: 'active', rate: '840 B/s' },
+  { job: 'nginx-access', path: '/var/log/nginx/access.log', labels: 'app=nginx,env=prod', state: 'active', rate: '2.4 KB/s' },
+  { job: 'postgres-logs', path: '/var/log/postgresql/*.log', labels: 'app=postgres,env=prod', state: 'active', rate: '120 B/s' },
+  { job: 'k8s-events', path: '/var/log/pods/**/*.log', labels: 'source=k8s,env=prod', state: 'active', rate: '4.8 KB/s' },
 ];
 
-const TESTS = [
-  { model: 'stg_listings', test: 'not_null(listing_id)', status: 'pass', rows_tested: 284200 },
-  { model: 'stg_listings', test: 'unique(listing_id)', status: 'pass', rows_tested: 284200 },
-  { model: 'int_listing_metrics', test: 'accepted_values(status)', status: 'pass', rows_tested: 48200 },
-  { model: 'mart_user_cohorts', test: 'relationships(user_id)', status: 'fail', rows_tested: 12 },
+const PIPELINES = [
+  { stage: 'regex', action: 'output: `(?P<level>INFO|WARN|ERROR) (?P<msg>.*)`', dropped: 0 },
+  { stage: 'labels', action: 'level, app, env → loki labels', dropped: 0 },
+  { stage: 'drop', action: 'drop if level=DEBUG', dropped: 284 },
+  { stage: 'limit', action: 'rate limit 1000 lines/s', dropped: 0 },
 ];
-
-const STATUS_COLOR: Record<string, string> = {
-  success: '#4ade80',
-  warn: '#fbbf24',
-  error: '#f87171',
-  pass: '#4ade80',
-  fail: '#f87171',
-};
 
 function useCounter(base: number, delta: number, ms = 900) {
   const [v, setV] = useState(base);
@@ -33,13 +25,13 @@ function useCounter(base: number, delta: number, ms = 900) {
   return v;
 }
 
-export default function DbtPanel() {
+export default function PromtailPanel() {
   const [visible, setVisible] = useState(false);
-  const [mRows, setMRows] = useState(0);
   const [tRows, setTRows] = useState(0);
+  const [pRows, setPRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const modelsRun = useCounter(284, 2, 1200);
-  const testsRun = useCounter(840, 4, 800);
+  const linesPerSec = useCounter(2840, 48, 500);
+  const bytesPerSec = useCounter(8400, 120, 400);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -49,9 +41,9 @@ export default function DbtPanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const m = setInterval(() => setMRows((x) => Math.min(x + 1, MODELS.length)), 160);
-    const t = setInterval(() => setTRows((x) => Math.min(x + 1, TESTS.length)), 140);
-    return () => { clearInterval(m); clearInterval(t); };
+    const t = setInterval(() => setTRows((x) => Math.min(x + 1, TARGETS.length)), 160);
+    const p = setInterval(() => setPRows((x) => Math.min(x + 1, PIPELINES.length)), 140);
+    return () => { clearInterval(t); clearInterval(p); };
   }, [visible]);
 
   return (
@@ -75,27 +67,27 @@ export default function DbtPanel() {
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
         <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(249,115,22,0.4)' }}>
-          dbt -- data build tool -- transform / test / document
+          promtail -- loki log shipper -- scrape / pipeline / push
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {modelsRun} models run
+          {linesPerSec.toLocaleString()} lines/s
         </span>
       </div>
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#f97316', fontWeight: 600 }}>dbt@warehouse</span>
+        <span style={{ color: '#f97316', fontWeight: 600 }}>promtail@logging</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>dbt build --select +mart_daily_kpis --target prod && dbt test --store-failures</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>promtail -config.file=/etc/promtail/config.yml -print-config-stderr 2&gt;&amp;1 | head -40</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'models run', value: modelsRun.toString(), color: '#f97316' },
-          { label: 'tests run', value: testsRun.toString(), color: '#4ade80' },
-          { label: 'failures', value: TESTS.filter(t => t.status === 'fail').length.toString(), color: '#f87171' },
-          { label: 'total rows', value: '343k', color: '#67e8f9' },
+          { label: 'lines/s', value: linesPerSec.toLocaleString(), color: '#f97316' },
+          { label: 'bytes/s', value: (bytesPerSec / 1024).toFixed(1) + ' KB/s', color: '#67e8f9' },
+          { label: 'targets', value: TARGETS.length.toString(), color: '#4ade80' },
+          { label: 'dropped', value: PIPELINES.reduce((a, p) => a + p.dropped, 0).toString(), color: '#fbbf24' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -105,33 +97,30 @@ export default function DbtPanel() {
       </div>
 
       <div style={{ padding: '10px 14px 0' }}>
-        {/* Models */}
+        {/* Targets */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // models
+          // scrape targets
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {MODELS.slice(0, mRows).map((m) => (
-            <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '1fr 64px 40px 56px 48px', alignItems: 'center', gap: 8, padding: '5px 8px', background: m.status === 'warn' ? 'rgba(251,191,36,0.04)' : 'rgba(249,115,22,0.04)', border: `1px solid ${m.status === 'warn' ? 'rgba(251,191,36,0.1)' : 'rgba(249,115,22,0.1)'}`, borderRadius: 2 }}>
-              <span style={{ color: '#f97316', fontSize: 8, fontWeight: 600 }}>{m.name}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{m.materialization}</span>
-              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{m.rows}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{m.freshness}</span>
-              <span style={{ color: STATUS_COLOR[m.status] ?? '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{m.status}</span>
+          {TARGETS.slice(0, tRows).map((tgt) => (
+            <div key={tgt.job} style={{ display: 'grid', gridTemplateColumns: '72px 1fr 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#f97316', fontSize: 8, fontWeight: 600 }}>{tgt.job}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tgt.path}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{tgt.rate}</span>
             </div>
           ))}
         </div>
 
-        {/* Tests */}
+        {/* Pipeline stages */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // test results
+          // pipeline stages
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {TESTS.slice(0, tRows).map((t, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '72px 1fr 48px 52px', alignItems: 'center', gap: 8, padding: '4px 8px', background: t.status === 'fail' ? 'rgba(248,113,113,0.04)' : 'rgba(74,222,128,0.04)', border: `1px solid ${t.status === 'fail' ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.08)'}`, borderRadius: 2 }}>
-              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.model}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.test}</span>
-              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{t.rows_tested.toLocaleString()}</span>
-              <span style={{ color: STATUS_COLOR[t.status] ?? '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{t.status}</span>
+          {PIPELINES.slice(0, pRows).map((pp) => (
+            <div key={pp.stage} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 48px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.08)', borderRadius: 2 }}>
+              <span style={{ color: '#f97316', fontSize: 8, fontWeight: 600 }}>{pp.stage}</span>
+              <span style={{ color: 'rgba(240,239,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pp.action}</span>
+              <span className="tabular-nums" style={{ color: pp.dropped > 0 ? '#fbbf24' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'right' }}>{pp.dropped > 0 ? `−${pp.dropped}` : 'pass'}</span>
             </div>
           ))}
         </div>
@@ -140,10 +129,10 @@ export default function DbtPanel() {
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
         <span style={{ fontSize: 8, color: 'rgba(249,115,22,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          dbt-core v1.8 - apache-2.0 - analytics engineering
+          promtail v3.0 - agpl-3.0 - loki log shipping agent
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {modelsRun} models - {testsRun} tests
+          {TARGETS.length} targets - {linesPerSec.toLocaleString()} lines/s
         </span>
       </div>
     </div>

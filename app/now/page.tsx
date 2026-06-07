@@ -39,6 +39,7 @@ import PyroscopePanel from '@/components/PyroscopePanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import MLflowPanel from '@/components/MLflowPanel';
+import PromtailPanel from '@/components/PromtailPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -518,8 +519,13 @@ export default function NowPage() {
         </div>
 
         {/* mlflow ml experiment tracking — experiments, runs, metrics, artifacts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MLflowPanel />
+        </div>
+
+        {/* promtail loki log shipper — scrape targets, pipeline stages */}
+        <div className="mt-6 pb-10">
+          <PromtailPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

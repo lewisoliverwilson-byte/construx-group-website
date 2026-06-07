@@ -40,6 +40,7 @@ import MimirPanel from '@/components/MimirPanel';
 import VictoriaLogsPanel from '@/components/VictoriaLogsPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
+import DbtPanel from '@/components/DbtPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -560,8 +561,13 @@ export default function StatsPage() {
       </div>
 
       {/* influxdb time series database — buckets, flux queries, writes/s */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <InfluxDbPanel />
+      </div>
+
+      {/* dbt data build tool — models, tests, materializations */}
+      <div className="mt-6 pb-10">
+        <DbtPanel />
       </div>
     </div>
   );

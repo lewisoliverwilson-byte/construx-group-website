@@ -38,6 +38,7 @@ import TemporalPanel from '@/components/TemporalPanel';
 import TeleportPanel from '@/components/TeleportPanel';
 import PortainerPanel from '@/components/PortainerPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -526,8 +527,13 @@ export default function ContactPage() {
       </section>
 
       {/* airbyte open-source elt — connectors, syncs, records moved */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <AirbytePanel />
+      </section>
+
+      {/* kubernetes gateway api — httproutes, listeners, backends */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubernetesGatewayPanel />
       </section>
     </div>
   );

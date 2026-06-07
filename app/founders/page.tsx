@@ -38,6 +38,7 @@ import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import TankaPanel from '@/components/TankaPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
+import OpenFgaPanel from '@/components/OpenFgaPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -648,8 +649,13 @@ export default function FoundersPage() {
         </div>
 
         {/* grafana faro frontend observability — apps, errors, web vitals, apm */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaFaroPanel />
+        </div>
+
+        {/* openfga fine-grained authz — stores, rebac, relationship tuples */}
+        <div className="mt-6 pb-10">
+          <OpenFgaPanel />
         </div>
 
         {/* CTA */}
