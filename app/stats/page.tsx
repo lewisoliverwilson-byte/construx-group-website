@@ -90,6 +90,7 @@ import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import PineconePanel from '@/components/PineconePanel';
 import RabbitMQPanel from '@/components/RabbitMQPanel';
+import RiverPanel from '@/components/RiverPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -860,8 +861,13 @@ export default function StatsPage() {
       </div>
 
       {/* rabbitmq — queues, exchanges, bindings, messages */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <RabbitMQPanel />
+      </div>
+
+      {/* river — jobs, queues, workers, retries */}
+      <div className="mt-6 pb-10">
+        <RiverPanel />
       </div>
     </div>
   );

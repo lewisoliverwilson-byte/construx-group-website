@@ -87,6 +87,7 @@ import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
 import PrometheusMetricsPanel from '@/components/PrometheusMetricsPanel';
+import RenovatePanel from '@/components/RenovatePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -820,8 +821,13 @@ export default function ContactPage() {
       </section>
 
       {/* prometheus metrics — labels, samples, cardinality, scrape */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <PrometheusMetricsPanel />
+      </section>
+
+      {/* renovate — deps, updates, prs, merge confidence */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <RenovatePanel />
       </section>
     </div>
   );
