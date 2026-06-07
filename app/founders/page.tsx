@@ -24,6 +24,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import OpaPanel from '@/components/OpaPanel';
 import TrivyPanel from '@/components/TrivyPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
+import RisingWavePanel from '@/components/RisingWavePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -564,8 +565,13 @@ export default function FoundersPage() {
         </div>
 
         {/* clickhouse columnar analytics at scale */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickHousePanel />
+        </div>
+
+        {/* risingwave postgresql-compatible streaming database — incremental sql over kafka */}
+        <div className="mt-6 pb-10">
+          <RisingWavePanel />
         </div>
 
         {/* CTA */}

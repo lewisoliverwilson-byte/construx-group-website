@@ -1,0 +1,126 @@
+---
+title: "Vitess: MySQL sharding and horizontal scaling for web-scale databases"
+date: "2033-06-12"
+excerpt: "Vitess is a database clustering system for MySQL that adds horizontal sharding, connection pooling, query routing, and schema management on top of standard MySQL. YouTube built Vitess to scale MySQL beyond what a single server could handle, and it became the backend for PlanetScale. The architecture: VTGate is the query router (MySQL-compatible endpoint that clients connect to), VTTablet is the per-shard MySQL proxy, and VTAdmin is the management layer. Vitess handles sharding transparently — you define a sharding key (e.g., user_id mod 8), and Vitess routes queries to the correct shard, scatters cross-shard queries and merges results, and handles resharding (splitting a shard into two) without downtime. The connection pooler reduces MySQL's connection overhead: thousands of application connections multiplex into tens of connections per shard. Vitess is the right choice when you've outgrown a single MySQL instance but want to stay on MySQL and keep your existing tooling."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+VTGate. VTTablet. Sharding. Connection pooling. Resharding. Schema management. Keyspace.
+
+## Keyspace and sharding setup
+
+```bash
+# Vitess: connect through VTGate (standard MySQL client)
+mysql -h vtgate.storage.svc -P 3306 -u construx -p
+
+# VTGate presents a single MySQL endpoint — sharding is transparent
+
+# Create a keyspace (logical database that can span multiple shards)
+vtctldclient CreateKeyspace \
+  --keyspace-type=NORMAL \
+  construx
+
+# Create a sharded keyspace with 8 shards
+vtctldclient CreateKeyspace \
+  --keyspace-type=NORMAL \
+  --shard-count=8 \
+  construx_orders
+
+# Assign a vschema: tell Vitess how to shard the orders table
+vtctldclient ApplyVSchema --keyspace construx_orders --vschema '
+{
+  "sharded": true,
+  "vindexes": {
+    "hash": { "type": "hash" }
+  },
+  "tables": {
+    "orders": {
+      "column_vindexes": [
+        {
+          "column": "user_id",
+          "name": "hash"
+        }
+      ]
+    }
+  }
+}'
+# user_id is hashed to determine the shard — all rows for a user go to the same shard
+# This makes per-user queries local (no scatter) while spreading writes across shards
+
+# List shards
+vtctldclient GetShard construx_orders/-
+# Shards: -20 20-40 40-60 60-80 80-a0 a0-c0 c0-e0 e0-
+# (hexadecimal shard key ranges)
+```
+
+## VSchema and cross-shard queries
+
+```sql
+-- Connected to VTGate — queries routed automatically
+
+-- Single-shard query: user_id is the shard key — goes directly to one shard
+SELECT * FROM orders WHERE user_id = 10001 ORDER BY created_at DESC LIMIT 10;
+-- Execution plan: SingleShard → shard-03 (hash of 10001)
+
+-- Cross-shard scatter query: no shard key in WHERE clause — hits all 8 shards
+SELECT status, count(*) FROM orders WHERE created_at > now() - INTERVAL 1 DAY GROUP BY 1;
+-- Execution plan: scatter (8 shards) → merge → return aggregated result
+-- Vitess parallelizes the scatter — latency is max(shard latency) not sum
+
+-- Lookup vindex: add a secondary index for non-shard-key lookups
+-- (Without lookup vindex, queries by order_id cause scatter across all shards)
+-- Define a lookup vindex in vschema:
+-- "order_id_lookup": { "type": "consistent_lookup", "params": {"table": "order_id_idx", "from": "order_id", "to": "user_id"} }
+
+-- With lookup vindex: query by order_id routes to the correct shard
+SELECT * FROM orders WHERE id = 'uuid-here';
+-- VTGate looks up user_id in order_id_idx → routes to shard-03
+
+-- Transactions: cross-shard transactions use 2PC
+-- Single-shard transactions are standard MySQL ACID
+BEGIN;
+UPDATE orders SET status = 'processing' WHERE user_id = 10001 AND id = 'uuid-here';
+INSERT INTO order_events (order_id, event_type) VALUES ('uuid-here', 'processing');
+COMMIT;
+-- VTGate detects this is single-shard (both rows on shard-03 for user_id 10001) — no 2PC needed
+```
+
+## Resharding and operational management
+
+```bash
+# Resharding: split a shard into two without downtime
+# Vitess buffers queries during the brief cutover window
+
+# Start resharding from shard -80 to -40 and 40-80
+vtctldclient Reshard --workflow reshard_orders \
+  --keyspace construx_orders \
+  --source-shards=-80 \
+  --target-shards=-40,40-80
+
+# Wait for copy phase to complete (data fully copied to new shards)
+vtctldclient Reshard --show-details --workflow reshard_orders --keyspace construx_orders
+
+# Switch reads (no data loss risk — can be reversed)
+vtctldclient Reshard --workflow reshard_orders --keyspace construx_orders SwitchTraffic --tablet-types RDONLY,REPLICA
+
+# Switch writes (brief buffering window — typically <1s)
+vtctldclient Reshard --workflow reshard_orders --keyspace construw_orders SwitchTraffic --tablet-types PRIMARY
+
+# Complete and cleanup
+vtctldclient Reshard --workflow reshard_orders --keyspace construx_orders Complete
+
+# Connection pooler: VTTablet pools connections to MySQL
+# 5000 app connections → 50 MySQL connections (100x reduction)
+# mysql max_connections=100 can handle thousands of app connections
+
+# Schema changes: Online DDL (non-blocking ALTER TABLE)
+ALTER TABLE orders ADD COLUMN discount_pence INT DEFAULT 0;
+-- Vitess runs this via gh-ost or pt-online-schema-change — no table lock
+-- Shows up as a running migration:
+vtctldclient GetSchemaMigrations --keyspace construx_orders
+# uuid                                  state    table   progress  eta
+# a1b2c3d4-e5f6-7890-abcd-ef1234567890  running  orders  67%       ~4min
+```
+
+Vitess vs CockroachDB vs PlanetScale vs sharding in the application: Application-level sharding (your Go service routes to different MySQL hosts based on user_id) works but embeds sharding logic in the application — changing the sharding key means rewriting query logic. PlanetScale is a managed Vitess offering — you get Vitess's capabilities without running it yourself. CockroachDB shards automatically using range-based partitioning with no application knowledge, but it's a different database (PostgreSQL-compatible, not MySQL). Vitess's advantage is that it sits in front of existing MySQL: you can take a running MySQL database and gradually migrate it to Vitess without rewriting your application. The complexity cost is real — VTGate, VTTablet, VTAdmin, and the vschema are significant operational surface area. Use Vitess when you have MySQL expertise, MySQL-specific features, and a scale problem that sharding solves.
