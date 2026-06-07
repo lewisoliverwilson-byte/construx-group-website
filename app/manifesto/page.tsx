@@ -16,6 +16,7 @@ import EslintOutputPanel from '@/components/EslintOutputPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
+import GitBisectPanel from '@/components/GitBisectPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -279,8 +280,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* Ansible playbook run */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AnsiblePlaybookPanel />
+        </div>
+
+        {/* git bisect regression hunt */}
+        <div className="mt-4 pb-6">
+          <GitBisectPanel />
         </div>
 
         {/* Sign-off */}

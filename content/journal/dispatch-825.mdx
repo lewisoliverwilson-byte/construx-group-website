@@ -1,0 +1,124 @@
+---
+title: "Linux namespaces and cgroups: what containers actually are"
+date: "2031-09-23"
+excerpt: "Containers are not virtual machines. They are processes that run in isolated namespaces and under cgroup resource limits. A namespace restricts what a process can see — a network namespace has its own network interfaces, a PID namespace has its own process tree, a mount namespace has its own filesystem view. Cgroups limit how much a process can use — CPU, memory, I/O. Together, these two kernel features are what Docker and containerd implement."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+No hypervisor. No guest kernel. Just kernel features applied to a process.
+
+## Namespaces — what a process can see
+
+```bash
+# List namespaces of a running container
+sudo lsns --output NAME,TYPE,PID,COMMAND | head -30
+
+# Create a new network namespace and inspect it
+sudo unshare --net ip link show
+# 1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+# (only loopback — completely isolated from host network)
+
+# Create isolated user + PID + network + mount namespaces
+sudo unshare --user --pid --net --mount --fork bash
+
+# Inside: you are root (mapped user namespace), with isolated PID tree
+id
+# uid=0(root) gid=0(root) groups=0(root)
+
+ps aux
+# USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+# root         1  0.0  0.0   4624  3768 pts/0    S    09:14   0:00 bash
+# root         5  0.0  0.0   6924  3196 pts/0    R+   09:14   0:00 ps aux
+```
+
+## Namespaces — the six types
+
+```
+mnt    Mount namespace  — private filesystem tree
+pid    PID namespace    — own process IDs (PID 1 = init)
+net    Network namespace — own network interfaces and routing
+ipc    IPC namespace    — own shared memory, message queues
+uts    UTS namespace    — own hostname and domain name
+user   User namespace   — own uid/gid mapping (unprivileged containers)
+```
+
+## cgroups v2 — resource limits
+
+```bash
+# Create a cgroup for a service
+mkdir /sys/fs/cgroup/construx-api
+
+# Set memory limit: 512MB hard limit
+echo $((512 * 1024 * 1024)) > /sys/fs/cgroup/construx-api/memory.max
+
+# Set CPU limit: 50% of 1 core (50000 of 100000 microseconds per period)
+echo "50000 100000" > /sys/fs/cgroup/construx-api/cpu.max
+
+# Move a process into the cgroup
+echo $PID > /sys/fs/cgroup/construx-api/cgroup.procs
+
+# Check current memory usage
+cat /sys/fs/cgroup/construx-api/memory.current
+# 134217728  (128MB)
+
+# Check CPU statistics
+cat /sys/fs/cgroup/construx-api/cpu.stat
+# usage_usec 48291474
+# user_usec  31847293
+# system_usec 14444181
+# nr_throttled 42
+# throttled_usec 8923741
+```
+
+## Docker's implementation
+
+```bash
+# Docker creates a namespace + cgroup per container
+docker run -d --name api --memory=512m --cpus=0.5 construx/api:latest
+
+# Inspect the cgroup
+CONTAINER_ID=$(docker inspect api --format '{{.Id}}')
+cat /sys/fs/cgroup/system.slice/docker-${CONTAINER_ID}.scope/memory.max
+# 536870912  (512MB — matches --memory=512m)
+
+# Inspect the namespaces
+docker inspect api --format '{{.State.Pid}}'  # Get the PID
+sudo nsenter -t $PID --net -- ip link show    # Enter its network namespace
+```
+
+## OCI runtime — runc
+
+```bash
+# runc is the low-level container runtime that Docker calls
+# Create a rootfs and OCI config
+mkdir container-root
+docker export $(docker create busybox) | tar -xC container-root
+
+# Generate a default OCI config
+runc spec
+
+# Run with runc directly
+sudo runc run my-container
+
+# runc runs the container by:
+# 1. Creating the namespaces
+# 2. Applying the cgroup limits
+# 3. Calling clone() to fork the process into the namespaces
+# 4. exec()-ing the container entrypoint
+```
+
+## Seccomp — syscall filtering
+
+```json
+// Docker default seccomp profile excerpt
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "syscalls": [
+    { "names": ["accept", "bind", "connect", ...], "action": "SCMP_ACT_ALLOW" },
+    { "names": ["ptrace", "mount", "swapon"],      "action": "SCMP_ACT_ERRNO" }
+  ]
+}
+```
+
+Containers isolate at the kernel level, not the hardware level. A container kernel exploit that escapes to the host is a real threat — seccomp, AppArmor/SELinux, and rootless containers mitigate it. The Construx default: rootless containers where possible; seccomp profiles on production containers; never `--privileged` in production.
