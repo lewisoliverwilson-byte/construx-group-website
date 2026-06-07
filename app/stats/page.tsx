@@ -32,6 +32,7 @@ import LonghornPanel from '@/components/LonghornPanel';
 import CephPanel from '@/components/CephPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import PixiePanel from '@/components/PixiePanel';
+import OpenCostPanel from '@/components/OpenCostPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -512,8 +513,13 @@ export default function StatsPage() {
       </div>
 
       {/* pixie ebpf auto-telemetry — http service map, flamegraph, pxl scripts */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PixiePanel />
+      </div>
+
+      {/* opencost kubernetes cost allocation — namespace breakdown, efficiency, workloads */}
+      <div className="mt-6 pb-10">
+        <OpenCostPanel />
       </div>
     </div>
   );
