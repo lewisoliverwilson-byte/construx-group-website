@@ -81,6 +81,7 @@ import MemInfoPanel from '@/components/MemInfoPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import EnvPanel from '@/components/EnvPanel';
+import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -770,8 +771,13 @@ export default function NowPage() {
         </div>
 
         {/* env — variables, secrets, overrides, dotenv */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EnvPanel />
+        </div>
+
+        {/* nats pub/sub — subjects, messages, consumers, streams */}
+        <div className="mt-6 pb-10">
+          <NatsPubSubPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

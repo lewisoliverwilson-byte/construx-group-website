@@ -81,6 +81,7 @@ import MeilisearchPanel from '@/components/MeilisearchPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
+import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -906,8 +907,13 @@ export default function FoundersPage() {
         </div>
 
         {/* db migration — version, applied, pending, checksum */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DbMigrationPanel />
+        </div>
+
+        {/* methodology diff — before, after, delta, signal */}
+        <div className="mt-6 pb-10">
+          <MethodologyDiffPanel />
         </div>
 
         {/* CTA */}
