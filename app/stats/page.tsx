@@ -57,6 +57,7 @@ import KarpenterPanel from '@/components/KarpenterPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import PrefectPanel from '@/components/PrefectPanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
+import BiomePanel from '@/components/BiomePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -662,8 +663,13 @@ export default function StatsPage() {
       </div>
 
       {/* huggingface model hub — models, datasets, inference */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <HuggingFacePanel />
+      </div>
+
+      {/* biome js toolchain — lint, format, check, ci */}
+      <div className="mt-6 pb-10">
+        <BiomePanel />
       </div>
     </div>
   );

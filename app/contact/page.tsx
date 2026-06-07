@@ -55,6 +55,7 @@ import FluentBitPanel from '@/components/FluentBitPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import NeonPanel from '@/components/NeonPanel';
 import OllamaPanel from '@/components/OllamaPanel';
+import GrpcurlPanel from '@/components/GrpcurlPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -628,8 +629,13 @@ export default function ContactPage() {
       </section>
 
       {/* ollama local llm — models, sessions, inference */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <OllamaPanel />
+      </section>
+
+      {/* grpcurl grpc client — services, methods, responses */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GrpcurlPanel />
       </section>
     </div>
   );

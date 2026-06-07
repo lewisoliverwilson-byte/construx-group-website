@@ -55,6 +55,7 @@ import TetragonPanel from '@/components/TetragonPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import SkaffoldPanel from '@/components/SkaffoldPanel';
+import MisePanel from '@/components/MisePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -614,8 +615,13 @@ export default function NowPage() {
         </div>
 
         {/* skaffold kubernetes dev workflow — builds, deploys, sync */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SkaffoldPanel />
+        </div>
+
+        {/* mise tool version management — tools, versions, envs */}
+        <div className="mt-6 pb-10">
+          <MisePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

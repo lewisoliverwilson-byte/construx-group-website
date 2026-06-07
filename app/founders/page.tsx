@@ -55,6 +55,7 @@ import HarborPanel from '@/components/HarborPanel';
 import VeleroPanel from '@/components/VeleroPanel';
 import SynapsePanel from '@/components/SynapsePanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
+import NixFlakePanel from '@/components/NixFlakePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -750,8 +751,13 @@ export default function FoundersPage() {
         </div>
 
         {/* earthly container builds — targets, images, cache */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EarthlyPanel />
+        </div>
+
+        {/* nix flake builds — inputs, outputs, derivations */}
+        <div className="mt-6 pb-10">
+          <NixFlakePanel />
         </div>
 
         {/* CTA */}
