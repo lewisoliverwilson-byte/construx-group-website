@@ -1,0 +1,153 @@
+---
+title: "lazygit: terminal UI for git with keyboard-driven staging, rebasing, and conflict resolution"
+date: "2032-10-06"
+excerpt: "lazygit is a terminal user interface for git — it renders the status, staged changes, unstaged changes, log, and stash in a multi-pane layout driven entirely by keyboard shortcuts. The key feature is interactive staging: press Space to stage individual hunks or lines (without running `git add -p` manually), and the diff renders inline with syntax highlighting. Interactive rebase is a single keypress — select commits to squash, reorder, or drop, and lazygit generates the rebase sequence. Conflict resolution shows both sides inline and lets you choose with a single key. lazygit is a keyboard-first alternative to git GUIs — faster than a browser-based UI, more visual than raw git commands."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Space to stage a hunk. `r` to interactive rebase. `e` to resolve conflicts inline. No mouse.
+
+## Navigation and daily workflow
+
+```
+# lazygit layout (7 panels):
+# ┌─────────────┬──────────────────────────────────────────────┐
+# │  Status     │  Main panel (diff / log / stash)             │
+# │  Files      │                                              │
+# │  Branches   │                                              │
+# │  Commits    │                                              │
+# │  Stash      │                                              │
+# └─────────────┴──────────────────────────────────────────────┘
+
+# Global keybindings:
+# Tab / Shift+Tab → switch between panels
+# ↑↓ / jk        → navigate list
+# q               → quit
+# ?               → show all keybindings for current panel
+# :               → command mode (run git commands directly)
+# @               → open git log in pager
+# x               → open context menu for current item
+```
+
+```bash
+# Launch lazygit
+lazygit
+
+# Launch in a specific directory
+lazygit -p /path/to/repo
+
+# Open lazygit filtered to a specific file
+lazygit --filter=path/to/file
+
+# ~/.config/lazygit/config.yml: configure keybindings, themes, and behavior
+cat ~/.config/lazygit/config.yml
+# gui:
+#   theme:
+#     activeBorderColor: [green, bold]
+#     selectedLineBgColor: [default, reverse]
+#   showFileTree: true        # tree view of files
+#   nerdFontsVersion: "3"     # enable nerd font icons
+#   expandFocusedSidePanel: true
+# git:
+#   paging:
+#     colorArg: always
+#     pager: delta --dark --paging=never   # use delta for diffs
+#   commit:
+#     signOff: false
+#   autoFetch: true
+#   autoRefresh: true
+# keybinding:
+#   universal:
+#     prevItem: '[j]'
+#     nextItem: '[k]'
+```
+
+## Staging hunks and lines
+
+```
+# Files panel — staging workflow:
+# Space         → stage/unstage entire file
+# Enter         → open diff for the file (hunk view)
+#
+# In the hunk diff view:
+# Space         → stage/unstage the selected hunk
+# a             → stage all hunks in the file
+# d             → discard the selected hunk (careful — this discards changes)
+#
+# Line-level staging (like `git add -p --patch`):
+# In the diff view, press E to enter the line editor:
+# Space         → toggle staging for a single line
+# a             → stage all visible lines
+# This writes the partial staging directly — no staging area dance needed
+
+# Viewing diffs with delta:
+# If you set git.paging.pager to delta, lazygit renders diffs with syntax
+# highlighting and side-by-side mode wherever git diff is shown
+```
+
+## Commits and interactive rebase
+
+```
+# Commits panel keybindings:
+# Enter         → view diff for a commit
+# Space         → cherry-pick a commit (mark, then Shift+V to paste)
+# r             → rename a commit (amend message)
+# e             → edit a commit (stops rebase at that point, drops to shell)
+# d             → drop a commit from history
+# s             → squash commit into the one below
+# f             → fixup: squash + discard commit message
+# p             → pick (reorder during rebase)
+# R             → start interactive rebase from this commit
+
+# Interactive rebase workflow:
+# 1. Navigate to the commit you want to rebase from
+# 2. Press R (start interactive rebase — equivalent to git rebase -i HEAD~N)
+# 3. Reorder commits with drag or p/d
+# 4. Mark commits with s (squash) or f (fixup)
+# 5. Press Enter to run the rebase
+
+# Amend the last commit (stage changes, then):
+# Commits panel → first commit → Shift+A (amend with staged changes)
+
+# Push and force-push:
+# Branches panel → current branch → Shift+P (force push with lease)
+# lazygit shows a confirmation before force-pushing
+```
+
+## Branch management and conflict resolution
+
+```
+# Branches panel keybindings:
+# Enter / Space → checkout branch
+# n             → create new branch from HEAD
+# d             → delete branch (Shift+D to force delete)
+# r             → rebase current branch onto selected
+# m             → merge selected branch into current
+# f             → fast-forward current branch
+# M             → merge with commit (no fast-forward)
+# g             → reset to this branch (soft/mixed/hard — menu appears)
+
+# Stash panel:
+# Space / Enter → pop stash
+# g             → apply stash (keep it)
+# d             → drop stash
+# n             → create new stash (prompts for message)
+
+# Conflict resolution (after failed merge/rebase):
+# In the Files panel, conflicted files are marked with <<<
+# Enter the file → lazygit shows a three-panel view:
+# Left:   ours (HEAD)
+# Right:  theirs (incoming)
+# Bottom: base (common ancestor)
+# b → pick ours | n → pick theirs | B → pick both | Shift+B → pick base
+# After resolving all conflicts → press Space to mark as resolved
+
+# Remote management:
+# Branches → remotes tab
+# f → fetch all remotes
+# p → pull current branch
+# P → push current branch
+```
+
+lazygit vs git CLI vs GitHub Desktop vs Magit: GitHub Desktop is for beginners — mouse-driven, limited to common operations. git CLI is the reference, always available, but requires memorizing every flag and doesn't show the whole state at once. Magit (Emacs) is the most powerful git UI ever built — if you live in Emacs, use Magit. lazygit is the terminal-native middle ground: keyboard-driven like the CLI, visual like a GUI, and fast like a TUI. The hunk-level staging and interactive rebase features are the biggest wins — operations that require multiple git commands and a text editor become single keypresses. If you spend significant time in the terminal, lazygit is worth the 30 minutes of keybinding learning.

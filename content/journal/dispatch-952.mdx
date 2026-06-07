@@ -1,0 +1,228 @@
+---
+title: "OpenTelemetry: traces, metrics, and logs with a vendor-neutral SDK"
+date: "2032-10-09"
+excerpt: "OpenTelemetry (OTel) is the CNCF standard for distributed observability — it defines the APIs, SDKs, and wire protocol (OTLP) for emitting traces, metrics, and logs from any application to any backend. The SDK instruments your application; the Collector receives, processes, and exports telemetry to Jaeger, Prometheus, Grafana Loki, Datadog, Honeycomb, or any OTLP-compatible sink. Auto-instrumentation libraries add spans for HTTP servers, database drivers, and gRPC without code changes. The W3C TraceContext propagation header (traceparent) passes trace IDs across service boundaries — a single trace can span a Go API, a Python worker, a database query, and a Redis call, all stitched together by the same trace ID."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+One trace ID across every service. OTLP to any backend. Auto-instrument the hot paths first.
+
+## SDK setup and auto-instrumentation
+
+```go
+// main.go: bootstrap OpenTelemetry in a Go service
+package main
+
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    "go.opentelemetry.io/otel/propagation"
+    "go.opentelemetry.io/otel/sdk/resource"
+    sdktrace "go.opentelemetry.io/otel/sdk/trace"
+    semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+)
+
+func initOtel(ctx context.Context) (func(context.Context) error, error) {
+    // Export traces to the OTel Collector via gRPC
+    exporter, err := otlptracegrpc.New(ctx,
+        otlptracegrpc.WithEndpoint("otel-collector:4317"),
+        otlptracegrpc.WithInsecure(),
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    tp := sdktrace.NewTracerProvider(
+        sdktrace.WithBatcher(exporter),
+        sdktrace.WithSampler(sdktrace.ParentBased(
+            sdktrace.TraceIDRatioBased(0.1), // 10% sampling in production
+        )),
+        sdktrace.WithResource(resource.NewWithAttributes(
+            semconv.SchemaURL,
+            semconv.ServiceName("construx-api"),
+            semconv.ServiceVersion("1.4.2"),
+            semconv.DeploymentEnvironment("prod"),
+        )),
+    )
+
+    otel.SetTracerProvider(tp)
+    otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+        propagation.TraceContext{},  // W3C traceparent header
+        propagation.Baggage{},
+    ))
+
+    return tp.Shutdown, nil
+}
+
+// Auto-instrumentation: wrap HTTP server with OTel middleware
+import "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+mux := http.NewServeMux()
+mux.Handle("/v1/orders", handleOrders)
+
+// OTel middleware: creates a root span for every incoming request
+// Extracts traceparent from incoming headers (propagation)
+handler := otelhttp.NewHandler(mux, "construx-api",
+    otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
+)
+```
+
+## Manual spans and attributes
+
+```go
+// tracer: get a named tracer from the global provider
+var tracer = otel.Tracer("construx-api")
+
+func (s *OrderService) ProcessOrder(ctx context.Context, input OrderInput) (*Order, error) {
+    // Start a span — child of any span in ctx (or root if none)
+    ctx, span := tracer.Start(ctx, "OrderService.ProcessOrder")
+    defer span.End()
+
+    // Add attributes (indexed, searchable in Jaeger/Honeycomb)
+    span.SetAttributes(
+        attribute.String("order.customer_id", input.CustomerID),
+        attribute.Int("order.item_count",     len(input.Items)),
+        attribute.String("order.currency",    "GBP"),
+    )
+
+    order, err := s.db.CreateOrder(ctx, input)
+    if err != nil {
+        // Record the error on the span (sets status to Error)
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
+        return nil, err
+    }
+
+    // Add event: a timestamped annotation on the span
+    span.AddEvent("order.created", trace.WithAttributes(
+        attribute.String("order.id", order.ID),
+    ))
+
+    // Nested span for downstream call
+    ctx, dbSpan := tracer.Start(ctx, "postgres.insert_order")
+    defer dbSpan.End()
+    // ... database call ...
+
+    return order, nil
+}
+
+// Auto-instrumented database (otelgorm or pgx with OTel):
+import "go.opentelemetry.io/contrib/instrumentation/github.com/lib/pq/otelpgx"
+
+// Every SQL query gets a span automatically:
+// db.query — sql: "INSERT INTO orders ..."
+// db.rows  — rows affected, query duration
+```
+
+## Metrics with OTel
+
+```go
+// Metrics: counters, histograms, and gauges via the OTel metrics API
+import (
+    "go.opentelemetry.io/otel/metric"
+    "go.opentelemetry.io/otel/exporters/prometheus"
+    sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+)
+
+// Setup: export metrics to Prometheus
+promExporter, _ := prometheus.New()
+mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(promExporter))
+otel.SetMeterProvider(mp)
+
+var meter = otel.Meter("construx-api")
+
+// Counter: monotonically increasing (requests, errors)
+requestsTotal, _ := meter.Int64Counter("http.requests.total",
+    metric.WithDescription("Total HTTP requests"),
+    metric.WithUnit("{request}"),
+)
+
+// Histogram: observe latency distributions
+requestDuration, _ := meter.Float64Histogram("http.request.duration_ms",
+    metric.WithDescription("HTTP request duration"),
+    metric.WithUnit("ms"),
+    metric.WithExplicitBucketBoundaries(1, 5, 10, 50, 100, 500, 1000),
+)
+
+// Gauge: current value (in-flight requests, queue depth)
+inFlightRequests, _ := meter.Int64UpDownCounter("http.requests.inflight",
+    metric.WithDescription("In-flight HTTP requests"),
+)
+
+// Record in your handler:
+func handleOrders(w http.ResponseWriter, r *http.Request) {
+    start := time.Now()
+    inFlightRequests.Add(r.Context(), 1)
+    defer func() {
+        inFlightRequests.Add(r.Context(), -1)
+        requestDuration.Record(r.Context(), float64(time.Since(start).Milliseconds()),
+            metric.WithAttributes(
+                attribute.String("method", r.Method),
+                attribute.Int("status_code", 200),
+            ),
+        )
+        requestsTotal.Add(r.Context(), 1)
+    }()
+    // ... handler logic ...
+}
+```
+
+## OTel Collector configuration
+
+```yaml
+# otel-collector-config.yaml: receive, process, and export telemetry
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    send_batch_size: 10000
+    timeout: 10s
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  # Add k8s metadata (pod name, namespace, node) to all telemetry
+  k8sattributes:
+    extract:
+      metadata:
+        - k8s.pod.name
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.deployment.name
+
+exporters:
+  # Traces → Jaeger
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  # Metrics → Prometheus
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  # Logs → Loki
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, k8sattributes, batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [loki]
+```
+
+OTel vs vendor SDKs: Datadog, Honeycomb, and New Relic all have their own SDKs with proprietary wire protocols. Using a vendor SDK creates lock-in — switching backends means rewriting instrumentation. OTel uses a single SDK and the open OTLP protocol; switching backends means reconfiguring the Collector, not changing application code. The trade-off: vendor SDKs sometimes have better auto-instrumentation coverage or tighter integration with their SaaS features. The practical approach: instrument with OTel from day one, send to the Collector, and route to whatever backend is in use. When you switch from Jaeger to Honeycomb, you change two lines in the Collector config, not the application.

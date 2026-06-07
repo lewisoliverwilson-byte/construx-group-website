@@ -1,0 +1,222 @@
+---
+title: "GoReleaser: multi-platform builds, Docker images, and GitHub Releases from a single config"
+date: "2032-10-03"
+excerpt: "GoReleaser automates the full release pipeline for Go projects: cross-compiling binaries for multiple OS and architecture combinations, creating archives, generating checksums, building and pushing Docker images, publishing to GitHub/GitLab Releases, updating Homebrew taps, and sending release announcements. The configuration is a single .goreleaser.yaml file checked into the repo. GoReleaser Pro adds release notes generation from conventional commits, artifact signing (cosign, GPG), and OCI artifact publishing. The `goreleaser check` command validates the config; `goreleaser build --snapshot` does a local dry-run without publishing. GoReleaser is the standard release tool in the Go ecosystem — used by kubectl, Terraform, and most major Go CLIs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+One config file. Five platforms. Docker multiarch. GitHub Release. Checksums. Done.
+
+## .goreleaser.yaml configuration
+
+```yaml
+# .goreleaser.yaml: complete release pipeline in one file
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: construx-api
+    main: ./cmd/api
+    binary: construx-api
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: construx-api
+    builds: [construx-api]
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - README.md
+      - LICENSE
+      - config.example.yaml
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+```
+
+## Docker images and multi-arch builds
+
+```yaml
+# Multi-arch Docker image: build linux/amd64 and linux/arm64, push as a manifest
+dockers:
+  - id: construx-api-amd64
+    ids: [construx-api]
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - 'docker.io/construx/api:{{ .Version }}-amd64'
+      - 'docker.io/construx/api:latest-amd64'
+    dockerfile: Dockerfile.release
+    use: buildx
+    build_flag_templates:
+      - '--platform=linux/amd64'
+      - '--label=org.opencontainers.image.version={{ .Version }}'
+      - '--label=org.opencontainers.image.revision={{ .Commit }}'
+
+  - id: construx-api-arm64
+    ids: [construx-api]
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - 'docker.io/construx/api:{{ .Version }}-arm64'
+    dockerfile: Dockerfile.release
+    use: buildx
+    build_flag_templates:
+      - '--platform=linux/arm64'
+
+docker_manifests:
+  - name_template: 'docker.io/construx/api:{{ .Version }}'
+    image_templates:
+      - 'docker.io/construx/api:{{ .Version }}-amd64'
+      - 'docker.io/construx/api:{{ .Version }}-arm64'
+  - name_template: 'docker.io/construx/api:latest'
+    image_templates:
+      - 'docker.io/construx/api:latest-amd64'
+      - 'docker.io/construx/api:{{ .Version }}-arm64'
+```
+
+## GitHub Releases and release notes
+
+```yaml
+# GitHub Release: auto-generated release notes from commit history
+changelog:
+  sort: asc
+  use: github    # uses GitHub's release notes API (groups by PR labels)
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+  groups:
+    - title: 'New features'
+      regexp: "^feat:"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^fix:"
+      order: 1
+    - title: 'Performance'
+      regexp: "^perf:"
+      order: 2
+    - title: 'Other changes'
+      order: 999
+
+release:
+  github:
+    owner: construx
+    name: api
+  name_template: '{{.ProjectName}} v{{.Version}}'
+  header: |
+    ## Construx API v{{.Version}}
+    Released on {{.Date}}
+  footer: |
+    ---
+    Full changelog: https://github.com/construx/api/compare/{{.PreviousTag}}...{{.Tag}}
+
+  # Draft a release for review before publishing
+  draft: false
+  prerelease: auto    # auto = true if version contains -rc, -beta, -alpha
+```
+
+## Running and CI integration
+
+```bash
+# Validate config before committing
+goreleaser check
+
+# Local build snapshot (no publish, no git tag required)
+goreleaser build --snapshot --clean
+# Builds all platforms to dist/ — useful for local testing
+
+# Release snapshot (full pipeline but doesn't publish)
+goreleaser release --snapshot --clean --skip=publish
+
+# Tag and release (runs full pipeline and publishes)
+git tag -a v1.4.2 -m "Release v1.4.2"
+git push origin v1.4.2
+goreleaser release --clean
+
+# GitHub Actions: trigger goreleaser on tag push
+# .github/workflows/release.yaml
+# name: Release
+# on:
+#   push:
+#     tags: ['v*']
+# jobs:
+#   release:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0     # GoReleaser needs full history for changelog
+#       - uses: actions/setup-go@v5
+#         with:
+#           go-version-file: go.mod
+#       - uses: docker/setup-qemu-action@v3   # for ARM builds
+#       - uses: docker/setup-buildx-action@v3
+#       - uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.DOCKERHUB_TOKEN }}
+#       - uses: goreleaser/goreleaser-action@v6
+#         with:
+#           version: '~> v2'
+#           args: release --clean
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## Artifact signing with cosign
+
+```yaml
+# Sign artifacts with cosign (keyless signing via GitHub Actions OIDC)
+signs:
+  - cmd: cosign
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - '--output-certificate=${certificate}'
+      - '--output-signature=${signature}'
+      - '${artifact}'
+      - '--yes'
+    artifacts: checksum
+    output: true
+
+# For Docker images
+docker_signs:
+  - cmd: cosign
+    args:
+      - sign
+      - '${artifact}'
+      - '--yes'
+    artifacts: all
+    output: true
+```
+
+GoReleaser vs Makefile+goreleaser vs ko vs Docker Buildx: a Makefile with cross-compilation scripts works but requires maintaining the matrix yourself — and doesn't handle GitHub Releases, changelogs, or checksums. ko (from Google) focuses purely on building Go container images with zero Dockerfile — excellent for Kubernetes operators. GoReleaser handles everything from binaries to Docker to release notes to Homebrew — it's the complete release pipeline. The snapshot flag is the most useful daily driver: `goreleaser build --snapshot --clean` verifies that cross-compilation works on every PR, before the tag is cut. Catching a missed `CGO_ENABLED=0` or a platform-specific syscall at PR time is much cheaper than discovering it during a release.

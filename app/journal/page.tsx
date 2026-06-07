@@ -25,6 +25,7 @@ import SentryIssuesPanel from '@/components/SentryIssuesPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -269,6 +270,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* DuckDB analytical SQL on parquet */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <DuckdbPanel />
+      </section>
+
+      {/* GoReleaser multi-platform build and release */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GoReleaserPanel />
       </section>
 
       {/* Posts */}
