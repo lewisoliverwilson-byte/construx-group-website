@@ -48,6 +48,7 @@ import KindPanel from '@/components/KindPanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
+import SpiceDBPanel from '@/components/SpiceDBPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -590,8 +591,13 @@ export default function UsesPage() {
         </div>
 
         {/* kafka connect data integration — connectors, cdc, sinks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KafkaConnectPanel />
+        </div>
+
+        {/* spicedb zanzibar authorization — schema, relationships, checks */}
+        <div className="mt-6 pb-10">
+          <SpiceDBPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

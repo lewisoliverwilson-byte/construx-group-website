@@ -50,6 +50,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import TerraformPanel from '@/components/TerraformPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
+import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -483,8 +484,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* sonarqube code quality — projects, coverage, issues */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <SonarQubePanel />
+        </div>
+
+        {/* kubeflow pipelines mlops — pipelines, runs, experiments */}
+        <div className="mt-4 pb-6">
+          <KubeflowPipelinesPanel />
         </div>
 
         {/* Sign-off */}

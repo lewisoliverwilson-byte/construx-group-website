@@ -54,6 +54,7 @@ import CosignPanel from '@/components/CosignPanel';
 import HarborPanel from '@/components/HarborPanel';
 import SynapsePanel from '@/components/SynapsePanel';
 import SeaweedFSPanel from '@/components/SeaweedFSPanel';
+import LokiPanel from '@/components/LokiPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -440,8 +441,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* seaweedfs distributed file system — volumes, filer, s3-compatible */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <SeaweedFSPanel />
+      </section>
+
+      {/* grafana loki log aggregation — streams, logql, ingester */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LokiPanel />
       </section>
 
       {/* Posts */}

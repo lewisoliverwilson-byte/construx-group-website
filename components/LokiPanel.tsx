@@ -3,26 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 
 const STREAMS = [
-  { labels: '{app="api",env="prod"}', entries: 248400, rate: '84/s', bytes: '2.4 MB/s' },
-  { labels: '{app="worker",env="prod"}', entries: 124200, rate: '42/s', bytes: '1.1 MB/s' },
-  { labels: '{app="gateway",env="prod"}', entries: 96000, rate: '28/s', bytes: '0.8 MB/s' },
-  { labels: '{job="cron",env="prod"}', entries: 18400, rate: '6/s', bytes: '0.1 MB/s' },
+  { labels: '{namespace="prod",app="construx-api"}', lines: 284000, bytesRate: '2.4MB/s', compressRatio: '8.4x', ingester: 'ingester-01', status: 'active' },
+  { labels: '{namespace="prod",app="construx-worker"}', lines: 184000, bytesRate: '1.2MB/s', compressRatio: '7.8x', ingester: 'ingester-02', status: 'active' },
+  { labels: '{namespace="prod",app="construx-web"}', lines: 48000, bytesRate: '480KB/s', compressRatio: '6.2x', ingester: 'ingester-01', status: 'active' },
+  { labels: '{namespace="kube-system",app="kube-apiserver"}', lines: 28000, bytesRate: '240KB/s', compressRatio: '9.1x', ingester: 'ingester-03', status: 'active' },
 ];
 
-const LINES = [
-  { ts: '12:04:01', level: 'info', stream: 'api', msg: 'POST /api/v1/embeddings 200 142ms' },
-  { ts: '12:04:01', level: 'info', stream: 'worker', msg: 'job EmbeddingJob completed attempt=1' },
-  { ts: '12:04:02', level: 'warn', stream: 'gateway', msg: 'upstream latency spike p99=842ms' },
-  { ts: '12:04:02', level: 'info', stream: 'api', msg: 'GET /api/v1/health 200 1ms' },
-  { ts: '12:04:03', level: 'error', stream: 'worker', msg: 'job ReportJob failed attempt=3/3' },
+const QUERIES = [
+  { query: '{app="construx-api"} |= "ERROR"', duration: '48ms', lines: 28, cached: true, status: 'ok' },
+  { query: '{namespace="prod"} | json | level="warn"', duration: '124ms', lines: 184, cached: false, status: 'ok' },
+  { query: '{app="construx-worker"} | logfmt | duration > 1s', duration: '84ms', lines: 12, cached: true, status: 'ok' },
+  { query: 'sum(rate({app="construx-api"}[5m])) by (level)', duration: '212ms', lines: 4, cached: false, status: 'ok' },
 ];
-
-const LEVEL_COLOR: Record<string, string> = {
-  info: '#4ade80',
-  warn: '#fbbf24',
-  error: '#f87171',
-  debug: 'rgba(255,255,255,0.3)',
-};
 
 function useCounter(base: number, delta: number, ms = 900) {
   const [v, setV] = useState(base);
@@ -35,11 +27,11 @@ function useCounter(base: number, delta: number, ms = 900) {
 
 export default function LokiPanel() {
   const [visible, setVisible] = useState(false);
-  const [sRows, setSRows] = useState(0);
-  const [lRows, setLRows] = useState(0);
+  const [streamRows, setStreamRows] = useState(0);
+  const [queryRows, setQueryRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const ingestRate = useCounter(160, 6, 700);
-  const totalEntries = useCounter(487000, 85, 600);
+  const linesPerSec = useCounter(28400, 480, 400);
+  const bytesIngested = useCounter(4840000000, 48000, 500);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -49,9 +41,9 @@ export default function LokiPanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const s = setInterval(() => setSRows((x) => Math.min(x + 1, STREAMS.length)), 160);
-    const l = setInterval(() => setLRows((x) => Math.min(x + 1, LINES.length)), 140);
-    return () => { clearInterval(s); clearInterval(l); };
+    const s = setInterval(() => setStreamRows((x) => Math.min(x + 1, STREAMS.length)), 160);
+    const q = setInterval(() => setQueryRows((x) => Math.min(x + 1, QUERIES.length)), 140);
+    return () => { clearInterval(s); clearInterval(q); };
   }, [visible]);
 
   return (
@@ -75,27 +67,27 @@ export default function LokiPanel() {
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
         <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(249,115,22,0.4)' }}>
-          grafana loki -- log aggregation -- logql
+          grafana loki -- log aggregation -- streams / logql / ingester
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {ingestRate.toLocaleString()} lines/s
+          {linesPerSec.toLocaleString()} lines/s
         </span>
       </div>
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#f97316', fontWeight: 600 }}>loki@logs</span>
+        <span style={{ color: '#f97316', fontWeight: 600 }}>logcli@loki</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>logcli query '{`{app="api",env="prod"}`}' --limit 100 --tail</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>logcli query '{`{app="construx-api"}`} |= "ERROR" | logfmt' --limit=100 --since=1h</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'lines/s', value: ingestRate.toLocaleString(), color: '#f97316' },
-          { label: 'total entries', value: totalEntries.toLocaleString(), color: '#4ade80' },
-          { label: 'streams', value: STREAMS.length.toString(), color: '#a78bfa' },
-          { label: 'errors', value: LINES.filter(l => l.level === 'error').length.toString(), color: '#f87171' },
+          { label: 'lines / sec', value: linesPerSec.toLocaleString(), color: '#f97316' },
+          { label: 'bytes ingested', value: (bytesIngested / 1000000000).toFixed(1) + 'GB', color: '#4ade80' },
+          { label: 'streams', value: STREAMS.length.toString(), color: '#67e8f9' },
+          { label: 'ingesters', value: '3', color: '#a78bfa' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -110,27 +102,29 @@ export default function LokiPanel() {
           // log streams
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {STREAMS.slice(0, sRows).map((s) => (
-            <div key={s.labels} style={{ display: 'grid', gridTemplateColumns: '1fr 36px 52px 64px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.1)', borderRadius: 2 }}>
-              <span style={{ color: '#f97316', fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.labels}</span>
-              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 8, textAlign: 'right' }}>{s.rate}</span>
-              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 8, textAlign: 'right' }}>{s.bytes}</span>
-              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.25)', fontSize: 7, textAlign: 'right' }}>{s.entries.toLocaleString()}</span>
+          {STREAMS.slice(0, streamRows).map((s, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 56px 36px 64px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#f97316', fontSize: 7, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.labels}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{s.bytesRate}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{s.compressRatio}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{s.ingester}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{s.status}</span>
             </div>
           ))}
         </div>
 
-        {/* Log lines */}
+        {/* Queries */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // recent log lines
+          // recent queries
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {LINES.slice(0, lRows).map((line) => (
-            <div key={line.ts + line.msg} style={{ display: 'grid', gridTemplateColumns: '48px 32px 48px 1fr', alignItems: 'center', gap: 8, padding: '4px 8px', background: `${LEVEL_COLOR[line.level]}06`, border: `1px solid ${LEVEL_COLOR[line.level]}14`, borderRadius: 2 }}>
-              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{line.ts}</span>
-              <span style={{ color: LEVEL_COLOR[line.level], fontSize: 7, fontWeight: 700, textAlign: 'center' }}>{line.level.toUpperCase()}</span>
-              <span style={{ color: '#a78bfa', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line.stream}</span>
-              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line.msg}</span>
+          {QUERIES.slice(0, queryRows).map((q, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 24px 32px 24px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.query}</span>
+              <span className="tabular-nums" style={{ color: Number(q.duration.replace('ms','')) > 100 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{q.duration}</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{q.lines}</span>
+              <span style={{ color: q.cached ? '#4ade80' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{q.cached ? 'hit' : 'miss'}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{q.status}</span>
             </div>
           ))}
         </div>
@@ -139,10 +133,10 @@ export default function LokiPanel() {
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
         <span style={{ fontSize: 8, color: 'rgba(249,115,22,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          loki v3.0 - apache 2.0 - grafana labs
+          grafana loki v3.2 - agpl-3.0 - like prometheus, but for logs
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {totalEntries.toLocaleString()} entries - {ingestRate.toLocaleString()} /s
+          {linesPerSec.toLocaleString()} lines/s - {(bytesIngested / 1000000000).toFixed(1)}GB
         </span>
       </div>
     </div>
