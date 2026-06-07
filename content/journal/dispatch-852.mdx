@@ -1,0 +1,169 @@
+---
+title: "Starlark and Bazel: hermetic builds for polyglot monorepos"
+date: "2031-12-13"
+excerpt: "Bazel is Google's open-source build system. It builds code in a hermetic sandbox: every action sees only the inputs it declares, the outputs are content-addressed, and the same action with the same inputs always produces the same outputs. Bazel caches build results locally and remotely — if nothing changed, nothing rebuilds. In a monorepo with TypeScript, Go, Rust, and Python services, Bazel gives you a single build command that only rebuilds what actually changed and only retests code affected by those changes."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Hermetic sandbox. Content-addressed cache. Build only what changed.
+
+## Workspace setup
+
+```python
+# MODULE.bazel (Bazel 7+ modules)
+module(
+    name       = "construx",
+    version    = "1.4.2",
+    repo_name  = "construx",
+)
+
+bazel_dep(name = "rules_nodejs",  version = "6.3.0")
+bazel_dep(name = "rules_go",      version = "0.50.1")
+bazel_dep(name = "rules_rust",    version = "0.54.1")
+bazel_dep(name = "rules_docker",  version = "0.25.0")
+bazel_dep(name = "gazelle",       version = "0.39.0")
+
+# Node.js toolchain
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "22.11.0")
+
+npm = use_extension("@rules_nodejs//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name  = "npm",
+    pnpm_lock = "//:pnpm-lock.yaml",
+)
+use_repo(npm, "npm")
+```
+
+## BUILD file — TypeScript library
+
+```python
+# apps/api/BUILD.bazel
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@rules_nodejs//nodejs:defs.bzl", "nodejs_binary")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+
+npm_link_all_packages()
+
+ts_project(
+    name     = "api_lib",
+    srcs     = glob(["src/**/*.ts"], exclude = ["**/*.test.ts"]),
+    tsconfig = "//:tsconfig",
+    deps     = [
+        ":node_modules/hono",
+        ":node_modules/zod",
+        ":node_modules/drizzle-orm",
+        "//libs/shared:shared_lib",   # Internal library dependency
+    ],
+    visibility = ["//visibility:public"],
+)
+
+nodejs_binary(
+    name       = "api",
+    entry_point = "src/main.ts",
+    data        = [":api_lib"],
+)
+
+# Tests
+ts_project(
+    name = "api_tests",
+    srcs = glob(["src/**/*.test.ts"]),
+    deps = [
+        ":api_lib",
+        ":node_modules/vitest",
+    ],
+)
+```
+
+## BUILD file — Go service
+
+```python
+# services/worker/BUILD.bazel
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name       = "worker_lib",
+    srcs       = glob(["*.go"], exclude = ["*_test.go"]),
+    importpath = "github.com/construx/worker",
+    deps       = [
+        "@com_github_redis_go_redis_v9//:go_redis",
+        "@com_github_jmoiern_zerolog//:zerolog",
+        "//libs/shared/go:shared",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+go_binary(
+    name = "worker",
+    embed = [":worker_lib"],
+)
+
+go_test(
+    name  = "worker_test",
+    srcs  = glob(["*_test.go"]),
+    embed = [":worker_lib"],
+)
+```
+
+## Build and test commands
+
+```bash
+# Build a single target
+bazel build //apps/api:api
+
+# Build all targets in the repo
+bazel build //...
+
+# Test only targets affected by current changes (vs main branch)
+bazel test \
+  $(bazel query "tests(//...) intersect allpaths(//..., set($(git diff main... --name-only | xargs bazelisk query --keep_going 2>/dev/null)))")
+
+# Build a Docker image
+bazel build //apps/api:api_image
+bazel run //apps/api:api_push  # Push to registry
+
+# Clean build cache
+bazel clean
+
+# Show what would be built (dry run)
+bazel build //apps/api:api --dry-run
+```
+
+## Remote cache — share build artifacts across CI
+
+```python
+# .bazelrc
+# Remote cache (Buildbuddy, NativeLink, or GCS)
+build --remote_cache=grpcs://remote.buildbuddy.io
+build --remote_header=x-buildbuddy-api-key=YOUR_API_KEY
+
+# Remote execution (optional — run actions on remote workers)
+build --remote_executor=grpcs://remote.buildbuddy.io
+
+# Show cache hit rate
+build --show_result=20
+build --verbose_failures
+
+# Output:
+# INFO: 248 processes: 12 internal, 216 remote cache hit, 20 remote.
+# INFO: Build completed successfully, 248 total actions
+```
+
+## Query — understand the dependency graph
+
+```bash
+# What does //apps/api depend on?
+bazel query "deps(//apps/api:api)" | head -20
+
+# What targets are affected if //libs/shared changes?
+bazel query "rdeps(//..., //libs/shared:shared_lib)"
+
+# Find all test targets
+bazel query "tests(//...)"
+
+# Find all targets that depend on a specific npm package
+bazel query "rdeps(//..., @npm//hono)"
+```
+
+Bazel vs Turborepo: Turborepo is a monorepo build caching tool focused on JavaScript/TypeScript. It caches npm script outputs by hashing inputs — fast and easy to set up. Bazel is a full build system with a hermetic sandbox — every action is isolated from the host filesystem, inputs are declared explicitly, and outputs are content-addressed. Bazel works across languages (Go, Rust, Python, Java, TypeScript). Turborepo is lower configuration for JS-only repos; Bazel is higher investment for true polyglot monorepos with correctness guarantees.

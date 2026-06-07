@@ -1,0 +1,170 @@
+---
+title: "Sentry error tracking: grouping, performance, and session replay"
+date: "2031-12-16"
+excerpt: "Sentry captures exceptions and performance data from frontend and backend code. Every error includes a stack trace, the full request context, user identity, and recent breadcrumbs (the sequence of events leading to the error). Sentry groups errors by fingerprint — similar stack traces become one issue rather than thousands of individual events. Performance monitoring captures distributed traces (spans across services). Session replay records what the user did before an error in the browser."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every error with full context. Traces across services. Replay the session before the crash.
+
+## Next.js SDK setup
+
+```ts
+// sentry.client.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn:              process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment:      process.env.NODE_ENV,
+  release:          process.env.NEXT_PUBLIC_COMMIT_SHA,
+  tracesSampleRate: 0.1,    // Sample 10% of transactions
+  profilesSampleRate: 0.1,  // Sample 10% for CPU profiling (requires tracing)
+  replaysSessionSampleRate: 0.05,  // Replay 5% of sessions
+  replaysOnErrorSampleRate: 1.0,   // Always replay sessions with errors
+
+  integrations: [
+    Sentry.browserTracingIntegration(),
+    Sentry.replayIntegration({
+      maskAllText:    true,  // GDPR: mask all text content in replay
+      blockAllMedia:  true,
+    }),
+  ],
+
+  beforeSend(event) {
+    // Drop non-actionable errors
+    if (event.exception?.values?.[0]?.type === 'ChunkLoadError') return null;
+    if (event.exception?.values?.[0]?.value?.includes('ResizeObserver')) return null;
+    return event;
+  },
+});
+```
+
+```ts
+// sentry.server.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn:              process.env.SENTRY_DSN,
+  environment:      process.env.NODE_ENV,
+  release:          process.env.COMMIT_SHA,
+  tracesSampleRate: 0.1,
+
+  integrations: [
+    Sentry.prismaIntegration(),   // Trace Prisma queries as spans
+    Sentry.httpIntegration(),     // Trace outbound HTTP as spans
+  ],
+});
+```
+
+## Capture errors with context
+
+```ts
+// lib/errors.ts
+import * as Sentry from '@sentry/nextjs';
+
+export function captureOrderError(err: Error, orderId: string, userId: string) {
+  Sentry.withScope((scope) => {
+    scope.setTag('feature', 'orders');
+    scope.setTag('order_id', orderId);
+    scope.setUser({ id: userId });
+    scope.setContext('order', { orderId, timestamp: new Date().toISOString() });
+    scope.setLevel('error');
+    Sentry.captureException(err);
+  });
+}
+
+// In an API route
+export async function POST(req: Request) {
+  try {
+    const order = await createOrder(body);
+    return Response.json(order, { status: 201 });
+  } catch (err) {
+    captureOrderError(err as Error, body.orderId, session.userId);
+    return Response.json({ error: 'Failed to create order' }, { status: 500 });
+  }
+}
+```
+
+## Custom performance transactions
+
+```ts
+// Manually start a transaction for a background job
+import * as Sentry from '@sentry/nextjs';
+
+async function processDailyReport() {
+  return await Sentry.startSpan(
+    { name: 'daily-report', op: 'job' },
+    async (span) => {
+      span.setAttribute('report.date', new Date().toISOString().slice(0, 10));
+
+      const data = await Sentry.startSpan(
+        { name: 'fetch-orders', op: 'db.query' },
+        () => fetchOrdersForPeriod(),
+      );
+
+      const report = await Sentry.startSpan(
+        { name: 'generate-pdf', op: 'file.write' },
+        () => generatePdfReport(data),
+      );
+
+      await Sentry.startSpan(
+        { name: 'send-email', op: 'http.client' },
+        () => sendReportEmail(report),
+      );
+
+      return report;
+    },
+  );
+}
+```
+
+## Alerts and issue routing
+
+```python
+# .sentry/rules.json — issue routing via Sentry automation
+[
+  {
+    "conditions": [
+      { "id": "sentry.rules.conditions.event_frequency.EventFrequencyCondition",
+        "value": 100, "interval": "1h" }
+    ],
+    "filters": [
+      { "id": "sentry.rules.filters.tagged_event.TaggedEventFilter",
+        "key": "environment", "value": "production" }
+    ],
+    "actions": [
+      { "id": "sentry.integrations.slack.notify_action.SlackNotifyServiceAction",
+        "workspace": "T0CONSTRUX",
+        "channel": "#alerts-prod",
+        "tags": "environment,release" }
+    ],
+    "name": "High-frequency production errors → Slack"
+  }
+]
+```
+
+## Source maps — readable stack traces in production
+
+```bash
+# Upload source maps after build (CI step)
+npx @sentry/cli releases files "$COMMIT_SHA" upload-sourcemaps .next \
+  --url-prefix "~/_next" \
+  --rewrite \
+  --validate
+
+# Or use the Next.js Sentry webpack plugin (automatic)
+# next.config.ts
+import { withSentryConfig } from '@sentry/nextjs';
+
+export default withSentryConfig(nextConfig, {
+  org:                  'construx-group',
+  project:              'construx-website',
+  silent:               true,
+  widenClientFileUpload: true,
+  sourcemaps:           { disable: false },
+  autoInstrumentServerFunctions: true,
+});
+```
+
+Sentry vs Datadog APM: Datadog APM is an infrastructure-first observability platform — metrics, logs, traces, and dashboards in one tool, with tight integration to host-level metrics. Sentry is error-tracking-first: it excels at grouping exceptions, showing user context, and replaying browser sessions. Both support distributed tracing. If you already use Datadog for infrastructure, its APM adds traces cheaply. If your primary need is application error tracking with user context and session replay, Sentry is more purpose-built.
