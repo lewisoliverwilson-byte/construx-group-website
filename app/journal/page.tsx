@@ -69,6 +69,7 @@ import DaprPanel from '@/components/DaprPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import SpiffePanel from '@/components/SpiffePanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
+import BazelPanel from '@/components/BazelPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -535,8 +536,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* chaos mesh — fault injection, experiments, network chaos */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ChaosMeshPanel />
+      </section>
+
+      {/* bazel — build system, targets, deps, cache */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <BazelPanel />
       </section>
 
       {/* Posts */}

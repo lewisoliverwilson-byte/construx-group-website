@@ -64,6 +64,7 @@ import CiliumPanel from '@/components/CiliumPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import BenthosPanel from '@/components/BenthosPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -686,8 +687,13 @@ export default function UsesPage() {
         </div>
 
         {/* benthos — stream processor, pipelines, transforms */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BenthosPanel />
+        </div>
+
+        {/* cassandra — distributed wide-column store, keyspaces, cql */}
+        <div className="mt-6 pb-10">
+          <CassandraPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

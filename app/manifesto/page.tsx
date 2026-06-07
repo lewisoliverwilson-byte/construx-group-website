@@ -66,6 +66,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
+import AuditdPanel from '@/components/AuditdPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -579,8 +580,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* argo events — event-driven automation, sensors, triggers */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ArgoEventsPanel />
+        </div>
+
+        {/* auditd — linux audit daemon, syscalls, rules, events */}
+        <div className="mt-4 pb-6">
+          <AuditdPanel />
         </div>
 
         {/* Sign-off */}
