@@ -79,6 +79,7 @@ import KubeProxyPanel from '@/components/KubeProxyPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
+import CoverageReportPanel from '@/components/CoverageReportPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -758,8 +759,13 @@ export default function NowPage() {
         </div>
 
         {/* bundle analysis — chunks, modules, size, tree */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BundleAnalysisPanel />
+        </div>
+
+        {/* coverage report — lines, branches, functions, uncovered */}
+        <div className="mt-6 pb-10">
+          <CoverageReportPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

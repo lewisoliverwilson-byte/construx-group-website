@@ -79,6 +79,7 @@ import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import LokiPanel from '@/components/LokiPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
+import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -894,8 +895,13 @@ export default function FoundersPage() {
         </div>
 
         {/* bun build — bundler, transpile, minify, treeshake */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BunBuildPanel />
+        </div>
+
+        {/* clickhouse keeper — raft, leader, quorum, sessions */}
+        <div className="mt-6 pb-10">
+          <ClickHouseKeeperPanel />
         </div>
 
         {/* CTA */}

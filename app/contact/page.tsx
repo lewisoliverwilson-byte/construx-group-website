@@ -78,6 +78,7 @@ import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LshwPanel from '@/components/LshwPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
+import ActPanel from '@/components/ActPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -766,8 +767,13 @@ export default function ContactPage() {
       </section>
 
       {/* aws cli — s3, ec2, iam, lambda commands */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <AwsCliPanel />
+      </section>
+
+      {/* act — github actions local runner, jobs, steps, env */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ActPanel />
       </section>
     </div>
   );

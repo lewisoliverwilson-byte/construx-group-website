@@ -81,6 +81,7 @@ import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LsofPanel from '@/components/LsofPanel';
 import BufPanel from '@/components/BufPanel';
+import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -806,8 +807,13 @@ export default function StatsPage() {
       </div>
 
       {/* buf — protobuf lint, breaking, generate, push */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BufPanel />
+      </div>
+
+      {/* ansible playbook — tasks, hosts, roles, handlers */}
+      <div className="mt-6 pb-10">
+        <AnsiblePlaybookPanel />
       </div>
     </div>
   );
