@@ -30,6 +30,7 @@ import TrinoPanel from '@/components/TrinoPanel';
 import PulsarPanel from '@/components/PulsarPanel';
 import VaultPkiPanel from '@/components/VaultPkiPanel';
 import AirflowPanel from '@/components/AirflowPanel';
+import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -464,8 +465,13 @@ export default function NowPage() {
         </div>
 
         {/* apache airflow dag orchestration — celery, sensor, xcom, dynamic tasks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AirflowPanel />
+        </div>
+
+        {/* cloudflare workers — edge compute, kv, r2, d1, durable objects */}
+        <div className="mt-6 pb-10">
+          <CloudflareWorkersPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
