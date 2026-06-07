@@ -38,6 +38,7 @@ import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import PyroscopePanel from '@/components/PyroscopePanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
+import MLflowPanel from '@/components/MLflowPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -512,8 +513,13 @@ export default function NowPage() {
         </div>
 
         {/* keycloak cloud-native iam — realms, clients, active sessions, tokens */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KeycloakPanel />
+        </div>
+
+        {/* mlflow ml experiment tracking — experiments, runs, metrics, artifacts */}
+        <div className="mt-6 pb-10">
+          <MLflowPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -39,6 +39,7 @@ import OpaGatekeeperPanel from '@/components/OpaGatekeeperPanel';
 import MimirPanel from '@/components/MimirPanel';
 import VictoriaLogsPanel from '@/components/VictoriaLogsPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
+import InfluxDbPanel from '@/components/InfluxDbPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -554,8 +555,13 @@ export default function StatsPage() {
       </div>
 
       {/* openobserve rust-native o11y — logs/metrics/traces streams, queries, cache */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpenObservePanel />
+      </div>
+
+      {/* influxdb time series database — buckets, flux queries, writes/s */}
+      <div className="mt-6 pb-10">
+        <InfluxDbPanel />
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ import CaddyPanel from '@/components/CaddyPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import TankaPanel from '@/components/TankaPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
+import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -642,8 +643,13 @@ export default function FoundersPage() {
         </div>
 
         {/* flagger progressive delivery — canary, bluegreen, a/b, metric analysis */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FlaggerPanel />
+        </div>
+
+        {/* grafana faro frontend observability — apps, errors, web vitals, apm */}
+        <div className="mt-6 pb-10">
+          <GrafanaFaroPanel />
         </div>
 
         {/* CTA */}
