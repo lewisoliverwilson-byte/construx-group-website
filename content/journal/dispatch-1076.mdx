@@ -1,0 +1,164 @@
+---
+title: "Flux CD v2: GitOps for Kubernetes — Kustomization, HelmRelease, image automation"
+date: "2033-10-16"
+excerpt: "Flux CD v2 is a GitOps operator for Kubernetes. It watches one or more git repositories and continuously reconciles the cluster state with the manifests in those repos — if you delete a resource from git, Flux deletes it from the cluster; if you add one, Flux creates it. Flux v2 is built on a set of composable controllers: the Source controller (syncs git repos, Helm repos, OCI registries), the Kustomize controller (applies Kustomization resources — a thin wrapper around kustomize), the Helm controller (manages HelmRelease objects that describe a Helm chart release with a values override), and the Notification controller (sends alerts to Slack/Teams/GitHub on reconciliation events). Unlike ArgoCD (which provides a full UI-driven experience), Flux is CLI and API-driven — all configuration is Kubernetes CRDs. Flux's image automation components (ImageRepository, ImagePolicy, ImageUpdateAutomation) can detect when a new container image is pushed to a registry, update the image tag in the git repository, and trigger a reconciliation cycle — completing the CI/CD loop without a separate CD pipeline."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Source controller. Kustomization. HelmRelease. Image automation. Notification alerts. GitOps loop.
+
+## Flux bootstrap and core resources
+
+```bash
+# Bootstrap Flux onto a cluster (creates the flux-system namespace and installs all controllers)
+# Flux reads its own config from the git repo — bootstrapping is idempotent
+
+flux bootstrap github \
+  --owner=construx-group \
+  --repository=k8s-manifests \
+  --branch=main \
+  --path=clusters/construx-prod \
+  --personal
+
+# Flux creates these CRDs in the cluster:
+# GitRepository, HelmRepository, OCIRepository (source)
+# Kustomization (kustomize controller)
+# HelmRelease (helm controller)
+# ImageRepository, ImagePolicy, ImageUpdateAutomation (image-automation)
+# Alert, Provider, Receiver (notification)
+
+# Check all Flux resources
+flux get all -A
+# NAMESPACE     NAME                        READY  MESSAGE
+# flux-system   gitrepository/k8s-manifests True   stored artifact for revision main@sha1:a1b2c3
+# flux-system   kustomization/infra         True   Applied revision: main@sha1:a1b2c3
+# construx-prod kustomization/apps          True   Applied revision: main@sha1:a1b2c3
+# construx-prod helmrelease/construx-api    True   Helm upgrade succeeded, release version 42
+
+# Trigger immediate reconciliation (skip the default 1-minute poll interval)
+flux reconcile source git k8s-manifests
+flux reconcile kustomization apps -n construx-prod
+```
+
+```yaml
+# GitRepository: Flux source for the manifests repo
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: k8s-manifests
+  namespace: flux-system
+spec:
+  interval: 1m
+  url:      https://github.com/construx-group/k8s-manifests
+  ref:
+    branch: main
+  secretRef:
+    name: github-deploy-key   # SSH deploy key for private repo
+---
+# Kustomization: reconcile app manifests from the repo
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  interval:        5m
+  path:            ./clusters/construx-prod/apps
+  prune:           true     # delete resources removed from git
+  sourceRef:
+    kind: GitRepository
+    name: k8s-manifests
+  healthChecks:
+    - apiVersion: apps/v1
+      kind:       Deployment
+      name:       construx-api
+      namespace:  construx-prod
+  postBuild:
+    substitute:
+      CLUSTER_NAME: construx-prod
+      REGION:       eu-west-2
+```
+
+## HelmRelease and image automation
+
+```yaml
+# HelmRelease: declarative Helm release managed by Flux
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: construx-api
+  namespace: construx-prod
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart:   construx-api
+      version: ">=1.0.0 <2.0.0"   # semver range — auto-upgrades within range
+      sourceRef:
+        kind:      HelmRepository
+        name:      construx-charts
+        namespace: flux-system
+  values:
+    image:
+      repository: registry.construx.internal/construx-api
+      tag:        v1.42.0   # updated by ImageUpdateAutomation
+    replicas: 3
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+  upgrade:
+    remediation:
+      retries: 3
+  rollback:
+    timeout: 5m
+---
+# Image automation: detect new image tags and update git
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: construx-api
+  namespace: flux-system
+spec:
+  image:    registry.construx.internal/construx-api
+  interval: 1m
+  secretRef:
+    name: registry-credentials
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: construx-api
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: construx-api
+  policy:
+    semver:
+      range: ">=1.0.0 <2.0.0"   # only select tags matching this semver range
+---
+# ImageUpdateAutomation: write the selected tag back to git
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: construx-prod
+  namespace: flux-system
+spec:
+  interval: 1m
+  sourceRef:
+    kind: GitRepository
+    name: k8s-manifests
+  git:
+    checkout:
+      ref: { branch: main }
+    commit:
+      author:
+        name:  flux-bot
+        email: flux@construx.io
+      messageTemplate: "chore: update {{range .Updated.Images}}{{.}}{{end}}"
+    push:
+      branch: main
+  update:
+    strategy: Setters   # updates image tags marked with # {"$imagepolicy": "flux-system:construx-api"}
+```
+
+Flux v2 vs ArgoCD vs Jenkins X vs manual kubectl apply: ArgoCD has a richer UI (a web dashboard showing sync status, resource diffs, and rollback controls) and is more approachable for teams new to GitOps. Flux is more composable — each controller is a separate deployment that can be installed independently, making it lighter for constrained environments. Both support multi-cluster and multi-tenancy. Jenkins X wraps Flux (and tekton for CI) into a full opinionated CD workflow — it handles branching strategies, PR preview environments, and promotion pipelines. Manual kubectl apply with CI scripts works but loses the continuous reconciliation guarantee — drift from out-of-band changes (kubectl edit, manual patches) is not corrected. The GitOps guarantee is the key value: the cluster state is always derivable from git history. Flux's image automation closes the gap between container registry and git — when CI pushes a new image, Flux detects it, commits the updated tag to git, and reconciles, giving you a complete immutable audit trail of every deployed version.
