@@ -20,6 +20,7 @@ import K6SummaryPanel from '@/components/K6SummaryPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
+import PprofPanel from '@/components/PprofPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -440,8 +441,13 @@ export default function StatsPage() {
       </div>
 
       {/* ClickHouse materialized view analytics */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ClickhouseMvPanel />
+      </div>
+
+      {/* Go pprof CPU and memory profiling */}
+      <div className="mt-6 pb-10">
+        <PprofPanel />
       </div>
     </div>
   );

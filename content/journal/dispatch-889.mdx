@@ -1,0 +1,157 @@
+---
+title: "Nuclei: template-based vulnerability scanning for web apps and APIs"
+date: "2032-04-03"
+excerpt: "Nuclei is an open-source vulnerability scanner from ProjectDiscovery that uses YAML templates to describe checks. Each template encodes a request (HTTP, DNS, TCP, headless browser) and a matcher (status code, regex, word match, DSL expression). The community template library has 9,000+ templates covering CVEs, misconfigurations, exposed panels, default credentials, and API security issues. Nuclei is fast — concurrent, with tunable rate limiting — and integrates into CI pipelines via exit codes. Unlike Nessus or Qualys (black-box network scanners), Nuclei is application-layer and developer-friendly."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Templates encode the check. Matchers decode the response. Exit 1 fails the build.
+
+## Running a basic scan
+
+```bash
+# Install nuclei
+go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+
+# Update template library (9,000+ community templates)
+nuclei -update-templates
+
+# Scan a target — runs all severity levels
+nuclei -u https://construx.io
+
+# Filter by severity (use in CI: only critical + high)
+nuclei -u https://construx.io -severity critical,high
+
+# Scan multiple targets from a file
+nuclei -l targets.txt -severity critical,high,medium
+
+# Scan output:
+# [2032-04-03 14:22:31] [CVE-2024-3094] [critical] [http] https://construx.io
+# [2032-04-03 14:22:32] [exposed-panels:kibana-panel] [medium] [http] https://construx.io:5601
+# [2032-04-03 14:22:33] [ssl:tls-1.0] [info] [ssl] construx.io:443
+# [2032-04-03 14:22:34] [misconfig:http-missing-security-headers] [info] [http] https://construx.io
+
+# Only run specific template categories
+nuclei -u https://construx.io -tags cve,misconfig,exposure
+
+# Exclude specific templates (reduce false positives)
+nuclei -u https://construx.io -exclude-tags dos,fuzz
+```
+
+## Writing a custom template
+
+```yaml
+# templates/construx-api-auth-bypass.yaml
+id: construx-api-auth-bypass
+
+info:
+  name: Construx API — JWT signature bypass attempt
+  author: construx-security
+  severity: critical
+  description: Tests if the API accepts unsigned JWTs (alg=none)
+  tags: jwt,auth,api
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/orders"
+    headers:
+      Authorization: "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiJ9."
+                     # ^^ alg:none JWT — should be rejected with 401
+
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200    # If we get 200, auth bypass is successful → vulnerability
+
+      - type: word
+        words:
+          - '"orders"'    # Confirm response contains order data
+        part: body
+
+    # Extractor: capture order_id from response for evidence
+    extractors:
+      - type: json
+        json:
+          - ".orders[0].order_id"
+
+# Run the custom template
+nuclei -u https://construx.io -t templates/construx-api-auth-bypass.yaml
+```
+
+## API security scanning
+
+```bash
+# Scan an OpenAPI spec — nuclei generates requests from the spec
+nuclei -u https://construx.io \
+  -t nuclei-templates/http/exposures/apis/ \
+  -t nuclei-templates/http/technologies/
+
+# Common API findings nuclei catches:
+# - BOLA (Broken Object Level Authorization): access other users' resources
+# - Exposed debug endpoints (/debug, /admin, /__debug__)
+# - Default credentials on API gateways
+# - JWT vulnerabilities (alg:none, weak secrets)
+# - Mass assignment (extra fields accepted and persisted)
+# - CORS misconfiguration (arbitrary origin reflected)
+
+# CORS check template (built-in)
+nuclei -u https://construx.io -t nuclei-templates/http/misconfiguration/cors-misconfiguration.yaml -v
+# [cors-misconfiguration] [medium] [http] https://construx.io/api
+#   [cors] Origin: https://evil.construx.io reflected in Access-Control-Allow-Origin
+
+# Interactsh — out-of-band interaction detection (blind SSRF, XXE, log4shell)
+# nuclei uses interact.sh to catch callbacks that don't show up in HTTP responses
+nuclei -u https://construx.io \
+  -t nuclei-templates/http/vulnerabilities/generic/ssrf-via-url-param.yaml \
+  -interactsh-server https://interactsh.construx.io
+```
+
+## CI/CD integration
+
+```yaml
+# .github/workflows/security-scan.yml
+name: Nuclei Security Scan
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  nuclei:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Nuclei scan
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          target: https://staging.construx.io
+          flags: |
+            -severity critical,high
+            -exclude-tags dos,fuzz,dos
+            -rate-limit 50
+            -bulk-size 25
+          output: nuclei-results.txt
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuclei-results
+          path: nuclei-results.txt
+
+      - name: Fail on critical findings
+        run: |
+          if grep -q "\[critical\]" nuclei-results.txt; then
+            echo "CRITICAL vulnerabilities found — blocking merge"
+            cat nuclei-results.txt
+            exit 1
+          fi
+```
+
+Nuclei vs Burp Suite: Burp Suite is interactive — you intercept, replay, and fuzz manually. It's indispensable for deep manual testing but doesn't scale to automated CI runs. Nuclei is automated — you encode a check as a template once and run it against every deployment forever. The right workflow uses both: Nuclei in CI for regression coverage (catching known issues in new code), Burp for exploratory testing on new features. Nuclei's template library is also a catalog of what to look for: reading through the CVE templates teaches you which vulnerability classes are common enough to have templates.
+
