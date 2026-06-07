@@ -70,6 +70,7 @@ import BeylaPanel from '@/components/BeylaPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
+import GhCliPanel from '@/components/GhCliPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -704,8 +705,13 @@ export default function NowPage() {
         </div>
 
         {/* free mem — memory usage, buffers, cache, available */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FreeMemPanel />
+        </div>
+
+        {/* gh cli — repos, prs, issues, workflows, releases */}
+        <div className="mt-6 pb-10">
+          <GhCliPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

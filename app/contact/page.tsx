@@ -69,6 +69,7 @@ import ArgoCDPanel from '@/components/ArgoCDPanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import CosignPanel from '@/components/CosignPanel';
 import DruidPanel from '@/components/DruidPanel';
+import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -712,8 +713,13 @@ export default function ContactPage() {
       </section>
 
       {/* druid — real-time analytics, datasources, segments */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DruidPanel />
+      </section>
+
+      {/* envoy stats — downstream, upstream, listener metrics */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <EnvoyStatsPanel />
       </section>
     </div>
   );

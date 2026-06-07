@@ -70,6 +70,7 @@ import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
+import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -840,8 +841,13 @@ export default function FoundersPage() {
         </div>
 
         {/* envoy — sidecar proxy, listeners, clusters, routes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EnvoyPanel />
+        </div>
+
+        {/* github actions run — steps, jobs, durations, status */}
+        <div className="mt-6 pb-10">
+          <GhActionsRunPanel />
         </div>
 
         {/* CTA */}

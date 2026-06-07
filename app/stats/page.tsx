@@ -72,6 +72,7 @@ import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
+import GatekeeperPanel from '@/components/GatekeeperPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -752,8 +753,13 @@ export default function StatsPage() {
       </div>
 
       {/* duckdb — in-process olap, queries, extensions, files */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DuckdbPanel />
+      </div>
+
+      {/* gatekeeper — opa admission, constraints, violations */}
+      <div className="mt-6 pb-10">
+        <GatekeeperPanel />
       </div>
     </div>
   );
