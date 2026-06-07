@@ -1,0 +1,223 @@
+---
+title: "Go concurrency: goroutines, channels, and the runtime scheduler"
+date: "2032-02-24"
+excerpt: "Go's concurrency model is built on goroutines (lightweight threads, ~2KB stack, managed by the Go runtime) and channels (typed pipes for communication between goroutines). The Go runtime implements an M:N scheduler — it multiplexes many goroutines (N) onto OS threads (M) using a work-stealing algorithm. Goroutines are cheap enough to create thousands of them per request. Channels make communication explicit and synchronisation implicit. The sync package provides mutexes for shared state when channels don't fit."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Goroutines are cheap. Channels are the contract. The scheduler does the rest.
+
+## Goroutines and channels — the basics
+
+```go
+package main
+
+import (
+    "fmt"
+    "sync"
+    "time"
+)
+
+// A goroutine is launched with the `go` keyword — 2KB initial stack
+func processOrder(id string, results chan<- string) {
+    time.Sleep(10 * time.Millisecond) // Simulate I/O
+    results <- fmt.Sprintf("order %s processed", id)
+}
+
+func main() {
+    orders := []string{"a3f9b2c1", "b4d7e9f2", "c5e8a3d1", "d6f2b8a4"}
+
+    // Buffered channel: holds up to len(orders) items without blocking
+    results := make(chan string, len(orders))
+
+    // Launch one goroutine per order — concurrent, not parallel necessarily
+    for _, id := range orders {
+        go processOrder(id, results)
+    }
+
+    // Collect results — range over channel until it's closed
+    // Or collect exactly len(orders) items:
+    for range orders {
+        fmt.Println(<-results)
+    }
+}
+
+// sync.WaitGroup — wait for a group of goroutines to complete
+func processWithWaitGroup(orders []string) {
+    var wg sync.WaitGroup
+
+    for _, id := range orders {
+        wg.Add(1)
+        go func(orderID string) {
+            defer wg.Done()
+            processOrder(orderID, nil)  // Simplified
+        }(id)
+    }
+
+    wg.Wait() // Blocks until all goroutines call wg.Done()
+}
+```
+
+## Fan-out / fan-in — the standard concurrency pattern
+
+```go
+// Fan-out: distribute work across N workers
+// Fan-in: collect results from N workers into one channel
+
+func fanOut(input <-chan string, workers int) <-chan string {
+    output := make(chan string, 100)
+    var wg sync.WaitGroup
+
+    for i := 0; i < workers; i++ {
+        wg.Add(1)
+        go func(workerID int) {
+            defer wg.Done()
+            for job := range input {   // Range over channel: loops until closed
+                result := process(job)
+                output <- result
+            }
+        }(i)
+    }
+
+    // Close output when all workers finish
+    go func() {
+        wg.Wait()
+        close(output)
+    }()
+
+    return output
+}
+
+// Usage: 8 workers processing a stream of order IDs
+func processOrderStream(orderIDs []string) {
+    input := make(chan string, len(orderIDs))
+    for _, id := range orderIDs {
+        input <- id
+    }
+    close(input)
+
+    results := fanOut(input, 8)
+
+    for result := range results {   // Range exits when output is closed
+        fmt.Println(result)
+    }
+}
+
+func process(job string) string {
+    return "processed: " + job
+}
+```
+
+## select — multiplex on channels
+
+```go
+// select: wait for whichever channel is ready first
+// Like switch, but for channel operations
+
+func apiGateway(orderCh <-chan string, healthCh <-chan struct{}, quit <-chan struct{}) {
+    for {
+        select {
+        case order := <-orderCh:
+            // Process an incoming order
+            fmt.Println("order:", order)
+
+        case <-healthCh:
+            // Respond to a health check
+            fmt.Println("healthy")
+
+        case <-time.After(5 * time.Second):
+            // Timeout: no events in 5 seconds
+            fmt.Println("idle — no events for 5s")
+
+        case <-quit:
+            // Shutdown signal — exit the loop
+            fmt.Println("shutting down")
+            return
+        }
+    }
+}
+
+// Context cancellation — the idiomatic shutdown pattern
+func processWithContext(ctx context.Context, jobs <-chan string) {
+    for {
+        select {
+        case job, ok := <-jobs:
+            if !ok {
+                return  // Channel closed
+            }
+            doWork(job)
+
+        case <-ctx.Done():
+            fmt.Println("cancelled:", ctx.Err())
+            return
+        }
+    }
+}
+
+func doWork(job string) { /* ... */ }
+```
+
+## sync.Mutex vs channels — when to use each
+
+```go
+// Use channels when: passing ownership, signalling events, pipeline stages
+// Use mutex when: protecting shared state that multiple goroutines read/write
+
+// Mutex example: shared counter
+type SafeCounter struct {
+    mu sync.Mutex
+    v  map[string]int
+}
+
+func (c *SafeCounter) Inc(key string) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.v[key]++
+}
+
+func (c *SafeCounter) Value(key string) int {
+    c.mu.RLock()   // sync.RWMutex: multiple readers, one writer
+    defer c.mu.RUnlock()
+    return c.v[key]
+}
+
+// sync.Map: concurrent map with no need for explicit locking
+// Use when many goroutines read the same key set (read-heavy)
+var cache sync.Map
+
+func getOrSet(key string, compute func() string) string {
+    if v, ok := cache.Load(key); ok {
+        return v.(string)
+    }
+    value := compute()
+    cache.Store(key, value)
+    return value
+}
+```
+
+## GOMAXPROCS and the scheduler
+
+```go
+import "runtime"
+
+// GOMAXPROCS: how many OS threads run Go code simultaneously
+// Default: number of CPU cores
+// Each P (processor) has a local run queue of goroutines
+// Work stealing: idle P steals goroutines from busy P's run queue
+
+runtime.GOMAXPROCS(4)   // Cap at 4 threads (useful for limiting CPU on shared hosts)
+fmt.Println(runtime.NumCPU())     // Physical cores
+fmt.Println(runtime.NumGoroutine()) // Current live goroutines
+
+// Goroutine leak detection — goroutines that block forever
+// Use goleak in tests:
+// import "go.uber.org/goleak"
+// defer goleak.VerifyNone(t)
+
+// pprof goroutine snapshot — see all goroutines and their stacks
+// import _ "net/http/pprof"
+// curl http://localhost:6060/debug/pprof/goroutine?debug=2
+```
+
+Go's concurrency model vs thread-per-request: A typical Node.js or Python server uses one thread per connection (or async callbacks, which are harder to reason about). A Go server launches one goroutine per request. At 10,000 concurrent connections, that's 10,000 goroutines — ~20MB of stack memory total, scheduled onto 8 OS threads. The same 10,000 threads in Java would need 10GB of stack (1MB/thread default). Go's scheduler makes goroutines cheap enough that "one goroutine per request" is the idiomatic pattern, not a performance anti-pattern.

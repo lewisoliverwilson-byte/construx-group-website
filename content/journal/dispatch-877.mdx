@@ -1,0 +1,179 @@
+---
+title: "Cilium: eBPF-based networking and network policy for Kubernetes"
+date: "2032-02-27"
+excerpt: "Cilium is a Kubernetes CNI (Container Network Interface) plugin that implements networking and network policy using eBPF. Traditional CNI plugins (Flannel, Calico iptables mode) work by inserting iptables rules for every pod and service — at 1,000 pods, that's thousands of rules evaluated sequentially. Cilium replaces iptables with eBPF maps and programs that run in the kernel: O(1) lookup for any pod, no sequential rule traversal, and full L7 visibility (HTTP paths, gRPC methods, Kafka topics) without a sidecar."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+eBPF maps replace iptables rules. O(1) routing. L7 policy without sidecars.
+
+## CiliumNetworkPolicy — L7-aware policy
+
+```yaml
+# Standard Kubernetes NetworkPolicy is L3/L4 only (IP + port).
+# CiliumNetworkPolicy adds L7: HTTP paths, gRPC methods, Kafka topics.
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: api-policy
+  namespace: production
+spec:
+  endpointSelector:
+    matchLabels:
+      app: construx-api
+
+  # Ingress: who can send traffic to construx-api
+  ingress:
+    # Allow traffic from the ingress controller — any HTTP method
+    - fromEndpoints:
+        - matchLabels:
+            app: nginx-ingress
+
+    # Allow Prometheus to scrape metrics — only GET /metrics
+    - fromEndpoints:
+        - matchLabels:
+            app: prometheus
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+          rules:
+            http:
+              - method: GET
+                path: /metrics
+
+  # Egress: what construx-api can connect to
+  egress:
+    # Allow PostgreSQL — only on port 5432
+    - toEndpoints:
+        - matchLabels:
+            app: postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Allow Redis — only on port 6379
+    - toEndpoints:
+        - matchLabels:
+            app: redis
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+
+    # Allow DNS — required for all pods
+    - toEndpoints:
+        - matchLabels:
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # Block all other egress — deny by default once any egress rule is specified
+```
+
+## Hubble — eBPF-powered network observability
+
+```bash
+# Hubble is Cilium's observability layer — built on eBPF flow data
+# No sidecar required: eBPF intercepts all network traffic at the kernel level
+
+# Install Hubble CLI
+curl -L --remote-name-all \
+  https://github.com/cilium/hubble/releases/download/v1.16.0/hubble-linux-amd64.tar.gz
+tar xf hubble-linux-amd64.tar.gz
+mv hubble /usr/local/bin/
+
+# Port-forward Hubble relay
+kubectl port-forward -n kube-system svc/hubble-relay 4245:80
+
+# Observe live traffic for the production namespace
+hubble observe --namespace production --follow
+
+# OUTPUT (L7 flow data):
+# Feb 27 14:32:07.112  construx-api → postgres:5432   postgres  FORWARDED
+# Feb 27 14:32:07.118  nginx-ingress → construx-api:3000  GET /api/orders  FORWARDED
+# Feb 27 14:32:07.203  construx-api → redis:6379      redis-cmd SET  FORWARDED
+# Feb 27 14:32:07.801  unknown-pod → construx-api:22  ssh  DROPPED  (policy)
+
+# Filter: show only dropped flows (policy violations)
+hubble observe --namespace production --verdict DROPPED
+
+# Show HTTP flows with path and status
+hubble observe --namespace production \
+  --protocol http \
+  --follow
+
+# Top talkers — which pods are sending the most traffic
+hubble observe --namespace production --type l7 --last 1000 | \
+  jq -r '.flow.source.pod_name' | sort | uniq -c | sort -rn | head -10
+```
+
+## Cilium vs iptables — the performance difference
+
+```bash
+# Measure iptables rule count on a cluster with 1,000 pods
+kubectl get nodes -o name | head -1 | xargs -I{} kubectl debug {} --image=nicolaka/netshoot -- \
+  iptables -L | wc -l
+# 28,417  ← each pod adds ~28 rules to KUBE-SERVICES, KUBE-FORWARD, etc.
+
+# Packet flow with iptables CNI (Calico, Flannel):
+# ingress → iptables PREROUTING (linear scan, 28k rules) → routing → FORWARD → iptables POSTROUTING → pod
+# Time: O(n) where n = number of rules
+
+# Packet flow with Cilium eBPF:
+# ingress → XDP hook → eBPF map lookup (hash table, O(1)) → pod
+# Time: O(1) regardless of cluster size
+
+# Benchmark: service lookup latency
+# iptables (1,000 services): ~180μs average
+# Cilium eBPF:               ~12μs average (15x faster)
+
+# Check Cilium is using eBPF mode (not iptables fallback)
+kubectl exec -n kube-system ds/cilium -- cilium status
+# KubeProxyReplacement:  True  ← Cilium replaces kube-proxy entirely
+# HostReachableServices: True
+# eBPF:                  operational
+```
+
+## Cilium Cluster Mesh — multi-cluster service discovery
+
+```yaml
+# ClusterMesh: connect multiple Kubernetes clusters
+# Pods in cluster-a can reach services in cluster-b by name
+
+# cluster-a/values-cilium.yaml
+cluster:
+  name: eu-west-2
+  id: 1
+
+# cluster-b/values-cilium.yaml
+cluster:
+  name: us-east-1
+  id: 2
+
+# Enable cluster mesh
+cilium clustermesh connect \
+  --context k8s-eu-west-2 \
+  --destination-context k8s-us-east-1
+
+# Global service: traffic routed to the nearest healthy endpoint
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  annotations:
+    service.cilium.io/global: "true"       # Route across clusters
+    service.cilium.io/shared: "true"       # Expose to remote clusters
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+```
+
+Cilium vs Istio for L7 policy: Istio achieves L7 network policy via Envoy sidecars — an additional container injected into each pod that intercepts all traffic. Each sidecar adds ~50MB RAM and ~2ms per request. At 100 pods, that's 5GB RAM just for sidecars. Cilium achieves L7 awareness via eBPF — no sidecar, no extra container, sub-microsecond overhead. The tradeoff: Cilium's L7 policy is less expressive than Istio's (no circuit breaking, no retry policies, no traffic weights), and Cilium requires Linux 5.10+ while Istio works on any kernel. For raw performance and observability without sidecars, Cilium wins. For complex traffic management, use Istio or Linkerd alongside Cilium.

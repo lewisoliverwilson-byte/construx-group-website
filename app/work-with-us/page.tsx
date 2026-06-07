@@ -17,6 +17,7 @@ import TailnetStatusPanel from '@/components/TailnetStatusPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
+import TrivyVulnPanel from '@/components/TrivyVulnPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -632,8 +633,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* Envoy proxy stats */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <EnvoyStatsPanel />
+      </section>
+
+      {/* Trivy container vulnerability scan */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <TrivyVulnPanel />
       </section>
 
       {/* CTA */}
