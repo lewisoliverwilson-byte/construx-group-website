@@ -19,6 +19,7 @@ import CargoPanel from '@/components/CargoPanel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
+import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -434,8 +435,13 @@ export default function StatsPage() {
       </div>
 
       {/* Temporal workflow execution history */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TemporalWorkflowPanel />
+      </div>
+
+      {/* ClickHouse materialized view analytics */}
+      <div className="mt-6 pb-10">
+        <ClickhouseMvPanel />
       </div>
     </div>
   );

@@ -1,0 +1,147 @@
+---
+title: "Deno KV: a globally consistent key-value store at the edge"
+date: "2032-01-16"
+excerpt: "Deno KV is a key-value database built into the Deno runtime, backed by FoundationDB. In Deno Deploy, KV is replicated globally — reads are served from the nearest region, writes commit globally with serializable isolation. The API is simple: get, set, delete, list, and atomic operations. Queues let you enqueue work and process it with at-least-once delivery. Watch lets you subscribe to key changes in real time. No connection string, no separate database to provision."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Global KV built into Deno. No provisioning. Serializable by default.
+
+## Basic KV operations
+
+```ts
+// main.ts — Deno KV in a Deno Deploy Worker
+const kv = await Deno.openKv();
+
+// Set a value
+await kv.set(['orders', 'order-a3f9b2c1'], {
+  id:          'order-a3f9b2c1',
+  customerId:  'cust-001',
+  totalCents:  4999,
+  status:      'pending',
+  createdAt:   new Date().toISOString(),
+});
+
+// Get a value
+const result = await kv.get<Order>(['orders', 'order-a3f9b2c1']);
+if (result.value) {
+  console.log(result.value.status);  // 'pending'
+}
+
+// List all orders for a customer (prefix scan)
+const entries = kv.list<Order>({ prefix: ['orders'] });
+for await (const entry of entries) {
+  console.log(entry.key, entry.value.status);
+}
+
+// Delete
+await kv.delete(['orders', 'order-a3f9b2c1']);
+```
+
+## Atomic transactions
+
+```ts
+// Atomic: only commit if the order is still 'pending'
+const order = await kv.get<Order>(['orders', orderId]);
+if (!order.value) throw new Error('Order not found');
+if (order.value.status !== 'pending') throw new Error('Already processed');
+
+const result = await kv.atomic()
+  // Check: order hasn't changed since we read it
+  .check({ key: ['orders', orderId], versionstamp: order.versionstamp })
+  // Update the order
+  .set(['orders', orderId], { ...order.value, status: 'processing' })
+  // Add to the processing queue
+  .set(['processing-queue', orderId], { orderId, queuedAt: Date.now() })
+  .commit();
+
+if (!result.ok) {
+  // Another request mutated the order between our read and write
+  throw new Error('Concurrent modification — retry');
+}
+```
+
+## Queues — at-least-once delivery
+
+```ts
+// Enqueue a job
+await kv.enqueue({ type: 'send-email', orderId, userEmail }, {
+  delay: 0,                    // Optional: delay in milliseconds
+  keysIfUndelivered: [['dlq', orderId]],  // Write to DLQ if undelivered after retries
+});
+
+// Process from the queue
+kv.listenQueue(async (message: { type: string; orderId: string; userEmail: string }) => {
+  if (message.type === 'send-email') {
+    await sendConfirmationEmail(message.orderId, message.userEmail);
+    console.log(`Sent confirmation for ${message.orderId}`);
+    // No explicit ack — KV marks as processed if the function returns without throwing
+    // If the function throws, the message is retried with exponential backoff
+  }
+});
+```
+
+## Watch — subscribe to key changes
+
+```ts
+// Real-time subscription to order status changes
+const stream = kv.watch<[Order]>([['orders', orderId]]);
+
+for await (const [entry] of stream) {
+  if (entry.value) {
+    console.log(`Order ${orderId} status: ${entry.value.status}`);
+    if (entry.value.status === 'shipped') break;
+  }
+}
+
+// Use in an HTTP Server-Sent Events endpoint
+Deno.serve(async (req) => {
+  const url = new URL(req.url);
+  const orderId = url.searchParams.get('orderId');
+  if (!orderId) return new Response('Missing orderId', { status: 400 });
+
+  const stream = kv.watch<[Order]>([['orders', orderId]]);
+  const body = new ReadableStream({
+    async start(controller) {
+      for await (const [entry] of stream) {
+        if (entry.value) {
+          controller.enqueue(`data: ${JSON.stringify(entry.value)}\n\n`);
+        }
+      }
+    },
+  });
+
+  return new Response(body, {
+    headers: {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache',
+    },
+  });
+});
+```
+
+## Secondary indexes
+
+```ts
+// KV doesn't have built-in secondary indexes — implement manually with atomic writes
+async function createUser(user: User) {
+  const result = await kv.atomic()
+    .check({ key: ['users', user.id], versionstamp: null })            // User must not exist
+    .check({ key: ['users-by-email', user.email], versionstamp: null }) // Email must be unique
+    .set(['users', user.id], user)
+    .set(['users-by-email', user.email], { userId: user.id })
+    .commit();
+
+  if (!result.ok) throw new Error('User already exists or email taken');
+  return user;
+}
+
+// Look up by email
+const emailEntry = await kv.get<{ userId: string }>(['users-by-email', 'lewis@construxgroup.io']);
+if (emailEntry.value) {
+  const user = await kv.get<User>(['users', emailEntry.value.userId]);
+}
+```
+
+Deno KV vs Cloudflare KV: Cloudflare KV is eventually consistent — writes propagate to edge nodes asynchronously, so a read immediately after a write might return the old value. Deno KV uses serializable isolation — reads always see the latest committed value globally. The tradeoff: Deno KV's consistency model requires coordination between regions, adding ~10ms write latency. Cloudflare KV write-to-read inconsistency window can be seconds. For inventory, payments, or anything where correctness matters more than write latency, Deno KV's model is significantly safer.

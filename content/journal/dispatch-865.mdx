@@ -1,0 +1,166 @@
+---
+title: "Cgroups v2 and systemd slices: resource accounting and isolation"
+date: "2032-01-22"
+excerpt: "Cgroups (control groups) are the Linux kernel mechanism that limits, accounts for, and isolates resource usage of a collection of processes. Cgroups v2 is the unified hierarchy — one tree, one interface. systemd uses cgroups v2 to organise services into slices (system.slice, user.slice, machine.slice) and enforces memory limits, CPU quotas, and I/O weights per unit. Kubernetes uses cgroups v2 under the hood to enforce pod resource limits. Understanding cgroups explains why your container was OOM-killed."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+One process tree. One cgroup hierarchy. Limits, accounting, and isolation.
+
+## Inspect the cgroup hierarchy
+
+```bash
+# View the cgroup hierarchy (systemd-based)
+systemd-cgls
+
+# -.slice
+# ├─system.slice
+# │ ├─construx-api.service
+# │ │ └─18241 node /app/dist/index.js
+# │ ├─postgresql.service
+# │ │ ├─18242 postgres: checkpointer
+# │ │ └─18243 postgres: bgwriter
+# │ └─redis.service
+# │   └─18244 redis-server
+# └─user.slice
+#   └─user-1000.slice
+
+# Show cgroup stats for a service
+systemctl status construx-api --property=ControlGroup
+# ControlGroup=/system.slice/construx-api.service
+
+# Check memory usage and limits via cgroup interface
+cat /sys/fs/cgroup/system.slice/construx-api.service/memory.current
+# 154763264  ← 147MB currently used
+
+cat /sys/fs/cgroup/system.slice/construx-api.service/memory.max
+# 536870912  ← 512MB limit
+```
+
+## Set resource limits in a systemd unit
+
+```ini
+# /etc/systemd/system/construx-api.service
+[Unit]
+Description=Construx API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=construx
+WorkingDirectory=/app
+ExecStart=/usr/bin/node /app/dist/index.js
+Restart=on-failure
+RestartSec=5s
+
+# Memory limits
+MemoryMax=512M         # Hard limit — OOM-killed if exceeded
+MemoryHigh=400M        # Soft limit — throttled and reclaimed, not killed
+
+# CPU limits
+CPUQuota=200%          # 200% = up to 2 full cores
+CPUWeight=100          # Relative weight for CPU scheduling (default: 100)
+
+# I/O limits
+IOWeight=100           # I/O scheduling weight
+IOReadBandwidthMax=/dev/sda 200M   # 200MB/s read cap
+IOWriteBandwidthMax=/dev/sda 100M  # 100MB/s write cap
+
+# Restrict filesystem access (security hardening)
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Create a custom slice for resource grouping
+
+```ini
+# /etc/systemd/system/construx.slice
+[Unit]
+Description=Construx Group services slice
+
+[Slice]
+MemoryMax=4G          # Total memory cap for all construx services
+CPUQuota=800%         # Up to 8 cores for the whole slice
+
+# Individual services belong to this slice via Slice= directive
+```
+
+```ini
+# /etc/systemd/system/construx-api.service
+[Service]
+Slice=construx.slice  # This service counts against construx.slice limits
+MemoryMax=512M
+CPUQuota=200%
+```
+
+## Monitor cgroup resource usage in real time
+
+```bash
+# systemd-cgtop — top-like view of cgroup resource usage
+systemd-cgtop
+
+# PATH               TASKS   %CPU   MEMORY   INPUT/s   OUTPUT/s
+# /                    412    42.3   12.1G      —         —
+# /system.slice        180    38.1    8.4G      —         —
+# /system.slice/construx-api.service
+#                       12    18.4    147M    1.2M/s    0.8M/s
+# /system.slice/postgresql.service
+#                       42    12.2    2.1G      —         —
+```
+
+## OOM killer — understand why the process was killed
+
+```bash
+# Check if the process was OOM-killed
+journalctl -u construx-api | grep -i "oom\|killed"
+# Dec 28 14:32:10 construx-api.service: Out of memory: Killed process 18241 ...
+# Dec 28 14:32:10 kernel: oom_kill_process: Kill process 18241 (node)
+
+# View the OOM kill log in dmesg
+dmesg | grep -i "oom\|out of memory" | tail -20
+
+# Check memory high watermark — was the process consistently near its limit?
+cat /sys/fs/cgroup/system.slice/construx-api.service/memory.peak
+# 498073600  ← 475MB peak — close to the 512MB limit
+
+# Cgroup memory events — count of OOM kills and throttles
+cat /sys/fs/cgroup/system.slice/construx-api.service/memory.events
+# low 0
+# high 142      ← 142 times the process was throttled (hit MemoryHigh)
+# max 0
+# oom 1         ← 1 OOM kill event
+# oom_kill 1
+```
+
+## Kubernetes pod limits — cgroups under the hood
+
+```yaml
+# k8s/api-deployment.yaml
+# These Kubernetes resource limits map directly to cgroup v2 settings
+spec:
+  containers:
+    - name: api
+      resources:
+        requests:
+          memory: "256Mi"     # Pod scheduling hint (no cgroup enforcement)
+          cpu:    "250m"      # 0.25 cores
+        limits:
+          memory: "512Mi"     # → memory.max = 536870912
+          cpu:    "1000m"     # → cpu.max = 100000 100000 (1 core per 100ms period)
+```
+
+```bash
+# Find the cgroup for a Kubernetes pod
+CONTAINER_ID=$(kubectl get pod orders-api-7b9f4-xk2m -o jsonpath='{.status.containerStatuses[0].containerID}' | sed 's/containerd:\/\///')
+
+# The cgroup path on the node
+cat /sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/*/cri-containerd-${CONTAINER_ID:0:15}*.scope/memory.current
+```
+
+Cgroups v1 vs v2: v1 had a separate hierarchy per controller (memory, cpu, blkio lived in separate trees). This caused split-brain: a process could be in different cgroups for different resources. v2 is a unified hierarchy — one tree, all controllers. Systemd supports v2 from version 247+. Kubernetes supports v2 from 1.25+. If your distro runs v2 (Ubuntu 22.04+, RHEL 9+, Debian 12+), the `/sys/fs/cgroup/` files are the v2 interface. The v1 interface (`memory.limit_in_bytes`) is gone; use `memory.max` instead.
