@@ -88,6 +88,7 @@ import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import K6Panel from '@/components/K6Panel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
+import MemInfoPanel from '@/components/MemInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -649,8 +650,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* last login — users, terminals, ips, timestamps */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <LastLoginPanel />
+      </section>
+
+      {/* meminfo — ram, swap, buffers, cached, available */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MemInfoPanel />
       </section>
 
       {/* Posts */}

@@ -85,6 +85,7 @@ import FioPanel from '@/components/FioPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
+import LitestreamPanel from '@/components/LitestreamPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -693,8 +694,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kubernetes gateway — routes, listeners, backends, policies */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubernetesGatewayPanel />
+        </div>
+
+        {/* litestream — replicas, lag, snapshots, restore */}
+        <div className="mt-4 pb-6">
+          <LitestreamPanel />
         </div>
 
         {/* Sign-off */}
