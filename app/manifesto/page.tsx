@@ -76,6 +76,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
+import HttpBenchPanel from '@/components/HttpBenchPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -639,8 +640,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* goreplay — http traffic replay, middleware, rate limit */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GoReplayPanel />
+        </div>
+
+        {/* http bench — rps, latency, connections, throughput */}
+        <div className="mt-4 pb-6">
+          <HttpBenchPanel />
         </div>
 
         {/* Sign-off */}

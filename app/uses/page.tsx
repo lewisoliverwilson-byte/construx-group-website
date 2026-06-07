@@ -74,6 +74,7 @@ import DragonflyPanel from '@/components/DragonflyPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import HtopPanel from '@/components/HtopPanel';
+import InfluxDbPanel from '@/components/InfluxDbPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -746,8 +747,13 @@ export default function UsesPage() {
         </div>
 
         {/* htop — process monitor, cpu bars, mem, sort, filter */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HtopPanel />
+        </div>
+
+        {/* influxdb — time series, measurements, tags, retention */}
+        <div className="mt-6 pb-10">
+          <InfluxDbPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -79,6 +79,7 @@ import DnsLookupPanel from '@/components/DnsLookupPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
+import IcebergPanel from '@/components/IcebergPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -595,8 +596,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* grpc call — methods, status codes, duration, metadata */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GrpcCallPanel />
+      </section>
+
+      {/* iceberg — table format, snapshots, partitions, manifests */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <IcebergPanel />
       </section>
 
       {/* Posts */}
