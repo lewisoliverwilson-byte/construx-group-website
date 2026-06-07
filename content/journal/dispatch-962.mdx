@@ -1,0 +1,280 @@
+---
+title: "OPA: policy-as-code authorization with Rego and the Open Policy Agent"
+date: "2032-11-08"
+excerpt: "Open Policy Agent (OPA) is a general-purpose policy engine that decouples authorization logic from application code. Policies are written in Rego — a declarative, Datalog-inspired language — and evaluated against structured input (JSON). OPA answers the question 'is this action allowed?' by evaluating input against policy rules and data. It integrates with Kubernetes (as an admission controller via Gatekeeper), Envoy (as an external authorization filter), and any application that can make an HTTP request or embed the OPA library. The key insight: authorization logic is data — it should be testable, versioned, and deployable independently from the application that enforces it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Policy as data. Rego rules. `opa eval`, `opa test`, Gatekeeper admission control.
+
+## Core Rego policy
+
+```rego
+# policy.rego — Rego: declarative policy language for OPA
+package construx.authz
+
+import future.keywords.if
+import future.keywords.in
+
+# Default deny — explicit allow required
+default allow := false
+
+# Allow if user is admin
+allow if {
+    input.user.role == "admin"
+}
+
+# Allow if the resource is public and the method is GET
+allow if {
+    data.construx.resources[input.resource].public == true
+    input.method == "GET"
+}
+
+# Allow if the user has the required permission for the resource
+allow if {
+    some perm in data.construx.roles[input.user.role]
+    perm.resource == input.resource
+    perm.action == input.method
+}
+
+# Deny set — collect all reasons for denial
+deny[reason] if {
+    input.user.suspended == true
+    reason := "account suspended"
+}
+
+deny[reason] if {
+    not input.token.valid
+    reason := sprintf("invalid token: exp=%v", [input.token.exp])
+}
+
+# Audit log: capture context for every decision
+audit := {
+    "user":     input.user.id,
+    "resource": input.resource,
+    "action":   input.method,
+    "allow":    allow,
+    "deny":     deny,
+    "ts":       input.request_time,
+}
+```
+
+## Evaluating policies
+
+```bash
+# input.json — structured input for the policy evaluation
+cat input.json
+# {
+#   "user":         { "id": "u-001", "role": "admin", "suspended": false },
+#   "resource":     "orders",
+#   "method":       "DELETE",
+#   "token":        { "valid": true, "exp": 9999999999 },
+#   "request_time": "2032-11-08T09:00:00Z"
+# }
+
+# opa eval: evaluate a Rego expression against policy + input
+opa eval \
+  -d policy.rego \
+  -d data.json \
+  -i input.json \
+  'data.construx.authz.allow'
+# { "result": [{ "expressions": [{ "value": true }] }] }
+
+# Evaluate the full authz package
+opa eval \
+  -d policy.rego \
+  -d data.json \
+  -i input.json \
+  'data.construx.authz'
+# {
+#   "result": [{
+#     "expressions": [{
+#       "value": {
+#         "allow": true,
+#         "deny": [],
+#         "audit": { "user": "u-001", "resource": "orders", ... }
+#       }
+#     }]
+#   }]
+# }
+
+# --explain full: show which rules fired and why
+opa eval \
+  -d policy.rego \
+  -i input.json \
+  'data.construx.authz.allow' \
+  --explain full
+
+# Enter construx.authz.allow = true
+#   ✓  input.user.role == "admin"  (input.user.role = "admin")
+# Exit  construx.authz.allow = true
+
+# Evaluate with pretty output
+opa eval \
+  -d policy.rego \
+  -i input.json \
+  --format pretty \
+  'data.construx.authz.allow'
+# true
+```
+
+## Unit testing policies
+
+```rego
+# policy_test.rego — TDD for authorization policies
+package construx.authz_test
+
+import data.construx.authz
+
+# Test: admin can delete
+test_admin_can_delete if {
+    authz.allow with input as {
+        "user":     { "id": "u-001", "role": "admin", "suspended": false },
+        "resource": "orders",
+        "method":   "DELETE",
+        "token":    { "valid": true, "exp": 9999999999 },
+    }
+}
+
+# Test: viewer cannot delete
+test_viewer_cannot_delete if {
+    not authz.allow with input as {
+        "user":     { "id": "u-002", "role": "viewer", "suspended": false },
+        "resource": "orders",
+        "method":   "DELETE",
+        "token":    { "valid": true, "exp": 9999999999 },
+    }
+}
+
+# Test: suspended account is denied
+test_suspended_account_denied if {
+    count(authz.deny) > 0 with input as {
+        "user":     { "id": "u-003", "role": "admin", "suspended": true },
+        "resource": "orders",
+        "method":   "GET",
+        "token":    { "valid": true, "exp": 9999999999 },
+    }
+}
+
+# Test: expired token is denied
+test_expired_token_denied if {
+    "invalid token: exp=0" in authz.deny with input as {
+        "user":  { "id": "u-001", "role": "admin", "suspended": false },
+        "token": { "valid": false, "exp": 0 },
+    }
+}
+```
+
+```bash
+# Run all policy tests
+opa test -v policy.rego policy_test.rego
+
+# PASS: test_admin_can_delete (0.3ms)
+# PASS: test_viewer_cannot_delete (0.1ms)
+# PASS: test_suspended_account_denied (0.2ms)
+# PASS: test_expired_token_denied (0.1ms)
+# ----------------------------------------
+# PASS: 4/4 tests passed (0.7ms)
+
+# Coverage report — which rules were exercised?
+opa test -v --coverage policy.rego policy_test.rego | jq '.coverage'
+# { "covered": 18, "not_covered": 2, "coverage": 90.0 }
+
+# Run only tests matching a pattern
+opa test -v -r test_admin policy.rego policy_test.rego
+```
+
+## OPA as a server — REST API
+
+```bash
+# Start OPA as a policy server
+opa run --server \
+  --addr :8181 \
+  --log-level info \
+  policy.rego data.json
+
+# Query via REST API
+curl -s -X POST http://localhost:8181/v1/data/construx/authz/allow \
+  -H 'Content-Type: application/json' \
+  -d '{"input": {"user": {"id": "u-001", "role": "admin", "suspended": false}, "resource": "orders", "method": "DELETE", "token": {"valid": true, "exp": 9999999999}}}'
+# {"result": true, "decision_id": "abc-123", "metrics": {"timer_rego_query_eval_ns": 42000}}
+
+# Batch query (multiple inputs in one request)
+curl -s -X POST http://localhost:8181/v1/data/construx/authz \
+  -d '{"input": {...}}' | jq '.result | {allow, deny}'
+
+# Health check
+curl http://localhost:8181/health
+# {"status": "ok"}
+
+# Bundle API — load policies from a remote bundle server
+opa run --server \
+  --bundle https://bundle.construx.io/v1/policies.tar.gz \
+  --set "services.construx.url=https://bundle.construx.io" \
+  --set "bundles.construx.resource=/v1/policies.tar.gz"
+```
+
+## Kubernetes admission control with Gatekeeper
+
+```yaml
+# Gatekeeper: OPA admission controller for Kubernetes
+# Install: helm install gatekeeper opa/gatekeeper --namespace gatekeeper-system
+
+# ConstraintTemplate: defines a new policy type (CRD)
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: requiredlabels
+spec:
+  crd:
+    spec:
+      names:
+        kind: RequiredLabels
+      validation:
+        openAPIV3Schema:
+          properties:
+            labels:
+              type: array
+              items: { type: string }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package requiredlabels
+        violation[{"msg": msg}] {
+          provided := {label | input.review.object.metadata.labels[label]}
+          required := {label | label := input.parameters.labels[_]}
+          missing  := required - provided
+          count(missing) > 0
+          msg := sprintf("missing labels: %v", [missing])
+        }
+---
+# Constraint: apply the policy to all namespaces
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RequiredLabels
+metadata:
+  name: ns-must-have-team
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace"]
+  parameters:
+    labels: ["team", "cost-center"]
+```
+
+```bash
+# Test: create a namespace without required labels — should be rejected
+kubectl create namespace no-labels
+# Error from server (Forbidden): admission webhook "validation.gatekeeper.sh" denied the request:
+# [ns-must-have-team] missing labels: {"cost-center", "team"}
+
+# Create with required labels — should pass
+kubectl create namespace construx-prod
+kubectl label namespace construx-prod team=platform cost-center=infra
+
+# Audit: check existing resources for policy violations
+kubectl get constraint ns-must-have-team -o json | jq '.status.violations'
+```
+
+OPA vs Casbin vs custom middleware: Casbin is a Go library for RBAC/ABAC — it's embedded, fast, and simple for standard access models. OPA is a standalone policy engine — it works across languages and teams, evaluates arbitrary policies, and provides a REST API, a REPL, a test runner, and Kubernetes admission control in one binary. Custom middleware works until authorization logic becomes complex enough to need testing and versioning independently from the application. The pattern: use OPA when authorization rules are complex enough to warrant their own test suite, when the same policy must be enforced in multiple services, or when you need audit trails and explainability for compliance.

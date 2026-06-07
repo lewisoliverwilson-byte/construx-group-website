@@ -1,0 +1,258 @@
+---
+title: "Dagger: portable CI pipelines as code in Go, Python, or TypeScript"
+date: "2032-11-14"
+excerpt: "Dagger is a CI/CD engine that runs pipelines as code — written in Go, Python, or TypeScript — inside containers on the Dagger Engine (a specialized container runtime built on BuildKit). The key property: the same pipeline runs identically on a developer's laptop, in GitHub Actions, in GitLab CI, or on a self-hosted runner, because Dagger handles the container orchestration. Pipelines are pure functions: inputs (source code, secrets, environment variables) in, artifacts out. Each step is a container operation; results are cached by content hash (if the source didn't change, the step is skipped). Dagger replaces YAML CI configuration with typed, testable, composable code."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Pipelines as typed code. Content-addressed caching. Same run locally and in CI. No YAML.
+
+## Core pipeline in Go
+
+```go
+// main.go — Dagger pipeline: build, test, lint, publish
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+
+    "dagger.io/dagger"
+)
+
+func main() {
+    ctx := context.Background()
+    if err := build(ctx); err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+}
+
+func build(ctx context.Context) error {
+    // Connect to Dagger Engine (local or remote)
+    client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stdout))
+    if err != nil {
+        return fmt.Errorf("connect: %w", err)
+    }
+    defer client.Close()
+
+    // Source directory (content-addressed — cache invalidated only on change)
+    src := client.Host().Directory(".", dagger.HostDirectoryOpts{
+        Exclude: []string{".git", "node_modules", "dist"},
+    })
+
+    // Go build container
+    goBase := client.Container().
+        From("golang:1.23-alpine").
+        WithMountedDirectory("/src", src).
+        WithWorkdir("/src").
+        WithMountedCache("/root/go/pkg/mod", client.CacheVolume("go-mod")).
+        WithMountedCache("/root/.cache/go-build", client.CacheVolume("go-build"))
+
+    // Run tests
+    tested, err := goBase.
+        WithExec([]string{"go", "test", "-race", "-coverprofile=coverage.out", "./..."}).
+        Sync(ctx)
+    if err != nil {
+        return fmt.Errorf("tests failed: %w", err)
+    }
+
+    // Get coverage report
+    coverage, err := tested.File("coverage.out").Contents(ctx)
+    if err != nil {
+        return fmt.Errorf("coverage: %w", err)
+    }
+    fmt.Println("Coverage:", coverage[:200]) // first 200 chars
+
+    // Build binary
+    binary := goBase.
+        WithEnvVariable("GOOS", "linux").
+        WithEnvVariable("GOARCH", "amd64").
+        WithEnvVariable("CGO_ENABLED", "0").
+        WithExec([]string{
+            "go", "build",
+            "-ldflags", "-s -w",
+            "-o", "/out/construx-api",
+            "./cmd/api",
+        }).
+        File("/out/construx-api")
+
+    // Export to host
+    _, err = binary.Export(ctx, "./dist/construx-api")
+    if err != nil {
+        return fmt.Errorf("export: %w", err)
+    }
+    fmt.Println("Binary exported to ./dist/construx-api")
+    return nil
+}
+```
+
+## Multi-stage pipeline with secrets
+
+```go
+func publishPipeline(ctx context.Context, client *dagger.Client) error {
+    src := client.Host().Directory(".")
+
+    // Secrets: pulled from host environment — never logged, never cached
+    registryUser := client.SetSecret("registry-user", os.Getenv("REGISTRY_USER"))
+    registryPass := client.SetSecret("registry-pass", os.Getenv("REGISTRY_PASS"))
+
+    // Build Docker image via Dagger
+    image := client.Container().
+        Build(src, dagger.ContainerBuildOpts{
+            Dockerfile: "Dockerfile",
+            BuildArgs: []dagger.BuildArg{
+                {Name: "VERSION", Value: os.Getenv("VERSION")},
+            },
+        })
+
+    // Run container-structure tests
+    _, err := client.Container().
+        From("gcr.io/gcp-runtimes/container-structure-test:latest").
+        WithMountedFile("/image.tar", image.AsTarball()).
+        WithMountedFile("/tests.yaml", src.File("container-tests.yaml")).
+        WithExec([]string{
+            "test",
+            "--image", "docker-daemon:loaded",
+            "--config", "/tests.yaml",
+        }).
+        Sync(ctx)
+    if err != nil {
+        return fmt.Errorf("container tests: %w", err)
+    }
+
+    // Push to registry with credentials
+    addr, err := image.
+        WithRegistryAuth("registry.construx.io", registryUser, registryPass).
+        Publish(ctx, fmt.Sprintf("registry.construx.io/construx/api:%s", os.Getenv("VERSION")))
+    if err != nil {
+        return fmt.Errorf("publish: %w", err)
+    }
+    fmt.Println("Pushed:", addr)
+    return nil
+}
+```
+
+## Running Dagger
+
+```bash
+# Install Dagger CLI
+curl -L https://dl.dagger.io/dagger/install.sh | sh
+dagger version
+# dagger v0.14.0 (registry.dagger.io/engine:v0.14.0)
+
+# Run locally (Dagger Engine starts automatically)
+dagger run go run ./ci/main.go
+
+# Or use the Dagger module system
+dagger call build --src .
+
+# Initialize a new Dagger module
+dagger init --sdk go --name construx-ci
+# Creates: dagger.json, dagger/main.go
+
+# Dagger module: typed, composable, published to the Daggerverse
+# dagger/main.go — module definition
+type ConstruxCI struct{}
+
+func (m *ConstruxCI) Build(ctx context.Context, src *dagger.Directory) *dagger.File {
+    return dag.Container().
+        From("golang:1.23-alpine").
+        WithMountedDirectory("/src", src).
+        WithWorkdir("/src").
+        WithExec([]string{"go", "build", "-o", "/out/api", "./cmd/api"}).
+        File("/out/api")
+}
+
+func (m *ConstruxCI) Test(ctx context.Context, src *dagger.Directory) *dagger.Container {
+    return dag.Container().
+        From("golang:1.23-alpine").
+        WithMountedDirectory("/src", src).
+        WithWorkdir("/src").
+        WithExec([]string{"go", "test", "-race", "./..."})
+}
+
+# Call individual functions
+dagger call build --src .
+dagger call test --src . stdout
+
+# Inspect the Dagger trace (what happened, what was cached)
+dagger run --debug go run ./ci/main.go
+# Shows each container operation, cache hits, and durations
+```
+
+## GitHub Actions integration
+
+```yaml
+# .github/workflows/ci.yml — run Dagger pipeline in GitHub Actions
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        run: curl -L https://dl.dagger.io/dagger/install.sh | sh
+
+      - name: Run Dagger pipeline
+        env:
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_PASS: ${{ secrets.REGISTRY_PASS }}
+          VERSION: ${{ github.sha }}
+        run: dagger run go run ./ci/main.go
+
+# The pipeline is identical locally and in CI.
+# No YAML logic — the Go code is the source of truth.
+# Cache volumes persist across runs (Dagger Engine caches by content hash).
+```
+
+## Caching and cache volumes
+
+```go
+// Cache volumes: persist data across pipeline runs
+// Identified by name — content-addressed at the layer level
+
+// Go module cache (invalidated only when go.sum changes)
+goMod := client.CacheVolume("go-mod-cache")
+
+// pnpm store (shared across all pipelines on this engine)
+pnpm := client.CacheVolume("pnpm-store")
+
+// npm cache
+npm := client.CacheVolume("npm-cache")
+
+// Gradle build cache
+gradle := client.CacheVolume("gradle-cache")
+
+// Mount cache volumes into containers
+container := client.Container().
+    From("node:22-alpine").
+    WithMountedCache("/root/.local/share/pnpm/store", pnpm).
+    WithExec([]string{"pnpm", "install", "--frozen-lockfile"}).
+    WithExec([]string{"pnpm", "run", "build"})
+
+// Without cache: `pnpm install` downloads all packages every run (~45s)
+// With cache:    `pnpm install` validates lockfile and links from store (~3s)
+
+// Service containers: run dependencies (Postgres, Redis) as sidecar containers
+postgres := client.Container().
+    From("postgres:16-alpine").
+    WithEnvVariable("POSTGRES_PASSWORD", "test").
+    WithExposedPort(5432).
+    AsService()
+
+tests := client.Container().
+    From("golang:1.23-alpine").
+    WithServiceBinding("postgres", postgres).
+    WithEnvVariable("DATABASE_URL", "postgres://postgres:test@postgres:5432/testdb?sslmode=disable").
+    WithMountedDirectory("/src", src).
+    WithWorkdir("/src").
+    WithExec([]string{"go", "test", "-tags", "integration", "./..."})
+```
+
+Dagger vs Earthly vs Makefile: Makefiles are universal but text-substitution — no types, no IDE support, no caching beyond file timestamps. Earthly adds reproducibility and better caching to Makefile-style CI, with an Earthfile DSL. Dagger is full code — Go, Python, or TypeScript — which means refactoring, testing, and IDE support for the CI pipeline itself. The strongest argument for Dagger: the pipeline runs identically locally and in CI, so "it worked on my machine" becomes a valid debugging environment. The strongest argument against: it adds a runtime dependency (the Dagger Engine) and a learning curve. The pattern: start with Dagger when the CI pipeline is complex enough to warrant testing and composition, or when you want to share pipeline logic across repos as a versioned module.
