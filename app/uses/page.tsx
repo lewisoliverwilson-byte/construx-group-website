@@ -55,6 +55,7 @@ import DuckdbPanel from '@/components/DuckdbPanel';
 import RekorPanel from '@/components/RekorPanel';
 import SigstorePanel from '@/components/SigstorePanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
+import DmesgPanel from '@/components/DmesgPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -632,8 +633,13 @@ export default function UsesPage() {
         </div>
 
         {/* web vitals core metrics — lcp, cls, inp, fid */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <WebVitalsPanel />
+        </div>
+
+        {/* dmesg kernel ring buffer — messages, drivers, boot */}
+        <div className="mt-6 pb-10">
+          <DmesgPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

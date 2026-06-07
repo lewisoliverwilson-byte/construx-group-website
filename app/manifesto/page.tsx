@@ -57,6 +57,7 @@ import RiverPanel from '@/components/RiverPanel';
 import PulumiPanel from '@/components/PulumiPanel';
 import CosignPanel from '@/components/CosignPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
+import ActPanel from '@/components/ActPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -525,8 +526,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* turborepo monorepo build system — tasks, cache, pipelines */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <TurboRepoPanel />
+        </div>
+
+        {/* act github actions locally — jobs, steps, runners */}
+        <div className="mt-4 pb-6">
+          <ActPanel />
         </div>
 
         {/* Sign-off */}

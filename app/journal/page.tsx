@@ -60,6 +60,7 @@ import DruidPanel from '@/components/DruidPanel';
 import SyftPanel from '@/components/SyftPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -481,8 +482,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* lighthouse performance audit — scores, metrics, opportunities */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <LighthousePanel />
+      </section>
+
+      {/* bundle analysis — chunks, sizes, tree shaking */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <BundleAnalysisPanel />
       </section>
 
       {/* Posts */}
