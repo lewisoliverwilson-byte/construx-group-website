@@ -62,6 +62,7 @@ import EslintOutputPanel from '@/components/EslintOutputPanel';
 import TalosPanel from '@/components/TalosPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import DaprPanel from '@/components/DaprPanel';
+import CiliumPanel from '@/components/CiliumPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -692,8 +693,13 @@ export default function StatsPage() {
       </div>
 
       {/* dapr distributed application runtime — actors, pub/sub, state */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DaprPanel />
+      </div>
+
+      {/* cilium ebpf networking — endpoints, policy, hubble flows */}
+      <div className="mt-6 pb-10">
+        <CiliumPanel />
       </div>
     </div>
   );

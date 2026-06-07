@@ -60,6 +60,7 @@ import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import FlinkPanel from '@/components/FlinkPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -644,8 +645,13 @@ export default function NowPage() {
         </div>
 
         {/* airbyte open-source elt — connectors, syncs, data movement */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AirbytePanel />
+        </div>
+
+        {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
+        <div className="mt-6 pb-10">
+          <FlinkPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

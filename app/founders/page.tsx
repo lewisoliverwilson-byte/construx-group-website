@@ -60,6 +60,7 @@ import GitBisectPanel from '@/components/GitBisectPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import FlinkPanel from '@/components/FlinkPanel';
+import AirflowPanel from '@/components/AirflowPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -780,8 +781,13 @@ export default function FoundersPage() {
         </div>
 
         {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FlinkPanel />
+        </div>
+
+        {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
+        <div className="mt-6 pb-10">
+          <AirflowPanel />
         </div>
 
         {/* CTA */}
