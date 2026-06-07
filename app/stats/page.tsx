@@ -59,6 +59,7 @@ import PrefectPanel from '@/components/PrefectPanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import BiomePanel from '@/components/BiomePanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
+import TalosPanel from '@/components/TalosPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -674,8 +675,13 @@ export default function StatsPage() {
       </div>
 
       {/* eslint code quality — rules, violations, fixes */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <EslintOutputPanel />
+      </div>
+
+      {/* talos immutable kubernetes os — nodes, services, config */}
+      <div className="mt-6 pb-10">
+        <TalosPanel />
       </div>
     </div>
   );

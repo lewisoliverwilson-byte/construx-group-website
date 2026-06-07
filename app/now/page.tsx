@@ -57,6 +57,7 @@ import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import SkaffoldPanel from '@/components/SkaffoldPanel';
 import MisePanel from '@/components/MisePanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
+import GitBlamePanel from '@/components/GitBlamePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -626,8 +627,13 @@ export default function NowPage() {
         </div>
 
         {/* git worktree parallel branches — worktrees, status, commits */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitWorktreePanel />
+        </div>
+
+        {/* git blame annotate — commits, authors, lines */}
+        <div className="mt-6 pb-10">
+          <GitBlamePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

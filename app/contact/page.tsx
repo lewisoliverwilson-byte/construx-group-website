@@ -57,6 +57,7 @@ import NeonPanel from '@/components/NeonPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
+import SpirePanel from '@/components/SpirePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -640,8 +641,13 @@ export default function ContactPage() {
       </section>
 
       {/* nmap network scan — hosts, ports, services */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NmapScanPanel />
+      </section>
+
+      {/* spire workload identity — agents, entries, svids */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <SpirePanel />
       </section>
     </div>
   );

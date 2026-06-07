@@ -57,6 +57,7 @@ import SynapsePanel from '@/components/SynapsePanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -762,8 +763,13 @@ export default function FoundersPage() {
         </div>
 
         {/* git bisect binary search — commits, good, bad, culprit */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitBisectPanel />
+        </div>
+
+        {/* git graph commit history — branches, merges, topology */}
+        <div className="mt-6 pb-10">
+          <GitGraphPanel />
         </div>
 
         {/* CTA */}
