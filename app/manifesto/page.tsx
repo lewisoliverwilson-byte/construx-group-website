@@ -81,6 +81,7 @@ import IostatPanel from '@/components/IostatPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import FioPanel from '@/components/FioPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -669,8 +670,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* curl jwt — token, claims, expiry, signature */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CurlJwtPanel />
+        </div>
+
+        {/* fio — iops, bw, lat, sequential, random */}
+        <div className="mt-4 pb-6">
+          <FioPanel />
         </div>
 
         {/* Sign-off */}

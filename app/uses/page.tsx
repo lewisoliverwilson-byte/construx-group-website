@@ -79,6 +79,7 @@ import DronePanel from '@/components/DronePanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
+import IpLinkPanel from '@/components/IpLinkPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -776,8 +777,13 @@ export default function UsesPage() {
         </div>
 
         {/* dragonfly dns — cache, hits, misses, latency, zones */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DragonFlyDnsPanel />
+        </div>
+
+        {/* ip link — interfaces, mtu, state, mac, flags */}
+        <div className="mt-6 pb-10">
+          <IpLinkPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

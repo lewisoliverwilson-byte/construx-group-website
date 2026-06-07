@@ -84,6 +84,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import DigPanel from '@/components/DigPanel';
+import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -625,8 +626,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* dig — dns query, records, ttl, authority */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DigPanel />
+      </section>
+
+      {/* gpg fingerprint — key id, uid, subkeys, trust */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GpgFingerprintPanel />
       </section>
 
       {/* Posts */}

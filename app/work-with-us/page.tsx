@@ -80,6 +80,7 @@ import IpAddrPanel from '@/components/IpAddrPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import CniPanel from '@/components/CniPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
+import FreeMemPanel from '@/components/FreeMemPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1009,8 +1010,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* curl verbose — dns, connect, tls, transfer timings */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CurlVerbosePanel />
+      </section>
+
+      {/* free mem — total, used, free, shared, available */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <FreeMemPanel />
       </section>
 
       {/* CTA */}
