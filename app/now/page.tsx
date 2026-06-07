@@ -46,6 +46,7 @@ import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import TeleportPanel from '@/components/TeleportPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import TektonPanel from '@/components/TektonPanel';
+import KubeVirtPanel from '@/components/KubeVirtPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -560,8 +561,13 @@ export default function NowPage() {
         </div>
 
         {/* tekton k8s-native ci — pipelineruns, taskruns, workspaces */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TektonPanel />
+        </div>
+
+        {/* kubevirt vms on kubernetes — virtual machines, snapshots, migrations */}
+        <div className="mt-6 pb-10">
+          <KubeVirtPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

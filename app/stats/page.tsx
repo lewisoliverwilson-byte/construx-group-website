@@ -48,6 +48,7 @@ import ParcaPanel from '@/components/ParcaPanel';
 import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 import WazuhPanel from '@/components/WazuhPanel';
 import RedisPanel from '@/components/RedisPanel';
+import NATSPanel from '@/components/NATSPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -608,8 +609,13 @@ export default function StatsPage() {
       </div>
 
       {/* redis in-memory store — cluster, streams, commands */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <RedisPanel />
+      </div>
+
+      {/* nats jetstream messaging — streams, consumers, subjects */}
+      <div className="mt-6 pb-10">
+        <NATSPanel />
       </div>
     </div>
   );

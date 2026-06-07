@@ -1,185 +1,144 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'vm' | 'running' | 'migrate' | 'event' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',  text: '# kubevirt: virtual machines on kubernetes — live migration, cdi, virt-launcher' },
-  { kind: 'prompt',   text: 'virtctl get vms -n construx-prod' },
-  { kind: 'blank',    text: '' },
-  { kind: 'comment',  text: '# NAME                   STATUS    NODE                     AGE    IP' },
-  { kind: 'vm',       text: '  windows-build-agent-0  Running   k8s-worker-gpu-01        4d     10.0.4.12' },
-  { kind: 'vm',       text: '  ubuntu-dev-sandbox     Running   k8s-worker-03            12h    10.0.4.17' },
-  { kind: 'running',  text: '  rhel9-compliance-scan  Starting  k8s-worker-02            0m     pending' },
-  { kind: 'migrate',  text: '  legacy-oracle-db-vm    Migrating k8s-worker-01→worker-04  2m     10.0.4.8' },
-  { kind: 'blank',    text: '' },
-  { kind: 'prompt',   text: 'virtctl migration-jobs -n construx-prod' },
-  { kind: 'blank',    text: '' },
-  { kind: 'comment',  text: '# MIGRATION                         PHASE    SOURCE          TARGET' },
-  { kind: 'migrate',  text: '  kubevirt-migrate-legacy-oracle-db  Running  k8s-worker-01   k8s-worker-04' },
-  { kind: 'event',    text: '  Memory copied: 82%  Network: 1.4 GB/s  ETA: ~18s  pre-copy active' },
-  { kind: 'blank',    text: '' },
-  { kind: 'comment',  text: '# virt-launcher pod cpu: 1.2 cores  memory: 16Gi  vmis total: 4' },
-  { kind: 'metric',   text: '  vms-running: 3  vms-starting: 1  live-migrations: 1  cdi-imports: 0' },
-  { kind: 'metric',   text: '  cpu-overhead: {LIVE}%  network-virt: 2.8 GB/s  uptime-max: 4d12h' },
-  { kind: 'stat',     text: '  kubevirt v1.2.0  cdi v1.59.0  4 nodes  virtctl  live-migration:enabled' },
+const VMS = [
+  { name: 'windows-dev-01', namespace: 'dev', cpu: 4, memGB: 16, disk: '120Gi', node: 'k8s-worker-01', status: 'Running' },
+  { name: 'ubuntu-build-01', namespace: 'ci', cpu: 8, memGB: 32, disk: '80Gi', node: 'k8s-worker-02', status: 'Running' },
+  { name: 'macos-runner-01', namespace: 'ci', cpu: 6, memGB: 24, disk: '200Gi', node: 'k8s-worker-03', status: 'Running' },
+  { name: 'legacy-app-vm', namespace: 'prod', cpu: 2, memGB: 8, disk: '40Gi', node: 'k8s-worker-01', status: 'Paused' },
 ];
 
-const TOTAL = LINES.length + 3;
+const SNAPSHOTS = [
+  { name: 'windows-dev-01-snap-20260607', vm: 'windows-dev-01', phase: 'Succeeded', size: '8.4GB', createdAt: '2h ago', ready: true },
+  { name: 'ubuntu-build-01-snap-20260606', vm: 'ubuntu-build-01', phase: 'Succeeded', size: '4.2GB', createdAt: '18h ago', ready: true },
+  { name: 'macos-runner-01-snap-20260605', vm: 'macos-runner-01', phase: 'Succeeded', size: '12.8GB', createdAt: '2d ago', ready: true },
+  { name: 'legacy-app-vm-snap-20260604', vm: 'legacy-app-vm', phase: 'Succeeded', size: '2.1GB', createdAt: '3d ago', ready: true },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':  return 'rgba(240,239,255,0.22)';
-    case 'prompt':   return 'rgba(240,239,255,0.6)';
-    case 'vm':       return '#4ade80';
-    case 'running':  return '#fbbf24';
-    case 'migrate':  return '#a78bfa';
-    case 'event':    return '#67e8f9';
-    case 'metric':   return 'rgba(240,239,255,0.5)';
-    case 'stat':     return 'rgba(240,239,255,0.45)';
-    default:         return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function KubeVirtPanel() {
-  const [revealed,    setRevealed]    = useState(0);
-  const [liveCpuPct,  setLiveCpuPct]  = useState(14);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [vmRows, setVmRows] = useState(0);
+  const [snapRows, setSnapRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const vmMigrationsTotal = useCounter(284, 1, 1200);
+  const vCPUHoursTotal = useCounter(28400, 12, 700);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveCpuPct((p) => {
-              const delta = Math.floor(Math.random() * 5) - 2;
-              return Math.min(28, Math.max(8, p + delta));
-            });
-          }, 2600);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const v = setInterval(() => setVmRows((x) => Math.min(x + 1, VMS.length)), 160);
+    const s = setInterval(() => setSnapRows((x) => Math.min(x + 1, SNAPSHOTS.length)), 140);
+    return () => { clearInterval(v); clearInterval(s); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(249,115,22,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(249,115,22,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(249,115,22,0.08)', background: 'rgba(249,115,22,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(249,115,22,0.4)' }}>
+          kubevirt -- vms on kubernetes -- virtual machines / snapshots / migrations
+        </span>
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {VMS.filter(v => v.status === 'Running').length} running
+        </span>
+      </div>
+
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#f97316', fontWeight: 600 }}>virtctl@cluster</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>kubectl get vmi --all-namespaces && virtctl list snapshots --all-namespaces</span>
+      </div>
+
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'vcpu hours', value: vCPUHoursTotal.toLocaleString(), color: '#f97316' },
+          { label: 'migrations', value: vmMigrationsTotal.toLocaleString(), color: '#4ade80' },
+          { label: 'vms', value: VMS.length.toString(), color: '#67e8f9' },
+          { label: 'running', value: VMS.filter(v => v.status === 'Running').length.toString(), color: '#a78bfa' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Virtual Machines */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // virtual machines
         </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@virt — kubevirt · vms · live-migration · cdi · virtctl
-        </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#a78bfa' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `cpu ${liveCpuPct}%` : 'loading…'}
-        </span>
-      </div>
-
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@virt# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          kubevirt · vms · live-migration · cdi · virt-launcher · virtctl
-        </span>
-      </div>
-
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => {
-          const text = l.kind === 'metric'
-            ? l.text.replace('{LIVE}', String(liveCpuPct))
-            : l.text;
-          return (
-            <div
-              key={i}
-              className="text-[7.5px] leading-[1.8]"
-              style={{ color: lineColor(l.kind) }}
-            >
-              {l.kind === 'blank' ? ' ' : (
-                <>
-                  {l.kind === 'prompt' && (
-                    <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                  )}
-                  {text}
-                </>
-              )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {VMS.slice(0, vmRows).map((vm) => (
+            <div key={vm.name} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 20px 28px 36px 72px 48px', alignItems: 'center', gap: 8, padding: '5px 8px', background: vm.status === 'Running' ? 'rgba(249,115,22,0.05)' : 'rgba(249,115,22,0.03)', border: `1px solid ${vm.status === 'Running' ? 'rgba(249,115,22,0.15)' : 'rgba(249,115,22,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#f97316', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vm.name}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vm.namespace}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{vm.cpu}c</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'center' }}>{vm.memGB}G</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{vm.disk}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vm.node}</span>
+              <span style={{ color: vm.status === 'Running' ? '#4ade80' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{vm.status}</span>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>KubeVirt v1.2.0 ·</span>
-          <span style={{ color: '#4ade80' }}>3 VMs running</span>
-          <span style={{ color: '#fbbf24' }}>1 starting</span>
-          <span style={{ color: '#a78bfa' }}>1 live migration</span>
-          <span style={{ color: '#67e8f9' }}>cpu {liveCpuPct}% overhead</span>
+          ))}
         </div>
-      )}
+
+        {/* Snapshots */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // vm snapshots
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {SNAPSHOTS.slice(0, snapRows).map((snap) => (
+            <div key={snap.name} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 44px 40px 24px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{snap.name}</span>
+              <span style={{ color: '#f97316', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{snap.vm}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{snap.size}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{snap.createdAt}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{snap.ready ? 'ok' : 'err'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          kubevirt · vms · live-migration · cdi · virt-launcher · vmis
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(249,115,22,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          kubevirt v1.3 - apache-2.0 - virtual machines on kubernetes
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#a78bfa' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● migrating' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {vCPUHoursTotal.toLocaleString()} vcpu-hrs - {vmMigrationsTotal.toLocaleString()} migrations
         </span>
       </div>
     </div>

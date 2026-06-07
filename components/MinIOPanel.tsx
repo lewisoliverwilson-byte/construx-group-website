@@ -1,177 +1,145 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'node' | 'bucket' | 'repl' | 'policy' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment', text: '# minio: s3-compatible object storage — erasure-coded, multi-site' },
-  { kind: 'prompt',  text: 'mc admin info minio-prod' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# server pool: 4 nodes, 16 drives  EC:8/8 (8 data + 8 parity)' },
-  { kind: 'node',    text: '  minio-0  ONLINE  drives:4  used:2.4TB/8TB  uptime:62d' },
-  { kind: 'node',    text: '  minio-1  ONLINE  drives:4  used:2.3TB/8TB  uptime:62d' },
-  { kind: 'node',    text: '  minio-2  ONLINE  drives:4  used:2.4TB/8TB  uptime:62d' },
-  { kind: 'node',    text: '  minio-3  ONLINE  drives:4  used:2.3TB/8TB  uptime:62d' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# buckets: 4 active  total: 9.4TB  objects: 18.4M' },
-  { kind: 'bucket',  text: '  construx-lakehouse       6.1TB   12.2M objs  versioning:on' },
-  { kind: 'bucket',  text: '  construx-thanos-prod      1.8TB    4.8M objs  versioning:off' },
-  { kind: 'bucket',  text: '  construx-backups          1.2TB    1.1M objs  lifecycle:90d' },
-  { kind: 'bucket',  text: '  construx-artifacts        318GB    289k objs  public:false' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# replication: eu-west-2 → us-east-1 (active-passive)' },
-  { kind: 'repl',    text: '  replication lag: 1.4s   backlog: 0 objects   status: synced' },
-  { kind: 'metric',  text: '  throughput: 1.84 GB/s read  0.62 GB/s write   conns:142' },
-  { kind: 'stat',    text: '  4 nodes  16 drives  EC:8/8  minio RELEASE.2033-08-25' },
+const BUCKETS = [
+  { name: 'construx-builds', objects: 28400, size: '148GB', versioning: 'on', lifecycle: 'on', replication: 'on', status: 'healthy' },
+  { name: 'construx-backups', objects: 8400, size: '420GB', versioning: 'on', lifecycle: 'on', replication: 'off', status: 'healthy' },
+  { name: 'construx-assets', objects: 48000, size: '84GB', versioning: 'off', lifecycle: 'on', replication: 'on', status: 'healthy' },
+  { name: 'construx-logs', objects: 284000, size: '62GB', versioning: 'off', lifecycle: 'on', replication: 'off', status: 'healthy' },
 ];
 
-const TOTAL = LINES.length + 3;
+const OPERATIONS = [
+  { op: 'PutObject', bucket: 'construx-builds', key: 'release/v2.4.1/api.tar.gz', size: '48MB', latency: 284, status: 'ok' },
+  { op: 'GetObject', bucket: 'construx-assets', key: 'images/hero-2024.webp', size: '1.2MB', latency: 28, status: 'ok' },
+  { op: 'CopyObject', bucket: 'construx-backups', key: 'pg-prod-01/2026-06-07.dump', size: '840MB', latency: 1840, status: 'ok' },
+  { op: 'DeleteObject', bucket: 'construx-logs', key: 'archive/2025-11/*.log', size: '284MB', latency: 48, status: 'ok' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment': return 'rgba(240,239,255,0.22)';
-    case 'prompt':  return 'rgba(240,239,255,0.6)';
-    case 'node':    return '#4ade80';
-    case 'bucket':  return '#67e8f9';
-    case 'repl':    return '#a78bfa';
-    case 'policy':  return '#fbbf24';
-    case 'metric':  return 'rgba(240,239,255,0.5)';
-    case 'stat':    return 'rgba(240,239,255,0.45)';
-    default:        return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function MinIOPanel() {
-  const [revealed,       setRevealed]       = useState(0);
-  const [liveThroughput, setLiveThroughput] = useState(1.84);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [bucketRows, setBucketRows] = useState(0);
+  const [opRows, setOpRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const opsPerSec = useCounter(28400, 480, 400);
+  const totalObjects = useCounter(369000, 240, 600);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveThroughput(parseFloat((1.2 + Math.random() * 1.6).toFixed(2)));
-          }, 2200);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const b = setInterval(() => setBucketRows((x) => Math.min(x + 1, BUCKETS.length)), 160);
+    const o = setInterval(() => setOpRows((x) => Math.min(x + 1, OPERATIONS.length)), 140);
+    return () => { clearInterval(b); clearInterval(o); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(251,191,36,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(251,191,36,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@storage — minio · s3-compatible · erasure-coded · multi-site
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(251,191,36,0.08)', background: 'rgba(251,191,36,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.4)' }}>
+          minio -- s3-compatible object store -- buckets / objects / ops
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveThroughput} GB/s` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {BUCKETS.length} buckets
         </span>
       </div>
 
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@storage# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          minio · mc · erasure-code · versioning · replication · lifecycle
-        </span>
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#fbbf24', fontWeight: 600 }}>mc@minio</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>mc ls minio/construx-builds --recursive --summarize && mc admin info minio</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'ops / sec', value: opsPerSec.toLocaleString(), color: '#fbbf24' },
+          { label: 'total objects', value: (totalObjects / 1000).toFixed(0) + 'k', color: '#4ade80' },
+          { label: 'buckets', value: BUCKETS.length.toString(), color: '#67e8f9' },
+          { label: 'total size', value: '714GB', color: '#a78bfa' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>MinIO RELEASE.2033-08-25 ·</span>
-          <span style={{ color: '#4ade80' }}>4 nodes healthy</span>
-          <span style={{ color: '#67e8f9' }}>9.4TB data</span>
-          <span style={{ color: '#a78bfa' }}>replicated</span>
-          <span style={{ color: '#fbbf24' }}>{liveThroughput} GB/s</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Buckets */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // buckets
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {BUCKETS.slice(0, bucketRows).map((bkt) => (
+            <div key={bkt.name} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 48px 28px 28px 28px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bkt.name}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{bkt.objects.toLocaleString()}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{bkt.size}</span>
+              <span style={{ color: bkt.versioning === 'on' ? '#4ade80' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>v</span>
+              <span style={{ color: bkt.lifecycle === 'on' ? '#4ade80' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>lc</span>
+              <span style={{ color: bkt.replication === 'on' ? '#4ade80' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>r</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{bkt.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Operations */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // recent operations
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {OPERATIONS.slice(0, opRows).map((op, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '56px 80px 1fr 40px 48px 24px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.08)', borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 7, fontWeight: 600 }}>{op.op}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.bucket}</span>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.key}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{op.size}</span>
+              <span className="tabular-nums" style={{ color: op.latency > 1000 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{op.latency}ms</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{op.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          minio · s3-api · erasure-code · versioning · multi-site
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(251,191,36,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          minio v7 - agpl-3.0 - s3-compatible object storage
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● healthy' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {opsPerSec.toLocaleString()} ops/s - {(totalObjects / 1000).toFixed(0)}k objects
         </span>
       </div>
     </div>

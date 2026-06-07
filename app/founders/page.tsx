@@ -46,6 +46,7 @@ import CiliumPanel from '@/components/CiliumPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import TraefikPanel from '@/components/TraefikPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
+import FluxCDPanel from '@/components/FluxCDPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -696,8 +697,13 @@ export default function FoundersPage() {
         </div>
 
         {/* keycloak iam — realms, sessions, audit events */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KeycloakPanel />
+        </div>
+
+        {/* fluxcd gitops toolkit — kustomizations, helm releases, sources */}
+        <div className="mt-6 pb-10">
+          <FluxCDPanel />
         </div>
 
         {/* CTA */}
