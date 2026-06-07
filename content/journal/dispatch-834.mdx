@@ -1,0 +1,181 @@
+---
+title: "Kubernetes deployments: rolling updates and health checks"
+date: "2031-10-20"
+excerpt: "A Kubernetes Deployment describes the desired state: how many replicas, which container image, what resource limits. Kubernetes reconciles actual state toward desired state continuously. Rolling updates replace pods one at a time, verifying each new pod is healthy before terminating the old one. Readiness probes gate traffic; liveness probes restart unhealthy containers. Together these make Kubernetes deployments zero-downtime by default."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Describe desired state. Kubernetes makes it happen. Rolling by default.
+
+## Deployment manifest
+
+```yaml
+# k8s/api-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:      construx-api
+  namespace: production
+  labels:
+    app:     construx-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: construx-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge:       1  # Create 1 extra pod during update
+      maxUnavailable: 0  # Never reduce below desired count
+  template:
+    metadata:
+      labels:
+        app:     construx-api
+        version: "v1.4.2"
+    spec:
+      containers:
+        - name:  api
+          image: construx/api:v1.4.2
+          ports:
+            - containerPort: 3000
+
+          resources:
+            requests:
+              cpu:    250m
+              memory: 256Mi
+            limits:
+              cpu:    1000m
+              memory: 512Mi
+
+          env:
+            - name:  NODE_ENV
+              value: production
+            - name:  PORT
+              value: "3000"
+            - name:  DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: construx-secrets
+                  key:  database-url
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds:       10
+            failureThreshold:    3
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds:       20
+            failureThreshold:    3
+
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]  # Drain in-flight requests
+
+      terminationGracePeriodSeconds: 30
+```
+
+## Service and Ingress
+
+```yaml
+# k8s/api-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name:      construx-api
+  namespace: production
+spec:
+  selector:
+    app: construx-api
+  ports:
+    - port:       80
+      targetPort: 3000
+  type: ClusterIP
+
+---
+# k8s/api-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name:        construx-api
+  namespace:   production
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.construxgroup.io]
+      secretName: api-tls
+  rules:
+    - host: api.construxgroup.io
+      http:
+        paths:
+          - path:     /
+            pathType: Prefix
+            backend:
+              service:
+                name: construx-api
+                port: { number: 80 }
+```
+
+## Deploy and monitor a rolling update
+
+```bash
+# Apply the new deployment (triggers rolling update)
+kubectl apply -f k8s/api-deployment.yaml
+
+# Watch the rollout
+kubectl rollout status deployment/construx-api -n production
+# Waiting for deployment "construx-api" rollout to finish: 1 out of 3 new replicas have been updated...
+# Waiting for deployment "construx-api" rollout to finish: 2 out of 3 new replicas have been updated...
+# Waiting for deployment "construx-api" rollout to finish: 1 old replicas are pending termination...
+# deployment "construx-api" successfully rolled out
+
+# Rollback if something went wrong
+kubectl rollout undo deployment/construx-api -n production
+
+# Check rollout history
+kubectl rollout history deployment/construx-api -n production
+```
+
+## Horizontal Pod Autoscaler
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name:      construx-api
+  namespace: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind:       Deployment
+    name:       construx-api
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type:               Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type:               Utilization
+          averageUtilization: 80
+```
+
+The readiness probe is the critical piece: Kubernetes only sends traffic to pods that pass readiness. During a rolling update, the new pod receives traffic only after its readiness probe passes. If the probe never passes, the rollout stops (maxUnavailable=0 ensures the old pods keep running), and `kubectl rollout undo` restores the previous version.

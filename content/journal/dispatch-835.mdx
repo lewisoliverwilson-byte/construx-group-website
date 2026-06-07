@@ -1,0 +1,147 @@
+---
+title: "Grafana Loki: log aggregation without the Elasticsearch overhead"
+date: "2031-10-23"
+excerpt: "Loki is Grafana's log aggregation system. Unlike Elasticsearch, Loki doesn't index the content of log lines — it indexes only labels (key-value pairs attached to log streams). The log content is compressed and stored cheaply. This makes Loki much cheaper to operate at scale: you don't pay for full-text indexing on every log line, only for label cardinality. Queries use LogQL — a log query language similar to PromQL."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Labels, not full-text indexes. Cheap storage. PromQL for logs.
+
+## Labels — the indexing strategy
+
+```
+Labels: {service="api", env="production", pod="construx-api-7b9f4-xk2m"}
+LogQL:  {service="api", env="production"} |= "ERROR"
+```
+
+Labels are indexed. Log content is not. Keep label cardinality low — `pod` might create thousands of streams but `service` creates one per service.
+
+## Loki stack — Docker Compose
+
+```yaml
+# docker-compose.yaml
+services:
+  loki:
+    image: grafana/loki:3.3.2
+    command: -config.file=/etc/loki/loki.yaml
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml
+      - loki-data:/loki
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    command: -config.file=/etc/promtail/config.yaml
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail.yaml:/etc/promtail/config.yaml
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports: ['3001:3000']
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+```
+
+## Promtail config — scrape Docker logs
+
+```yaml
+# promtail.yaml
+server:
+  http_listen_port: 9080
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host:         unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        regex:         '/(.*)'
+        target_label:  service
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label:  stream
+    pipeline_stages:
+      - json:
+          expressions:
+            level:   level
+            message: msg
+            ts:      time
+      - labels:
+          level:
+      - timestamp:
+          source: ts
+          format: RFC3339
+```
+
+## LogQL queries
+
+```logql
+# All error logs from the API service
+{service="api", env="production"} |= "ERROR" | json
+
+# Rate of errors per minute
+rate({service="api"} |= "ERROR" [1m])
+
+# Parse JSON logs and filter by field
+{service="api"} | json | status >= 500 | line_format "{{.ts}} {{.method}} {{.path}} {{.status}} {{.duration_ms}}ms"
+
+# Top slow requests (> 500ms)
+{service="api"} | json | duration_ms > 500 | line_format "{{.method}} {{.path}} - {{.duration_ms}}ms"
+
+# Count requests by status code over the last hour
+sum by (status) (
+  count_over_time({service="api"} | json [1h])
+)
+
+# Bytes logged per service
+sum by (service) (
+  bytes_over_time({env="production"}[24h])
+)
+```
+
+## Push logs from Node.js
+
+```ts
+// lib/logger.ts
+import pino from 'pino';
+import { createWriteStream } from 'pino-loki';
+
+const transport = pino.transport({
+  targets: [
+    {
+      target: 'pino/file',
+      level:  'info',
+      options: { destination: 1 },  // stdout
+    },
+    {
+      target: 'pino-loki',
+      level:  'info',
+      options: {
+        host:   'http://loki:3100',
+        labels: {
+          service: process.env.SERVICE_NAME ?? 'api',
+          env:     process.env.NODE_ENV ?? 'development',
+        },
+        batching:         true,
+        batchInterval:    5,   // seconds
+        propsToLabels:    ['level'],
+      },
+    },
+  ],
+});
+
+export const logger = pino({ level: 'info' }, transport);
+
+// Usage
+logger.info({ method: 'POST', path: '/api/orders', status: 201, duration_ms: 42 }, 'request completed');
+logger.error({ err: error, orderId }, 'order processing failed');
+```
+
+Loki vs Elasticsearch: Elasticsearch indexes every word in every log line — full-text search is fast, but storage and compute costs are high. Loki stores compressed log chunks with only label indexes — storage is 10x cheaper, but you can only filter on labels and string-match on log content. For application logs where you know the structure, Loki's label + LogQL approach is usually sufficient and much cheaper to run.

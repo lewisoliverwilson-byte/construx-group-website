@@ -15,6 +15,7 @@ import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
+import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -392,8 +393,13 @@ export default function UsesPage() {
         </div>
 
         {/* Turborepo monorepo build pipeline */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TurboRepoPanel />
+        </div>
+
+        {/* OAuth 2.0 + PKCE authorization flow */}
+        <div className="mt-6 pb-10">
+          <OAuthFlowPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
