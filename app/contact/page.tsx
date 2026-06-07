@@ -45,6 +45,7 @@ import K6Panel from '@/components/K6Panel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import ConsulPanel from '@/components/ConsulPanel';
+import PatroniPanel from '@/components/PatroniPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -568,8 +569,13 @@ export default function ContactPage() {
       </section>
 
       {/* consul service mesh — discovery, intentions, health */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <ConsulPanel />
+      </section>
+
+      {/* patroni ha postgresql — leader, replicas, failover */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <PatroniPanel />
       </section>
     </div>
   );

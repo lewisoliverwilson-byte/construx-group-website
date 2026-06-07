@@ -47,6 +47,7 @@ import CassandraPanel from '@/components/CassandraPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 import WazuhPanel from '@/components/WazuhPanel';
+import RedisPanel from '@/components/RedisPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -602,8 +603,13 @@ export default function StatsPage() {
       </div>
 
       {/* wazuh siem — agents, alerts, threat detection */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <WazuhPanel />
+      </div>
+
+      {/* redis in-memory store — cluster, streams, commands */}
+      <div className="mt-6 pb-10">
+        <RedisPanel />
       </div>
     </div>
   );

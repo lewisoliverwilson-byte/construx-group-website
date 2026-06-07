@@ -45,6 +45,7 @@ import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import TraefikPanel from '@/components/TraefikPanel';
+import KeycloakPanel from '@/components/KeycloakPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -690,8 +691,13 @@ export default function FoundersPage() {
         </div>
 
         {/* traefik reverse proxy — routers, services, tls */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TraefikPanel />
+        </div>
+
+        {/* keycloak iam — realms, sessions, audit events */}
+        <div className="mt-6 pb-10">
+          <KeycloakPanel />
         </div>
 
         {/* CTA */}

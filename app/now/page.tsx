@@ -45,6 +45,7 @@ import TailscalePanel from '@/components/TailscalePanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import TeleportPanel from '@/components/TeleportPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
+import TektonPanel from '@/components/TektonPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -554,8 +555,13 @@ export default function NowPage() {
         </div>
 
         {/* cert-manager tls automation — certificates, issuers, acme */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CertManagerPanel />
+        </div>
+
+        {/* tekton k8s-native ci — pipelineruns, taskruns, workspaces */}
+        <div className="mt-6 pb-10">
+          <TektonPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
