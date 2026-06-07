@@ -1,0 +1,203 @@
+---
+title: "Trivy: all-in-one vulnerability scanning for images, IaC, and Kubernetes clusters"
+date: "2033-01-19"
+excerpt: "Trivy scans container images, filesystems, git repos, Terraform/CloudFormation/Dockerfile configurations, and Kubernetes clusters for CVEs, misconfigurations, and exposed secrets. Its local vulnerability database means scans are fast and work offline after the initial database download. In CI, `trivy image --exit-code 1 --severity CRITICAL` gates the build on critical vulnerabilities — and `--ignore-unfixed` avoids noise from vulnerabilities with no patch available yet. The SBOM feature (CycloneDX or SPDX-JSON output) documents every OS and language-runtime component in the image, enabling software supply chain compliance and vulnerability tracking over time as the database updates with new CVEs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Local vulnerability DB. Image, IaC, cluster. SBOM generation. CI gate on CRITICAL.
+
+## Image scanning in depth
+
+```bash
+# Install Trivy
+brew install aquasecurity/trivy/trivy
+# or via script
+curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | \
+  sh -s -- -b /usr/local/bin v0.58.0
+
+# Update vulnerability database (offline mode possible after download)
+trivy image --download-db-only
+
+# Basic image scan
+trivy image construx/api:v1.8.3
+
+# Filter by severity
+trivy image --severity HIGH,CRITICAL construx/api:v1.8.3
+
+# Ignore vulnerabilities with no fix yet (reduces noise in base images)
+trivy image --ignore-unfixed construx/api:v1.8.3
+
+# Ignore specific CVEs (e.g., false positives or accepted risks)
+cat > .trivyignore <<'EOF'
+# Accepted risk: patched in our runtime, not exploitable
+CVE-2024-11111
+# Waiting for upstream fix, tracked in security backlog
+CVE-2024-22222
+EOF
+trivy image --ignorefile .trivyignore construx/api:v1.8.3
+
+# Scan by digest (ensures you scan the exact image, not a rebuilt tag)
+trivy image registry.construx.io/construx/api@sha256:4a9f2b1c...
+
+# Output formats
+trivy image --format json --output report.json construx/api:v1.8.3
+trivy image --format sarif --output trivy.sarif construx/api:v1.8.3  # GitHub Security
+trivy image --format cyclonedx --output sbom.json construx/api:v1.8.3
+
+# Scan a local tarball (built but not pushed)
+docker save construx/api:v1.8.3 | trivy image --input /dev/stdin
+
+# Scan a running container's filesystem (without the image)
+trivy rootfs /proc/$(pgrep construx-api)/root
+```
+
+## Filesystem and repository scanning
+
+```bash
+# Scan the local filesystem (useful in CI before building the image)
+trivy fs --severity HIGH,CRITICAL .
+
+# What trivy fs scans:
+# - Language package files: go.sum, package-lock.json, Pipfile.lock, Gemfile.lock
+# - Binary files: detects vulnerabilities in compiled binaries
+# - Secret scanning: API keys, passwords, tokens in any file
+
+# Secret scanning
+trivy fs --scanners secret .
+# Found: AWS access key in config/production.yml line 42
+# Found: GitHub token in .env.example line 7
+
+# Repository scan (clone + scan in one step)
+trivy repo https://github.com/construx/construx-api
+
+# Specific scanners
+trivy image --scanners vuln,secret,misconfig construx/api:v1.8.3
+# vuln:        OS and library CVEs
+# secret:      hardcoded secrets in image layers
+# misconfig:   Dockerfile and config misconfigurations
+# license:     dependency license compliance
+```
+
+## IaC scanning
+
+```bash
+# Scan Terraform files
+trivy config ./terraform/
+# FAIL  CRITICAL  aws-rds-enable-deletion-protection       rds.tf:28
+# FAIL  HIGH      aws-s3-no-public-access                  s3.tf:15
+# FAIL  MEDIUM    aws-iam-no-policy-wildcards              iam.tf:41
+# PASS            aws-eks-enable-cluster-logging
+# PASS            aws-eks-secrets-encryption-enabled
+
+# Scan Kubernetes manifests
+trivy config ./k8s/
+# FAIL  HIGH      Specify a tag for the container image     deployment.yaml:34
+#                 (prevents unintended updates on latest tag)
+# FAIL  HIGH      Container should run as non-root          deployment.yaml:40
+# FAIL  MEDIUM    CPU limits not configured                 deployment.yaml:45
+# PASS            Liveness probe configured
+# PASS            Readiness probe configured
+
+# Scan Helm charts
+trivy config ./charts/construx-api --helm-set "replicaCount=3"
+
+# Scan Dockerfile
+trivy config Dockerfile
+# FAIL  HIGH      Do not use ADD for remote URLs (use curl/wget instead)
+# FAIL  MEDIUM    Use a specific base image tag (not :latest)
+# FAIL  LOW       No HEALTHCHECK instruction in Dockerfile
+
+# Configure custom Rego policies for IaC
+trivy config ./terraform/ --policy ./policies/ --policy-namespaces construx
+```
+
+## SBOM and supply chain
+
+```bash
+# CycloneDX SBOM — full component list with versions and hashes
+trivy image --format cyclonedx --output sbom.json construx/api:v1.8.3
+
+# Inspect the SBOM
+jq '.components | length' sbom.json
+# 142
+
+jq '.components[] | select(.type == "library") | {name, version, purl}' sbom.json
+# { "name": "golang.org/x/crypto", "version": "v0.26.0", "purl": "pkg:golang/..." }
+# { "name": "github.com/gin-gonic/gin", "version": "v1.10.0", "purl": "pkg:golang/..." }
+
+# SPDX format (ISO standard)
+trivy image --format spdx-json --output sbom.spdx.json construx/api:v1.8.3
+
+# Scan an SBOM against the vuln database (offline, for vendor-supplied SBOMs)
+trivy sbom sbom.json
+# Scans the SBOM's component list against Trivy's CVE database
+# Useful: vendor provides SBOM, you check it for vulnerabilities
+
+# Attach SBOM attestation to the image (cosign + Trivy)
+trivy image --format cosign-vuln --output vuln-attestation.json construx/api:v1.8.3
+cosign attest \
+  --type vuln \
+  --predicate vuln-attestation.json \
+  registry.construx.io/construx/api:v1.8.3
+# Creates a verifiable attestation in the registry
+# Consumers can verify: cosign verify-attestation --type vuln ...
+```
+
+## GitHub Actions integration
+
+```yaml
+name: Security Scan
+on: [push, pull_request]
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # required to upload SARIF
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t construx/api:${{ github.sha }} .
+
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: construx/api:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1          # fail the job on CRITICAL/HIGH
+          ignore-unfixed: true  # ignore CVEs with no fix
+
+      - name: Upload to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()            # upload even if scan found vulnerabilities
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Scan IaC
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+      - name: Generate SBOM
+        run: |
+          trivy image --format cyclonedx \
+            --output sbom-${{ github.sha }}.json \
+            construx/api:${{ github.sha }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom-${{ github.sha }}.json
+```
+
+Trivy vs Snyk vs grype: Snyk has the richest developer experience — IDE plugins, PR comments, fix PRs — and a managed vulnerability database with actionable remediation guidance. grype (from Anchore) is the fastest pure-image scanner and produces the most detailed SBOMs via syft. Trivy is the broadest scanner: images, filesystems, IaC, Kubernetes clusters, secrets, and licenses in one binary. For CI pipelines where you want one tool for everything, Trivy wins on breadth. For developer-facing security (IDE warnings, fix suggestions in PRs), Snyk is better. For SBOM-first workflows where you need syft's depth, use grype + syft.

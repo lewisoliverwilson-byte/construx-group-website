@@ -1,0 +1,217 @@
+---
+title: "Chainguard Images: minimal, hardened container base images with zero CVEs"
+date: "2033-01-22"
+excerpt: "Chainguard Images are minimal, distroless container images built from source with Wolfi (a security-focused Linux distro) and signed with Sigstore. The design goal: zero CVEs by building only what the application needs — no shell, no package manager, no debugging tools in production images. A typical Alpine-based Go image might have 50-100 CVEs from OS packages; a Chainguard image of the same application has 0. The images are rebuilt daily as upstream packages update, so they stay CVE-free rather than accumulating debt. For Go services, the Chainguard Go base image compiles to a single static binary and ships it in a scratch-equivalent environment — no OS at all."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Zero CVEs by design. Minimal base. Daily rebuilds. Sigstore-signed. Wolfi-based.
+
+## Why distroless matters
+
+```bash
+# Compare CVE count: Alpine vs Chainguard
+
+# Base Alpine image CVEs
+trivy image --severity HIGH,CRITICAL alpine:3.20
+# Total: 0 HIGH/CRITICAL in base
+# (Alpine is already good — the problem is when you add packages)
+
+# Typical Go app on Alpine (with curl, ca-certificates, tzdata)
+trivy image --severity HIGH,CRITICAL construx/api:v1.8.2  # old Alpine-based image
+# Total: 14 (CRITICAL: 3, HIGH: 11)
+# libcurl (CRITICAL), libssl (HIGH x4), wget (HIGH x3) ...
+
+# Same app on Chainguard
+trivy image --severity HIGH,CRITICAL cgr.dev/chainguard/construx-api:v1.8.3
+# Total: 0 (no HIGH or CRITICAL vulnerabilities)
+
+# Why: Chainguard includes only the packages the app actually needs
+# For a static Go binary: the image is literally the binary (+ CA certs + timezone data)
+# No shell, no package manager, no utilities that carry CVE surface
+
+# Size comparison
+docker inspect alpine:3.20 --format '{{.Size}}' | numfmt --to=iec
+# 7.3MB
+docker inspect cgr.dev/chainguard/static:latest --format '{{.Size}}' | numfmt --to=iec
+# 1.4MB  (Chainguard static base)
+
+# Chainguard Go image (for building)
+docker inspect cgr.dev/chainguard/go:1.23 --format '{{.Size}}' | numfmt --to=iec
+# 312MB  (includes the full Go toolchain for building)
+```
+
+## Dockerfile for a Go service
+
+```dockerfile
+# Multi-stage: build with the full Go image, ship with the static base
+# Stage 1: build (using Chainguard Go image)
+FROM cgr.dev/chainguard/go:1.23 AS builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build \
+    -ldflags="-s -w" \
+    -o /construx-api \
+    ./cmd/api
+
+# Stage 2: ship (using Chainguard static base — no shell, no OS packages)
+FROM cgr.dev/chainguard/static:latest
+
+# The Chainguard static image includes:
+# - CA certificates (for HTTPS outbound)
+# - /etc/ssl/certs/
+# - /etc/passwd (for non-root user)
+# - Timezone data
+
+# No COPY of shell utilities needed — the image has none
+COPY --from=builder /construx-api /usr/local/bin/construx-api
+
+# Run as non-root (Chainguard static image defaults to uid 65532)
+USER nonroot
+
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/construx-api"]
+CMD ["serve"]
+
+# Image size: ~12MB (binary + CA certs)
+# CVEs: 0
+# Shell: none (exec into the container is not possible in production)
+```
+
+## Signing and verification with Sigstore
+
+```bash
+# All Chainguard images are signed with Sigstore (cosign)
+# Verify the image signature before use
+
+# Install cosign
+brew install cosign
+
+# Verify a Chainguard image signature
+cosign verify cgr.dev/chainguard/go:1.23 \
+  --certificate-identity=https://github.com/chainguard-images/images/.github/workflows/release.yml@refs/heads/main \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+
+# Verify your own image (if you sign with cosign in CI)
+cosign sign \
+  --key cosign.key \
+  registry.construx.io/construx/api:v1.8.3
+
+cosign verify \
+  --key cosign.pub \
+  registry.construx.io/construx/api:v1.8.3
+
+# Attestation: verify SBOM or vulnerability scan is attached
+cosign verify-attestation \
+  --type cyclonedx \
+  cgr.dev/chainguard/go:1.23
+
+# Policy enforcement: require signed images in Kubernetes
+# Using Kyverno or OPA/Gatekeeper to deny unsigned images
+
+# Kyverno policy: require cosign signature
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-image-signature
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: check-signature
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [construx-prod]
+      verifyImages:
+        - imageReferences:
+            - "registry.construx.io/construx/*"
+          attestors:
+            - entries:
+                - keyless:
+                    rekor:
+                      url: https://rekor.sigstore.dev
+                    issuer: https://token.actions.githubusercontent.com
+                    subject: "https://github.com/construx/construx-api/.github/workflows/*"
+```
+
+## Chainguard catalog
+
+```bash
+# Chainguard provides images for common runtimes and tools
+# Available at cgr.dev/chainguard/<name>
+
+# Language runtimes
+cgr.dev/chainguard/go:1.23          # Go build toolchain
+cgr.dev/chainguard/node:22          # Node.js runtime
+cgr.dev/chainguard/python:3.12      # Python runtime
+cgr.dev/chainguard/jre:21           # Java runtime (JRE)
+cgr.dev/chainguard/ruby:3.3         # Ruby runtime
+cgr.dev/chainguard/rust:1.82        # Rust build toolchain
+
+# Base images
+cgr.dev/chainguard/static:latest    # No OS — for static binaries (Go, Rust)
+cgr.dev/chainguard/base:latest      # Minimal Wolfi base with glibc
+cgr.dev/chainguard/glibc-dynamic:latest  # For dynamically linked binaries
+
+# Databases
+cgr.dev/chainguard/postgres:16      # PostgreSQL (Chainguard-rebuilt)
+cgr.dev/chainguard/redis:7          # Redis (Chainguard-rebuilt)
+
+# Infrastructure tools
+cgr.dev/chainguard/kubectl:latest
+cgr.dev/chainguard/helm:latest
+cgr.dev/chainguard/terraform:1.9
+
+# CI tools
+cgr.dev/chainguard/git:latest       # Minimal git image
+cgr.dev/chainguard/curl:latest      # curl with no other utilities
+
+# Check CVE count for any Chainguard image
+trivy image --severity HIGH,CRITICAL cgr.dev/chainguard/node:22
+# Total: 0 (no HIGH or CRITICAL vulnerabilities)
+```
+
+## Wolfi package management
+
+```bash
+# Wolfi: the undistro behind Chainguard
+# A minimal, security-focused Linux distribution built for containers
+# Packages are signed and available via apk (Alpine's package manager)
+
+# Create a custom Chainguard-style image with Wolfi packages
+FROM cgr.dev/chainguard/wolfi-base
+
+RUN apk add --no-cache \
+    curl \
+    jq \
+    ca-certificates
+
+# Wolfi packages are rebuilt daily from source
+# Each package has a pinned version and is verifiable via its hash
+
+# Compare: traditional Alpine approach
+FROM alpine:3.20
+RUN apk add --no-cache curl jq ca-certificates
+# Packages may not be rebuilt until Alpine releases a new version
+# CVEs can accumulate between Alpine minor releases
+
+# Wolfi/Chainguard approach:
+# - Packages rebuild daily from upstream source
+# - Any CVE in an upstream package triggers a rebuild within hours
+# - SBOM is generated for every package
+# - Packages are signed with Sigstore
+
+# For the most restrictive environments (no shell, no package manager):
+FROM cgr.dev/chainguard/static:latest
+# → Copy only your compiled binary
+# → Attacker cannot install tools or run shell commands if they get RCE
+```
+
+Chainguard vs Distroless (Google) vs Alpine: Google's Distroless images (gcr.io/distroless) pioneered the concept — no shell, no package manager, minimal surface. They're tied to Debian and updated less frequently. Alpine is the most popular minimal base — smaller than Debian, but still includes a shell and packages. Chainguard's advantage is the Wolfi ecosystem: daily rebuilds from source, automated CVE response, Sigstore signatures on every image, and a commercial SLA for keeping images CVE-free. The practical decision: for teams that can't afford CVE noise in container scans and need a vendor to maintain the security posture of their base images, Chainguard is the right call.

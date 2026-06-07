@@ -22,6 +22,7 @@ import ArgoCdPanel from '@/components/ArgoCdPanel';
 import JournaldPanel from '@/components/JournaldPanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import OpaPanel from '@/components/OpaPanel';
+import TrivyPanel from '@/components/TrivyPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -552,8 +553,13 @@ export default function FoundersPage() {
         </div>
 
         {/* opa policy-as-code authorization */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpaPanel />
+        </div>
+
+        {/* trivy vulnerability scanner and SBOM generation */}
+        <div className="mt-6 pb-10">
+          <TrivyPanel />
         </div>
 
         {/* CTA */}
