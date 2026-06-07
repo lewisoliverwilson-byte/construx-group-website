@@ -1,0 +1,179 @@
+---
+title: "DuckDB: analytical SQL on parquet, CSV, and JSON without a server"
+date: "2032-07-23"
+excerpt: "DuckDB is an embedded analytical database — it runs in-process, requires no server, and stores data in a single file. It's optimised for OLAP workloads: columnar storage, vectorised execution, and native support for reading Parquet, CSV, JSON, and Arrow files directly from disk or S3 without importing them. A typical DuckDB workflow: write your data pipeline output as Parquet, then query those files with SQL — grouping, window functions, UNNEST for nested JSON — and export the result back to Parquet or CSV. It replaces pandas for most analytical tasks: SQL is more expressive than method chaining, and DuckDB's query engine is faster on datasets that fit in RAM."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+No server. No import step. Query parquet directly. Vectorised. Faster than pandas.
+
+## Reading parquet, CSV, and JSON files
+
+```sql
+-- Read a local parquet file (no import needed — it's a table function)
+SELECT * FROM read_parquet('orders-2032-06.parquet') LIMIT 5;
+
+-- Read multiple parquet files with glob
+SELECT COUNT(*), SUM(total_cents)/100.0 AS revenue
+FROM read_parquet('s3://construx-data/orders/*.parquet');
+
+-- Read CSV with auto-detected schema
+SELECT * FROM read_csv_auto('customers.csv') LIMIT 5;
+-- DuckDB infers types, handles headers, detects delimiters
+
+-- Explicit CSV schema (when auto-detect fails)
+SELECT * FROM read_csv(
+  'customers.csv',
+  columns={
+    'id': 'VARCHAR',
+    'email': 'VARCHAR',
+    'created_at': 'TIMESTAMP',
+    'plan': 'VARCHAR'
+  },
+  header=true
+);
+
+-- Read JSON (NDJSON / JSON Lines)
+SELECT * FROM read_json_auto('events.jsonl') LIMIT 10;
+
+-- Read from S3 (configure credentials once)
+INSTALL httpfs;
+LOAD httpfs;
+SET s3_region='eu-west-1';
+SET s3_access_key_id='AKIAXXXXXXXXXXXXXXXX';
+SET s3_secret_access_key='xxxxxxxxxxxxxxxxxx';
+
+SELECT COUNT(*) FROM read_parquet('s3://construx-data/orders/2032/*.parquet');
+```
+
+## Analytical queries — window functions, grouping sets, UNNEST
+
+```sql
+-- Revenue by day — date_trunc for time bucketing
+SELECT
+  date_trunc('day', created_at) AS day,
+  COUNT(*)                        AS orders,
+  SUM(total_cents) / 100.0       AS revenue,
+  AVG(total_cents) / 100.0       AS avg_order_value
+FROM read_parquet('s3://construx-data/orders/*.parquet')
+WHERE status = 'shipped'
+GROUP BY 1
+ORDER BY 1 DESC
+LIMIT 30;
+
+-- Running total (window function)
+SELECT
+  date_trunc('day', created_at) AS day,
+  SUM(total_cents) / 100.0 AS daily_revenue,
+  SUM(SUM(total_cents)) OVER (ORDER BY date_trunc('day', created_at)) / 100.0 AS cumulative_revenue
+FROM orders
+GROUP BY 1
+ORDER BY 1;
+
+-- UNNEST: explode JSON arrays stored as TEXT columns
+SELECT
+  o.order_id,
+  item.sku,
+  item.quantity,
+  item.price_cents / 100.0 AS price
+FROM orders o,
+     UNNEST(from_json(o.items_json, '[{"sku":"?","quantity":0,"price_cents":0}]')) AS item(sku VARCHAR, quantity INT, price_cents INT)
+WHERE item.quantity > 2;
+
+-- Pivot: orders by status per day (PIVOT syntax in DuckDB 0.9+)
+PIVOT (
+  SELECT date_trunc('day', created_at) AS day, status, COUNT(*) AS n
+  FROM orders
+  GROUP BY 1, 2
+)
+ON status IN ('pending', 'shipped', 'cancelled')
+USING SUM(n)
+ORDER BY day DESC;
+```
+
+## Creating tables and exporting
+
+```sql
+-- Create a persistent DuckDB database (single file)
+-- DuckDB default is in-memory; use a filename to persist
+duckdb construx-analytics.duckdb
+
+-- Import parquet files into a persistent table
+CREATE TABLE orders AS SELECT * FROM read_parquet('s3://construx-data/orders/*.parquet');
+CREATE INDEX idx_orders_customer ON orders(customer_id);
+CREATE INDEX idx_orders_date ON orders(created_at);
+
+-- Insert from a subquery
+INSERT INTO orders SELECT * FROM read_parquet('s3://construx-data/orders/2032-07/*.parquet')
+WHERE order_id NOT IN (SELECT order_id FROM orders);
+
+-- Export query results to parquet (ZSTD compressed)
+COPY (
+  SELECT customer_id, COUNT(*) AS orders, SUM(total_cents)/100.0 AS revenue
+  FROM orders
+  WHERE status = 'shipped'
+  GROUP BY 1
+  ORDER BY 3 DESC
+)
+TO 's3://construx-data/reports/customer-revenue-2032.parquet'
+(FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000);
+
+-- Export to CSV
+COPY (SELECT * FROM orders LIMIT 1000) TO 'sample.csv' (FORMAT CSV, HEADER);
+
+-- Arrow IPC format (for pandas interop)
+COPY orders TO 'orders.arrow' (FORMAT ARROW);
+```
+
+## DuckDB in Python and Node.js
+
+```python
+# Python: duckdb as a library — query pandas DataFrames and parquet directly
+import duckdb
+import pandas as pd
+
+# In-memory database
+con = duckdb.connect(':memory:')
+
+# Query a pandas DataFrame directly (zero-copy when possible)
+df = pd.read_parquet('orders.parquet')
+result = con.execute("""
+  SELECT date_trunc('day', created_at) AS day, SUM(total_cents)/100.0 AS revenue
+  FROM df
+  GROUP BY 1
+  ORDER BY 1 DESC
+  LIMIT 7
+""").df()   # Returns a pandas DataFrame
+
+# Query S3 parquet from Python
+con.execute("SET s3_region='eu-west-1'")
+result = con.execute("""
+  SELECT customer_id, COUNT(*) AS orders
+  FROM read_parquet('s3://construx-data/orders/*.parquet')
+  GROUP BY 1
+  ORDER BY 2 DESC
+  LIMIT 10
+""").fetchdf()
+
+# Use DuckDB as a persistent database
+con = duckdb.connect('construx-analytics.duckdb')
+con.execute("CREATE TABLE IF NOT EXISTS reports AS SELECT ...")
+```
+
+```typescript
+// Node.js: @duckdb/node-api
+import { Database } from '@duckdb/node-api';
+
+const db = new Database(':memory:');
+const result = await db.all(`
+  SELECT date_trunc('day', created_at) AS day, COUNT(*) AS orders
+  FROM read_parquet('s3://construx-data/orders/*.parquet')
+  GROUP BY 1
+  ORDER BY 1 DESC
+  LIMIT 7
+`);
+console.table(result);
+```
+
+DuckDB vs ClickHouse vs Spark for analytics: DuckDB is embedded — no cluster, no server, runs in a Python script or a CLI session. It's best for datasets that fit in one machine's RAM (up to hundreds of GBs with spilling to disk). ClickHouse is a server-based columnar database designed for 100B+ row datasets and very high ingest rates — it's overkill for most analytics use cases but unmatched at scale. Spark is a distributed compute engine — right for petabyte-scale batch jobs that need to run across a cluster. The practical rule: use DuckDB for ad-hoc analysis, reports, and pipelines on a single machine. Use ClickHouse when DuckDB's single-machine limit becomes binding. Use Spark when the data doesn't fit on one node at all. Most teams hit DuckDB's limit later than they expect — a modern laptop can query 100GB of parquet in seconds.

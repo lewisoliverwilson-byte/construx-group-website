@@ -24,6 +24,7 @@ import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import SentryIssuesPanel from '@/components/SentryIssuesPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
+import DuckdbPanel from '@/components/DuckdbPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -263,6 +264,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* Meilisearch full-text search */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <MeilisearchPanel />
+      </section>
+
+      {/* DuckDB analytical SQL on parquet */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DuckdbPanel />
       </section>
 
       {/* Posts */}
