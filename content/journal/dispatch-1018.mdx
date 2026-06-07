@@ -1,0 +1,139 @@
+---
+title: "Materialize: streaming SQL over Kafka — incrementally maintained views"
+date: "2033-04-25"
+excerpt: "Materialize is a streaming database that maintains SQL views incrementally over Kafka topics. You define a source (a Kafka topic in Avro, JSON, or Protobuf), write a SQL query against it, and Materialize keeps the query result up-to-date as new messages arrive — without re-running the query from scratch. The underlying engine is Differential Dataflow, a dataflow computation model that tracks changes (deltas) rather than reprocessing full datasets. A view that answers 'what is the current conversion rate per campaign' over a Kafka events topic updates in milliseconds when a new event arrives, because Materialize only computes the delta introduced by that event. This is fundamentally different from Kafka Streams (which gives you a streaming computation API) or Spark Structured Streaming (which microbatches) — Materialize gives you SQL as the interface and sub-second latency as the result."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Streaming SQL. Differential dataflow. Incremental view maintenance. Kafka source. Sub-second latency.
+
+## Sources, views, and sinks
+
+```sql
+-- Materialize: connect with standard PostgreSQL client
+-- psql -h materialize.streaming.svc -p 6875 -U materialize
+
+-- Source: connect to a Kafka topic
+CREATE SOURCE construx_events
+  FROM KAFKA BROKER 'redpanda.messaging.svc:9092'
+  TOPIC 'construx.events'
+  FORMAT JSON
+  ENVELOPE NONE;
+
+-- The source looks like a table — query it directly
+SELECT * FROM construx_events LIMIT 10;
+
+-- View: SQL query that is maintained incrementally
+-- Materialize keeps this result up-to-date as new events arrive in Kafka
+CREATE VIEW checkout_conversion AS
+  SELECT
+    date_trunc('hour', (data->>'occurred_at')::timestamptz) AS hour,
+    data->>'campaign_id'                                     AS campaign_id,
+    count(*) FILTER (WHERE data->>'event_type' = 'page_view')  AS page_views,
+    count(*) FILTER (WHERE data->>'event_type' = 'checkout')   AS checkouts,
+    count(*) FILTER (WHERE data->>'event_type' = 'purchase')   AS purchases,
+    round(
+      100.0 * count(*) FILTER (WHERE data->>'event_type' = 'checkout')
+            / nullif(count(*) FILTER (WHERE data->>'event_type' = 'page_view'), 0),
+      2
+    ) AS checkout_pct
+  FROM construx_events
+  WHERE (data->>'occurred_at')::timestamptz > now() - INTERVAL '24 hours'
+  GROUP BY 1, 2;
+
+-- Materialized view: persisted to memory, indexed, sub-millisecond reads
+CREATE MATERIALIZED VIEW mv_checkout_conversion AS
+  SELECT * FROM checkout_conversion;
+
+-- Index: make reads faster on common filter columns
+CREATE INDEX ON mv_checkout_conversion (campaign_id);
+
+-- Query the materialized view — always fresh, always fast
+SELECT campaign_id, checkout_pct
+FROM mv_checkout_conversion
+WHERE hour = date_trunc('hour', now())
+ORDER BY checkout_pct DESC
+LIMIT 10;
+-- Result returns in <5ms, always reflecting the latest Kafka messages
+```
+
+## Joins, windowing, and aggregations
+
+```sql
+-- Join across two Kafka topics (orders + users)
+CREATE SOURCE construx_orders
+  FROM KAFKA BROKER 'redpanda.messaging.svc:9092'
+  TOPIC 'construx.orders'
+  FORMAT AVRO USING CONFLUENT SCHEMA REGISTRY 'http://schema-registry.messaging.svc:8081'
+  ENVELOPE DEBEZIUM;   -- CDC: captures INSERT/UPDATE/DELETE from Postgres via Debezium
+
+CREATE SOURCE construx_users
+  FROM KAFKA BROKER 'redpanda.messaging.svc:9092'
+  TOPIC 'construx.users'
+  FORMAT AVRO USING CONFLUENT SCHEMA REGISTRY 'http://schema-registry.messaging.svc:8081'
+  ENVELOPE DEBEZIUM;
+
+-- Join: live enriched order view
+CREATE MATERIALIZED VIEW mv_orders_enriched AS
+  SELECT
+    o.id           AS order_id,
+    o.total_pence,
+    o.status,
+    o.created_at,
+    u.email,
+    u.plan_tier,
+    u.country_code
+  FROM construx_orders o
+  JOIN construx_users u ON o.user_id = u.id
+  WHERE o.status != 'cancelled';
+
+-- Window: 5-minute rolling revenue total
+CREATE MATERIALIZED VIEW mv_rolling_revenue AS
+  SELECT
+    date_bin('5 minutes', created_at, '2033-01-01') AS window_start,
+    count(*)                                          AS order_count,
+    sum(total_pence)                                  AS revenue_pence
+  FROM construx_orders
+  WHERE created_at > now() - INTERVAL '1 hour'
+  GROUP BY 1;
+
+-- Alert sink: write query results to a Kafka topic for downstream consumption
+CREATE SINK high_value_orders_sink
+  FROM (
+    SELECT * FROM mv_orders_enriched
+    WHERE total_pence > 100000   -- orders > £1000
+  )
+  INTO KAFKA BROKER 'redpanda.messaging.svc:9092'
+  TOPIC 'construx.alerts.high-value-orders'
+  FORMAT JSON;
+```
+
+```bash
+# Subscribe to a view: stream changes as they happen
+# SUBSCRIBE gives you a live feed of diffs (insertions and deletions)
+
+SUBSCRIBE (SELECT campaign_id, checkout_pct FROM mv_checkout_conversion)
+  WITH (SNAPSHOT = true);
+-- mz_timestamp  mz_diff  campaign_id      checkout_pct
+-- 1713000000000      1   campaign-abc-123  2.31
+-- 1713000000000      1   campaign-def-456  4.87
+-- ... (live updates as Kafka events arrive)
+
+# Use with application WebSocket to push live dashboard updates:
+# Python: asyncpg.connect() → await conn.fetch("SUBSCRIBE ...")
+# Node: pg.query("SUBSCRIBE ...") with cursor
+
+# Cluster status
+SHOW CLUSTERS;
+# name      replicas
+# default   2
+
+SHOW MATERIALIZED VIEWS;
+# name                    cluster  rows    disk
+# mv_checkout_conversion  default  8,291   18 MB
+# mv_orders_enriched      default  142,819 204 MB
+# mv_rolling_revenue      default  12      < 1 MB
+```
+
+Materialize vs Kafka Streams vs Flink vs ksqlDB vs custom consumer: Kafka Streams and Flink are JVM-native streaming frameworks — you write application code (Java/Kotlin/Scala) that defines a processing topology. Both are excellent for complex stateful computations but require understanding the streaming model. ksqlDB (Confluent) offers SQL over Kafka but has limited SQL expressiveness and doesn't support arbitrary joins. A custom consumer (Go reading Kafka, maintaining state in Redis) gives full control but you build everything manually. Materialize's advantage is exactly-SQL semantics with sub-second freshness: you get GROUP BY, JOIN, window functions, and CTEs — all the SQL you know — and the results stay current automatically. The constraint is that it works best for read-heavy, aggregation-heavy workloads (dashboards, metrics, alerting) where the data model fits a streaming source. It is not a replacement for an OLTP database.

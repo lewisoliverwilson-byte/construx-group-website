@@ -24,6 +24,7 @@ import OpensslPanel from '@/components/OpensslPanel';
 import GrypePanel from '@/components/GrypePanel';
 import K9sPanel from '@/components/K9sPanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
+import TetragonPanel from '@/components/TetragonPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -327,8 +328,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* linkerd service mesh — mTLS, routes, retry budget */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LinkerdPanel />
+        </div>
+
+        {/* tetragon ebpf runtime security — tracingpolicy, sigkill, process lifecycle */}
+        <div className="mt-4 pb-6">
+          <TetragonPanel />
         </div>
 
         {/* Sign-off */}
