@@ -50,6 +50,7 @@ import WazuhPanel from '@/components/WazuhPanel';
 import RedisPanel from '@/components/RedisPanel';
 import NATSPanel from '@/components/NATSPanel';
 import PrometheusPanel from '@/components/PrometheusPanel';
+import TempoPanel from '@/components/TempoPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -620,8 +621,13 @@ export default function StatsPage() {
       </div>
 
       {/* prometheus metrics & alerting — targets, rules, tsdb */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PrometheusPanel />
+      </div>
+
+      {/* grafana tempo distributed tracing — traces, spans, tenants */}
+      <div className="mt-6 pb-10">
+        <TempoPanel />
       </div>
     </div>
   );

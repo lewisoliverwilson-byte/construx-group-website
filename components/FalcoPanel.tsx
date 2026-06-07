@@ -3,24 +3,24 @@
 import { useEffect, useRef, useState } from 'react';
 
 const RULES = [
-  { name: 'Terminal shell in container', priority: 'WARNING', source: 'syscall', enabled: true, triggered: 4 },
-  { name: 'Detect outbound connections to C2 servers', priority: 'CRITICAL', source: 'syscall', enabled: true, triggered: 0 },
-  { name: 'Write below etc', priority: 'ERROR', source: 'syscall', enabled: true, triggered: 1 },
-  { name: 'K8s deployment created', priority: 'INFO', source: 'k8s_audit', enabled: true, triggered: 28 },
+  { name: 'Terminal shell in container', priority: 'WARNING', condition: 'spawned_process and container', enabled: true, tags: 'container,shell', hits: 28 },
+  { name: 'Write below etc', priority: 'WARNING', condition: 'write and etc_dir', enabled: true, tags: 'filesystem,mitre_execution', hits: 0 },
+  { name: 'Outbound connection to C2', priority: 'CRITICAL', condition: 'outbound and blacklisted_ip', enabled: true, tags: 'network,mitre_command', hits: 0 },
+  { name: 'Sensitive file opened', priority: 'ERROR', condition: 'open and sensitive_file', enabled: true, tags: 'filesystem,secrets', hits: 4 },
 ];
 
 const ALERTS = [
-  { rule: 'Terminal shell in container', severity: 'WARNING', pod: 'api-deployment-5f8b-k7xp2', namespace: 'prod', time: '4m ago' },
-  { rule: 'Terminal shell in container', severity: 'WARNING', pod: 'worker-set-3-abc1', namespace: 'prod', time: '12m ago' },
-  { rule: 'Write below etc', severity: 'ERROR', pod: 'init-container-setup', namespace: 'kube-system', time: '1h ago' },
-  { rule: 'K8s deployment created', severity: 'INFO', pod: '—', namespace: 'prod', time: '2h ago' },
+  { rule: 'Terminal shell in container', priority: 'WARNING', container: 'construx-api', pod: 'api-7f8d9b-xk2m4', user: 'root', proc: '/bin/sh', dt: '8m ago' },
+  { rule: 'Terminal shell in container', priority: 'WARNING', container: 'construx-api', pod: 'api-7f8d9b-xk2m4', user: 'root', proc: '/bin/bash', dt: '2h ago' },
+  { rule: 'Sensitive file opened', priority: 'ERROR', container: 'construx-worker', pod: 'worker-5c6d7e-pn3x1', user: 'app', proc: 'python3', dt: '3h ago' },
+  { rule: 'Sensitive file opened', priority: 'ERROR', container: 'construx-worker', pod: 'worker-5c6d7e-pn3x1', user: 'app', proc: 'python3', dt: '5h ago' },
 ];
 
-const SEVERITY_COLOR: Record<string, string> = {
+const PRIORITY_COLOR: Record<string, string> = {
   CRITICAL: '#f87171',
-  ERROR: '#f97316',
-  WARNING: '#fbbf24',
-  INFO: '#67e8f9',
+  ERROR: '#fbbf24',
+  WARNING: '#67e8f9',
+  NOTICE: '#4ade80',
 };
 
 function useCounter(base: number, delta: number, ms = 900) {
@@ -34,11 +34,11 @@ function useCounter(base: number, delta: number, ms = 900) {
 
 export default function FalcoPanel() {
   const [visible, setVisible] = useState(false);
-  const [rRows, setRRows] = useState(0);
-  const [aRows, setARows] = useState(0);
+  const [ruleRows, setRuleRows] = useState(0);
+  const [alertRows, setAlertRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const eventsPerSec = useCounter(2840, 48, 400);
-  const alertsTotal = useCounter(33, 0, 1400);
+  const eventsEvaluated = useCounter(284000, 2400, 400);
+  const alertsTotal = useCounter(32, 1, 3600);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -48,8 +48,8 @@ export default function FalcoPanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const r = setInterval(() => setRRows((x) => Math.min(x + 1, RULES.length)), 160);
-    const a = setInterval(() => setARows((x) => Math.min(x + 1, ALERTS.length)), 140);
+    const r = setInterval(() => setRuleRows((x) => Math.min(x + 1, RULES.length)), 160);
+    const a = setInterval(() => setAlertRows((x) => Math.min(x + 1, ALERTS.length)), 140);
     return () => { clearInterval(r); clearInterval(a); };
   }, [visible]);
 
@@ -58,43 +58,43 @@ export default function FalcoPanel() {
       ref={ref}
       style={{
         background: 'rgba(2,2,12,0.92)',
-        border: '1px solid rgba(103,232,249,0.13)',
+        border: '1px solid rgba(251,191,36,0.13)',
         borderRadius: '4px',
         overflow: 'hidden',
         fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-        boxShadow: '0 0 28px rgba(103,232,249,0.04)',
+        boxShadow: '0 0 28px rgba(251,191,36,0.04)',
         opacity: visible ? 1 : 0,
         transform: visible ? 'none' : 'translateY(10px)',
         transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(103,232,249,0.08)', background: 'rgba(103,232,249,0.02)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(251,191,36,0.08)', background: 'rgba(251,191,36,0.02)' }}>
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
-        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(103,232,249,0.4)' }}>
-          falco -- runtime security -- syscall / k8s audit / cncf rules
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.4)' }}>
+          falco -- runtime security -- rules / syscall-events / alerts
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {eventsPerSec.toLocaleString()} evt/s
+          {alertsTotal} alerts
         </span>
       </div>
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#67e8f9', fontWeight: 600 }}>falco@runtime</span>
+        <span style={{ color: '#fbbf24', fontWeight: 600 }}>falco@node</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>falco --modern-bpf -c /etc/falco/falco.yaml && falcoctl artifact list --type rule</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>falco --list && falcoctl rule list && journalctl -u falco --since "1h ago"</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'evt/s', value: eventsPerSec.toLocaleString(), color: '#67e8f9' },
-          { label: 'alerts', value: alertsTotal.toString(), color: '#fbbf24' },
-          { label: 'rules', value: RULES.length.toString(), color: '#a78bfa' },
-          { label: 'critical', value: ALERTS.filter(a => a.severity === 'CRITICAL').length.toString(), color: '#f87171' },
+          { label: 'events / sec', value: (eventsEvaluated / 1000).toFixed(0) + 'k', color: '#fbbf24' },
+          { label: 'alerts total', value: alertsTotal.toString(), color: '#f87171' },
+          { label: 'rules', value: RULES.length.toString(), color: '#4ade80' },
+          { label: 'rule hits', value: RULES.reduce((a, r) => a + r.hits, 0).toString(), color: '#67e8f9' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -106,15 +106,16 @@ export default function FalcoPanel() {
       <div style={{ padding: '10px 14px 0' }}>
         {/* Rules */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // active rules
+          // security rules
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {RULES.slice(0, rRows).map((rule) => (
-            <div key={rule.name} style={{ display: 'grid', gridTemplateColumns: '1fr 56px 52px 32px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.1)', borderRadius: 2 }}>
-              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.name}</span>
-              <span style={{ color: SEVERITY_COLOR[rule.priority] ?? '#fbbf24', fontSize: 7 }}>{rule.priority}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{rule.source}</span>
-              <span className="tabular-nums" style={{ color: rule.triggered > 0 ? '#fbbf24' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'right', fontWeight: rule.triggered > 0 ? 700 : 400 }}>{rule.triggered}</span>
+          {RULES.slice(0, ruleRows).map((rule, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 1fr 24px 24px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 7, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.name}</span>
+              <span style={{ color: PRIORITY_COLOR[rule.priority] ?? '#4ade80', fontSize: 7 }}>{rule.priority}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.tags}</span>
+              <span className="tabular-nums" style={{ color: rule.hits > 0 ? '#f87171' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'center' }}>{rule.hits}</span>
+              <span style={{ color: rule.enabled ? '#4ade80' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{rule.enabled ? 'on' : 'off'}</span>
             </div>
           ))}
         </div>
@@ -124,12 +125,13 @@ export default function FalcoPanel() {
           // recent alerts
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {ALERTS.slice(0, aRows).map((al, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '52px 1fr 60px 36px', alignItems: 'center', gap: 8, padding: '4px 8px', background: al.severity === 'CRITICAL' || al.severity === 'ERROR' ? 'rgba(248,113,113,0.04)' : al.severity === 'WARNING' ? 'rgba(251,191,36,0.04)' : 'rgba(103,232,249,0.04)', border: `1px solid ${al.severity === 'CRITICAL' || al.severity === 'ERROR' ? 'rgba(248,113,113,0.1)' : al.severity === 'WARNING' ? 'rgba(251,191,36,0.1)' : 'rgba(103,232,249,0.08)'}`, borderRadius: 2 }}>
-              <span style={{ color: SEVERITY_COLOR[al.severity] ?? '#fbbf24', fontSize: 7, fontWeight: 700 }}>{al.severity}</span>
-              <span style={{ color: 'rgba(240,239,255,0.3)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{al.pod}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{al.namespace}</span>
-              <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'right' }}>{al.time}</span>
+          {ALERTS.slice(0, alertRows).map((alert, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 1fr 40px 36px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alert.rule}</span>
+              <span style={{ color: PRIORITY_COLOR[alert.priority] ?? '#4ade80', fontSize: 7 }}>{alert.priority}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alert.container}/{alert.user}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alert.proc}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{alert.dt}</span>
             </div>
           ))}
         </div>
@@ -137,11 +139,11 @@ export default function FalcoPanel() {
 
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
-        <span style={{ fontSize: 8, color: 'rgba(103,232,249,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          falco v0.38 - apache-2.0 - cncf runtime security
+        <span style={{ fontSize: 8, color: 'rgba(251,191,36,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          falco v0.38 - apache-2.0 - cloud-native runtime security
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {eventsPerSec.toLocaleString()} evt/s - {alertsTotal} alerts
+          {(eventsEvaluated / 1000).toFixed(0)}k events/s - {alertsTotal} alerts
         </span>
       </div>
     </div>

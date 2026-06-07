@@ -48,6 +48,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import TektonPanel from '@/components/TektonPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
+import KubeAuditPanel from '@/components/KubeAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -572,8 +573,13 @@ export default function NowPage() {
         </div>
 
         {/* kube-prometheus full monitoring stack — dashboards, servicemonitors, rules */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubePrometheusPanel />
+        </div>
+
+        {/* kubeaudit k8s security audit — findings, namespaces, remediation */}
+        <div className="mt-6 pb-10">
+          <KubeAuditPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

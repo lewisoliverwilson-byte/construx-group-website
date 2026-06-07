@@ -48,6 +48,7 @@ import TraefikPanel from '@/components/TraefikPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import LonghornPanel from '@/components/LonghornPanel';
+import FalcoPanel from '@/components/FalcoPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -708,8 +709,13 @@ export default function FoundersPage() {
         </div>
 
         {/* longhorn distributed storage — volumes, snapshots, backups */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LonghornPanel />
+        </div>
+
+        {/* falco runtime security — rules, syscall-events, alerts */}
+        <div className="mt-6 pb-10">
+          <FalcoPanel />
         </div>
 
         {/* CTA */}
