@@ -56,6 +56,7 @@ import VeleroPanel from '@/components/VeleroPanel';
 import SynapsePanel from '@/components/SynapsePanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import GitBisectPanel from '@/components/GitBisectPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -756,8 +757,13 @@ export default function FoundersPage() {
         </div>
 
         {/* nix flake builds — inputs, outputs, derivations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NixFlakePanel />
+        </div>
+
+        {/* git bisect binary search — commits, good, bad, culprit */}
+        <div className="mt-6 pb-10">
+          <GitBisectPanel />
         </div>
 
         {/* CTA */}

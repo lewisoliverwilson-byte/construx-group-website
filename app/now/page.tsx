@@ -56,6 +56,7 @@ import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import SkaffoldPanel from '@/components/SkaffoldPanel';
 import MisePanel from '@/components/MisePanel';
+import GitWorktreePanel from '@/components/GitWorktreePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -620,8 +621,13 @@ export default function NowPage() {
         </div>
 
         {/* mise tool version management — tools, versions, envs */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MisePanel />
+        </div>
+
+        {/* git worktree parallel branches — worktrees, status, commits */}
+        <div className="mt-6 pb-10">
+          <GitWorktreePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

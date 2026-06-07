@@ -58,6 +58,7 @@ import LangfusePanel from '@/components/LangfusePanel';
 import PrefectPanel from '@/components/PrefectPanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import BiomePanel from '@/components/BiomePanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -668,8 +669,13 @@ export default function StatsPage() {
       </div>
 
       {/* biome js toolchain — lint, format, check, ci */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BiomePanel />
+      </div>
+
+      {/* eslint code quality — rules, violations, fixes */}
+      <div className="mt-6 pb-10">
+        <EslintOutputPanel />
       </div>
     </div>
   );
