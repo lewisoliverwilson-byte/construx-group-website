@@ -42,6 +42,7 @@ import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import GatlingPanel from '@/components/GatlingPanel';
 import K6Panel from '@/components/K6Panel';
+import LitestreamPanel from '@/components/LitestreamPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -550,8 +551,13 @@ export default function ContactPage() {
       </section>
 
       {/* k6 performance testing — scenarios, thresholds, executors */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <K6Panel />
+      </section>
+
+      {/* litestream sqlite replication — wal, s3, snapshots */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LitestreamPanel />
       </section>
     </div>
   );

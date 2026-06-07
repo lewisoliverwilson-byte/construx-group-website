@@ -42,6 +42,7 @@ import OpenFgaPanel from '@/components/OpenFgaPanel';
 import TrufflehogPanel from '@/components/TrufflehogPanel';
 import VaultSecretsPanel from '@/components/VaultSecretsPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
+import CiliumPanel from '@/components/CiliumPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -672,8 +673,13 @@ export default function FoundersPage() {
         </div>
 
         {/* aws bedrock foundation models — invocations, guardrails, tokens */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AwsBedrockPanel />
+        </div>
+
+        {/* cilium ebpf networking — endpoints, policy, hubble */}
+        <div className="mt-6 pb-10">
+          <CiliumPanel />
         </div>
 
         {/* CTA */}

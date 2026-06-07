@@ -44,6 +44,7 @@ import DbtPanel from '@/components/DbtPanel';
 import SeaweedFsPanel from '@/components/SeaweedFsPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import CassandraPanel from '@/components/CassandraPanel';
+import ParcaPanel from '@/components/ParcaPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -584,8 +585,13 @@ export default function StatsPage() {
       </div>
 
       {/* cassandra distributed db — ring, keyspaces, replication factor */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CassandraPanel />
+      </div>
+
+      {/* parca continuous profiling — cpu, heap, flamegraph */}
+      <div className="mt-6 pb-10">
+        <ParcaPanel />
       </div>
     </div>
   );

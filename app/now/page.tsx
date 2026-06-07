@@ -42,6 +42,7 @@ import MLflowPanel from '@/components/MLflowPanel';
 import PromtailPanel from '@/components/PromtailPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import TailscalePanel from '@/components/TailscalePanel';
+import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -536,8 +537,13 @@ export default function NowPage() {
         </div>
 
         {/* tailscale zero-config vpn — wireguard mesh, devices, acl */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TailscalePanel />
+        </div>
+
+        {/* otel collector telemetry pipeline — traces, metrics, logs */}
+        <div className="mt-6 pb-10">
+          <OtelCollectorPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
