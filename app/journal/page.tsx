@@ -19,6 +19,7 @@ import AwsCliPanel from '@/components/AwsCliPanel';
 import TrivyScanPanel from '@/components/TrivyScanPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
+import SbomPanel from '@/components/SbomPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -231,8 +232,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* Bun build output */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <BunBuildPanel />
+      </section>
+
+      {/* SBOM — software bill of materials */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <SbomPanel />
       </section>
 
       {/* Posts */}

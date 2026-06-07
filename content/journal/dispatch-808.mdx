@@ -1,0 +1,173 @@
+---
+title: "tRPC v11: end-to-end type safety with WebSocket subscriptions"
+date: "2031-08-03"
+excerpt: "tRPC v11 gives you end-to-end TypeScript type safety without a schema or code generation step. The server defines procedures; the client calls them with full autocomplete and type inference. Subscriptions over WebSocket are first-class in v11 — the server yields typed events, the client receives them with the same type inference as queries. This post covers the full v11 setup: router, context, subscriptions, and React Query integration."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+No schema. No codegen. Full type safety from server to client.
+
+## Router setup
+
+```ts
+// server/trpc.ts
+import { initTRPC, TRPCError } from '@trpc/server';
+import { z } from 'zod';
+
+export type Context = {
+  userId: string | null;
+  db:     Database;
+};
+
+const t = initTRPC.context<Context>().create();
+
+export const router     = t.router;
+export const publicProc = t.procedure;
+export const authedProc = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.userId) throw new TRPCError({ code: 'UNAUTHORIZED' });
+  return next({ ctx: { ...ctx, userId: ctx.userId } });
+});
+```
+
+## Procedures — query, mutation, subscription
+
+```ts
+// server/routers/orders.ts
+import { router, authedProc } from '../trpc';
+import { observable }         from '@trpc/server/observable';
+import { EventEmitter }       from 'events';
+
+const ee = new EventEmitter();
+
+export const ordersRouter = router({
+  list: authedProc
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.orders.findMany({
+        where:   { userId: ctx.userId },
+        take:    input.limit,
+        orderBy: { createdAt: 'desc' },
+      });
+    }),
+
+  create: authedProc
+    .input(z.object({
+      items:  z.array(z.object({ productId: z.string(), qty: z.number() })),
+      coupon: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.orders.create({ data: { userId: ctx.userId, ...input } });
+      ee.emit('order.created', order);
+      return order;
+    }),
+
+  // Subscription — yields typed events
+  onCreated: authedProc
+    .subscription(({ ctx }) =>
+      observable<{ id: string; amount: number; status: string }>((emit) => {
+        const handler = (order: Order) => {
+          if (order.userId === ctx.userId) emit.next(order);
+        };
+        ee.on('order.created', handler);
+        return () => ee.off('order.created', handler);
+      }),
+    ),
+});
+```
+
+## App router
+
+```ts
+// server/router.ts
+import { router }       from './trpc';
+import { ordersRouter } from './routers/orders';
+import { usersRouter }  from './routers/users';
+
+export const appRouter = router({
+  orders: ordersRouter,
+  users:  usersRouter,
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+## Hono adapter
+
+```ts
+// server/index.ts
+import { Hono }           from 'hono';
+import { trpcServer }     from '@hono/trpc-server';
+import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import { appRouter }      from './router';
+import { createContext }  from './context';
+
+const app = new Hono();
+
+app.use('/trpc/*', trpcServer({
+  router:        appRouter,
+  createContext: createContext,
+}));
+
+export default app;
+```
+
+## Client setup
+
+```ts
+// lib/trpc.ts
+import { createTRPCReact }            from '@trpc/react-query';
+import { createWSClient, wsLink }     from '@trpc/client';
+import { httpBatchLink, splitLink, isNonJsonSerializable } from '@trpc/client';
+import type { AppRouter }             from '../server/router';
+
+export const trpc = createTRPCReact<AppRouter>();
+
+const wsClient = createWSClient({ url: process.env.NEXT_PUBLIC_WS_URL! });
+
+export const trpcClient = trpc.createClient({
+  links: [
+    splitLink({
+      condition: (op) => op.type === 'subscription',
+      true:  wsLink({ client: wsClient }),
+      false: httpBatchLink({ url: '/trpc' }),
+    }),
+  ],
+});
+```
+
+## React usage
+
+```tsx
+// components/OrderFeed.tsx
+'use client';
+import { trpc } from '@/lib/trpc';
+
+export function OrderFeed() {
+  const { data: orders, isLoading } = trpc.orders.list.useQuery({ limit: 10 });
+
+  // Subscription — re-renders on each new event
+  trpc.orders.onCreated.useSubscription(undefined, {
+    onData(order) {
+      console.log('new order', order.id, order.amount);
+    },
+    onError(err) {
+      console.error('subscription error', err);
+    },
+  });
+
+  const create = trpc.orders.create.useMutation();
+
+  if (isLoading) return <div>Loading…</div>;
+
+  return (
+    <ul>
+      {orders?.map((o) => (
+        <li key={o.id}>{o.id} — £{(o.amount / 100).toFixed(2)}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+tRPC v11 vs GraphQL: GraphQL has a schema, which is the source of truth for multi-client APIs (mobile, third-party). tRPC has no schema — the TypeScript types *are* the contract. tRPC is faster to build, has zero boilerplate, but couples server and client TypeScript. The Construx default: tRPC for internal Next.js apps where server and client are in the same monorepo; GraphQL when the API is consumed by external clients or a mobile app.

@@ -1,0 +1,109 @@
+---
+title: "SBOM: software supply chain transparency"
+date: "2031-07-28"
+excerpt: "A Software Bill of Materials (SBOM) is a machine-readable inventory of every component in your software — direct dependencies, transitive dependencies, their versions, and their licenses. SBOM generation is now required for US federal software procurement and is increasingly expected by enterprise customers. The toolchain is straightforward: Syft generates the SBOM in SPDX or CycloneDX format; Grype scans it for known vulnerabilities."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Every dependency. Every version. Every license. Machine-readable.
+
+## Generate an SBOM
+
+```bash
+# Install Syft
+curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+# Generate SBOM for a Node.js project (reads package-lock.json / bun.lockb)
+syft . -o spdx-json > sbom.spdx.json
+
+# CycloneDX format (required by some enterprise customers)
+syft . -o cyclonedx-json > sbom.cyclonedx.json
+
+# SBOM from a Docker image
+syft construx/api:latest -o spdx-json > image-sbom.json
+```
+
+## Scan SBOM for vulnerabilities
+
+```bash
+# Install Grype
+curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+# Scan a directory
+grype .
+
+# Scan an SBOM file
+grype sbom:./sbom.spdx.json
+
+# Output as table (default), JSON, or SARIF for GitHub code scanning
+grype . -o json | jq '[.matches[] | {name: .artifact.name, version: .artifact.version, severity: .vulnerability.severity, cve: .vulnerability.id}]'
+
+# Fail CI if high or critical vulns found
+grype . --fail-on high
+```
+
+## CI integration
+
+```yaml
+# .github/workflows/sbom.yml
+- name: Generate SBOM
+  run: syft . -o spdx-json > sbom.spdx.json
+
+- name: Upload SBOM artifact
+  uses: actions/upload-artifact@v4
+  with:
+    name: sbom
+    path: sbom.spdx.json
+
+- name: Scan for vulnerabilities
+  run: grype sbom:./sbom.spdx.json --fail-on high
+
+- name: Submit SBOM to GitHub dependency graph
+  uses: anchore/sbom-action@v0
+  with:
+    format: spdx-json
+    artifact-name: sbom.spdx.json
+```
+
+## License compliance
+
+```bash
+# Extract all licenses from the SBOM
+cat sbom.spdx.json | jq '[.packages[] | {name: .name, version: .versionInfo, license: .licenseConcluded}] | group_by(.license) | map({license: .[0].license, packages: length})'
+
+# Check for GPL (copyleft) packages — may require source disclosure
+cat sbom.spdx.json | jq '[.packages[] | select(.licenseConcluded | test("GPL"))]'
+```
+
+## SPDX format — what's in it
+
+```json
+{
+  "spdxVersion": "SPDX-2.3",
+  "name":        "construx-website",
+  "packages": [
+    {
+      "name":             "next",
+      "versionInfo":      "15.3.3",
+      "licenseConcluded": "MIT",
+      "supplier":         "Organization: Vercel, Inc.",
+      "externalRefs": [{
+        "referenceType":     "purl",
+        "referenceLocator":  "pkg:npm/next@15.3.3"
+      }]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId":      "SPDXRef-Package-next",
+      "relationshipType":   "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-react"
+    }
+  ]
+}
+```
+
+The `purl` (Package URL) is the canonical identifier — it works across ecosystems (npm, pypi, cargo, maven) and is what vulnerability databases index against.
+
+SBOM vs just running `npm audit`: `npm audit` only checks your direct and transitive npm dependencies against the npm advisory database. An SBOM covers everything in the container image (OS packages, system libraries, binaries), multiple ecosystems in the same repository, and can be submitted to third-party tools or customers. The Construx default: generate SBOM on every release; scan with Grype in CI on every PR.
