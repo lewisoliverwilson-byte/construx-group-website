@@ -22,6 +22,7 @@ import VeleroPanel from '@/components/VeleroPanel';
 import PulumiPanel from '@/components/PulumiPanel';
 import RclonePanel from '@/components/RclonePanel';
 import ValsPanel from '@/components/ValsPanel';
+import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -662,8 +663,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* vals secret interpolation */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <ValsPanel />
+      </section>
+
+      {/* victoriametrics high-performance TSDB */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <VictoriaMetricsPanel />
       </section>
 
       {/* CTA */}

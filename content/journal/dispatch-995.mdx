@@ -1,0 +1,196 @@
+---
+title: "VictoriaMetrics cluster mode: vminsert, vmselect, vmstorage at scale"
+date: "2033-02-15"
+excerpt: "VictoriaMetrics cluster mode splits ingestion, query, and storage into three stateless-or-stateful tiers. vminsert receives remote_write or Prometheus-compatible push traffic and shards it across vmstorage nodes using consistent hashing — it's stateless and horizontally scalable. vmstorage holds the actual TSDB data and is stateful; you add nodes to increase capacity. vmselect is stateless and merges query results from all vmstorage nodes. The architecture means you can scale each tier independently: more vminsert nodes for higher ingestion rate, more vmstorage nodes for more data, more vmselect nodes for higher query concurrency. Replication (replicationFactor=2) writes each series to two vmstorage nodes, and vmselect deduplicates the results — you get HA without a separate replication system."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Three-tier architecture. Independent scaling. Consistent hashing. Dedup at query time.
+
+## Cluster architecture and data flow
+
+```bash
+# vminsert: receives writes, shards to vmstorage
+# - Stateless, horizontally scalable
+# - Accepts: Prometheus remote_write, InfluxDB line protocol, OpenMetrics, DataDog API
+# - Sharding: consistent hashing by metric name + labels
+# - HA: run 2+ replicas behind a load balancer
+
+# vmstorage: stores the data
+# - Stateful (PersistentVolume required)
+# - Each node holds a shard — no data crosses nodes after write
+# - Compression: zstd, roaring bitmaps for index
+# - Run 4-6+ nodes for production (each node independently operable)
+
+# vmselect: processes queries
+# - Stateless, horizontally scalable
+# - Fetches raw blocks from all vmstorage nodes
+# - Merges, sorts, and evaluates MetricsQL expressions
+# - Run 2+ replicas for HA
+
+# Traffic flow:
+# Prometheus remote_write → vminsert → vmstorage[0..N] (consistent hashing)
+# Grafana PromQL query → vmselect → vmstorage[0..N] (merge at query time)
+
+# Cluster endpoints:
+# Write:  http://vminsert:8480/insert/0/prometheus/api/v1/write
+# Query:  http://vmselect:8481/select/0/prometheus/api/v1/query_range
+# (The /0/ segment is the accountID — use for multi-tenancy)
+
+# Prometheus remote_write to VM cluster:
+remote_write:
+  - url: http://vminsert.monitoring.svc:8480/insert/0/prometheus/api/v1/write
+    queue_config:
+      max_shards: 8           # parallelize writes
+      max_samples_per_send: 10000
+      batch_send_deadline: 5s
+
+# Multiple Prometheus instances writing to the same cluster:
+# Each Prometheus adds an external_label (e.g., cluster=eu-west-1)
+# VM stores the label and vmselect can query across all clusters
+```
+
+## vmstorage: sizing and operations
+
+```bash
+# Sizing vmstorage nodes
+# Rule of thumb: 1 byte per sample per day on disk
+# 100k active metrics × 4 samples/min × 60 min × 24 h = ~576M samples/day
+# At ~0.4 bytes/sample: ~230MB/day
+# 1 year retention: ~84GB per node (with replicationFactor=1)
+# With replicationFactor=2: 168GB per node
+
+# vmstorage flags
+./vmstorage \
+  -storageDataPath=/var/lib/vmstorage \
+  -retentionPeriod=12 \                        # months
+  -dedup.minScrapeInterval=15s \               # deduplicate replicated writes
+  -httpListenAddr=:8482 \
+  -vminsertAddr=:8400 \                        # receives data from vminsert
+  -vmselectAddr=:8401                          # serves data to vmselect
+
+# Add a new vmstorage node to the cluster:
+# 1. Deploy the new node
+# 2. Add its address to vminsert's -storageNode flag
+# 3. vminsert immediately starts sending new data to it
+# 4. Historical data on other nodes is NOT automatically rebalanced
+#    (existing series stay where they are; new series go to the new node)
+# 5. For full rebalancing, use vmctl to copy blocks
+
+# Storage maintenance
+# Check disk usage per node
+curl http://vmstorage-0:8482/metrics \
+  | grep 'vm_data_size_bytes\|vm_rows\|vm_cache_size_bytes'
+
+# Force merge of small parts (reduces file count, improves query speed)
+curl -X POST http://vmstorage-0:8482/internal/force_merge
+
+# Snapshot for backup
+curl http://vmstorage-0:8482/snapshot/create
+# {"status":"ok","snapshot":"20330215130000-A1B2C3D4"}
+# Snapshot is a consistent hard-link copy in storageDataPath/snapshots/
+# Copy it to S3 with rclone/restic while the node keeps serving
+
+# Restore from snapshot
+./vmstorage -storageDataPath=/restore/from/snapshot -retentionPeriod=12
+
+# Check cluster health
+curl http://vminsert:8480/health
+# {"status":"ok"}
+curl http://vmselect:8481/health
+# {"status":"ok"}
+```
+
+## Multi-tenancy with accountID
+
+```bash
+# VM cluster supports multi-tenancy via the accountID path segment
+# Each tenant's data is isolated but stored on the same cluster
+
+# Tenant 1: construx-prod writes and reads via /1/
+# Tenant 2: construx-staging uses /2/
+
+# Write as tenant 1:
+curl -X POST http://vminsert:8480/insert/1/prometheus/api/v1/write \
+  --data-binary @prometheus-samples.pb
+
+# Query tenant 1 data:
+curl 'http://vmselect:8481/select/1/prometheus/api/v1/query' \
+  --data-urlencode 'query=rate(http_requests_total[5m])'
+
+# Tenant 2 cannot see Tenant 1's data — isolation is enforced by accountID
+# in the storage path, not by authentication (add a reverse proxy for authN)
+
+# Multi-tenant Grafana: use different data source per environment
+# Prod:    http://vmselect:8481/select/1/prometheus/
+# Staging: http://vmselect:8481/select/2/prometheus/
+
+# vmagent multi-tenant: tag by remote_write URL
+scrape_configs:
+  - job_name: construx-prod
+    static_configs:
+      - targets: ['construx-api:8080']
+    relabel_configs:
+      - target_label: env
+        replacement: prod
+remote_write:
+  - url: http://vminsert:8480/insert/1/prometheus/api/v1/write
+
+# Separate vmagent instance for staging:
+remote_write:
+  - url: http://vminsert:8480/insert/2/prometheus/api/v1/write
+```
+
+## vmctl: bulk operations and migration
+
+```bash
+# vmctl: CLI for importing, exporting, and migrating metrics data
+
+# Migrate from Prometheus to VictoriaMetrics
+# Export from Prometheus (native format)
+vmctl prometheus \
+  --prom-snapshot=/var/lib/prometheus/snapshots/20330101 \
+  --vm-addr=http://vminsert:8480/insert/0/prometheus \
+  --vm-concurrency=4
+# Importing 842M samples...
+# Imported: 842138204 samples in 4m32s (3.09M samples/s)
+
+# Migrate from Thanos to VictoriaMetrics
+vmctl thanos \
+  --thanos-endpoint=http://thanos-store:10905 \
+  --vm-addr=http://vminsert:8480/insert/0/prometheus \
+  --vm-concurrency=8
+# Fetching blocks from Thanos store...
+# Importing 12.4B samples across 24 months...
+
+# Backfill: import historical data (e.g., from an SBOM audit tool)
+vmctl opentelemetry \
+  --opentelemetry-endpoint=http://otelcol:4317 \
+  --vm-addr=http://vminsert:8480/insert/0/prometheus
+
+# Export a metric from VM (e.g., for archiving or analysis)
+vmctl export \
+  --vm-addr=http://vmselect:8481/select/0/prometheus \
+  --vm-filter-match='{job="construx-api"}' \
+  --vm-filter-time-start=2033-01-01T00:00:00Z \
+  --vm-filter-time-end=2033-02-01T00:00:00Z \
+  --output=construx-api-jan.csv
+
+# Verify data integrity after migration
+vmctl verify-block /var/lib/vmstorage/data/
+# Verifying 2847 blocks...
+# All blocks OK (no corruption detected)
+
+# Benchmark ingestion rate
+vmctl benchmark \
+  --benchmark-target=http://vminsert:8480/insert/0/prometheus \
+  --benchmark-workers=10 \
+  --benchmark-series=100000 \
+  --benchmark-interval=15s \
+  --benchmark-duration=60s
+# Ingested: 400000 samples/s
+# p50 latency: 2ms  p99 latency: 8ms
+```
+
+For teams running Prometheus and approaching its scaling limits, the migration path to VictoriaMetrics is deliberately incremental: start by adding VM as a remote_write target alongside your existing Prometheus, verify the data is identical for a week, then cut over Grafana to query VM instead of Prometheus. If something goes wrong, Prometheus is still running with its local data. Once confident, drop the Prometheus local retention to 4 hours (VM owns long-term) and free up the disk. The whole migration can happen without downtime and with zero changes to Grafana dashboards.
