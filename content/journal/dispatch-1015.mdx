@@ -1,0 +1,242 @@
+---
+title: "Kyverno: Kubernetes-native policy engine for admission, mutation, and generation"
+date: "2033-04-16"
+excerpt: "Kyverno is a Kubernetes admission controller that evaluates policies written as Kubernetes YAML — no Rego, no Go, no external DSL. Policies are ClusterPolicy or Policy resources that define rules: validate (reject non-compliant resources), mutate (automatically fix or enrich resources on admission), generate (create additional resources when a new resource appears), and verify image (enforce supply chain policy on container images). Kyverno runs as a webhook — every CREATE, UPDATE, and DELETE to the API server goes through Kyverno before being persisted. Policies can match on any resource field, use CEL expressions or JMESPath, and reference external data via ConfigMap lookups or API calls. Unlike OPA/Gatekeeper (which requires Rego), Kyverno policies are readable YAML that cluster operators can write without learning a dedicated language."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+ClusterPolicy. Validate. Mutate. Generate. Image verification. Background scan.
+
+## Validate policies
+
+```yaml
+# Validate: reject pods that don't meet the policy
+
+# Policy: require resource requests and limits on all containers
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-pod-resource-limits
+  annotations:
+    policies.kyverno.io/description: >
+      All containers must have CPU and memory requests and limits defined.
+spec:
+  validationFailureAction: Enforce   # Audit = warn, Enforce = reject
+  background: true                   # also scan existing resources
+
+  rules:
+    - name: check-resource-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      validate:
+        message: "Resource requests and limits are required for all containers."
+        pattern:
+          spec:
+            containers:
+              - name: "?*"
+                resources:
+                  limits:
+                    memory: "?*"
+                    cpu: "?*"
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+
+---
+# Policy: require specific labels on all Deployments
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-deployment-labels
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: check-labels
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+      validate:
+        message: "Deployments must have app, version, and team labels."
+        pattern:
+          metadata:
+            labels:
+              app: "?*"
+              version: "?*"
+              team: "?*"
+
+---
+# Policy: disallow privileged containers
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: no-privileged
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      validate:
+        message: "Privileged containers are not permitted."
+        pattern:
+          spec:
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"
+```
+
+## Mutate policies
+
+```yaml
+# Mutate: automatically fix or enrich resources on admission
+
+# Policy: add team label from namespace annotation if missing
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-team-label
+spec:
+  rules:
+    - name: add-team-label
+      match:
+        any:
+          - resources:
+              kinds: [Deployment, StatefulSet]
+      context:
+        # Look up the namespace to get the team annotation
+        - name: namespace
+          apiCall:
+            urlPath: "/api/v1/namespaces/{{request.object.metadata.namespace}}"
+            jmesPath: "metadata.annotations.\"team\""
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              team: "{{namespace}}"
+
+---
+# Policy: inject sidecar automatically into pods with a specific annotation
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: inject-alloy-sidecar
+spec:
+  rules:
+    - name: inject-alloy
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              annotations:
+                telemetry.construx.io/inject: "true"
+      mutate:
+        patchesJson6902: |-
+          - path: /spec/containers/-
+            op: add
+            value:
+              name: alloy
+              image: grafana/alloy:v1.4.0
+              args: ["run", "/etc/alloy/config.river"]
+              volumeMounts:
+                - name: alloy-config
+                  mountPath: /etc/alloy
+          - path: /spec/volumes/-
+            op: add
+            value:
+              name: alloy-config
+              configMap:
+                name: alloy-sidecar-config
+```
+
+## Generate policies and image verification
+
+```yaml
+# Generate: create resources automatically when a new resource appears
+
+# Policy: create a default NetworkPolicy when a new namespace is created
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: default-network-policy
+spec:
+  rules:
+    - name: generate-netpol
+      match:
+        any:
+          - resources:
+              kinds: [Namespace]
+      generate:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        name: default-deny-ingress
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true   # keep in sync if the policy is updated
+        data:
+          spec:
+            podSelector: {}
+            policyTypes: [Ingress]
+
+---
+# Image verification: enforce supply chain policy
+# Require all images to be signed with cosign and from the internal registry
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signatures
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: verify-image
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      verifyImages:
+        - imageReferences:
+            - "registry.construx.internal/*"
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    subject: "https://github.com/lewisoliverwilson-byte/*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
+          mutateDigest: true   # pin image tag to digest on admission
+```
+
+```bash
+# Check policy compliance across the cluster
+kubectl get policyreport -A
+# NAMESPACE       NAME                    PASS  FAIL  WARN  ERROR  SKIP
+# construx-prod   cpol-require-limits     47    3     0     0      0
+# construx-prod   cpol-disallow-priv      50    0     0     0      0
+
+# See which resources are failing
+kubectl describe policyreport cpol-require-limits -n construx-prod
+# Results:
+#   Result: fail  Source: kyverno  Policy: require-pod-resource-limits
+#   Resource: Pod/construx-worker-9f4b-xkq2  Rule: check-resource-limits
+#   Message: Resource requests and limits are required for all containers.
+
+# Test a policy without enforcing it
+kubectl apply -f - <<EOF
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: test-policy
+spec:
+  validationFailureAction: Audit
+  ...
+EOF
+kyverno apply policy.yaml --resource pod.yaml
+```
+
+Kyverno vs OPA/Gatekeeper vs Kubewarden vs CEL admission: OPA/Gatekeeper uses Rego — a powerful but non-obvious language that most platform engineers have to learn from scratch. Kyverno uses YAML patterns that most Kubernetes engineers can read without any new syntax. Kubewarden compiles WebAssembly policies — flexible but adds a WASM compilation step. CEL admission policies (built into Kubernetes 1.30+) are the lightest option for simple constraints: they run inline without a webhook, but lack mutation, generation, and image verification. For teams that want comprehensive policy management without learning Rego, Kyverno covers the full lifecycle: validate on admission, mutate to auto-fix, generate companion resources, and verify images in the supply chain. The background scan (reporting against existing resources, not just new admissions) is also practically useful: you can deploy a policy in Audit mode, see everything that would fail, fix it, then switch to Enforce.
