@@ -1,0 +1,201 @@
+---
+title: "Temporal: durable workflows for long-running and distributed operations"
+date: "2032-08-04"
+excerpt: "Temporal is a workflow orchestration platform — you write workflow code in Go, TypeScript, Java, or Python, and Temporal guarantees it will run to completion even if workers crash, servers restart, or activities fail after retries. Temporal achieves this through event sourcing: every workflow execution is stored as an append-only history of events, and the workflow function is re-executed (replayed) from this history on recovery. The result is that you can write long-running business processes — multi-day approval flows, payment retries, onboarding sequences — as plain functions, without managing state machines, queues, or retry logic yourself."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Write it as a function. Temporal makes it durable. Crashes, retries, timeouts — handled.
+
+## Workflow and activity basics (Go)
+
+```go
+// workflows/order_fulfillment.go
+
+package workflows
+
+import (
+    "time"
+    "go.temporal.io/sdk/workflow"
+    "go.temporal.io/sdk/activity"
+)
+
+// Activity: a single unit of work (can fail, will be retried)
+func ReserveInventory(ctx context.Context, orderID string) error {
+    // Call the inventory service — if this fails, Temporal retries it
+    return inventoryClient.Reserve(ctx, orderID)
+}
+
+func ChargePayment(ctx context.Context, orderID string, amount int) error {
+    return paymentClient.Charge(ctx, orderID, amount)
+}
+
+func SendConfirmationEmail(ctx context.Context, orderID string, email string) error {
+    return emailClient.Send(ctx, orderID, email)
+}
+
+// Workflow: orchestrates activities into a durable business process
+func OrderFulfillmentWorkflow(ctx workflow.Context, order Order) error {
+    // Activity options: retry policy, timeout, schedule-to-close
+    activityOpts := workflow.ActivityOptions{
+        StartToCloseTimeout: 30 * time.Second,
+        RetryPolicy: &temporal.RetryPolicy{
+            MaximumAttempts:    5,
+            InitialInterval:    time.Second,
+            BackoffCoefficient: 2.0,
+            MaximumInterval:    30 * time.Second,
+        },
+    }
+    ctx = workflow.WithActivityOptions(ctx, activityOpts)
+
+    // Step 1: Reserve inventory (retried up to 5 times on failure)
+    if err := workflow.ExecuteActivity(ctx, ReserveInventory, order.ID).Get(ctx, nil); err != nil {
+        return fmt.Errorf("inventory reservation failed: %w", err)
+    }
+
+    // Step 2: Charge payment
+    if err := workflow.ExecuteActivity(ctx, ChargePayment, order.ID, order.TotalCents).Get(ctx, nil); err != nil {
+        // Compensate: release inventory reservation
+        workflow.ExecuteActivity(ctx, ReleaseInventory, order.ID)
+        return fmt.Errorf("payment failed: %w", err)
+    }
+
+    // Step 3: Send confirmation (fire-and-forget if it fails — don't block the order)
+    _ = workflow.ExecuteActivity(ctx, SendConfirmationEmail, order.ID, order.CustomerEmail).Get(ctx, nil)
+
+    return nil
+}
+```
+
+## Signals, queries, and timers
+
+```go
+// Workflow that waits for human approval (signal) with a deadline (timer)
+
+func ApprovalWorkflow(ctx workflow.Context, requestID string, requesterEmail string) (bool, error) {
+    approvalCh := workflow.GetSignalChannel(ctx, "approval")
+    rejectionCh := workflow.GetSignalChannel(ctx, "rejection")
+
+    // Start a 3-day approval timer
+    timer := workflow.NewTimer(ctx, 72*time.Hour)
+
+    var approved bool
+
+    selector := workflow.NewSelector(ctx)
+    selector.AddReceive(approvalCh, func(c workflow.ReceiveChannel, more bool) {
+        c.Receive(ctx, nil)
+        approved = true
+    })
+    selector.AddReceive(rejectionCh, func(c workflow.ReceiveChannel, more bool) {
+        c.Receive(ctx, nil)
+        approved = false
+    })
+    selector.AddFuture(timer, func(f workflow.Future) {
+        // Timer fired — auto-reject after 3 days
+        approved = false
+    })
+
+    // Block until approval, rejection, or timeout
+    selector.Select(ctx)
+
+    if approved {
+        return true, workflow.ExecuteActivity(ctx, ProcessApproval, requestID).Get(ctx, nil)
+    }
+    return false, workflow.ExecuteActivity(ctx, ProcessRejection, requestID).Get(ctx, nil)
+}
+
+// Send a signal from outside the workflow
+func ApproveRequest(ctx context.Context, client client.Client, workflowID string) error {
+    return client.SignalWorkflow(ctx, workflowID, "", "approval", nil)
+}
+
+// Query workflow state without blocking it
+workflow.SetQueryHandler(ctx, "status", func() (string, error) {
+    return currentStatus, nil
+})
+```
+
+## Worker and starter
+
+```go
+// cmd/worker/main.go — registers activities and starts polling
+
+func main() {
+    c, _ := client.Dial(client.Options{
+        HostPort: "temporal.construx.svc.cluster.local:7233",
+    })
+    defer c.Close()
+
+    w := worker.New(c, "construx-order-queue", worker.Options{
+        MaxConcurrentActivityExecutionSize: 50,
+        MaxConcurrentWorkflowTaskExecutionSize: 10,
+    })
+
+    // Register workflow functions and activities
+    w.RegisterWorkflow(OrderFulfillmentWorkflow)
+    w.RegisterWorkflow(ApprovalWorkflow)
+    w.RegisterActivity(ReserveInventory)
+    w.RegisterActivity(ChargePayment)
+    w.RegisterActivity(SendConfirmationEmail)
+
+    // Start polling the task queue
+    w.Run(worker.InterruptCh())
+}
+
+// cmd/starter/main.go — kick off a workflow execution
+
+func main() {
+    c, _ := client.Dial(client.Options{
+        HostPort: "temporal.construx.svc.cluster.local:7233",
+    })
+
+    we, err := c.ExecuteWorkflow(context.Background(),
+        client.StartWorkflowOptions{
+            ID:        "order-" + orderID,       // Idempotent — safe to re-call if already running
+            TaskQueue: "construx-order-queue",
+            WorkflowExecutionTimeout: 24 * time.Hour,
+        },
+        OrderFulfillmentWorkflow,
+        order,
+    )
+
+    fmt.Printf("Started workflow: %s / %s\n", we.GetID(), we.GetRunID())
+}
+```
+
+## Temporal CLI — inspecting and managing executions
+
+```bash
+# List running workflows
+temporal workflow list --query "ExecutionStatus='Running'"
+# WorkflowId                        WorkflowType              StartTime         Status
+# order-a3f9b2c1                    OrderFulfillmentWorkflow  2032-08-01 14:32  Running
+# approval-req-0041                 ApprovalWorkflow          2032-07-30 09:14  Running
+
+# Describe a workflow (current state, pending activities)
+temporal workflow describe --workflow-id order-a3f9b2c1
+# Status: Running
+# Pending Activities: ReserveInventory (attempt 3/5)
+# History Events: 14
+
+# Show workflow history (event by event replay log)
+temporal workflow show --workflow-id order-a3f9b2c1
+# 1  WorkflowExecutionStarted
+# 2  WorkflowTaskScheduled
+# 3  WorkflowTaskStarted
+# 4  WorkflowTaskCompleted
+# 5  ActivityTaskScheduled  (ReserveInventory)
+# 6  ActivityTaskStarted
+# 7  ActivityTaskFailed     (attempt 1)
+# 8  ActivityTaskScheduled  (ReserveInventory retry, attempt 2)
+# ...
+
+# Send a signal to a running workflow
+temporal workflow signal --workflow-id approval-req-0041 --name approval
+
+# Terminate a stuck workflow
+temporal workflow terminate --workflow-id order-a3f9b2c1 --reason "manual intervention"
+```
+
+Temporal vs raw message queues vs state machines in a database: a database-backed state machine is the common pattern before discovering Temporal — you have a status column, update it in transactions, and poll for work. The problems: you can't express timeouts or retries cleanly, compensation logic (undo steps) has to be hand-coded, and the state machine logic is scattered across jobs, API handlers, and cron. Message queues (SQS, RabbitMQ) handle retries and fan-out but not orchestration — you still need external state to track multi-step workflows. Temporal gives you durable execution: write workflow logic as sequential code, express timeouts as `workflow.NewTimer`, handle retries in the retry policy, and let Temporal handle persistence, recovery, and replay. The trade-off: Temporal is a server you need to operate (or use Temporal Cloud), and there's a learning curve around workflow determinism constraints (workflow code must be deterministic across replays — no time.Now(), no random, no external state reads).

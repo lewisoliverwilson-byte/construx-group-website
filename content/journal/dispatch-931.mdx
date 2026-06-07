@@ -1,0 +1,191 @@
+---
+title: "Grafana Loki: log aggregation without full-text indexing"
+date: "2032-08-07"
+excerpt: "Loki is a log aggregation system designed to be cost-effective at scale: it indexes only labels (key-value pairs like {app='construx-api', env='prod'}), not the full log content. Log lines are stored compressed in object storage (S3, GCS). Queries use LogQL — a log query language with label matching plus log pipeline operators (filter, parse, pattern, line_format). Because Loki doesn't index log content, ingestion is cheap; the trade-off is that full-text search across all logs is slower than Elasticsearch but sufficient for structured logs where you know the labels. Promtail, the Vector agent, and Fluentd all ship logs to Loki."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Index labels, not content. Store compressed in S3. Query with LogQL label selectors + pipelines.
+
+## LogQL — log query language
+
+```logql
+# Label selector: filter by labels (like Prometheus PromQL label selectors)
+{app="construx-api", env="prod"}
+
+# Pipe operators chain after the label selector:
+# |= "string"       — filter: keep lines containing the string
+# != "string"       — filter: drop lines containing the string
+# |~ "regex"        — regex filter (keep)
+# !~ "regex"        — regex filter (drop)
+# | logfmt          — parse logfmt key=value pairs
+# | json            — parse JSON log lines
+# | pattern         — structured pattern extraction
+# | line_format     — reformat the log line
+
+# Filter for errors only
+{app="construx-api"} |= "ERROR"
+
+# Filter for errors, excluding known noise
+{app="construx-api"} |= "ERROR" != "EXPECTED_DISCONNECT"
+
+# Parse JSON logs and filter on a field value
+{app="construx-api"} | json | status_code >= 500
+
+# Regex: find slow queries (extract duration from log line)
+{app="construx-api"} |~ "slow query [0-9]+ms" | regexp "slow query (?P<duration_ms>[0-9]+)ms"
+
+# Count errors per minute (metric query — for dashboards and alerts)
+sum(rate({app="construx-api"} |= "ERROR" [1m])) by (app)
+
+# P99 latency from structured JSON logs
+quantile_over_time(0.99,
+  {app="construx-api"} | json | unwrap duration_ms [5m]
+) by (endpoint)
+```
+
+## Promtail configuration
+
+```yaml
+# /etc/promtail/config.yaml — ships logs to Loki
+
+server:
+  http_listen_port: 9080
+
+clients:
+  - url: http://loki.construx.svc.cluster.local:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 1048576   # 1MiB batch
+
+positions:
+  filename: /var/log/promtail-positions.yaml   # Tracks read offsets (survives restarts)
+
+scrape_configs:
+  # Kubernetes pod logs (auto-discover)
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        target_label: app
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+
+  # Static file — application log
+  - job_name: construx-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: construx-api
+          env: prod
+          __path__: /var/log/construx/api.log
+
+    pipeline_stages:
+      # Parse JSON log lines
+      - json:
+          expressions:
+            level: level
+            msg: message
+            duration_ms: duration_ms
+            status_code: status_code
+            request_id: request_id
+
+      # Add parsed fields as labels (keep cardinality low — avoid high-cardinality labels)
+      - labels:
+          level:
+          status_code:
+
+      # Drop debug logs in prod to reduce ingestion cost
+      - drop:
+          expression: '.*level.*debug.*'
+```
+
+## Vector agent — structured log shipping
+
+```toml
+# vector.toml — Vector ships logs to Loki (alternative to Promtail)
+
+[sources.kubernetes_logs]
+type = "kubernetes_logs"
+
+[transforms.parse_json]
+type = "remap"
+inputs = ["kubernetes_logs"]
+source = '''
+  . = parse_json!(.message)
+  .level = downcase(.level)
+  .app = get_env_var!("APP_NAME")
+'''
+
+[transforms.filter_noise]
+type = "filter"
+inputs = ["parse_json"]
+condition = '.level != "debug"'
+
+[sinks.loki]
+type = "loki"
+inputs = ["filter_noise"]
+endpoint = "http://loki.construx.svc.cluster.local:3100"
+labels.app = "{{ app }}"
+labels.level = "{{ level }}"
+labels.env = "prod"
+encoding.codec = "json"
+```
+
+## Grafana dashboard and alerting
+
+```yaml
+# Grafana Loki datasource (provisioned via ConfigMap in Kubernetes)
+apiVersion: 1
+datasources:
+  - name: Loki
+    type: loki
+    url: http://loki.construx.svc.cluster.local:3100
+    isDefault: false
+    jsonData:
+      maxLines: 5000
+
+# Dashboard panel: error count over time (LogQL metric query)
+# Grafana panel query:
+sum by (app) (
+  rate({namespace="construx"} |= "ERROR" [5m])
+)
+
+# Alert: high error rate (Grafana Alerting with Loki datasource)
+# Condition: when sum(rate(...)) > 10 for 5m → fire alert
+```
+
+```bash
+# Loki CLI — query from the terminal
+# Install logcli
+brew install loki/logcli/logcli
+export LOKI_ADDR=http://loki.construx.svc.cluster.local:3100
+
+# Query logs from the last hour
+logcli query '{app="construx-api"}' --since=1h --limit=100
+
+# Tail logs in real time
+logcli query '{app="construx-api"}' --tail
+
+# Count errors per app in the last 5 minutes
+logcli query 'sum(rate({namespace="construx"} |= "ERROR" [5m])) by (app)' --stats
+
+# Export logs to file (for incident postmortem)
+logcli query '{app="construx-api"}' \
+  --from="2032-08-01T14:00:00Z" \
+  --to="2032-08-01T15:00:00Z" \
+  --limit=0 > /tmp/incident-logs.jsonl
+
+# Check label cardinality (high cardinality = expensive Loki queries)
+logcli labels
+logcli labels app
+# construx-api
+# construx-worker
+# construx-gateway
+```
+
+Loki vs Elasticsearch vs CloudWatch: Elasticsearch indexes every word in every log line — full-text search across unstructured logs is fast, but ingestion is expensive (CPU for indexing, RAM for the inverted index). CloudWatch Logs stores in S3 but requires CloudWatch Insights for queries (expensive at scale, proprietary query syntax). Loki indexes only labels and stores compressed log chunks in S3 — ingestion is cheap, queries are fast on labelled fields, slow on unindexed content. The right choice depends on your log structure: if your logs are structured JSON with consistent fields, Loki's label model works perfectly — index `app`, `level`, `status_code`, query everything else with pipeline filters. If your logs are unstructured and you need full-text search, Elasticsearch is more capable. For AWS-native setups, CloudWatch Logs is convenient but expensive at volume. Loki + Grafana + Promtail (the PLG stack) is the cost-effective default for Kubernetes environments.

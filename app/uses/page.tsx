@@ -19,6 +19,7 @@ import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
+import MisePanel from '@/components/MisePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -416,8 +417,13 @@ export default function UsesPage() {
         </div>
 
         {/* git worktree parallel branch checkouts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitWorktreePanel />
+        </div>
+
+        {/* mise polyglot tool version manager */}
+        <div className="mt-6 pb-10">
+          <MisePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
