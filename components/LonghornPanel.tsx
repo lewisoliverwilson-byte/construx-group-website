@@ -1,175 +1,144 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'volume' | 'replica' | 'backup' | 'snap' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment', text: '# longhorn: distributed block storage — replicated volumes, csi driver' },
-  { kind: 'prompt',  text: 'kubectl get volume -n longhorn-system' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# volumes: 3 healthy  total: 350GB  robustness: degraded:0' },
-  { kind: 'volume',  text: '  construx-db-data     Attached  Healthy  100Gi  3 replicas' },
-  { kind: 'volume',  text: '  construx-redis-data  Attached  Healthy  50Gi   3 replicas' },
-  { kind: 'volume',  text: '  construx-loki-data   Attached  Healthy  200Gi  3 replicas' },
-  { kind: 'blank',   text: '' },
-  { kind: 'comment', text: '# replicas: construx-db-data spread across 3 nodes' },
-  { kind: 'replica', text: '  pvc-a1b2…-r-4j9k2p  running  node-01  /dev/sdb  100Gi' },
-  { kind: 'replica', text: '  pvc-a1b2…-r-7m3x8q  running  node-02  /dev/sdc  100Gi' },
-  { kind: 'replica', text: '  pvc-a1b2…-r-1n5v6w  running  node-03  /dev/sdb  100Gi' },
-  { kind: 'blank',   text: '' },
-  { kind: 'snap',    text: '  snapshot-20331025-0200  construx-db-data  14d ago  completed' },
-  { kind: 'backup',  text: '  backup-20331025-0200   s3://construx-longhorn  completed  0 err' },
-  { kind: 'metric',  text: '  iops: 4821 read  1842 write   throughput: 284MB/s read' },
-  { kind: 'stat',    text: '  3 nodes  3 volumes  350GB  longhorn 1.7.1  csi driver' },
+const VOLUMES = [
+  { name: 'pg-prod-data-0', size: '500Gi', state: 'attached', node: 'k8s-worker-01', replicas: 3, frontend: 'blockdev', status: 'healthy' },
+  { name: 'pg-prod-data-1', size: '500Gi', state: 'attached', node: 'k8s-worker-02', replicas: 3, frontend: 'blockdev', status: 'healthy' },
+  { name: 'redis-data-0', size: '20Gi', state: 'attached', node: 'k8s-worker-03', replicas: 2, frontend: 'blockdev', status: 'healthy' },
+  { name: 'loki-chunks-0', size: '200Gi', state: 'attached', node: 'k8s-worker-01', replicas: 2, frontend: 'blockdev', status: 'healthy' },
 ];
 
-const TOTAL = LINES.length + 3;
+const SNAPSHOTS = [
+  { volume: 'pg-prod-data-0', name: 'snap-20260607-0200', size: '48GB', createdAt: '4h ago', removed: false, status: 'ready' },
+  { volume: 'pg-prod-data-1', name: 'snap-20260607-0200', size: '44GB', createdAt: '4h ago', removed: false, status: 'ready' },
+  { volume: 'pg-prod-data-0', name: 'snap-20260606-0200', size: '46GB', createdAt: '1d ago', removed: false, status: 'ready' },
+  { volume: 'loki-chunks-0', name: 'snap-20260605-0200', size: '120GB', createdAt: '2d ago', removed: false, status: 'ready' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment': return 'rgba(240,239,255,0.22)';
-    case 'prompt':  return 'rgba(240,239,255,0.6)';
-    case 'volume':  return '#4ade80';
-    case 'replica': return '#67e8f9';
-    case 'backup':  return '#a78bfa';
-    case 'snap':    return '#fbbf24';
-    case 'metric':  return 'rgba(240,239,255,0.5)';
-    case 'stat':    return 'rgba(240,239,255,0.45)';
-    default:        return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function LonghornPanel() {
-  const [revealed,  setRevealed]  = useState(0);
-  const [liveIops,  setLiveIops]  = useState(4821);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [volumeRows, setVolumeRows] = useState(0);
+  const [snapRows, setSnapRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const opsPerSec = useCounter(28400, 480, 400);
+  const snapshotsTotal = useCounter(284, 2, 1000);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveIops(4200 + Math.floor(Math.random() * 1200));
-          }, 2500);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const v = setInterval(() => setVolumeRows((x) => Math.min(x + 1, VOLUMES.length)), 160);
+    const s = setInterval(() => setSnapRows((x) => Math.min(x + 1, SNAPSHOTS.length)), 140);
+    return () => { clearInterval(v); clearInterval(s); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(167,139,250,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(167,139,250,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@storage — longhorn · distributed-block · replicated-volumes · csi
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(167,139,250,0.08)', background: 'rgba(167,139,250,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.4)' }}>
+          longhorn -- cloud-native distributed storage -- volumes / snapshots / backups
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveIops.toLocaleString()} iops` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {VOLUMES.length} volumes
         </span>
       </div>
 
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@storage# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          longhorn · replicas · snapshots · backups · csi · block-storage
-        </span>
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#a78bfa', fontWeight: 600 }}>kubectl@longhorn</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>kubectl get volumes -n longhorn-system && longhornctl get volume pg-prod-data-0</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'iops', value: opsPerSec.toLocaleString(), color: '#a78bfa' },
+          { label: 'snapshots', value: snapshotsTotal.toLocaleString(), color: '#4ade80' },
+          { label: 'volumes', value: VOLUMES.length.toString(), color: '#67e8f9' },
+          { label: 'total size', value: '1.22Ti', color: '#fbbf24' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Longhorn 1.7.1 ·</span>
-          <span style={{ color: '#4ade80' }}>3 volumes healthy</span>
-          <span style={{ color: '#67e8f9' }}>9 replicas</span>
-          <span style={{ color: '#a78bfa' }}>s3 backup ok</span>
-          <span style={{ color: '#fbbf24' }}>{liveIops.toLocaleString()} iops</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Volumes */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // volumes
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {VOLUMES.slice(0, volumeRows).map((vol) => (
+            <div key={vol.name} style={{ display: 'grid', gridTemplateColumns: '1fr 36px 40px 72px 20px 52px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#a78bfa', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vol.name}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{vol.size}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'center' }}>{vol.state}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vol.node}</span>
+              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'center' }}>{vol.replicas}r</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{vol.frontend}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{vol.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Snapshots */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // volume snapshots
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {SNAPSHOTS.slice(0, snapRows).map((snap, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '72px 1fr 48px 40px 28px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.08)', borderRadius: 2 }}>
+              <span style={{ color: '#a78bfa', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{snap.volume}</span>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{snap.name}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{snap.size}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{snap.createdAt}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{snap.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          longhorn · block-storage · replicas · snapshots · s3-backup
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(167,139,250,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          longhorn v1.7 - apache-2.0 - cloud-native distributed block storage
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● healthy' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {opsPerSec.toLocaleString()} iops - {snapshotsTotal.toLocaleString()} snapshots
         </span>
       </div>
     </div>

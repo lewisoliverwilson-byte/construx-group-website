@@ -47,6 +47,7 @@ import AuthentikPanel from '@/components/AuthentikPanel';
 import TraefikPanel from '@/components/TraefikPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
+import LonghornPanel from '@/components/LonghornPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -702,8 +703,13 @@ export default function FoundersPage() {
         </div>
 
         {/* fluxcd gitops toolkit — kustomizations, helm releases, sources */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FluxCDPanel />
+        </div>
+
+        {/* longhorn distributed storage — volumes, snapshots, backups */}
+        <div className="mt-6 pb-10">
+          <LonghornPanel />
         </div>
 
         {/* CTA */}

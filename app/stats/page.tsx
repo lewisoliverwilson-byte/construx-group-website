@@ -49,6 +49,7 @@ import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 import WazuhPanel from '@/components/WazuhPanel';
 import RedisPanel from '@/components/RedisPanel';
 import NATSPanel from '@/components/NATSPanel';
+import PrometheusPanel from '@/components/PrometheusPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -614,8 +615,13 @@ export default function StatsPage() {
       </div>
 
       {/* nats jetstream messaging — streams, consumers, subjects */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NATSPanel />
+      </div>
+
+      {/* prometheus metrics & alerting — targets, rules, tsdb */}
+      <div className="mt-6 pb-10">
+        <PrometheusPanel />
       </div>
     </div>
   );

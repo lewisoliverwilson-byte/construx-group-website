@@ -47,6 +47,7 @@ import TeleportPanel from '@/components/TeleportPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import TektonPanel from '@/components/TektonPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
+import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -566,8 +567,13 @@ export default function NowPage() {
         </div>
 
         {/* kubevirt vms on kubernetes — virtual machines, snapshots, migrations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeVirtPanel />
+        </div>
+
+        {/* kube-prometheus full monitoring stack — dashboards, servicemonitors, rules */}
+        <div className="mt-6 pb-10">
+          <KubePrometheusPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
