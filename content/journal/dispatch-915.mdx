@@ -1,0 +1,160 @@
+---
+title: "IPVS: kernel-level load balancing for Kubernetes services"
+date: "2032-06-20"
+excerpt: "IPVS (IP Virtual Server) is a Linux kernel load balancer built into the netfilter framework — it distributes TCP and UDP connections across a pool of real servers using kernel-space packet routing, bypassing iptables chain traversal entirely. Kubernetes uses IPVS mode in kube-proxy as an alternative to iptables mode: in iptables mode, each service adds O(n) iptables rules that are linearly scanned on every packet; in IPVS mode, all services are stored in a kernel hash table with O(1) lookup. At 10,000+ services, IPVS mode is measurably faster. IPVS also supports advanced scheduling algorithms: round-robin, least-connection, weighted, and source IP hash."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Hash table lookup, not linear scan. At 10k services, the difference is seconds vs microseconds.
+
+## IPVS fundamentals
+
+```bash
+# Install ipvsadm (userspace tool for managing the IPVS kernel module)
+apt install ipvsadm
+
+# Load the IPVS kernel module
+modprobe ip_vs
+modprobe ip_vs_rr    # Round-robin scheduler
+modprobe ip_vs_lc    # Least-connection scheduler
+modprobe ip_vs_sh    # Source hash scheduler
+
+# Check IPVS kernel version
+ipvsadm --version
+# ipvsadm v1.31 2019/12/24 (compiled with popt and IPVS v1.2.1)
+
+# Create a virtual service (VIP + port → backend pool)
+# Virtual IP: 10.20.30.40:80 → two backends
+ipvsadm -A -t 10.20.30.40:80 -s rr   # -A add, -t TCP, -s scheduler (round-robin)
+ipvsadm -a -t 10.20.30.40:80 -r 10.0.1.10:8080 -m   # -a add real, -m masquerading (NAT)
+ipvsadm -a -t 10.20.30.40:80 -r 10.0.1.11:8080 -m
+ipvsadm -a -t 10.20.30.40:80 -r 10.0.1.12:8080 -m
+
+# List virtual services and backends
+ipvsadm -L -n
+# IP Virtual Server version 1.2.1 (size=4096)
+# Prot LocalAddress:Port Scheduler Flags
+#   -> RemoteAddress:Port Forward Weight ActiveConn InActConn
+# TCP  10.20.30.40:80 rr
+#   -> 10.0.1.10:8080 Masq    1      14        0
+#   -> 10.0.1.11:8080 Masq    1      13        0
+#   -> 10.0.1.12:8080 Masq    1      15        0
+
+# Add a UDP service (for DNS load balancing)
+ipvsadm -A -u 10.20.30.40:53 -s lc   # Least-connection
+ipvsadm -a -u 10.20.30.40:53 -r 10.0.1.20:53 -m
+ipvsadm -a -u 10.20.30.40:53 -r 10.0.1.21:53 -m
+```
+
+## Scheduling algorithms
+
+```bash
+# Round-robin (rr) — default, simple rotation
+ipvsadm -A -t 10.20.30.40:80 -s rr
+
+# Weighted round-robin (wrr) — send more traffic to higher-capacity backends
+ipvsadm -A -t 10.20.30.40:80 -s wrr
+ipvsadm -a -t 10.20.30.40:80 -r 10.0.1.10:8080 -m -w 3   # 3x weight
+ipvsadm -a -t 10.20.30.40:80 -r 10.0.1.11:8080 -m -w 1   # 1x weight (smaller instance)
+
+# Least-connection (lc) — route to backend with fewest active connections
+ipvsadm -A -t 10.20.30.40:80 -s lc
+
+# Source hash (sh) — consistent hashing by client IP (session affinity)
+# Same client IP always routes to the same backend (useful for stateful apps without a session store)
+ipvsadm -A -t 10.20.30.40:80 -s sh
+
+# Change scheduler on a live service (no downtime)
+ipvsadm -E -t 10.20.30.40:80 -s lc   # Edit to least-connection
+
+# Show connection table (active connections per service)
+ipvsadm -L -n --stats
+# Prot LocalAddress:Port               Conns   InPkts  OutPkts  InBytes OutBytes
+# TCP  10.20.30.40:80                  42      8241    16482    1.2M    4.8M
+#   -> 10.0.1.10:8080                  14      2747    5494     402K    1.6M
+
+# Connection rate and throughput
+ipvsadm -L -n --rate
+# Prot LocalAddress:Port              CPS    InPPS   OutPPS    InBPS   OutBPS
+# TCP  10.20.30.40:80                 312    6241    12482     48K     192K
+```
+
+## Kubernetes IPVS mode
+
+```bash
+# Switch kube-proxy from iptables to IPVS mode
+# Edit the kube-proxy ConfigMap
+kubectl edit configmap kube-proxy -n kube-system
+# Change: mode: "" → mode: "ipvs"
+# Add:    ipvs:
+#           scheduler: "lc"   # least-connection (better than default rr for K8s)
+
+# Restart kube-proxy DaemonSet to apply
+kubectl rollout restart daemonset kube-proxy -n kube-system
+
+# Verify IPVS mode is active
+kubectl get configmap kube-proxy -n kube-system -o yaml | grep mode
+# mode: ipvs
+
+# Check IPVS rules for a Kubernetes service
+# The ClusterIP for construx-api is 10.96.100.42
+ipvsadm -L -n | grep -A 5 "10.96.100.42"
+# TCP  10.96.100.42:8080 lc
+#   -> 10.0.1.10:8080 Masq    1      3         0
+#   -> 10.0.1.11:8080 Masq    1      2         0
+#   -> 10.0.1.12:8080 Masq    1      4         0
+
+# Count total virtual services (each K8s service = 1+ IPVS entries)
+ipvsadm -L -n | grep "^TCP\|^UDP" | wc -l
+# 847   ← 847 services; in iptables mode this would be thousands of rules
+
+# IPVS vs iptables at scale:
+# iptables mode: O(n) traversal on every packet for n services
+# IPVS mode: O(1) hash table lookup regardless of n
+# At 100 services: negligible difference
+# At 5000 services: iptables adds ~2-5ms per connection establishment
+# At 10000 services: iptables mode shows measurable per-packet CPU overhead
+
+# Sync period — how often kube-proxy syncs IPVS state from the API server
+# In kube-proxy config:
+# syncPeriod: 30s       # Full sync every 30s
+# minSyncPeriod: 1s     # Minimum interval between incremental syncs
+```
+
+## Health checks and backend management
+
+```bash
+# Remove a backend (graceful draining — remove from LB, wait for connections to close)
+ipvsadm -d -t 10.20.30.40:80 -r 10.0.1.10:8080
+
+# Zero-weight quiescing (stops new connections, keeps existing ones)
+ipvsadm -e -t 10.20.30.40:80 -r 10.0.1.10:8080 -m -w 0
+
+# Check active connections before removing
+ipvsadm -L -n | grep "10.0.1.10"
+# -> 10.0.1.10:8080 Masq    0      0         0   ← safe to remove
+
+# Save and restore IPVS rules (survive reboots)
+ipvsadm --save > /etc/ipvsadm.rules
+ipvsadm --restore < /etc/ipvsadm.rules
+
+# Keepalived: high-availability for IPVS (VRRP failover + health checks)
+# /etc/keepalived/keepalived.conf:
+# virtual_server 10.20.30.40 80 {
+#   delay_loop 6
+#   lb_algo lc
+#   lb_kind NAT
+#   real_server 10.0.1.10 8080 {
+#     weight 1
+#     HTTP_GET {
+#       url { path /health; status_code 200 }
+#       connect_timeout 3
+#       nb_get_retry 3
+#       delay_before_retry 2
+#     }
+#   }
+# }
+```
+
+IPVS vs iptables for Kubernetes: iptables was the original kube-proxy implementation and works fine at small cluster sizes. Each Service adds approximately 10-20 iptables rules, so 500 services = 10,000 rules traversed linearly on every connection. The kernel processes iptables rules in order — there's no index. IPVS uses a hash table: lookup is O(1) regardless of the number of services. The switch to IPVS mode is one command in the kube-proxy ConfigMap and is reversible. For clusters under 200 services, the difference is unmeasurable. For clusters with thousands of services or very high connection rates, IPVS mode reduces CPU usage and connection setup latency meaningfully.
