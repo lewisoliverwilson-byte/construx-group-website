@@ -1,0 +1,182 @@
+---
+title: "NATS JetStream: persistent messaging with at-least-once delivery"
+date: "2032-03-16"
+excerpt: "NATS JetStream is a persistence layer built on top of the NATS messaging server. Core NATS is pub/sub with no persistence — if a subscriber is offline when a message is published, it's gone. JetStream adds streams (append-only logs, retained by subject filter and time/size limits) and consumers (cursor-based read positions with acknowledgement). Consumers can be push-based (server delivers messages) or pull-based (client fetches in batches). JetStream achieves Kafka-like durability at a fraction of the operational complexity — it's a single binary."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Publish to a stream. Consumer holds the cursor. Ack when done.
+
+## JetStream streams and consumers
+
+```bash
+# Install nats CLI
+go install github.com/nats-io/natscli/nats@latest
+
+# Connect to NATS server
+export NATS_URL=nats://nats.construx.internal:4222
+
+# Create a stream — captures messages matching a subject filter
+nats stream add ORDERS \
+  --subjects "orders.>" \          # Wildcard: orders.created, orders.updated, etc.
+  --retention limits \             # Limits-based retention (not WorkQueue)
+  --max-age 168h \                 # Keep messages for 7 days
+  --max-msgs 10000000 \            # Max 10M messages
+  --storage file \                 # File storage (vs memory — survives restarts)
+  --replicas 3                     # 3-node NATS cluster for HA
+
+# Stream info — inspect the stream
+nats stream info ORDERS
+# ORDERS
+#   Subjects:   orders.>
+#   Messages:   18241
+#   Bytes:      4.2 MB
+#   Storage:    File
+#   Replicas:   3
+
+# Create a consumer — cursor into the stream
+nats consumer add ORDERS billing \
+  --filter "orders.created" \      # Only messages on orders.created
+  --ack explicit \                 # Must explicitly acknowledge each message
+  --deliver all \                  # Start from the beginning of the stream
+  --max-deliver 3 \                # Retry up to 3 times before sending to DLQ
+  --ack-wait 30s \                 # Re-deliver if not acked within 30s
+  --pull                           # Pull-based consumer (client fetches)
+```
+
+## Publishing messages
+
+```go
+// requirements: github.com/nats-io/nats.go
+package main
+
+import (
+    "encoding/json"
+    "log"
+    "github.com/nats-io/nats.go"
+)
+
+type OrderCreatedEvent struct {
+    OrderID    string `json:"order_id"`
+    CustomerID string `json:"customer_id"`
+    TotalCents int64  `json:"total_cents"`
+    Status     string `json:"status"`
+}
+
+func main() {
+    nc, _ := nats.Connect(nats.DefaultURL)
+    js, _ := nc.JetStream()
+
+    // Publish with at-least-once guarantee — JetStream acks the publish
+    event := OrderCreatedEvent{
+        OrderID:    "a3f9b2c1",
+        CustomerID: "cust-001",
+        TotalCents: 4999,
+        Status:     "created",
+    }
+    payload, _ := json.Marshal(event)
+
+    ack, err := js.Publish("orders.created", payload)
+    if err != nil {
+        log.Fatal("publish failed:", err)
+    }
+    log.Printf("published to %s seq %d", ack.Stream, ack.Sequence)
+
+    // Publish with deduplication (idempotent producer)
+    // NATS deduplicates based on Nats-Msg-Id header for 2 minutes
+    msg := &nats.Msg{
+        Subject: "orders.created",
+        Data:    payload,
+        Header:  nats.Header{"Nats-Msg-Id": []string{"order-a3f9b2c1"}},
+    }
+    js.PublishMsg(msg)
+}
+```
+
+## Pull consumer — batch-fetch and ack
+
+```go
+// Pull consumer: client controls the fetch rate
+func consumeBillingEvents(js nats.JetStreamContext) {
+    sub, _ := js.PullSubscribe("orders.created", "billing")
+
+    for {
+        // Fetch up to 10 messages, wait up to 5 seconds for them
+        msgs, err := sub.Fetch(10, nats.MaxWait(5*time.Second))
+        if err != nil && err != nats.ErrTimeout {
+            log.Println("fetch error:", err)
+            continue
+        }
+
+        for _, msg := range msgs {
+            var event OrderCreatedEvent
+            json.Unmarshal(msg.Data, &event)
+
+            if err := processBillingEvent(event); err != nil {
+                // Negative ack: re-deliver after ack-wait
+                msg.Nak()
+                continue
+            }
+
+            // Positive ack: marks message as processed, advances consumer cursor
+            msg.Ack()
+        }
+    }
+}
+
+// Key-Value store — built on JetStream streams, Kubernetes-style API
+func useKeyValueStore(js nats.JetStreamContext) {
+    kv, _ := js.CreateKeyValue(&nats.KeyValueConfig{
+        Bucket:  "config",
+        History: 5,   // Keep last 5 values per key
+        TTL:     24 * time.Hour,
+    })
+
+    kv.Put("feature.dark-mode", []byte("true"))
+    entry, _ := kv.Get("feature.dark-mode")
+    log.Println(string(entry.Value()))  // "true"
+
+    // Watch a key for changes (like etcd watch, but simpler)
+    watcher, _ := kv.WatchAll()
+    for entry := range watcher.Updates() {
+        if entry == nil { break }  // Initial values delivered, now watching live
+        log.Printf("key %s changed to %s", entry.Key(), entry.Value())
+    }
+}
+```
+
+## JetStream vs Kafka — operational comparison
+
+```bash
+# Kafka setup:
+# - ZooKeeper (or KRaft) cluster: 3 nodes
+# - Kafka broker cluster: 3+ nodes
+# - Total: 6+ processes, ~2GB RAM minimum
+# - Separate Kafka Connect for source/sink connectors
+
+# NATS JetStream setup:
+# - NATS cluster: 3 nodes, single binary, ~50MB RAM per node
+# - Built-in KV store, object store, JetStream — no separate services
+
+# JetStream stream performance benchmark
+nats bench orders.created \
+  --msgs 1000000 \
+  --size 512 \
+  --pub 10 \
+  --sub 10
+
+# Results: 
+#   Pub: 312,445 msgs/s (148.5MB/s)
+#   Sub: 309,882 msgs/s (147.3MB/s)
+#   Avg latency: 1.2ms
+#   P99 latency: 4.8ms
+
+# JetStream replication lag check
+nats stream report ORDERS
+# Stream       Messages  Bytes   Consumers  Cluster
+# ORDERS       18,241    4.2 MB  3          nats-0(L) nats-1 nats-2
+# ✓ All replicas in sync
+```
+
+NATS JetStream vs Kafka for microservices: Kafka is the right answer when you need millions of messages/second, weeks of retention, dozens of consumer groups, and Kafka Connect for data pipelines. JetStream is the right answer when you need durable messaging between 5-20 services, you want one binary to operate instead of a ZooKeeper cluster, and sub-5ms latency matters. JetStream also adds key-value and object stores — Kafka has no equivalent without Kafka Streams state stores. For Construx-scale workloads (thousands of orders/hour, not millions), NATS JetStream fits in a $20/month VPS.

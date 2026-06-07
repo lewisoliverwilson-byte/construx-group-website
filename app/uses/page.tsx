@@ -17,6 +17,7 @@ import NixShellPanel from '@/components/NixShellPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
+import GrpcurlPanel from '@/components/GrpcurlPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -404,8 +405,13 @@ export default function UsesPage() {
         </div>
 
         {/* Kafka Streams topology */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KafkaStreamsPanel />
+        </div>
+
+        {/* gRPC service inspection with grpcurl */}
+        <div className="mt-6 pb-10">
+          <GrpcurlPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

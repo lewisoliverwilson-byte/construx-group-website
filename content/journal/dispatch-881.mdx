@@ -1,0 +1,205 @@
+---
+title: "gRPC: Protocol Buffers, service definitions, and streaming RPCs"
+date: "2032-03-10"
+excerpt: "gRPC is Google's open-source RPC framework built on HTTP/2 and Protocol Buffers. You define your API in a .proto file — typed service and message definitions — and gRPC generates client/server stubs in any language. Protocol Buffers serialize to binary (3-10x smaller than JSON, 5-10x faster to parse). HTTP/2 multiplexes multiple RPCs over one TCP connection. gRPC supports four call types: unary (one request, one response), server streaming, client streaming, and bidirectional streaming. Kubernetes uses gRPC internally; Envoy's xDS API is gRPC; any high-throughput internal service benefits from it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Proto defines the contract. Binary wire. HTTP/2 multiplexes everything.
+
+## Service definition — the .proto file
+
+```protobuf
+// proto/order/v1/order.proto
+// Protobuf 3 — all fields optional by default
+
+syntax = "proto3";
+package construx.order.v1;
+
+option go_package    = "github.com/construx/api/gen/order/v1";
+option java_package  = "io.construx.order.v1";
+
+import "google/protobuf/timestamp.proto";
+
+// Enum — wire-encoded as integers
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;  // Proto3: first value must be 0
+  ORDER_STATUS_PENDING     = 1;
+  ORDER_STATUS_PROCESSING  = 2;
+  ORDER_STATUS_SHIPPED     = 3;
+  ORDER_STATUS_DELIVERED   = 4;
+  ORDER_STATUS_CANCELLED   = 5;
+}
+
+message OrderItem {
+  string sku      = 1;
+  int32  quantity = 2;
+  int64  price_cents = 3;
+}
+
+message Order {
+  string      order_id    = 1;
+  string      customer_id = 2;
+  OrderStatus status      = 3;
+  repeated OrderItem items = 4;    // Repeated = slice/array
+  int64       total_cents  = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message CreateOrderRequest {
+  string          customer_id = 1;
+  repeated OrderItem items    = 2;
+}
+
+message GetOrderRequest   { string order_id = 1; }
+message StreamOrdersRequest { string customer_id = 1; }
+
+// Service definition — four RPC patterns
+service OrderService {
+  // Unary: one request → one response
+  rpc CreateOrder(CreateOrderRequest) returns (Order);
+  rpc GetOrder(GetOrderRequest)       returns (Order);
+
+  // Server streaming: one request → many responses (live updates)
+  rpc StreamOrders(StreamOrdersRequest) returns (stream Order);
+
+  // Bidirectional streaming: many requests ↔ many responses
+  rpc ProcessBatch(stream CreateOrderRequest) returns (stream Order);
+}
+```
+
+## Code generation
+
+```bash
+# Install protoc and plugins
+apt-get install protobuf-compiler
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Generate Go stubs
+protoc \
+  --proto_path=proto \
+  --go_out=gen \
+  --go-grpc_out=gen \
+  proto/order/v1/order.proto
+
+# Generated:
+# gen/order/v1/order.pb.go       ← message types
+# gen/order/v1/order_grpc.pb.go  ← server + client interfaces
+
+# Generate TypeScript stubs (for frontend gRPC-web)
+npm install -g protoc-gen-ts
+protoc \
+  --proto_path=proto \
+  --ts_out=gen/ts \
+  proto/order/v1/order.proto
+```
+
+## Server implementation (Go)
+
+```go
+// internal/order/server.go
+package order
+
+import (
+    "context"
+    "time"
+    pb "github.com/construx/api/gen/order/v1"
+    "google.golang.org/grpc/codes"
+    "google.golang.org/grpc/status"
+    "google.golang.org/protobuf/types/known/timestamppb"
+)
+
+type Server struct {
+    pb.UnimplementedOrderServiceServer  // Forward-compatibility: unknown RPCs return UNIMPLEMENTED
+    db OrderRepository
+}
+
+// Unary RPC — standard request/response
+func (s *Server) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (*pb.Order, error) {
+    if req.CustomerId == "" {
+        return nil, status.Error(codes.InvalidArgument, "customer_id is required")
+    }
+
+    order, err := s.db.Insert(ctx, req)
+    if err != nil {
+        return nil, status.Errorf(codes.Internal, "db insert: %v", err)
+    }
+
+    return &pb.Order{
+        OrderId:    order.ID,
+        CustomerId: req.CustomerId,
+        Status:     pb.OrderStatus_ORDER_STATUS_PENDING,
+        TotalCents: order.TotalCents,
+        CreatedAt:  timestamppb.New(time.Now()),
+    }, nil
+}
+
+// Server streaming RPC — sends multiple responses
+func (s *Server) StreamOrders(req *pb.StreamOrdersRequest, stream pb.OrderService_StreamOrdersServer) error {
+    ch := s.db.WatchOrders(stream.Context(), req.CustomerId)
+
+    for {
+        select {
+        case order, ok := <-ch:
+            if !ok {
+                return nil  // Channel closed — no more events
+            }
+            if err := stream.Send(order); err != nil {
+                return err  // Client disconnected
+            }
+        case <-stream.Context().Done():
+            return stream.Context().Err()
+        }
+    }
+}
+
+// Start the gRPC server
+func StartServer(addr string, svc *Server) error {
+    lis, _ := net.Listen("tcp", addr)
+    srv := grpc.NewServer(
+        grpc.ChainUnaryInterceptor(
+            otelgrpc.UnaryServerInterceptor(),   // OpenTelemetry tracing
+            grpcauth.UnaryServerInterceptor(authFunc),
+        ),
+        grpc.MaxRecvMsgSize(16 * 1024 * 1024),  // 16MB max message
+    )
+    pb.RegisterOrderServiceServer(srv, svc)
+    reflection.Register(srv)   // Enables grpcurl introspection
+    return srv.Serve(lis)
+}
+```
+
+## grpcurl — test gRPC APIs from the command line
+
+```bash
+# List services (server reflection must be enabled)
+grpcurl -plaintext localhost:50051 list
+# construx.order.v1.OrderService
+# grpc.health.v1.Health
+
+# Describe a service — shows the proto schema
+grpcurl -plaintext localhost:50051 describe construx.order.v1.OrderService
+
+# Unary call with JSON body
+grpcurl -plaintext \
+  -d '{"customer_id": "cust-001", "items": [{"sku": "SKU-42", "qty": 2}]}' \
+  localhost:50051 \
+  construx.order.v1.OrderService/CreateOrder
+
+# Server streaming — prints each response as it arrives
+grpcurl -plaintext \
+  -d '{"customer_id": "cust-001"}' \
+  localhost:50051 \
+  construx.order.v1.OrderService/StreamOrders
+
+# With TLS and auth header
+grpcurl \
+  -cacert /etc/ssl/ca.crt \
+  -H 'Authorization: Bearer eyJhbGci...' \
+  api.construx.io:443 \
+  construx.order.v1.OrderService/GetOrder
+```
+
+gRPC vs REST: REST uses JSON over HTTP/1.1 — human-readable, browser-native, massive ecosystem. gRPC uses protobuf over HTTP/2 — binary, generated clients, multiplexed. The performance difference is significant: a JSON REST call to create an order might be 300 bytes; the same protobuf message is 40 bytes. At 10,000 requests/second, that's 2.6MB/s vs 0.4MB/s of serialisation overhead. For internal service-to-service calls where you control both ends, gRPC wins. For public APIs consumed by browsers, REST or GraphQL wins (gRPC-Web exists but adds proxy complexity). Many architectures use both: gRPC internally, REST externally.
