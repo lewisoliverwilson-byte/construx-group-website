@@ -63,6 +63,7 @@ import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import SpiffePanel from '@/components/SpiffePanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -907,8 +908,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* spiffe workload identity — svids, trust bundles, federation */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <SpiffePanel />
+      </section>
+
+      {/* goreleaser — release automation, binaries, docker, changelog */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GoReleaserPanel />
       </section>
 
       {/* CTA */}

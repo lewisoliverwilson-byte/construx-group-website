@@ -64,6 +64,7 @@ import AirbytePanel from '@/components/AirbytePanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import AtlasPanel from '@/components/AtlasPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -567,8 +568,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* goreleaser — release automation, binaries, docker, changelog */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GoReleaserPanel />
+        </div>
+
+        {/* atlas database schema management — migrations, drift, ci */}
+        <div className="mt-4 pb-6">
+          <AtlasPanel />
         </div>
 
         {/* Sign-off */}
