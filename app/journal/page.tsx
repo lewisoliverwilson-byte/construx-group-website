@@ -23,6 +23,7 @@ import SbomPanel from '@/components/SbomPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import SentryIssuesPanel from '@/components/SentryIssuesPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
+import MeilisearchPanel from '@/components/MeilisearchPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -257,6 +258,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* pgvector semantic search */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <PgvectorPanel />
+      </section>
+
+      {/* Meilisearch full-text search */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MeilisearchPanel />
       </section>
 
       {/* Posts */}
