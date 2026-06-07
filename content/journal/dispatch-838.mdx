@@ -1,0 +1,157 @@
+---
+title: "Temporal: durable workflow execution for long-running processes"
+date: "2031-11-01"
+excerpt: "Temporal is a workflow orchestration platform. You write workflows as ordinary code — TypeScript, Go, Java, Python — and Temporal makes them durable: if a worker crashes mid-execution, Temporal replays the workflow from the last durable checkpoint. Activities (the side-effectful steps: HTTP calls, database writes, emails) are retried with configurable backoff. Workflows can run for seconds or years, survive infrastructure failures, and be cancelled or signalled at any point."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Workflows as code. Durable execution. Infinite retry without polling tables.
+
+## Workflow and Activity definitions
+
+```ts
+// workflows/order-fulfillment.ts
+import { proxyActivities, sleep, defineSignal, setHandler } from '@temporalio/workflow';
+import type { Activities } from './activities';
+
+const {
+  reserveInventory,
+  chargePayment,
+  sendConfirmationEmail,
+  shipOrder,
+  releaseInventoryReservation,
+} = proxyActivities<Activities>({
+  startToCloseTimeout: '30s',
+  retry: {
+    maximumAttempts:        5,
+    initialInterval:        '1s',
+    backoffCoefficient:     2,
+    maximumInterval:        '30s',
+    nonRetryableErrorTypes: ['PaymentDeclinedError'],
+  },
+});
+
+export const cancelOrderSignal = defineSignal<[{ reason: string }]>('cancelOrder');
+
+export async function orderFulfillment(orderId: string): Promise<void> {
+  let cancelled = false;
+  let cancelReason = '';
+
+  setHandler(cancelOrderSignal, ({ reason }) => {
+    cancelled  = true;
+    cancelReason = reason;
+  });
+
+  // Step 1 — reserve inventory (compensation: release if later steps fail)
+  await reserveInventory(orderId);
+
+  if (cancelled) {
+    await releaseInventoryReservation(orderId);
+    throw new Error(`Order cancelled before payment: ${cancelReason}`);
+  }
+
+  // Step 2 — charge payment (non-retryable on decline)
+  await chargePayment(orderId);
+
+  // Step 3 — confirm and ship (retried independently on failure)
+  await sendConfirmationEmail(orderId);
+  await shipOrder(orderId);
+}
+```
+
+## Activity implementations
+
+```ts
+// activities/index.ts
+import type { Context } from '@temporalio/activity';
+
+export const activities = {
+  async reserveInventory(orderId: string): Promise<void> {
+    await db.inventory.reserve({ orderId, expiresAt: new Date(Date.now() + 15 * 60_000) });
+  },
+
+  async chargePayment(orderId: string): Promise<void> {
+    const order = await db.orders.findUnique({ where: { id: orderId } });
+    const result = await stripe.paymentIntents.confirm(order.paymentIntentId);
+    if (result.status !== 'succeeded') {
+      throw new PaymentDeclinedError(`Payment declined: ${result.last_payment_error?.message}`);
+    }
+    await db.orders.update({ where: { id: orderId }, data: { status: 'paid' } });
+  },
+
+  async shipOrder(orderId: string): Promise<void> {
+    const label = await shippo.shipments.create({ orderId });
+    await db.orders.update({ where: { id: orderId }, data: { trackingNumber: label.tracking_number } });
+  },
+
+  async sendConfirmationEmail(orderId: string): Promise<void> {
+    const order = await db.orders.findUnique({ where: { id: orderId }, include: { user: true } });
+    await resend.emails.send({
+      from:    'orders@construxgroup.io',
+      to:      order.user.email,
+      subject: `Order ${orderId} confirmed`,
+      react:   <OrderConfirmationEmail order={order} />,
+    });
+  },
+};
+```
+
+## Worker setup
+
+```ts
+// worker.ts
+import { Worker } from '@temporalio/worker';
+import { activities } from './activities';
+
+const worker = await Worker.create({
+  workflowsPath: require.resolve('./workflows'),
+  activities,
+  taskQueue: 'order-fulfillment',
+});
+
+await worker.run();
+```
+
+## Start and signal a workflow
+
+```ts
+// Start from API handler
+import { Client, Connection } from '@temporalio/client';
+import { orderFulfillment, cancelOrderSignal } from './workflows/order-fulfillment';
+
+const connection = await Connection.connect({ address: 'temporal.construxgroup.io:7233' });
+const client = new Client({ connection, namespace: 'production' });
+
+// Start the workflow
+const handle = await client.workflow.start(orderFulfillment, {
+  taskQueue:  'order-fulfillment',
+  workflowId: `order-${orderId}`,
+  args:       [orderId],
+});
+
+console.log(`Workflow started: ${handle.workflowId}`);
+
+// Signal to cancel
+await handle.signal(cancelOrderSignal, { reason: 'customer request' });
+
+// Wait for result
+const result = await handle.result();
+```
+
+## Query workflow state
+
+```ts
+// Define a query to expose workflow state
+export const getStatusQuery = defineQuery<string>('getStatus');
+
+// Inside the workflow
+let currentStep = 'reserving';
+setHandler(getStatusQuery, () => currentStep);
+
+// Poll from outside
+const status = await handle.query(getStatusQuery);
+console.log(status); // 'reserving' | 'charging' | 'shipping' | 'done'
+```
+
+Temporal vs cron + job queues: cron + job queues (Bull, BullMQ, Sidekiq) work well for simple independent jobs. They break down for multi-step workflows: you need to track state in a database, handle partial failures manually, and build retry/compensation logic yourself. Temporal makes the workflow the source of truth — state lives in the event history, retries are declarative, and compensation (saga pattern) is just code. The tradeoff is operational complexity: you run a Temporal cluster (or use Temporal Cloud).

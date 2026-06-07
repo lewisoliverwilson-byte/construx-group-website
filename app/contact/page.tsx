@@ -16,6 +16,7 @@ import TsharkPacketPanel from '@/components/TsharkPacketPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
+import PostgresReplPanel from '@/components/PostgresReplPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -395,8 +396,13 @@ export default function ContactPage() {
       </section>
 
       {/* gRPC service reflection + call */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <GrpcCallPanel />
+      </section>
+
+      {/* PostgreSQL streaming replication */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <PostgresReplPanel />
       </section>
     </div>
   );

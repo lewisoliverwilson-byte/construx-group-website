@@ -1,0 +1,134 @@
+---
+title: "PostgreSQL streaming replication: WAL, standby servers, and lag monitoring"
+date: "2031-10-26"
+excerpt: "PostgreSQL streaming replication copies WAL (Write-Ahead Log) records from a primary to one or more standby servers in near real-time. The standby continuously replays WAL, maintaining a byte-for-byte copy of the primary. Synchronous standbys block the primary commit until the standby confirms WAL receipt — zero data loss. Asynchronous standbys acknowledge immediately — low overhead, small lag window. pg_stat_replication shows current LSN positions and lag for every connected replica."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+WAL streams continuously. Standbys replay it. Lag is measured in bytes and time.
+
+## Primary configuration
+
+```bash
+# postgresql.conf
+wal_level            = replica      # Minimum for streaming replication
+max_wal_senders      = 10           # Max concurrent replication connections
+wal_keep_size        = 1GB          # Keep WAL segments on primary
+synchronous_commit   = on           # 'remote_write' or 'remote_apply' for sync standbys
+synchronous_standby_names = 'FIRST 1 (replica-lon01, replica-fra01)'
+
+# pg_hba.conf — allow replication connections
+host  replication  replicator  10.0.0.0/8  scram-sha-256
+```
+
+## Standby configuration
+
+```bash
+# postgresql.conf on standby
+primary_conninfo = 'host=10.0.0.1 port=5432 user=replicator password=secret application_name=replica-lon01'
+recovery_target_timeline = 'latest'
+
+# Create standby.signal to mark this as a standby
+touch $PGDATA/standby.signal
+```
+
+## Base backup to initialise a standby
+
+```bash
+# On the standby server — take a base backup from the primary
+pg_basebackup \
+  --host=10.0.0.1 \
+  --username=replicator \
+  --pgdata=/var/lib/postgresql/16/main \
+  --wal-method=stream \
+  --checkpoint=fast \
+  --progress \
+  --verbose
+
+# Output:
+# pg_basebackup: initiating base backup, waiting for checkpoint to complete
+# pg_basebackup: checkpoint completed
+# pg_basebackup: write-ahead log start point: 0/4A000028 on timeline 1
+# pg_basebackup: starting background WAL receiver
+# 1223/1223 MB (100%), 1/1 tablespace
+# pg_basebackup: write-ahead log end point: 0/4A0001C8
+# pg_basebackup: waiting for background process to finish streaming
+# pg_basebackup: syncing data to disk
+# pg_basebackup: renaming backup_manifest.tmp to backup_manifest
+# pg_basebackup: base backup completed
+```
+
+## Monitor replication lag
+
+```sql
+-- pg_stat_replication — one row per connected standby
+SELECT
+  application_name,
+  state,
+  sent_lsn,
+  write_lsn,
+  flush_lsn,
+  replay_lsn,
+  write_lag,
+  flush_lag,
+  replay_lag,
+  sync_state
+FROM pg_stat_replication
+ORDER BY sync_priority;
+
+--  application_name │   state   │  sent_lsn   │ write_lsn   │ replay_lag
+-- ──────────────────┼───────────┼─────────────┼─────────────┼─────────────
+--  replica-lon01    │ streaming │ 0/4A2F1E08  │ 0/4A2F1E08  │ 00:00:00.002
+--  replica-fra01    │ streaming │ 0/4A2F1E08  │ 0/4A2F1D80  │ 00:00:00.041
+
+-- LSN lag in bytes
+SELECT
+  application_name,
+  pg_wal_lsn_diff(sent_lsn, replay_lsn) AS lag_bytes
+FROM pg_stat_replication;
+```
+
+## Standby query delay
+
+```sql
+-- On the primary — check current WAL position
+SELECT pg_current_wal_lsn();
+--  0/4A2F1E08
+
+-- On the standby — check replay position
+SELECT pg_last_wal_replay_lsn(), pg_is_in_recovery();
+--  0/4A2F1C40 │ t
+
+-- Standby is ~7,616 bytes (0x1C8) behind primary
+-- At ~500MB/s WAL throughput that is ~15µs of lag
+```
+
+## Promote a standby
+
+```bash
+# Promote standby to primary (e.g., after primary failure)
+pg_ctl promote -D /var/lib/postgresql/16/main
+
+# Or send SIGUSR1
+kill -SIGUSR1 $(head -1 /var/lib/postgresql/16/main/postmaster.pid)
+
+# Standby.signal is removed automatically on promotion
+# Other standbys must be reconfigured to point to the new primary
+```
+
+## Replication slots — prevent WAL deletion
+
+```sql
+-- Create a physical replication slot (prevents WAL being deleted before standby consumes it)
+SELECT pg_create_physical_replication_slot('replica_fra01_slot');
+
+-- Monitor slot lag — critical: unconsumed slots hold WAL on disk
+SELECT
+  slot_name,
+  active,
+  pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) AS lag_bytes
+FROM pg_replication_slots;
+```
+
+Synchronous vs asynchronous: synchronous replication (`synchronous_commit = remote_write` or `remote_apply`) ensures no data loss on primary failure but adds latency for every commit — the primary waits for the standby to acknowledge. Asynchronous replication (`synchronous_commit = off` or `local`) adds no commit latency but a window of data loss exists if the primary crashes before the standby replays. Most setups use synchronous for one DR standby and asynchronous for read replicas.
