@@ -1,0 +1,116 @@
+---
+title: "GPG commit signing: cryptographic proof that you wrote the code"
+date: "2031-09-02"
+excerpt: "GPG commit signing attaches a cryptographic signature to every Git commit. Anyone with your public key can verify that the commit was made by you and has not been tampered with. GitHub marks signed commits with a 'Verified' badge. The setup: generate a GPG key, tell Git to use it, upload the public key to GitHub. For teams, the policy is enforced by requiring signed commits on protected branches."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Your name in a commit means nothing. Your GPG key does.
+
+## Generate a GPG key
+
+```bash
+# Generate a 4096-bit RSA key (or use Ed25519 for newer systems)
+gpg --full-generate-key
+
+# Choose:
+# (1) RSA and RSA
+# Keysize: 4096
+# Expire: 2y (rotate every 2 years)
+# Real name: Lewis Wilson
+# Email: lewis@construxgroup.io
+
+# List your keys
+gpg --list-secret-keys --keyid-format=long
+
+# Output:
+# sec   4096R/3AA5C34371567BD2 2029-01-04 [SC]
+#       4BBB E02F EC90 0B48 0A64  B80C 3AA5 C343 7156 7BD2
+# uid   [ultimate] Lewis Wilson <lewis@construxgroup.io>
+```
+
+## Configure Git to sign commits
+
+```bash
+# Tell Git which key to use
+git config --global user.signingkey 3AA5C34371567BD2
+
+# Sign all commits automatically
+git config --global commit.gpgsign true
+
+# Sign all tags automatically
+git config --global tag.gpgsign true
+
+# On macOS — use GPG Suite (pinentry-mac for passphrase GUI)
+git config --global gpg.program gpg
+```
+
+## Export public key → GitHub
+
+```bash
+# Export ASCII-armored public key
+gpg --armor --export 3AA5C34371567BD2
+
+# Copy the output (-----BEGIN PGP PUBLIC KEY BLOCK----- ... -----END PGP PUBLIC KEY BLOCK-----)
+# Paste into GitHub Settings → SSH and GPG keys → New GPG key
+```
+
+## Verify signatures
+
+```bash
+# Show signatures on recent commits
+git log --show-signature -5
+
+# Verify a specific commit
+git verify-commit HEAD
+
+# Output for a good signature:
+# gpg: Good signature from "Lewis Wilson <lewis@construxgroup.io>" [ultimate]
+# gpg:                 aka "[jpeg image of size 2335]"
+# Primary key fingerprint: 4BBB E02F EC90 0B48 0A64  B80C 3AA5 C343 7156 7BD2
+```
+
+## Enforce signed commits on protected branches
+
+```yaml
+# .github/settings.yml (via settings app or API)
+branches:
+  - name: master
+    protection:
+      required_signatures: true  # Block unsigned commits
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+```
+
+## Key rotation
+
+```bash
+# Extend expiry (preferred over generating a new key — preserves trust)
+gpg --edit-key 3AA5C34371567BD2
+# > key 0
+# > expire
+# > 2y
+# > save
+
+# Re-export and update GitHub after changing expiry
+gpg --armor --export 3AA5C34371567BD2 | pbcopy
+```
+
+## SSH signing — simpler alternative
+
+Git 2.34+ supports SSH key signing — no GPG needed:
+
+```bash
+# Use your existing SSH key for signing
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+git config --global commit.gpgsign true
+
+# Verify SSH signatures — requires allowed_signers file
+echo "lewis@construxgroup.io $(cat ~/.ssh/id_ed25519.pub)" > ~/.ssh/allowed_signers
+git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+git verify-commit HEAD
+```
+
+GPG signing vs no signing: unsigned commits can have any author name — `git commit --author "Linus Torvalds <torvalds@linux-foundation.org>"`. Signed commits prove the signer controls the private key. For open source projects or regulated industries, this is a meaningful security control. The Construx standard: `commit.gpgsign=true` in global git config; protected branches require signatures.
