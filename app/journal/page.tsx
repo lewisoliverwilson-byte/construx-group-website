@@ -85,6 +85,7 @@ import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import DigPanel from '@/components/DigPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
+import K6Panel from '@/components/K6Panel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -631,8 +632,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* gpg fingerprint — key id, uid, subkeys, trust */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GpgFingerprintPanel />
+      </section>
+
+      {/* k6 — vus, rps, checks, errors, duration */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <K6Panel />
       </section>
 
       {/* Posts */}

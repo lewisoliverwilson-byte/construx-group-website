@@ -82,6 +82,7 @@ import BgpLookupPanel from '@/components/BgpLookupPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import FioPanel from '@/components/FioPanel';
+import JournalctlPanel from '@/components/JournalctlPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -675,8 +676,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* fio — iops, bw, lat, sequential, random */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FioPanel />
+        </div>
+
+        {/* journalctl — units, priorities, timestamps, fields */}
+        <div className="mt-4 pb-6">
+          <JournalctlPanel />
         </div>
 
         {/* Sign-off */}
