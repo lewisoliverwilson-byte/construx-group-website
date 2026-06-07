@@ -29,6 +29,7 @@ import SpiffePanel from '@/components/SpiffePanel';
 import TrinoPanel from '@/components/TrinoPanel';
 import PulsarPanel from '@/components/PulsarPanel';
 import VaultPkiPanel from '@/components/VaultPkiPanel';
+import AirflowPanel from '@/components/AirflowPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -458,8 +459,13 @@ export default function NowPage() {
         </div>
 
         {/* vault pki internal ca — intermediate ca, issue, rotate, k8s-auth */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VaultPkiPanel />
+        </div>
+
+        {/* apache airflow dag orchestration — celery, sensor, xcom, dynamic tasks */}
+        <div className="mt-6 pb-10">
+          <AirflowPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
