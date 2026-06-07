@@ -1,0 +1,252 @@
+---
+title: "Argo Workflows: Kubernetes-native DAG and step-based pipelines"
+date: "2033-03-26"
+excerpt: "Argo Workflows is a Kubernetes-native workflow engine for running multi-step pipelines on Kubernetes pods. Each step in a workflow is a container — Argo schedules the pods, manages dependencies (DAG or sequential), streams logs, and retries on failure. The use cases span ML training pipelines, data processing, CI/CD pipelines, and any task that needs to run multiple containerized jobs with dependencies between them. Unlike Temporal (code-first, SDK) or Airflow (Python DAGs), Argo Workflows is purely YAML-driven and Kubernetes-native: every step is a pod, every artifact is stored in S3 or GCS, and the workflow controller is itself a Kubernetes controller watching CRDs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Kubernetes-native. DAG and step workflows. Pod-per-step. Artifact passing. Retry and timeout. CRD-based.
+
+## Workflow anatomy
+
+```yaml
+# Argo Workflow: a DAG pipeline for ML model training
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ml-training-
+  namespace: construx-ml
+spec:
+  entrypoint: training-dag
+  serviceAccountName: argo-workflow
+
+  # Global artifact storage (S3)
+  artifactRepositoryRef:
+    configMap: artifact-repositories
+    key: s3
+
+  # Arguments: pass parameters at submission time
+  arguments:
+    parameters:
+      - name: model-version
+        value: "v2.1"
+      - name: dataset-date
+        value: "2033-03-26"
+
+  templates:
+    # DAG template: defines dependencies between steps
+    - name: training-dag
+      dag:
+        tasks:
+          - name: prepare-data
+            template: data-prep
+            arguments:
+              parameters:
+                - name: dataset-date
+                  value: "{{workflow.parameters.dataset-date}}"
+
+          - name: feature-engineering
+            template: feature-eng
+            dependencies: [prepare-data]  # runs after prepare-data completes
+            arguments:
+              artifacts:
+                - name: raw-data
+                  from: "{{tasks.prepare-data.outputs.artifacts.processed-data}}"
+
+          - name: train-model
+            template: trainer
+            dependencies: [feature-engineering]
+            arguments:
+              artifacts:
+                - name: features
+                  from: "{{tasks.feature-engineering.outputs.artifacts.features}}"
+
+          - name: evaluate-model
+            template: evaluator
+            dependencies: [train-model]
+            arguments:
+              artifacts:
+                - name: model
+                  from: "{{tasks.train-model.outputs.artifacts.model}}"
+
+          - name: deploy-model
+            template: deployer
+            dependencies: [evaluate-model]
+            when: "{{tasks.evaluate-model.outputs.parameters.accuracy}} > 0.85"  # conditional
+            arguments:
+              parameters:
+                - name: model-version
+                  value: "{{workflow.parameters.model-version}}"
+
+    # Step template: a single container job
+    - name: data-prep
+      inputs:
+        parameters:
+          - name: dataset-date
+      outputs:
+        artifacts:
+          - name: processed-data
+            path: /data/processed
+            s3:
+              key: ml/{{workflow.name}}/processed-data.tar.gz
+      container:
+        image: registry.construx.io/construx/data-prep:latest
+        command: [python, prepare.py]
+        args:
+          - --date
+          - "{{inputs.parameters.dataset-date}}"
+          - --output
+          - /data/processed
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+          limits:
+            cpu: 4
+            memory: 8Gi
+```
+
+## Retry, timeout, and node selector
+
+```yaml
+# Advanced template options: retries, timeouts, node affinity
+
+templates:
+  - name: trainer
+    retryStrategy:
+      limit: 3                  # retry up to 3 times
+      retryPolicy: "Always"     # retry on any failure (not just transient errors)
+      backoff:
+        duration: "30s"         # wait 30s before first retry
+        factor: 2               # exponential backoff
+        maxDuration: "5m"       # max 5 minutes between retries
+
+    activeDeadlineSeconds: 3600  # timeout: 1 hour max for this step
+
+    # Run on GPU nodes
+    nodeSelector:
+      nvidia.com/gpu.present: "true"
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+    inputs:
+      artifacts:
+        - name: features
+          path: /data/features
+    outputs:
+      artifacts:
+        - name: model
+          path: /models/output
+      parameters:
+        - name: loss
+          valueFrom:
+            path: /models/metrics.json   # Argo reads this file for the parameter value
+
+    container:
+      image: registry.construx.io/construx/trainer:v2.1
+      command: [python, train.py]
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+          memory: 32Gi
+        requests:
+          nvidia.com/gpu: 1
+          memory: 16Gi
+
+  # Parallel fan-out: run the same template over a list
+  - name: parallel-eval
+    inputs:
+      parameters:
+        - name: metrics
+          value: "[\"accuracy\", \"precision\", \"recall\", \"f1\"]"
+    steps:
+      - - name: evaluate
+          template: evaluator
+          arguments:
+            parameters:
+              - name: metric
+                value: "{{item}}"
+          withParam: "{{inputs.parameters.metrics}}"  # run for each item in the list
+```
+
+## Argo CLI: submitting and monitoring
+
+```bash
+# Install Argo CLI
+curl -sLO https://github.com/argoproj/argo-workflows/releases/latest/download/argo-linux-amd64.gz
+gunzip argo-linux-amd64.gz && chmod +x argo-linux-amd64 && mv argo-linux-amd64 /usr/local/bin/argo
+
+# Submit a workflow
+argo submit ml-training-workflow.yaml \
+  --watch \                          # stream events to terminal
+  --namespace construx-ml \
+  --parameter model-version=v2.1 \
+  --parameter dataset-date=2033-03-26
+
+# List running workflows
+argo list --namespace construx-ml
+# NAME                       STATUS     AGE    DURATION  PRIORITY
+# ml-training-xyz123         Running    2m     2m        0
+# ml-training-abc456         Succeeded  1h     28m       0
+# ml-training-def789         Failed     3h     5m        0
+
+# View workflow details
+argo get ml-training-xyz123 --namespace construx-ml
+# STEP                   PODNAME             DURATION  MESSAGE
+# ✔ ml-training-xyz123
+# ├─✔ prepare-data       ml-training-a1b2c3  1m30s
+# ├─✔ feature-engineering ml-training-d4e5f6 3m12s
+# ├─● train-model        ml-training-g7h8i9  Running
+
+# Stream logs from a specific step
+argo logs ml-training-xyz123 --step prepare-data --namespace construx-ml
+
+# Retry a failed workflow
+argo retry ml-training-def789 --namespace construx-ml
+
+# Resubmit from a specific failed node (skip successful steps)
+argo resubmit ml-training-def789 \
+  --restart-successful=false \
+  --namespace construx-ml
+
+# Delete old workflows (cleanup completed runs older than 7 days)
+argo delete --completed --older 7d --namespace construx-ml
+```
+
+## Cron workflows: scheduled pipelines
+
+```yaml
+# CronWorkflow: run a workflow on a schedule (like a cron job, but with full Argo features)
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: nightly-reindex
+  namespace: construx-prod
+spec:
+  schedule: "0 2 * * *"         # 2am UTC every day
+  timezone: "UTC"
+  concurrencyPolicy: Forbid     # don't start a new run if the previous is still running
+  startingDeadlineSeconds: 300  # skip if missed by more than 5 minutes
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  workflowSpec:
+    entrypoint: reindex
+    templates:
+      - name: reindex
+        steps:
+          - - name: dump-postgres
+              template: pg-dump
+          - - name: build-index
+              template: build-search-index
+              arguments:
+                artifacts:
+                  - name: dump
+                    from: "{{steps.dump-postgres.outputs.artifacts.dump}}"
+          - - name: swap-index
+              template: atomic-index-swap
+```
+
+Argo Workflows vs Airflow vs Prefect vs Temporal: Airflow is the established standard for data engineering pipelines — Python DAGs, extensive operator ecosystem (Spark, Hive, S3, BigQuery), and excellent scheduling. The trade-off: Airflow requires a Python environment and is not Kubernetes-native (pods are launched but the scheduler is not a K8s controller). Prefect is the modern Python-first alternative to Airflow with better developer experience and cloud managed execution. Argo is the right choice when your workflow steps are containers (not Python scripts) and you're fully on Kubernetes — every step runs as a Kubernetes pod with first-class resource limits, GPU scheduling, and artifact management. Temporal is better for long-running, stateful workflows with complex business logic, signals, and queries. Argo is better for batch processing pipelines where each step is a short-lived container job.

@@ -25,6 +25,7 @@ import FlamegraphPanel from '@/components/FlamegraphPanel';
 import HtopPanel from '@/components/HtopPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
+import DragonflyPanel from '@/components/DragonflyPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -470,8 +471,13 @@ export default function StatsPage() {
       </div>
 
       {/* boundary zero-trust infrastructure access */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BoundaryPanel />
+      </div>
+
+      {/* dragonfly redis-compatible multi-threaded in-memory store */}
+      <div className="mt-6 pb-10">
+        <DragonflyPanel />
       </div>
     </div>
   );

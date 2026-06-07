@@ -1,0 +1,274 @@
+---
+title: "Nix: reproducible builds, dev shells, and nixpkgs as a package set"
+date: "2033-03-29"
+excerpt: "Nix is a package manager and build system with a key property: builds are hermetic and reproducible. Given the same inputs, you always get the same outputs — the exact same binary, bit-for-bit. This is enforced by building every package in a sandbox with no network access and no access to the ambient filesystem, only the explicitly declared inputs. nixpkgs is the package repository with 80,000+ packages, all built with this guarantee. The practical use cases: nix develop gives you a project shell with exact versions of every tool (Go 1.23.4, Node 22.8.0, PostgreSQL 16.1) without polluting the system, and nix build produces container images and binaries without Docker or CI-specific dependencies."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Hermetic builds. Exact reproducibility. Dev shells. nixpkgs. Flakes. Home Manager.
+
+## Dev shells: reproducible development environments
+
+```nix
+# flake.nix: project-level Nix configuration
+# Replaces .nvmrc, .tool-versions, Brewfiles, and setup scripts
+
+{
+  description = "Construx API development environment";
+
+  inputs = {
+    nixpkgs.url     = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+  };
+
+  outputs = { self, nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in {
+        # Development shell: enter with `nix develop`
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            # Language toolchains (exact versions, pinned by nixpkgs commit)
+            go_1_23
+            nodejs_22
+            python312
+            rustup
+
+            # CLI tools
+            kubectl
+            helm
+            terraform
+            awscli2
+            jq
+            yq-go
+            git
+
+            # Database tools
+            postgresql_16   # psql client
+            redis
+
+            # Build tools
+            gnumake
+            docker-compose
+
+            # Code quality
+            golangci-lint
+            prettier
+            shellcheck
+          ];
+
+          # Shell hook: run on `nix develop`
+          shellHook = ''
+            echo "Construx dev environment loaded"
+            echo "Go: $(go version | cut -d' ' -f3)"
+            echo "Node: $(node --version)"
+            echo "kubectl: $(kubectl version --client --short 2>/dev/null | head -1)"
+
+            # Set environment variables for the shell
+            export GOPATH=$HOME/go
+            export PATH=$GOPATH/bin:$PATH
+            export DATABASE_URL="postgres://construx:dev@localhost:5432/construx_dev"
+          '';
+        };
+
+        # Build the Go binary with Nix (hermetic, no GOPATH needed)
+        packages.construx-api = pkgs.buildGoModule {
+          pname   = "construx-api";
+          version = "2.1.4";
+          src     = ./.;
+
+          # Go module hash: nix will verify this matches the go.sum
+          vendorHash = "sha256-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCDE=";
+
+          # Binary is reproducible — same source always produces the same binary
+          ldflags = [ "-s" "-w" "-X main.version=2.1.4" ];
+        };
+
+        # Default package: `nix build .` produces the binary
+        packages.default = self.packages.${system}.construx-api;
+      }
+    );
+}
+```
+
+## Using the dev shell
+
+```bash
+# Install Nix (macOS or Linux)
+sh <(curl -L https://nixos.org/nix/install) --daemon
+
+# Enable flakes (add to ~/.config/nix/nix.conf)
+experimental-features = nix-command flakes
+
+# Enter the project dev shell
+cd construx-api
+nix develop
+
+# The shell has exactly the right versions of every tool
+go version
+# go version go1.23.4 linux/amd64
+
+node --version
+# v22.8.0
+
+kubectl version --client --short
+# Client Version: v1.30.2
+
+# Exit the shell — system is not polluted
+exit
+go version
+# bash: go: command not found  ← go is only available inside the nix shell
+
+# Use direnv + nix-direnv: automatically activate when you cd into the directory
+# .envrc:
+echo "use flake" >> .envrc
+direnv allow .
+
+# Now: cd into the project directory → shell activates automatically
+# cd out of it → shell deactivates automatically
+# No manual `nix develop` needed
+
+# Update a tool: bump the nixpkgs input
+nix flake update  # updates nixpkgs to the latest revision
+# flake.lock updated — go version will be whatever nixpkgs has now
+# Pin to specific nixpkgs commit for stability:
+nix flake update --update-input nixpkgs --override-input nixpkgs \
+  github:NixOS/nixpkgs/refs/tags/nixos-23.11
+```
+
+## Building container images with Nix
+
+```nix
+# Build a Docker image without Docker — using nix2container or dockerTools
+
+{
+  outputs = { self, nixpkgs, ... }: {
+    packages.x86_64-linux.docker-image =
+      let
+        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      in
+      pkgs.dockerTools.buildLayeredImage {
+        name = "registry.construx.io/construx/api";
+        tag  = "v2.1.4";
+
+        # The image contains ONLY these packages — no OS, no shell
+        # Similar to a distroless/chainguard image
+        contents = with pkgs; [
+          cacert    # CA certificates for HTTPS
+          tzdata    # timezone data
+          self.packages.x86_64-linux.construx-api  # our binary
+        ];
+
+        # No shell, no package manager — just the binary + its dependencies
+        config = {
+          Cmd  = [ "/bin/construx-api" "serve" ];
+          Env  = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
+          User = "65532:65532";  # nonroot user (same as Chainguard)
+          ExposedPorts = { "8080/tcp" = {}; };
+        };
+      };
+  };
+}
+```
+
+```bash
+# Build the image (no Docker daemon required)
+nix build .#docker-image
+
+# Load it into Docker for local testing
+docker load < result
+
+# Push it to the registry
+# skopeo is better for pushing Nix-built images (handles OCI format correctly)
+skopeo copy \
+  oci-archive:result \
+  docker://registry.construx.io/construx/api:v2.1.4
+
+# The image is reproducible:
+# Same flake.lock → same nixpkgs → same binary → same image hash
+# Two developers running `nix build` get the exact same bytes
+nix build .#docker-image --show-trace 2>&1 | grep "^/nix/store"
+# /nix/store/1a2b3c4d5e6f-construx-api-docker.tar.gz
+
+# Another developer on the same commit:
+# /nix/store/1a2b3c4d5e6f-construx-api-docker.tar.gz  ← identical path = identical content
+```
+
+## Home Manager: declarative user environment
+
+```nix
+# Home Manager: manage dotfiles and user packages with Nix
+# All tools and config are declarative — reproduce your setup on a new machine
+# in one command: `home-manager switch`
+
+# ~/.config/home-manager/home.nix
+{ pkgs, ... }:
+{
+  home = {
+    username    = "lewis";
+    homeDirectory = "/home/lewis";
+    stateVersion  = "24.05";
+
+    packages = with pkgs; [
+      # CLI tools available everywhere (not per-project)
+      ripgrep
+      fd
+      bat
+      eza
+      fzf
+      gh           # GitHub CLI
+      httpie
+      lazygit
+      mkcert
+    ];
+  };
+
+  programs = {
+    git = {
+      enable = true;
+      userName  = "Lewis Wilson";
+      userEmail = "lewis@construxgroup.io";
+      extraConfig = {
+        init.defaultBranch = "master";
+        push.autoSetupRemote = true;
+        pull.rebase = true;
+      };
+    };
+
+    zsh = {
+      enable = true;
+      autosuggestion.enable = true;
+      syntaxHighlighting.enable = true;
+      shellAliases = {
+        k   = "kubectl";
+        g   = "git";
+        ls  = "eza --icons";
+        cat = "bat";
+      };
+    };
+
+    starship = {
+      enable = true;
+      settings = { add_newline = false; };
+    };
+  };
+}
+```
+
+```bash
+# Apply the configuration
+home-manager switch
+
+# Install a new tool: add to home.nix, then:
+home-manager switch  # idempotent, only changes what changed
+
+# Rollback: home-manager keeps generations, like nixos-rebuild
+home-manager generations
+# 2033-03-29  ...  id 42 -> /nix/store/...home-path
+# 2033-03-22  ...  id 41 -> /nix/store/...home-path
+home-manager rollback   # or activate a specific generation by number
+```
+
+Nix vs Docker + Dockerfile vs devcontainers vs mise/asdf: Docker is the standard for shipping applications but is verbose for development environments (Dockerfile syntax, layer caching, bind mount friction). Devcontainers (VS Code) improve the DX but require Docker and VS Code. mise (formerly rtx) and asdf manage language version toolchains (Go, Node, Python) but not system libraries or arbitrary tools. Nix handles all of it — language toolchains, system libraries, CLI tools, and config files — in one declarative language. The barrier: Nix's functional language and concept of derivations has a steep learning curve. The `nix develop` + `direnv` pattern is the easiest entry point: you write a flake.nix with your tools list, and the shell activates when you cd into the project. No Nix expertise needed for daily use once it's set up.
