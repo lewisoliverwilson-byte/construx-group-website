@@ -1,0 +1,164 @@
+---
+title: "Prometheus remote write and Thanos: long-term metrics storage"
+date: "2031-11-07"
+excerpt: "Prometheus stores metrics locally by default — data lives on the scraping node, retention is limited by disk, and there's no global view across multiple Prometheus instances. Thanos extends Prometheus with a sidecar that uploads blocks to object storage (S3, GCS) and a query layer that fans out across multiple Prometheus instances. The result is unlimited retention, global queries, and downsampling for efficient long-range queries without running a separate Prometheus-compatible database."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Local scrape, object store archive, global query. Prometheus without the retention cliff.
+
+## Thanos sidecar — attach to an existing Prometheus
+
+```yaml
+# docker-compose.yaml
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=2h       # Only keep 2h locally
+      - --storage.tsdb.min-block-duration=2h   # Match sidecar upload interval
+      - --storage.tsdb.max-block-duration=2h
+      - --web.enable-lifecycle
+    volumes:
+      - prometheus-data:/prometheus
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
+
+  thanos-sidecar:
+    image: quay.io/thanos/thanos:v0.37.2
+    command:
+      - sidecar
+      - --tsdb.path=/prometheus
+      - --prometheus.url=http://prometheus:9090
+      - --grpc-address=0.0.0.0:10901
+      - --http-address=0.0.0.0:10902
+      - --objstore.config-file=/etc/thanos/bucket.yaml
+    volumes:
+      - prometheus-data:/prometheus
+      - ./bucket.yaml:/etc/thanos/bucket.yaml
+
+  thanos-store:
+    image: quay.io/thanos/thanos:v0.37.2
+    command:
+      - store
+      - --data-dir=/var/thanos/store
+      - --objstore.config-file=/etc/thanos/bucket.yaml
+      - --grpc-address=0.0.0.0:10901
+    volumes:
+      - thanos-store-data:/var/thanos/store
+      - ./bucket.yaml:/etc/thanos/bucket.yaml
+
+  thanos-query:
+    image: quay.io/thanos/thanos:v0.37.2
+    command:
+      - query
+      - --grpc-address=0.0.0.0:10901
+      - --http-address=0.0.0.0:10902
+      - --store=thanos-sidecar:10901
+      - --store=thanos-store:10901
+      - --query.replica-label=replica
+    ports:
+      - '10902:10902'
+```
+
+## Bucket configuration — S3
+
+```yaml
+# bucket.yaml
+type: S3
+config:
+  bucket:     construx-metrics
+  endpoint:   s3.eu-west-2.amazonaws.com
+  region:     eu-west-2
+  access_key: AKIAIOSFODNN7EXAMPLE
+  secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+  insecure:   false
+```
+
+## Prometheus remote write — push to a central receiver
+
+```yaml
+# prometheus.yaml — alternative to Thanos sidecar: push metrics out
+global:
+  scrape_interval: 15s
+
+remote_write:
+  - url: https://metrics.construxgroup.io/api/v1/push
+    queue_config:
+      max_samples_per_send: 10000
+      capacity:             50000
+      max_shards:           30
+    write_relabel_configs:
+      - source_labels: [__name__]
+        regex:         'go_.*'
+        action:        drop        # Drop Go runtime metrics to reduce cardinality
+
+scrape_configs:
+  - job_name: construx-api
+    static_configs:
+      - targets: ['api:9090']
+```
+
+## Thanos Compactor — downsample old data
+
+```yaml
+# Compactor runs as a singleton — never run multiple instances
+thanos-compact:
+  image: quay.io/thanos/thanos:v0.37.2
+  command:
+    - compact
+    - --data-dir=/var/thanos/compact
+    - --objstore.config-file=/etc/thanos/bucket.yaml
+    - --retention.resolution-raw=90d    # Keep raw 15s data for 90 days
+    - --retention.resolution-5m=1y      # Keep 5-min downsamples for 1 year
+    - --retention.resolution-1h=10y     # Keep 1-hour downsamples for 10 years
+    - --wait                            # Keep running, compact continuously
+    - --wait-interval=5m
+```
+
+## PromQL over long time ranges
+
+```promql
+# Request rate over the last 90 days (uses raw data — slow without compaction)
+rate(http_requests_total{service="api"}[5m])
+
+# Same query with 5-minute downsamples (fast — thanos uses stored downsamples)
+# Thanos auto-selects resolution based on range:
+# < 10 days: raw  |  10-60 days: 5m  |  > 60 days: 1h
+rate(http_requests_total{service="api"}[5m])
+
+# P99 latency over 30 days
+histogram_quantile(0.99,
+  sum by (le) (
+    rate(http_request_duration_seconds_bucket{service="api"}[30d:1h])
+  )
+)
+
+# Aggregate across all Prometheus replicas (Thanos deduplication)
+# replica label is stripped, results are merged
+sum(rate(http_requests_total[5m])) by (service)
+```
+
+## Rule evaluation — recording rules for expensive queries
+
+```yaml
+# rules/api-recording.yaml
+groups:
+  - name: api.rules
+    interval: 1m
+    rules:
+      - record: job:http_requests_total:rate5m
+        expr:   sum by (job) (rate(http_requests_total[5m]))
+
+      - record: job:http_request_duration_p99:rate5m
+        expr: |
+          histogram_quantile(0.99,
+            sum by (job, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+```
+
+Thanos vs VictoriaMetrics: VictoriaMetrics is a single-binary, highly compressed TSDB with its own query language (MetricsQL, PromQL-compatible). It handles ingestion and long-term storage in one process — simpler to operate but less modular. Thanos federates existing Prometheus instances without replacing them — you keep your existing dashboards, alerts, and scrape configs. If you're starting fresh and want simplicity, VictoriaMetrics. If you have existing Prometheus infrastructure, Thanos.

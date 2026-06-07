@@ -18,6 +18,7 @@ import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CargoPanel from '@/components/CargoPanel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
+import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -428,8 +429,13 @@ export default function StatsPage() {
       </div>
 
       {/* Distributed trace waterfall */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <JaegerTracePanel />
+      </div>
+
+      {/* Temporal workflow execution history */}
+      <div className="mt-6 pb-10">
+        <TemporalWorkflowPanel />
       </div>
     </div>
   );

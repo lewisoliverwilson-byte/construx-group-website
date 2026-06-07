@@ -1,0 +1,163 @@
+---
+title: "Temporal durable workflows: signals, queries, and saga compensation"
+date: "2031-11-04"
+excerpt: "Temporal workflows are durable functions: they survive worker crashes, network partitions, and deployments. The execution history is the source of truth — Temporal replays it to restore workflow state after any failure. Signals let external callers send events into a running workflow. Queries expose current workflow state without interrupting execution. The saga pattern (compensating transactions) replaces distributed transactions for multi-step operations across services."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Durable functions. Event history as state. Compensation instead of rollback.
+
+## Signal a running workflow
+
+```ts
+// workflows/order-fulfillment.ts
+import { defineSignal, defineQuery, setHandler, condition } from '@temporalio/workflow';
+
+export const cancelOrderSignal = defineSignal<[{ reason: string }]>('cancelOrder');
+export const addItemSignal      = defineSignal<[{ sku: string; qty: number }]>('addItem');
+export const getStatusQuery     = defineQuery<WorkflowStatus>('getStatus');
+
+export async function orderFulfillment(orderId: string): Promise<void> {
+  let status: WorkflowStatus = { step: 'reserving', cancelled: false };
+  const extraItems: Array<{ sku: string; qty: number }> = [];
+
+  setHandler(cancelOrderSignal, ({ reason }) => {
+    status = { ...status, cancelled: true, cancelReason: reason };
+  });
+
+  setHandler(addItemSignal, (item) => {
+    extraItems.push(item);
+  });
+
+  setHandler(getStatusQuery, () => status);
+
+  // Wait for inventory reservation OR cancellation (whichever comes first)
+  await reserveInventory(orderId);
+  if (status.cancelled) {
+    await releaseInventoryReservation(orderId);
+    return;
+  }
+
+  status = { ...status, step: 'charging' };
+  await chargePayment(orderId);
+
+  status = { ...status, step: 'shipping' };
+  await shipOrder(orderId);
+  status = { ...status, step: 'completed' };
+}
+```
+
+```ts
+// Signal from anywhere in your codebase
+const handle = client.workflow.getHandle('order-a3f9b2c1');
+
+// Cancel the order
+await handle.signal(cancelOrderSignal, { reason: 'customer request' });
+
+// Add a line item mid-workflow (before shipping)
+await handle.signal(addItemSignal, { sku: 'CX-BOLT-M8', qty: 4 });
+
+// Query current status without interrupting execution
+const status = await handle.query(getStatusQuery);
+console.log(status.step); // 'charging'
+```
+
+## Saga — compensating transactions
+
+```ts
+// workflows/saga-order.ts
+import { proxyActivities } from '@temporalio/workflow';
+
+const { reserveInventory, chargePayment, shipOrder,
+        releaseInventory, refundPayment } = proxyActivities<Activities>({ startToCloseTimeout: '30s' });
+
+export async function orderSaga(orderId: string): Promise<void> {
+  const compensations: Array<() => Promise<void>> = [];
+
+  try {
+    await reserveInventory(orderId);
+    compensations.push(() => releaseInventory(orderId));
+
+    await chargePayment(orderId);
+    compensations.push(() => refundPayment(orderId));
+
+    await shipOrder(orderId);
+    // Shipping succeeded — no compensation needed beyond this point
+  } catch (err) {
+    // Run compensations in reverse order
+    for (const compensate of compensations.reverse()) {
+      await compensate();
+    }
+    throw err;
+  }
+}
+```
+
+## Child workflows — decompose long-running processes
+
+```ts
+// workflows/batch-fulfillment.ts
+import { executeChild } from '@temporalio/workflow';
+
+export async function batchFulfillment(orderIds: string[]): Promise<void> {
+  // Run up to 10 order workflows in parallel
+  const chunks = chunkArray(orderIds, 10);
+  for (const chunk of chunks) {
+    await Promise.all(
+      chunk.map((orderId) =>
+        executeChild(orderFulfillment, {
+          workflowId: `order-${orderId}`,
+          args:       [orderId],
+          taskQueue:  'order-fulfillment',
+          retryPolicy: { maximumAttempts: 3 },
+        }),
+      ),
+    );
+  }
+}
+```
+
+## Continue-as-new — avoid unbounded history
+
+```ts
+// workflows/subscription-billing.ts
+import { continueAsNew, workflowInfo } from '@temporalio/workflow';
+
+export async function subscriptionBilling(
+  subscriptionId: string,
+  billingCycles: number = 0,
+): Promise<void> {
+  await processMonthlyBilling(subscriptionId);
+
+  // After 1000 cycles (~83 years at monthly), history would be huge
+  // continueAsNew starts a fresh execution with fresh history
+  if (billingCycles >= 999) {
+    await continueAsNew<typeof subscriptionBilling>(subscriptionId, 0);
+    return;
+  }
+
+  // Sleep until next billing date (durable sleep — survives worker restarts)
+  await sleep('30 days');
+  await continueAsNew<typeof subscriptionBilling>(subscriptionId, billingCycles + 1);
+}
+```
+
+## Temporal Cloud CLI
+
+```bash
+# List running workflows
+temporal workflow list --namespace production --query 'WorkflowType="orderFulfillment" AND ExecutionStatus="Running"'
+
+# Show full event history
+temporal workflow show --workflow-id order-a3f9b2c1 --namespace production
+
+# Terminate a stuck workflow
+temporal workflow terminate --workflow-id order-a3f9b2c1 --namespace production --reason "manual intervention"
+
+# Reset to a previous event (re-run from that point)
+temporal workflow reset --workflow-id order-a3f9b2c1 --namespace production \
+  --event-id 13 --reason "retry after chargePayment bug fix"
+```
+
+The saga pattern vs distributed transactions: two-phase commit (2PC) coordinates multiple databases in a transaction — any participant can veto, and all lock until commit. This scales poorly and couples services tightly. Sagas run each step as a separate local transaction and define compensating transactions (refund, release) for failures. Temporal implements sagas with reliable activity retries and durable workflow state, so compensations run exactly once even if workers crash mid-saga.
