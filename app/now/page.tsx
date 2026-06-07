@@ -40,6 +40,7 @@ import KubeflowPanel from '@/components/KubeflowPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import PromtailPanel from '@/components/PromtailPanel';
+import FalcoPanel from '@/components/FalcoPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -524,8 +525,13 @@ export default function NowPage() {
         </div>
 
         {/* promtail loki log shipper — scrape targets, pipeline stages */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PromtailPanel />
+        </div>
+
+        {/* falco runtime security — syscall rules, k8s audit, alerts */}
+        <div className="mt-6 pb-10">
+          <FalcoPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

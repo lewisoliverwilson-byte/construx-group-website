@@ -41,6 +41,7 @@ import VictoriaLogsPanel from '@/components/VictoriaLogsPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import DbtPanel from '@/components/DbtPanel';
+import SeaweedFsPanel from '@/components/SeaweedFsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -566,8 +567,13 @@ export default function StatsPage() {
       </div>
 
       {/* dbt data build tool — models, tests, materializations */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DbtPanel />
+      </div>
+
+      {/* seaweedfs distributed blob store — volumes, filer, s3 api */}
+      <div className="mt-6 pb-10">
+        <SeaweedFsPanel />
       </div>
     </div>
   );

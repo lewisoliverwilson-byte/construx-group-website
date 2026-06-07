@@ -1,185 +1,147 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'alert-critical' | 'alert-warning' | 'alert-info' | 'rule' | 'metric' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',        text: '# Falco — kernel-level runtime security via eBPF' },
-  { kind: 'prompt',         text: 'falcoctl driver install --type ebpf && falco --modern-bpf' },
-  { kind: 'alert-info',     text: '2032-04-15T14:32:01.284913000+0000: Info Falco initialized, watching 31 syscalls' },
-  { kind: 'blank',          text: '' },
-  { kind: 'comment',        text: '# Live alert stream — rule violations from running containers' },
-  { kind: 'alert-warning',  text: '14:32:14 WARN  spawned_process_in_container: construx-api spawned bash (user=root)' },
-  { kind: 'alert-warning',  text: '          rule=Terminal shell in container  container=construx-api-6d9f  cmd=bash' },
-  { kind: 'alert-critical', text: '14:32:31 CRIT  write_below_binary_dir: construx-worker wrote to /usr/bin (user=root)' },
-  { kind: 'alert-critical', text: '          rule=Write below binary directories  container=construx-worker-4c7d  file=/usr/bin/nc' },
-  { kind: 'alert-warning',  text: '14:33:02 WARN  network_tool_launched: nmap executed in construx-api  container=construx-api-6d9f' },
-  { kind: 'alert-info',     text: '14:33:18 INFO  read_sensitive_file_trusted: postgres read /etc/shadow  (expected)' },
-  { kind: 'blank',          text: '' },
-  { kind: 'comment',        text: '# Custom Falco rule — detect S3 credential theft attempt' },
-  { kind: 'rule',           text: '- rule: Attempt to access AWS credentials' },
-  { kind: 'rule',           text: '  desc: Detect reading of AWS credential files in containers' },
-  { kind: 'rule',           text: '  condition: >-' },
-  { kind: 'rule',           text: '    open_read and container and' },
-  { kind: 'rule',           text: '    (fd.name startswith "/root/.aws" or fd.name startswith "/home/.aws")' },
-  { kind: 'rule',           text: '  output: >-' },
-  { kind: 'rule',           text: '    AWS credential file read (user=%user.name container=%container.name file=%fd.name)' },
-  { kind: 'rule',           text: '  priority: CRITICAL' },
-  { kind: 'blank',          text: '' },
-  { kind: 'comment',        text: '# Alert counts by rule — last 1 hour' },
-  { kind: 'prompt',         text: 'falco-exporter metrics | grep falco_events' },
-  { kind: 'metric',         text: 'falco_events_total{priority="CRITICAL",rule="Write below binary directories"}  2' },
-  { kind: 'metric',         text: 'falco_events_total{priority="WARNING",rule="Terminal shell in container"}     14' },
-  { kind: 'metric',         text: 'falco_events_total{priority="WARNING",rule="Network tool launched"}           3' },
-  { kind: 'metric',         text: 'falco_events_total{priority="INFO",rule="Read sensitive file trusted"}       82' },
+const RULES = [
+  { name: 'Terminal shell in container', priority: 'WARNING', source: 'syscall', enabled: true, triggered: 4 },
+  { name: 'Detect outbound connections to C2 servers', priority: 'CRITICAL', source: 'syscall', enabled: true, triggered: 0 },
+  { name: 'Write below etc', priority: 'ERROR', source: 'syscall', enabled: true, triggered: 1 },
+  { name: 'K8s deployment created', priority: 'INFO', source: 'k8s_audit', enabled: true, triggered: 28 },
 ];
 
-const TOTAL = LINES.length + 3;
+const ALERTS = [
+  { rule: 'Terminal shell in container', severity: 'WARNING', pod: 'api-deployment-5f8b-k7xp2', namespace: 'prod', time: '4m ago' },
+  { rule: 'Terminal shell in container', severity: 'WARNING', pod: 'worker-set-3-abc1', namespace: 'prod', time: '12m ago' },
+  { rule: 'Write below etc', severity: 'ERROR', pod: 'init-container-setup', namespace: 'kube-system', time: '1h ago' },
+  { rule: 'K8s deployment created', severity: 'INFO', pod: '—', namespace: 'prod', time: '2h ago' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':        return 'rgba(240,239,255,0.22)';
-    case 'prompt':         return 'rgba(240,239,255,0.6)';
-    case 'alert-critical': return '#f87171';
-    case 'alert-warning':  return '#fbbf24';
-    case 'alert-info':     return 'rgba(240,239,255,0.4)';
-    case 'rule':           return '#a78bfa';
-    case 'metric':         return '#fb923c';
-    default:               return 'transparent';
-  }
+const SEVERITY_COLOR: Record<string, string> = {
+  CRITICAL: '#f87171',
+  ERROR: '#f97316',
+  WARNING: '#fbbf24',
+  INFO: '#67e8f9',
+};
+
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function FalcoPanel() {
-  const [revealed,    setRevealed]    = useState(0);
-  const [liveEvents,  setLiveEvents]  = useState(101);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [rRows, setRRows] = useState(0);
+  const [aRows, setARows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const eventsPerSec = useCounter(2840, 48, 400);
+  const alertsTotal = useCounter(33, 0, 1400);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveEvents((v) => v + Math.floor(Math.random() * 3));
-          }, 2300);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 82;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const r = setInterval(() => setRRows((x) => Math.min(x + 1, RULES.length)), 160);
+    const a = setInterval(() => setARows((x) => Math.min(x + 1, ALERTS.length)), 140);
+    return () => { clearInterval(r); clearInterval(a); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(103,232,249,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(103,232,249,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@prod-01 — falco · runtime security · eBPF syscall audit
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(103,232,249,0.08)', background: 'rgba(103,232,249,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(103,232,249,0.4)' }}>
+          falco -- runtime security -- syscall / k8s audit / cncf rules
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#f87171' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveEvents} events` : 'watching…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {eventsPerSec.toLocaleString()} evt/s
         </span>
       </div>
 
       {/* Shell prompt */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@prod-01# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          falco --modern-bpf · runtime anomaly detection · custom rules
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#67e8f9', fontWeight: 600 }}>falco@runtime</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>falco --modern-bpf -c /etc/falco/falco.yaml && falcoctl artifact list --type rule</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'evt/s', value: eventsPerSec.toLocaleString(), color: '#67e8f9' },
+          { label: 'alerts', value: alertsTotal.toString(), color: '#fbbf24' },
+          { label: 'rules', value: RULES.length.toString(), color: '#a78bfa' },
+          { label: 'critical', value: ALERTS.filter(a => a.severity === 'CRITICAL').length.toString(), color: '#f87171' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Falco 0.38 · eBPF ·</span>
-          <span style={{ color: '#f87171' }}>2 CRITICAL</span>
-          <span style={{ color: '#fbbf24' }}>17 WARNING</span>
-          <span style={{ color: '#67e8f9' }}>{liveEvents} total events/hr</span>
-          <span style={{ color: '#a78bfa' }}>31 syscalls watched</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Rules */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // active rules
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {RULES.slice(0, rRows).map((rule) => (
+            <div key={rule.name} style={{ display: 'grid', gridTemplateColumns: '1fr 56px 52px 32px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.name}</span>
+              <span style={{ color: SEVERITY_COLOR[rule.priority] ?? '#fbbf24', fontSize: 7 }}>{rule.priority}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{rule.source}</span>
+              <span className="tabular-nums" style={{ color: rule.triggered > 0 ? '#fbbf24' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'right', fontWeight: rule.triggered > 0 ? 700 : 400 }}>{rule.triggered}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Alerts */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // recent alerts
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {ALERTS.slice(0, aRows).map((al, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '52px 1fr 60px 36px', alignItems: 'center', gap: 8, padding: '4px 8px', background: al.severity === 'CRITICAL' || al.severity === 'ERROR' ? 'rgba(248,113,113,0.04)' : al.severity === 'WARNING' ? 'rgba(251,191,36,0.04)' : 'rgba(103,232,249,0.04)', border: `1px solid ${al.severity === 'CRITICAL' || al.severity === 'ERROR' ? 'rgba(248,113,113,0.1)' : al.severity === 'WARNING' ? 'rgba(251,191,36,0.1)' : 'rgba(103,232,249,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: SEVERITY_COLOR[al.severity] ?? '#fbbf24', fontSize: 7, fontWeight: 700 }}>{al.severity}</span>
+              <span style={{ color: 'rgba(240,239,255,0.3)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{al.pod}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{al.namespace}</span>
+              <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'right' }}>{al.time}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          Falco 0.38.2 · modern eBPF probe · kernel 6.8 · CNCF graduated
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(103,232,249,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          falco v0.38 - apache-2.0 - cncf runtime security
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● watching' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {eventsPerSec.toLocaleString()} evt/s - {alertsTotal} alerts
         </span>
       </div>
     </div>

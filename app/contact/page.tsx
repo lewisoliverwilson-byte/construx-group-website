@@ -39,6 +39,7 @@ import TeleportPanel from '@/components/TeleportPanel';
 import PortainerPanel from '@/components/PortainerPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
+import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -532,8 +533,13 @@ export default function ContactPage() {
       </section>
 
       {/* kubernetes gateway api — httproutes, listeners, backends */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <KubernetesGatewayPanel />
+      </section>
+
+      {/* crunchy postgres operator — ha clusters, pgbackrest, replication */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CrunchyPostgresPanel />
       </section>
     </div>
   );

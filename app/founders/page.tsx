@@ -39,6 +39,7 @@ import TankaPanel from '@/components/TankaPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import OpenFgaPanel from '@/components/OpenFgaPanel';
+import TrufflehogPanel from '@/components/TrufflehogPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -654,8 +655,13 @@ export default function FoundersPage() {
         </div>
 
         {/* openfga fine-grained authz — stores, rebac, relationship tuples */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenFgaPanel />
+        </div>
+
+        {/* trufflehog secret scanning — git history, verified credentials */}
+        <div className="mt-6 pb-10">
+          <TrufflehogPanel />
         </div>
 
         {/* CTA */}
