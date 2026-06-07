@@ -75,6 +75,7 @@ import FlamegraphPanel from '@/components/FlamegraphPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import HtopPanel from '@/components/HtopPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
+import DronePanel from '@/components/DronePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -752,8 +753,13 @@ export default function UsesPage() {
         </div>
 
         {/* influxdb — time series, measurements, tags, retention */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <InfluxDbPanel />
+        </div>
+
+        {/* drone — ci pipelines, steps, runners, secrets */}
+        <div className="mt-6 pb-10">
+          <DronePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

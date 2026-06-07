@@ -77,6 +77,7 @@ import EbpfTracePanel from '@/components/EbpfTracePanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
+import IostatPanel from '@/components/IostatPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -645,8 +646,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* http bench — rps, latency, connections, throughput */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <HttpBenchPanel />
+        </div>
+
+        {/* iostat — disk io, await, util, read/write rates */}
+        <div className="mt-4 pb-6">
+          <IostatPanel />
         </div>
 
         {/* Sign-off */}
