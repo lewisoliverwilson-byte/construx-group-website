@@ -15,6 +15,7 @@ import VaultSecretsPanel from '@/components/VaultSecretsPanel';
 import FluxCdPanel from '@/components/FluxCdPanel';
 import TailnetStatusPanel from '@/components/TailnetStatusPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
+import PackerBuildPanel from '@/components/PackerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -620,8 +621,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* GitHub Actions workflow run */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <GhActionsRunPanel />
+      </section>
+
+      {/* Packer AMI build */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <PackerBuildPanel />
       </section>
 
       {/* CTA */}
