@@ -28,6 +28,7 @@ import TetragonPanel from '@/components/TetragonPanel';
 import IstioPanel from '@/components/IstioPanel';
 import ThanosPanel from '@/components/ThanosPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
+import AlertManagerPanel from '@/components/AlertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -351,8 +352,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* argo workflows dag pipelines — ml training, artifacts, parallel steps */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ArgoWorkflowsPanel />
+        </div>
+
+        {/* alertmanager routing, silences, inhibitions — prometheus alerting */}
+        <div className="mt-4 pb-6">
+          <AlertManagerPanel />
         </div>
 
         {/* Sign-off */}
