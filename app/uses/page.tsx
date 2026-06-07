@@ -36,6 +36,7 @@ import SonarQubePanel from '@/components/SonarQubePanel';
 import KedaPanel from '@/components/KedaPanel';
 import ZarfPanel from '@/components/ZarfPanel';
 import BiomePanel from '@/components/BiomePanel';
+import RabbitMQPanel from '@/components/RabbitMQPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -518,8 +519,13 @@ export default function UsesPage() {
         </div>
 
         {/* biome rust linter + formatter — files, diagnostics, lint rules */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BiomePanel />
+        </div>
+
+        {/* rabbitmq amqp broker — queues, exchanges, publish/deliver rates */}
+        <div className="mt-6 pb-10">
+          <RabbitMQPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

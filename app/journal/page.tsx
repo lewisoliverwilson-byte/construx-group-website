@@ -41,6 +41,7 @@ import AtlasPanel from '@/components/AtlasPanel';
 import LokiPanel from '@/components/LokiPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NeonPanel from '@/components/NeonPanel';
+import LangfusePanel from '@/components/LangfusePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -364,6 +365,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* neon serverless postgres — projects, branches, instant branching */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <NeonPanel />
+      </section>
+
+      {/* langfuse llm observability — traces, evaluations, token cost */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LangfusePanel />
       </section>
 
       {/* Posts */}

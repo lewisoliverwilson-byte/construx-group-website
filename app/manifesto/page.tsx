@@ -37,6 +37,7 @@ import KubebenchPanel from '@/components/KubebenchPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import DaprPanel from '@/components/DaprPanel';
 import BufPanel from '@/components/BufPanel';
+import WeaviatePanel from '@/components/WeaviatePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -407,6 +408,11 @@ export default function ManifestoPage() {
         {/* buf protobuf schema registry — modules, lint, breaking changes */}
         <div className="mt-4 pb-6">
           <BufPanel />
+        </div>
+
+        {/* weaviate ml-native vector db — collections, hybrid search, nearText queries */}
+        <div className="mt-4 pb-6">
+          <WeaviatePanel />
         </div>
 
         {/* Sign-off */}
