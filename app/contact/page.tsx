@@ -65,6 +65,7 @@ import AirflowPanel from '@/components/AirflowPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -688,8 +689,13 @@ export default function ContactPage() {
       </section>
 
       {/* kafka connect — connectors, tasks, offsets, sink source */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KafkaConnectPanel />
+      </section>
+
+      {/* argo cd — gitops, sync, apps, rollbacks */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ArgoCDPanel />
       </section>
     </div>
   );

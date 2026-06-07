@@ -66,6 +66,7 @@ import DaprPanel from '@/components/DaprPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import QdrantPanel from '@/components/QdrantPanel';
+import BeylaPanel from '@/components/BeylaPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -680,8 +681,13 @@ export default function NowPage() {
         </div>
 
         {/* qdrant — vector database, collections, search, embeddings */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <QdrantPanel />
+        </div>
+
+        {/* beyla — ebpf auto-instrumentation, spans, latency */}
+        <div className="mt-6 pb-10">
+          <BeylaPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

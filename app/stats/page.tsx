@@ -68,6 +68,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import SpiffePanel from '@/components/SpiffePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
+import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -728,8 +729,13 @@ export default function StatsPage() {
       </div>
 
       {/* linkerd — service mesh, mTLS, traffic shaping */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LinkerdPanel />
+      </div>
+
+      {/* argo rollout — progressive delivery, canary, bluegreen */}
+      <div className="mt-6 pb-10">
+        <ArgoRolloutPanel />
       </div>
     </div>
   );

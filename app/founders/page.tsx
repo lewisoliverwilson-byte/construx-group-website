@@ -66,6 +66,7 @@ import GoReleaserPanel from '@/components/GoReleaserPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import PulumiPanel from '@/components/PulumiPanel';
+import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -816,8 +817,13 @@ export default function FoundersPage() {
         </div>
 
         {/* pulumi — infrastructure as code, stacks, resources */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PulumiPanel />
+        </div>
+
+        {/* argo workflows — dag pipelines, steps, templates */}
+        <div className="mt-6 pb-10">
+          <ArgoWorkflowsPanel />
         </div>
 
         {/* CTA */}
