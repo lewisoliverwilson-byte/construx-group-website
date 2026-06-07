@@ -26,6 +26,7 @@ import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import VitessPanel from '@/components/VitessPanel';
 import MinIOPanel from '@/components/MinIOPanel';
+import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -685,8 +686,13 @@ export default function WorkWithUsPage() {
         <VitessPanel />
       </section>
 
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <MinIOPanel />
+      </section>
+
+      {/* nats jetstream persistent messaging — streams, consumers, kv store, clustering */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <NATSJetStreamPanel />
       </section>
 
       {/* CTA */}
