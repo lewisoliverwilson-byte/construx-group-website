@@ -1,0 +1,130 @@
+---
+title: "Linux namespaces: the kernel primitives behind every container"
+date: "2032-02-09"
+excerpt: "Linux namespaces are the kernel mechanism that isolates what a process can see. There are eight namespace types: mnt (filesystem mounts), pid (process IDs), net (network stack), ipc (System V IPC), uts (hostname), user (user/group IDs), cgroup (cgroup root), and time (clock offsets). A container is a process that has been placed into new instances of these namespaces — not a VM, not a special binary format. Docker, Podman, and Kubernetes all use the same kernel primitives. Understanding namespaces explains why containers are processes, not VMs."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Not a VM. A process in new namespaces. The kernel does the rest.
+
+## Inspect the namespaces of a running container
+
+```bash
+# Find the PID of the container's init process
+CONTAINER_PID=$(docker inspect --format '{{.State.Pid}}' construx-api)
+echo $CONTAINER_PID
+# 18241
+
+# View its namespaces — each is a symlink to an inode
+ls -la /proc/18241/ns/
+# lrwxrwxrwx 1 root root 0 Jan 31 14:32 cgroup -> cgroup:[4026532456]
+# lrwxrwxrwx 1 root root 0 Jan 31 14:32 ipc    -> ipc:[4026532388]
+# lrwxrwxrwx 1 root root 0 Jan 31 14:32 mnt    -> mnt:[4026532386]
+# lrwxrwxrwx 1 root root 0 Jan 31 14:32 net    -> net:[4026532391]
+# lrwxrwxrwx 1 root root 0 Jan 31 14:32 pid    -> pid:[4026532389]
+# lrwxrwxrwx 1 root root 0 Jan 31 14:32 user   -> user:[4026531837]
+# lrwxrwxrwx 1 root root 0 Jan 31 14:32 uts    -> uts:[4026532387]
+
+# Compare with the host — different inode = different namespace
+ls -la /proc/1/ns/net
+# lrwxrwxrwx ... net -> net:[4026531992]   ← different inode from 4026532391
+```
+
+## Create namespaces manually with unshare
+
+```bash
+# unshare: detach from parent namespaces and create new ones
+# This is exactly what Docker does internally
+
+# New UTS namespace: give the process its own hostname
+unshare --uts bash
+hostname construx-isolated
+hostname   # → construx-isolated
+exit
+hostname   # → prod-01 (host is unchanged)
+
+# New PID namespace: processes inside see PID 1 as their root
+unshare --pid --fork --mount-proc bash
+ps aux
+# PID  USER  CMD
+# 1    root  bash         ← this process IS PID 1 in the namespace
+# 2    root  ps aux
+
+# New network namespace: isolated network stack
+ip netns add construx-test
+ip netns exec construx-test ip link show
+# 1: lo: <LOOPBACK> mtu 65536 state DOWN
+# No eth0 — completely isolated network stack
+
+# Create a veth pair to connect the namespace to the host
+ip link add veth0 type veth peer name veth1
+ip link set veth1 netns construx-test
+ip addr add 10.0.0.1/24 dev veth0
+ip link set veth0 up
+ip netns exec construx-test ip addr add 10.0.0.2/24 dev veth1
+ip netns exec construx-test ip link set veth1 up
+ping -c 1 10.0.0.2   # Host reaches the namespace
+```
+
+## User namespaces — rootless containers
+
+```bash
+# User namespaces map UID/GID inside the namespace to different ones on the host.
+# Inside the container, PID 1 appears to run as root (UID 0).
+# On the host, it's actually running as UID 100000 (unprivileged).
+# This is how Podman runs rootless containers.
+
+# Create a user namespace mapping UID 0 inside to UID 100000 on the host
+unshare --user --map-root-user bash
+
+# Inside the namespace:
+id
+# uid=0(root) gid=0(root) groups=0(root)
+
+# On the host (different terminal):
+ps -o pid,uid,cmd -p $(pgrep -n bash)
+# PID   UID  CMD
+# 28412 100000 bash   ← running as UID 100000, not root
+
+# /proc/18241/uid_map — the mapping table
+cat /proc/18241/uid_map
+# 0 100000 65536
+# ↑       ↑       ↑
+# start   host    range
+# in ns   UID     of UIDs mapped
+```
+
+## Build a minimal container from scratch
+
+```bash
+# A container is just: chroot + namespaces + cgroups
+# Here's the kernel's perspective on `docker run --rm -it alpine sh`
+
+# 1. Extract rootfs (alpine image layers)
+mkdir /tmp/alpine-root
+tar xf alpine.tar -C /tmp/alpine-root
+
+# 2. Pivot root into the new filesystem
+unshare --mount bash <<'EOF'
+  mount --bind /tmp/alpine-root /tmp/alpine-root
+  cd /tmp/alpine-root
+  mkdir -p old_root
+  pivot_root . old_root          # Swap / to the new rootfs
+  umount -l /old_root            # Detach original root
+  rmdir /old_root
+  exec /bin/sh                   # Start the container shell
+EOF
+
+# 3. Docker assembles all this with:
+# clone(CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC)
+# + cgroup placement (memory.max, cpu.max)
+# + seccomp BPF filter
+# + dropped capabilities (CAP_SYS_ADMIN, CAP_NET_ADMIN, etc.)
+
+# Check what syscalls a container is allowed
+docker run --rm alpine cat /proc/1/status | grep Seccomp
+# Seccomp: 2   ← BPF filter active, ~50 syscalls allowed
+```
+
+Namespaces vs VMs: A VM virtualises hardware — the guest OS believes it has real CPUs, RAM, and disks. A namespace isolates visibility — the process believes it has its own hostname, PID space, and network. The host kernel is shared in the namespace case; the guest kernel is separate in the VM case. This is why container startup is ~100ms (exec a new process) vs VM startup is ~10 seconds (boot a kernel). It's also why a container kernel exploit affects the host, while a VM kernel exploit is contained.

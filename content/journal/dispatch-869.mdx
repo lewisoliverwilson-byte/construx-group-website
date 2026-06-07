@@ -1,0 +1,177 @@
+---
+title: "Vector: high-throughput observability pipeline in Rust"
+date: "2032-02-03"
+excerpt: "Vector is an open-source, high-performance observability data pipeline written in Rust. It collects logs, metrics, and traces from any source (journald, file tails, Kafka, HTTP), transforms them with VRL (Vector Remap Language) — a safe, purpose-built expression language — and routes them to any sink (Elasticsearch, ClickHouse, Prometheus, Loki, S3). A single Vector agent on a 4-core host handles 10M+ events/second at under 1% CPU. It replaces Logstash, Fluentd, and Filebeat with a single binary."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+One binary. Any source. Any sink. VRL transforms everything in between.
+
+## vector.yaml — complete pipeline config
+
+```yaml
+# /etc/vector/vector.yaml
+# Sources → Transforms → Sinks
+
+sources:
+  journald:
+    type: journald
+    include_units:
+      - construx-api.service
+      - postgresql.service
+      - caddy.service
+
+  nginx_access:
+    type: file
+    include:
+      - /var/log/nginx/access.log
+    read_from: beginning
+
+  app_metrics:
+    type: prometheus_scrape
+    endpoints:
+      - http://localhost:9090/metrics
+    scrape_interval_secs: 15
+
+transforms:
+  parse_nginx:
+    type: remap
+    inputs:
+      - nginx_access
+    source: |
+      # VRL — safe, sandboxed expression language (no panics, no exceptions)
+      . = parse_nginx_log!(string!(.message), "combined")
+      .latency_ms = to_int!(.request_time_ms)
+      .host = get_hostname!()
+
+  filter_errors:
+    type: filter
+    inputs:
+      - parse_nginx
+    condition: '.status >= 400'
+
+  add_host_metadata:
+    type: remap
+    inputs:
+      - journald
+      - parse_nginx
+    source: |
+      .environment = "production"
+      .datacenter   = "lon-01"
+      .version      = get_env_var!("APP_VERSION")
+
+sinks:
+  elasticsearch:
+    type: elasticsearch
+    inputs:
+      - add_host_metadata
+    endpoint: https://es.construx.internal:9200
+    index: "logs-%Y.%m.%d"
+    compression: gzip
+    batch:
+      max_events: 5000
+      timeout_secs: 5
+
+  loki:
+    type: loki
+    inputs:
+      - add_host_metadata
+    endpoint: http://loki.construx.internal:3100
+    labels:
+      unit: "{{ unit }}"
+      environment: production
+
+  prometheus_remote_write:
+    type: prometheus_remote_write
+    inputs:
+      - app_metrics
+      - filter_errors
+    endpoint: http://mimir.construx.internal/api/v1/push
+```
+
+## VRL (Vector Remap Language) — data transformation
+
+```bash
+# VRL is purpose-built for log/metric transformation.
+# It's safe: no infinite loops, no panics, bounded execution.
+# Every function that can fail returns a Result — use ! to abort on error
+# or ?? to provide a fallback.
+
+# Parse a JSON log line and reshape it
+. = parse_json!(string!(.message))
+
+# Coerce types (VRL is strictly typed)
+.response_time = to_float!(.response_time)
+.status_code   = to_int!(.status_code)
+
+# Conditional enrichment
+if .status_code >= 500 {
+  .severity = "error"
+  .alert    = true
+} else if .status_code >= 400 {
+  .severity = "warning"
+} else {
+  .severity = "info"
+}
+
+# Delete fields before shipping (reduce volume)
+del(.raw_headers)
+del(.debug_info)
+
+# Rename and restructure
+.http.method   = del(.method)
+.http.path     = del(.path)
+.http.status   = del(.status_code)
+
+# Fallback: if parsing fails, preserve the raw message and tag it
+. = parse_json(.message) ?? { "raw": .message, "parse_error": true }
+```
+
+## vector top — real-time pipeline metrics
+
+```bash
+# vector top: live view of throughput per component
+vector top --interval 1
+
+# COMPONENT              TYPE        EVENTS/S   BYTES/S    ERRORS/S
+# journald               source      1,284      305 KB     0
+# nginx_access           source      892        185 KB     0
+# parse_nginx            transform   892        185 KB     2
+# filter_errors          transform   314        65 KB      0
+# add_host_metadata      transform   2,176      490 KB     0
+# elasticsearch          sink        2,176      490 KB     1
+# loki                   sink        892        185 KB     0
+# prometheus_remote_write sink       314        65 KB      0
+
+# vector tap: stream live events from any component
+vector tap --component-id filter_errors
+
+# {"ts":"2032-02-01T14:32:07Z","status":502,"method":"POST",
+#  "path":"/api/checkout","latency_ms":3041,"severity":"error"}
+```
+
+## Lua transform — escape hatch for complex logic
+
+```yaml
+# When VRL isn't enough, use the Lua transform (full scripting)
+transforms:
+  lua_enrichment:
+    type: lua
+    inputs:
+      - parse_nginx
+    version: "2"
+    hooks:
+      process: |
+        function (event, emit)
+          -- GeoIP lookup on client IP
+          local geo = geoip.lookup(event.log.client_ip)
+          if geo then
+            event.log["geo.country"] = geo.country_code
+            event.log["geo.city"]    = geo.city
+          end
+          emit(event)
+        end
+```
+
+Vector vs Logstash: Logstash is JVM-based, starts in ~30s, uses ~500MB RAM at idle, and processes ~50k events/second on typical hardware. Vector is a single Rust binary, starts in ~100ms, uses ~20MB at idle, and processes ~2M events/second on the same hardware. The tradeoff: VRL is less expressive than Logstash's Groovy DSL, and the plugin ecosystem is smaller. For standard log/metric pipelines, Vector wins on every operational metric.

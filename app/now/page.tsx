@@ -18,6 +18,7 @@ import WireGuardPanel from '@/components/WireGuardPanel';
 import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 import FioPanel from '@/components/FioPanel';
 import TokioRuntimePanel from '@/components/TokioRuntimePanel';
+import VectorPipelinePanel from '@/components/VectorPipelinePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -392,8 +393,13 @@ export default function NowPage() {
         </div>
 
         {/* Tokio runtime metrics */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TokioRuntimePanel />
+        </div>
+
+        {/* Vector observability pipeline */}
+        <div className="mt-6 pb-10">
+          <VectorPipelinePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
