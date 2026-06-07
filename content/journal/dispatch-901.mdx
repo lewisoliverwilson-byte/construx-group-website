@@ -1,0 +1,188 @@
+---
+title: "Karpenter: Kubernetes node autoscaling based on pod requirements"
+date: "2032-05-09"
+excerpt: "Karpenter is a Kubernetes node autoscaler from AWS (now CNCF) that provisions nodes in response to unschedulable pods. Unlike the Cluster Autoscaler (which scales pre-defined node groups), Karpenter reads pod requirements directly (CPU, memory, GPU, architecture, zone affinity) and launches the exact instance type that satisfies them — often in under 60 seconds. It also consolidates underutilised nodes (cordon, drain, terminate) to minimise waste. NodePools replace node groups, and NodeClasses define cloud-specific settings like instance families, AMIs, and storage."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Pod can't schedule. Karpenter reads requirements. Right node appears in 60s.
+
+## NodePool — define what nodes Karpenter can provision
+
+```yaml
+# NodePool: replaces Cluster Autoscaler node groups
+# Karpenter picks the best instance type from the allowed set per pod request
+
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: construx-general
+spec:
+  template:
+    metadata:
+      labels:
+        managed-by: karpenter
+        pool: construx-general
+
+    spec:
+      nodeClassRef:
+        apiVersion: karpenter.k8s.aws/v1
+        kind: EC2NodeClass
+        name: construx-base
+
+      requirements:
+        # Instance categories: general-purpose only
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: [c, m, r]   # Compute, memory, RAM-optimised families
+
+        # Generation: 6th generation and newer only (better price/perf)
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["5"]
+
+        # Architectures: prefer ARM (Graviton) for cost, allow x86 fallback
+        - key: kubernetes.io/arch
+          operator: In
+          values: [arm64, amd64]
+
+        # Capacity type: spot first, on-demand fallback
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: [spot, on-demand]
+
+        # Availability zones
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: [us-east-1a, us-east-1b, us-east-1c]
+
+  # Node lifecycle: recycle nodes older than 7 days (forces AMI refresh)
+  disruption:
+    consolidationPolicy: WhenUnderutilized   # Bin-pack and terminate empty nodes
+    consolidateAfter: 1m                     # Wait 1m after last pod before consolidating
+    expireAfter: 168h                        # Recycle nodes after 7 days
+
+  # Resource limits: cap total compute Karpenter can provision
+  limits:
+    cpu: 1000
+    memory: 4000Gi
+```
+
+## EC2NodeClass — cloud-specific configuration
+
+```yaml
+# EC2NodeClass: AWS-specific node settings (AMI, security groups, subnets, storage)
+
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: construx-base
+spec:
+  # Use EKS-optimised AMIs — automatically pulls latest patched version
+  amiSelectorTerms:
+    - alias: al2023@latest    # Amazon Linux 2023, EKS-optimized
+
+  # Role for the node (EC2 instance profile)
+  role: KarpenterNodeRole-construx-cluster
+
+  # Subnets: which subnets can Karpenter use for nodes
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: construx-cluster
+        kubernetes.io/role/internal-elb: "1"
+
+  # Security groups for the node
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: construx-cluster
+
+  # Block device: 100GB root volume with gp3
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        encrypted: true
+        iops: 3000
+        throughput: 125
+
+  # User data: run on node boot (install monitoring agents, etc.)
+  userData: |
+    #!/bin/bash
+    /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --region ${AWS::Region}
+```
+
+## Consolidation — eliminating waste
+
+```bash
+# Karpenter consolidation: moves pods to fewer nodes, terminates empty nodes
+# Triggered when nodes are underutilised (< configured threshold)
+
+# Watch Karpenter make consolidation decisions
+kubectl logs -n kube-system -l app.kubernetes.io/name=karpenter | grep -i consolidat
+
+# Typical log output during consolidation:
+# INFO  attempting to consolidate 3 nodes → 1 node  nodes=[node-a, node-b, node-c]
+# INFO  cordon node  node=node-a
+# INFO  drain node   node=node-a  pods=4
+# INFO  terminate    node=node-a  instance=i-0a1b2c3d4e5f  (m6g.large, spot, $0.029/hr)
+# INFO  cordon node  node=node-b
+# INFO  drain node   node=node-b  pods=3
+# INFO  terminate    node=node-b  instance=i-0f9e8d7c6b5a  (m6g.large, spot)
+# INFO  consolidated 7 pods onto node-c  savings=$0.058/hr
+
+# Cost impact: spot + consolidation typically reduces node spend 60-80% vs on-demand
+# fixed node groups that scale based on averages rather than current demand
+
+# View current nodes provisioned by Karpenter
+kubectl get nodes -l managed-by=karpenter -o custom-columns=\
+  'NAME:.metadata.name,INSTANCE:.metadata.labels.node\.kubernetes\.io/instance-type,\
+  CAPACITY:.metadata.labels.karpenter\.sh/capacity-type,ZONE:.metadata.labels.topology\.kubernetes\.io/zone'
+# NAME             INSTANCE     CAPACITY  ZONE
+# ip-10-0-1-42     m7g.xlarge   spot      us-east-1a
+# ip-10-0-2-181    c7g.2xlarge  spot      us-east-1b
+# ip-10-0-3-77     m7g.large    on-demand us-east-1c  ← fallback to on-demand (spot interrupted)
+```
+
+## NodePool for GPU workloads
+
+```yaml
+# Separate NodePool for GPU-intensive workloads (ML inference)
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: construx-gpu
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        apiVersion: karpenter.k8s.aws/v1
+        kind: EC2NodeClass
+        name: construx-base
+
+      requirements:
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: [g, p]      # GPU instances
+        - key: karpenter.k8s.aws/instance-gpu-count
+          operator: Gt
+          values: ["0"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: [spot]      # GPU spot is 60-80% off on-demand
+
+      taints:
+        - key: nvidia.com/gpu
+          effect: NoSchedule  # Only GPU-tolerating pods land here
+
+  disruption:
+    consolidationPolicy: WhenEmpty   # Don't disrupt GPU workloads mid-inference
+    consolidateAfter: 5m
+
+  limits:
+    "nvidia.com/gpu": 8    # Max 8 GPUs across all nodes in this pool
+```
+
+Karpenter vs Cluster Autoscaler: Cluster Autoscaler scales pre-defined node groups up or down — you must predict which instance types you need and pre-create node groups for them. If a pod needs 64GB RAM and your node groups only go to 32GB, it stays unschedulable. Karpenter reads pod requirements and picks from any instance type in the allowed families — it selects exactly what the pod needs. Consolidation is also more aggressive: Karpenter actively bin-packs and terminates underutilised nodes, where Cluster Autoscaler only terminates empty ones. The tradeoff: Karpenter currently requires AWS (EKS), while Cluster Autoscaler supports all major clouds.
+

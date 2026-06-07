@@ -18,6 +18,7 @@ import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import TrivyVulnPanel from '@/components/TrivyVulnPanel';
+import VeleroPanel from '@/components/VeleroPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -638,8 +639,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* Trivy container vulnerability scan */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <TrivyVulnPanel />
+      </section>
+
+      {/* Velero Kubernetes backup */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <VeleroPanel />
       </section>
 
       {/* CTA */}
