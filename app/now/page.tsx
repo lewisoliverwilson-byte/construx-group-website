@@ -19,6 +19,7 @@ import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 import FioPanel from '@/components/FioPanel';
 import TokioRuntimePanel from '@/components/TokioRuntimePanel';
 import VectorPipelinePanel from '@/components/VectorPipelinePanel';
+import CiliumPanel from '@/components/CiliumPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -398,8 +399,13 @@ export default function NowPage() {
         </div>
 
         {/* Vector observability pipeline */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VectorPipelinePanel />
+        </div>
+
+        {/* Cilium eBPF network policy and Hubble flows */}
+        <div className="mt-6 pb-10">
+          <CiliumPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

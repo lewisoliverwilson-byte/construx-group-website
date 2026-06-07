@@ -1,0 +1,166 @@
+---
+title: "Service meshes: Linkerd vs Istio vs Cilium — when to add one"
+date: "2032-04-18"
+excerpt: "A service mesh adds mTLS encryption, traffic management (retries, circuit breaking, weighted routing), and observability (golden signal metrics, distributed traces) to service-to-service communication without changing application code. Three approaches dominate: Istio (Envoy sidecars, maximum features, significant overhead), Linkerd (micro-proxy sidecars, minimal footprint, Rust-based), and Cilium Service Mesh (eBPF, no sidecars, kernel-level). The right answer depends on whether you actually need L7 features — if all you want is mTLS, Cilium does it without any sidecar overhead."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+mTLS without code changes. Retries without client libraries. Traces without instrumentation.
+
+## Linkerd — lightweight sidecar mesh
+
+```bash
+# Linkerd2 uses a Rust micro-proxy (linkerd2-proxy) — 10MB RAM vs Envoy's 50MB+
+
+# Install Linkerd CLI and control plane
+linkerd install --crds | kubectl apply -f -
+linkerd install | kubectl apply -f -
+linkerd check     # Verify control plane health
+
+# Inject the Linkerd sidecar into a deployment
+# Option 1: annotation-based auto-injection
+kubectl annotate namespace construx linkerd.io/inject=enabled
+
+# Option 2: manual injection for specific deployments
+kubectl get deploy construx-api -o yaml | \
+  linkerd inject - | \
+  kubectl apply -f -
+
+# Golden metrics: success rate, RPS, P99 latency — no instrumentation needed
+linkerd viz stat deploy -n construx
+# NAME              MESHED  SUCCESS   RPS   LATENCY_P50  LATENCY_P99  TCP_CONN
+# construx-api       4/4   99.82%  142/s       4ms          18ms       8
+# construx-worker    2/2   99.94%   48/s       2ms          11ms       4
+
+# Real-time request stream
+linkerd viz tap deploy/construx-api -n construx
+# req id=0:0 proxy=in  src=10.0.1.22:44891 dst=10.0.1.21:8080
+#   :method=POST :authority=construx-api:8080 :path=/api/orders
+# rsp id=0:0 proxy=in  :status=201 latency=4281µs
+#   content-type=application/json
+
+# mTLS verification — Linkerd handles cert rotation automatically
+linkerd viz edges pod -n construx
+# SRC                DST              SECURED
+# construx-api-6d9f  postgres-0       ✓ (linkerd-mtls)
+# construx-worker-4c  postgres-0      ✓ (linkerd-mtls)
+```
+
+## Istio — full-featured Envoy sidecar mesh
+
+```yaml
+# Istio provides the most features but at the cost of complexity and overhead
+# Each pod gets an Envoy sidecar injected automatically
+
+# Install Istio with minimal profile
+istioctl install --set profile=minimal
+
+# Label namespace for auto-injection
+kubectl label namespace construx istio-injection=enabled
+
+# Traffic management: weighted routing for canary deployments
+# VirtualService routes 90% to stable, 10% to canary
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: construx-api
+  namespace: construx
+spec:
+  hosts:
+    - construx-api
+  http:
+    - route:
+        - destination:
+            host: construx-api
+            subset: stable    # v2.4.1
+          weight: 90
+        - destination:
+            host: construx-api
+            subset: canary    # v2.5.0-rc1
+          weight: 10
+
+---
+# Circuit breaking: auto-eject unhealthy pods
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: construx-api
+spec:
+  host: construx-api
+  trafficPolicy:
+    outlierDetection:
+      consecutive5xxErrors: 5      # Eject after 5 consecutive errors
+      interval: 30s                 # Check every 30s
+      baseEjectionTime: 30s         # Eject for 30s minimum
+      maxEjectionPercent: 50        # Never eject more than 50% of pods
+    connectionPool:
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+```
+
+## Cilium Service Mesh — no sidecars
+
+```bash
+# Cilium 1.14+ supports a service mesh mode using eBPF, without sidecars
+# No additional container, no intercepted traffic — kernel-level enforcement
+
+# Enable Cilium's service mesh features
+helm upgrade cilium cilium/cilium \
+  --set ingressController.enabled=true \
+  --set envoy.enabled=true           # Shared Envoy per node (not per pod)
+  # Note: L7 features use a per-NODE Envoy, not a per-pod sidecar
+
+# mTLS with SPIFFE/SPIRE — identity-based, no sidecar
+kubectl apply -f - <<EOF
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+spec:
+  endpointSelector:
+    matchLabels:
+      app: postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: construx-api
+      authentication:
+        mode: required    # Require mTLS with SPIFFE identity verification
+EOF
+
+# Load balancing with session affinity (eBPF-native)
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: construx-api
+  annotations:
+    service.cilium.io/lb-algorithm: "maglev"   # Consistent hashing
+    service.cilium.io/session-affinity: "clientIP"
+EOF
+```
+
+## When to add a service mesh
+
+```
+Decision tree:
+├── Do you need encrypted service-to-service traffic (mTLS)?
+│   ├── Yes + sidecar overhead is acceptable → Linkerd (low overhead) or Istio (more features)
+│   └── Yes + zero overhead required → Cilium mTLS (eBPF, no sidecar)
+│
+├── Do you need L7 traffic management (retries, circuit breakers, weighted routing)?
+│   ├── Yes + complex policies → Istio (VirtualService, DestinationRule)
+│   └── Yes + simple canary → Linkerd (SMI TrafficSplit) or Argo Rollouts
+│
+└── Do you just need golden metrics (success rate, latency, RPS)?
+    ├── Yes → Linkerd (10 seconds to install, immediate metrics)
+    └── Already running Cilium → Hubble gives you this for free
+
+Overhead comparison (3-replica deployment):
+  Linkerd:  +6 containers (3 sidecars), ~30MB RAM, 2-4ms added latency
+  Istio:    +6 containers (3 Envoys), ~150MB RAM, 3-6ms added latency
+  Cilium:   +0 containers, ~0MB RAM per pod, <0.1ms added latency
+```
+
+At Construx-scale (tens of pods, not thousands), Linkerd is the sweet spot: five minutes to install, immediate golden metrics, mTLS with auto-rotating certs, and minimal overhead. The Linkerd micro-proxy is 10x lighter than Envoy. Istio makes sense when you need Wasm-based extensibility, multi-cluster, or VM mesh support — complexity that Linkerd deliberately avoids. Cilium Service Mesh makes sense if you're already running Cilium and want to avoid sidecar overhead entirely.
+
