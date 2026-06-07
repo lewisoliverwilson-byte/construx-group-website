@@ -1,0 +1,172 @@
+---
+title: "jq: JSON processing, transformation, and extraction at the command line"
+date: "2032-05-27"
+excerpt: "jq is a command-line JSON processor — it filters, transforms, and extracts data from JSON using a concise expression language. Learning 10% of jq (`.field`, `[]`, `|`, `select`, `map`) covers 90% of use cases: extracting fields from API responses, filtering arrays, reshaping objects, and piping through transformations. jq is a required skill for anyone working with REST APIs, Kubernetes, AWS CLI, or any JSON-heavy toolchain — curl responses, kubectl output, and Terraform state are all JSON that becomes trivially navigable with jq."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+`.field` extracts. `[]` iterates. `|` pipes. `select` filters. That's 90% of it.
+
+## Core syntax — fields, arrays, pipes
+
+```bash
+# Sample JSON — an order from the construx API
+ORDER='{
+  "order_id": "a3f9b2c1",
+  "customer_id": "cust-001",
+  "status": "shipped",
+  "items": [
+    {"sku": "SKU-42", "quantity": 2, "price_cents": 2499},
+    {"sku": "SKU-17", "quantity": 1, "price_cents": 9999}
+  ],
+  "total_cents": 14997,
+  "created_at": "2032-05-21T14:32:07Z",
+  "shipping": {
+    "carrier": "DHL",
+    "tracking": "1Z999AA10123456784"
+  }
+}'
+
+# Extract a field
+echo "$ORDER" | jq '.order_id'
+# "a3f9b2c1"
+
+# Extract nested field
+echo "$ORDER" | jq '.shipping.carrier'
+# "DHL"
+
+# Extract array element (0-indexed)
+echo "$ORDER" | jq '.items[0]'
+# { "sku": "SKU-42", "quantity": 2, "price_cents": 2499 }
+
+# Iterate over array — emit each element
+echo "$ORDER" | jq '.items[]'
+# { "sku": "SKU-42", ... }
+# { "sku": "SKU-17", ... }
+
+# Extract a field from each array element
+echo "$ORDER" | jq '.items[].sku'
+# "SKU-42"
+# "SKU-17"
+
+# Build an array with map
+echo "$ORDER" | jq '[.items[].sku]'
+# ["SKU-42", "SKU-17"]
+
+# Remove quotes from string output (-r flag)
+echo "$ORDER" | jq -r '.order_id'
+# a3f9b2c1  (no quotes — useful for scripting)
+```
+
+## Filtering, selecting, and transforming
+
+```bash
+# select: filter elements matching a condition
+ORDERS='[
+  {"id":"1","status":"shipped","total":4999},
+  {"id":"2","status":"pending","total":9999},
+  {"id":"3","status":"shipped","total":2499}
+]'
+
+# Get only shipped orders
+echo "$ORDERS" | jq '[.[] | select(.status == "shipped")]'
+# [{"id":"1","status":"shipped","total":4999},{"id":"3","status":"shipped","total":2499}]
+
+# Filter and extract
+echo "$ORDERS" | jq '[.[] | select(.status == "shipped") | .id]'
+# ["1","3"]
+
+# Multiple conditions
+echo "$ORDERS" | jq '[.[] | select(.status == "shipped" and .total > 3000)]'
+# [{"id":"1",...}]  # Only id 1 (2499 < 3000)
+
+# map: apply transformation to every element
+echo "$ORDERS" | jq '[.[] | .total] | add'
+# 17497   (sum all totals)
+
+echo "$ORDERS" | jq 'map(.total) | add / length'
+# 5832.333...  (average total)
+
+# Construct a new object from existing fields
+echo "$ORDER" | jq '{
+  id: .order_id,
+  amount: (.total_cents / 100),
+  status: .status
+}'
+# { "id": "a3f9b2c1", "amount": 149.97, "status": "shipped" }
+```
+
+## Real-world: working with kubectl and AWS CLI
+
+```bash
+# Get all pod names in the construx namespace
+kubectl get pods -n construx -o json | jq -r '.items[].metadata.name'
+# construx-api-6d9f5c4b8-xk2pq
+# construx-worker-4c7d2f9b-rtm8k
+
+# Find pods that are NOT running
+kubectl get pods -n construx -o json | \
+  jq -r '.items[] | select(.status.phase != "Running") | .metadata.name'
+
+# Extract all container images in use
+kubectl get pods -n construx -o json | \
+  jq -r '[.items[].spec.containers[].image] | unique[]'
+
+# AWS CLI: list EC2 instances with their IDs, types, and states
+aws ec2 describe-instances | \
+  jq -r '.Reservations[].Instances[] | [.InstanceId, .InstanceType, .State.Name] | @tsv'
+# i-0a1b2c3d4e5f6a7b8  m7g.xlarge  running
+# i-0f9e8d7c6b5a4e3d2  c7g.2xlarge  running
+
+# Get only running instances with a specific tag
+aws ec2 describe-instances | jq -r '
+  .Reservations[].Instances[]
+  | select(.State.Name == "running")
+  | select(.Tags[]? | select(.Key == "karpenter.sh/nodepool") | .Value == "construx-general")
+  | .InstanceId
+'
+
+# Parse Terraform state for resource addresses
+terraform show -json | \
+  jq -r '.values.root_module.resources[] | .address'
+
+# Extract secrets from Kubernetes (base64 decode inline)
+kubectl get secret construx-postgres-connection -n construx -o json | \
+  jq -r '.data | to_entries[] | "\(.key)=\(.value | @base64d)"'
+# endpoint=postgres.construx.internal
+# password=A1B2-c3D4-e5F6
+```
+
+## Advanced: reduce, env, and streaming
+
+```bash
+# reduce: fold/accumulate over an array
+echo '[1,2,3,4,5]' | jq 'reduce .[] as $x (0; . + $x)'
+# 15
+
+# group_by and count occurrences
+echo "$ORDERS" | jq 'group_by(.status) | map({status: .[0].status, count: length})'
+# [{"status":"pending","count":1},{"status":"shipped","count":2}]
+
+# env: access environment variables inside jq
+SERVICE=construx-api jq -n '{"service": env.SERVICE, "time": now | strftime("%Y-%m-%dT%H:%M:%SZ")}'
+# { "service": "construx-api", "time": "2032-05-21T14:32:07Z" }
+
+# --arg: pass shell variables safely (no injection risk)
+jq --arg id "a3f9b2c1" 'select(.order_id == $arg)' orders.json
+
+# @base64d: decode base64 inline
+kubectl get secret my-secret -o json | jq -r '.data.password | @base64d'
+
+# @csv: format as CSV
+echo "$ORDERS" | jq -r '.[] | [.id, .status, .total] | @csv'
+# "1","shipped",4999
+# "2","pending",9999
+
+# Pretty-print with color to a pager
+kubectl get pods -n construx -o json | jq . | less -R
+```
+
+jq vs Python for JSON: Python's `json` module is more readable for complex logic, supports schemas, and can be unit-tested. jq is faster for interactive exploration and one-liners — a 50-character jq expression would be 10 lines of Python. The sweet spot: use jq for exploration and quick scripts, Python when you need loops, error handling, or complex transformations. Most day-to-day JSON processing (extracting fields from curl output, filtering kubectl results, reshaping API payloads for shell scripts) is faster in jq. The learning curve is the expression syntax — spend 20 minutes with `jq` and `man jq`, and you'll have the core vocabulary.
+

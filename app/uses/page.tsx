@@ -18,6 +18,7 @@ import TurboRepoPanel from '@/components/TurboRepoPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
+import GitWorktreePanel from '@/components/GitWorktreePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -410,8 +411,13 @@ export default function UsesPage() {
         </div>
 
         {/* gRPC service inspection with grpcurl */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrpcurlPanel />
+        </div>
+
+        {/* git worktree parallel branch checkouts */}
+        <div className="mt-6 pb-10">
+          <GitWorktreePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
