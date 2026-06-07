@@ -28,6 +28,7 @@ import KedaPanel from '@/components/KedaPanel';
 import SpiffePanel from '@/components/SpiffePanel';
 import TrinoPanel from '@/components/TrinoPanel';
 import PulsarPanel from '@/components/PulsarPanel';
+import VaultPkiPanel from '@/components/VaultPkiPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -452,8 +453,13 @@ export default function NowPage() {
         </div>
 
         {/* pulsar multi-tenant messaging — geo-replication, tiered storage, bookkeeper */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PulsarPanel />
+        </div>
+
+        {/* vault pki internal ca — intermediate ca, issue, rotate, k8s-auth */}
+        <div className="mt-6 pb-10">
+          <VaultPkiPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

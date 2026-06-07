@@ -1,0 +1,141 @@
+---
+title: "Loki label design: high-cardinality log ingestion — stream selectors, chunk flushing, compactor"
+date: "2034-01-23"
+excerpt: "Grafana Loki is a log aggregation system that indexes only metadata (labels like app, namespace, pod) rather than the full log content — log content is stored compressed in object storage and searched via regexp on read. This design makes Loki dramatically cheaper to operate than Elasticsearch for log volumes at scale: there is no inverted index to build and maintain, no per-field tokenisation, and the storage tier is S3 rather than NVMe SSD. The key architectural trade-off is that Loki is optimised for log streams where you know the labels in advance — high-cardinality label values (like pod IDs, request IDs, trace IDs) should go in the log line itself, not as labels. Each unique combination of label values is a separate log stream, stored as a separate set of compressed chunks. High cardinality labels create too many streams, each with very few log entries per chunk, degrading compression and query performance. The Loki Compactor merges small chunks from many streams into larger blocks and builds bloom filters for efficient content-based filtering. LogQL is Loki's query language: stream selectors filter logs by labels, pipe expressions (filter, pattern, regexp, unwrap, rate) transform the stream, and metric queries convert log lines into Prometheus-compatible rate metrics."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Stream selector. Label. LogQL. Chunk. Compactor. Bloom filter. High cardinality. Object storage.
+
+## LogQL queries and label design
+
+```logql
+# LogQL: stream selector + pipe expressions
+
+# All error logs from construx-prod namespace (label-based filter)
+{namespace="construx-prod", level="error"} | json
+
+# Filter + pattern: extract structured fields from unstructured log lines
+{namespace="construx-prod", app="orders-api"}
+| pattern `<_> level=<level> msg="<msg>" tenant=<tenant> duration=<duration>ms`
+| level = "error"
+| duration > 200
+
+# Rate metric: error rate per service over 5m (LogQL metric query)
+sum by (app) (
+  rate({namespace="construx-prod", level="error"}[5m])
+)
+
+# Unwrap numeric value from log line → metric query
+# Extracts duration_ms from "duration_ms=142 endpoint=/api/v1/orders"
+sum by (app) (
+  rate({namespace="construx-prod"}
+    | json
+    | __error__=""
+    | unwrap duration_ms [5m])
+)
+
+# Label filter: only show logs from specific tenant
+{namespace="construx-prod", app="orders-api"}
+| json
+| tenant_id = "acme"
+| line_format "{{.ts}} {{.level}} {{.msg}}"
+```
+
+```yaml
+# Loki configuration: label design and chunk parameters
+# Deployed via grafana/loki Helm chart — simple scalable mode
+
+loki:
+  commonConfig:
+    replication_factor: 3
+
+  schemaConfig:
+    configs:
+      - from: "2033-01-01"
+        store: tsdb          # TSDB index (v3 format)
+        object_store: s3
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  storageConfig:
+    tsdb_shipper:
+      active_index_directory: /var/loki/index
+      cache_location: /var/loki/index_cache
+      shared_store: s3
+
+    aws:
+      s3: s3://construx-loki-chunks/
+      region: eu-west-2
+
+  limits_config:
+    # Per-tenant ingest limits
+    ingestion_rate_mb: 32          # MB/s per tenant
+    ingestion_burst_size_mb: 64
+    max_streams_per_user: 10000    # prevent cardinality explosion
+    max_label_names_per_series: 15 # enforce label hygiene
+
+    # Query limits
+    max_query_length: 721h         # 30 days max query range
+    max_query_parallelism: 32
+    split_queries_by_interval: 24h # split long queries into 24h chunks
+
+    # Retention
+    retention_period: 2160h        # 90 days
+
+  compactor:
+    working_directory: /var/loki/compactor
+    compaction_interval: 10m
+    retention_enabled: true
+    retention_delete_delay: 2h
+    delete_request_store: s3
+```
+
+```yaml
+# Grafana Alloy: log collection and label enrichment before sending to Loki
+# Best practice: add namespace, app, and pod labels; exclude high-cardinality values
+
+loki.source.kubernetes "pods" {
+  targets    = discovery.kubernetes.pods.targets
+  forward_to = [loki.process.add_labels.receiver]
+}
+
+loki.process "add_labels" {
+  // Add structured metadata from pod labels
+  stage.kubernetes {}
+
+  // Drop high-cardinality labels that would create too many streams
+  stage.label_drop {
+    values = ["pod_name", "uid", "container_id"]
+  }
+
+  // Parse structured log level
+  stage.json {
+    expressions = { level = "level", ts = "ts", msg = "msg" }
+  }
+
+  stage.labels {
+    values = { level = "" }   // promote to label — low cardinality (error/warn/info/debug)
+  }
+
+  // Drop debug logs in production to reduce cost
+  stage.match {
+    selector = `{namespace="construx-prod"} |= "level=debug"`
+    action   = "drop"
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "https://loki.construx.internal/loki/api/v1/push"
+    tenant_id = "construx-prod"
+  }
+}
+```
+
+Loki vs Elasticsearch vs Splunk vs CloudWatch Logs vs Datadog Logs: Elasticsearch/OpenSearch (dispatch-1071) stores an inverted index over every token in every log line — incredibly fast for full-text search across any field, but expensive (NVMe SSD required, high memory for JVM heap, significant CPU for indexing). Splunk is the enterprise gold standard for log management — powerful query language (SPL), excellent dashboarding, and a long track record in security/compliance — but its licensing cost scales with ingest volume and becomes prohibitive at high log rates. CloudWatch Logs is the AWS-native option — free if you're already paying for CloudWatch, but expensive at high volume, limited query capabilities, and tightly coupled to AWS. Datadog Logs provides excellent correlation between logs, metrics, and traces, but per-GB pricing is high at large scale. Loki's position is clear: it is the cheapest option for long-term log retention at scale because it stores only labels in an index and everything else in S3. The trade-off is query performance — full-text search over hundreds of TB of Loki data requires regexp scans, which are slower than Elasticsearch's inverted index. For teams where most log queries are label-filtered (show me all error logs from the orders-api in namespace construx-prod), Loki is the correct architecture.
