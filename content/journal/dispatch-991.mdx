@@ -1,0 +1,271 @@
+---
+title: "Vault: secrets management, dynamic credentials, and PKI at scale"
+date: "2033-02-03"
+excerpt: "Vault centralizes secrets and removes long-lived credentials from applications. The key insight is dynamic secrets: instead of storing a Postgres password in a .env file, Vault generates a short-lived username and password pair on demand, issues it to the application, and revokes it automatically after the TTL expires (1h, 24h, whatever you configure). If the app is compromised, the credential is already expired. Vault handles the full secrets lifecycle: storage (AES-256-GCM encrypted, backed by Raft, S3, or Consul), issuance (dynamic secrets for Postgres, MySQL, Redis, AWS, GCP, Azure), PKI (internal CA for TLS certificates), and SSH (signed certificates for bastion access). Everything is audited — every secret read is logged with the identity of the caller."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Dynamic credentials. Short TTLs. Auto-revocation. PKI. Audit log. Raft HA.
+
+## Core concepts and setup
+
+```bash
+# Install Vault
+brew install vault
+
+# Start a dev server (in-memory, for local testing only)
+vault server -dev &
+export VAULT_ADDR='http://127.0.0.1:8200'
+export VAULT_TOKEN='root'
+
+# Production: start with a config file
+cat > vault.hcl <<'EOF'
+ui            = true
+cluster_addr  = "https://10.0.1.10:8201"
+api_addr      = "https://10.0.1.10:8200"
+
+storage "raft" {
+  path    = "/opt/vault/data"
+  node_id = "vault-node-1"
+
+  retry_join {
+    leader_api_addr = "https://10.0.1.11:8200"
+  }
+  retry_join {
+    leader_api_addr = "https://10.0.1.12:8200"
+  }
+}
+
+listener "tcp" {
+  address       = "0.0.0.0:8200"
+  tls_cert_file = "/opt/vault/tls/vault.crt"
+  tls_key_file  = "/opt/vault/tls/vault.key"
+}
+EOF
+
+vault server -config=vault.hcl
+
+# Initialize (one-time, generates unseal keys and root token)
+vault operator init -key-shares=5 -key-threshold=3
+# Unseal Key 1: aAbBcCdDeEfFgGhHiIjJkKlLmM...
+# Unseal Key 2: ...
+# ...
+# Initial Root Token: hvs.xxxxxxxxxxxxx
+
+# Unseal the server (requires 3 of 5 keys)
+vault operator unseal <key1>
+vault operator unseal <key2>
+vault operator unseal <key3>
+# Sealed: false
+
+# Status
+vault status
+# Initialized: true
+# Sealed:      false
+# HA Enabled:  true
+# HA Cluster:  https://10.0.1.10:8201
+# HA Mode:     active
+```
+
+## KV secrets engine (static secrets)
+
+```bash
+# Enable the KV v2 secrets engine
+vault secrets enable -path=secret kv-v2
+
+# Write secrets
+vault kv put secret/construx/api \
+  jwt_secret=superSecretJWTKey123 \
+  stripe_key=sk_live_abcdef... \
+  sendgrid_key=SG.xxxxx
+
+# Read a secret
+vault kv get secret/construx/api
+# ====== Data ======
+# Key            Value
+# ---            -----
+# jwt_secret     superSecretJWTKey123
+# sendgrid_key   SG.xxxxx
+# stripe_key     sk_live_abcdef...
+
+# Read just one field
+vault kv get -field=jwt_secret secret/construx/api
+
+# KV v2: versioned secrets
+vault kv put secret/construx/api jwt_secret=newSecretKey456   # creates version 2
+vault kv get -version=1 secret/construx/api                    # read old version
+vault kv rollback -version=1 secret/construx/api               # revert to v1
+
+# Soft delete (can be undeleted)
+vault kv delete secret/construx/api
+vault kv undelete -versions=2 secret/construx/api
+
+# Hard destroy (cannot be recovered)
+vault kv destroy -versions=1 secret/construx/api
+
+# List all secrets at a path
+vault kv list secret/construx/
+```
+
+## Dynamic database credentials
+
+```bash
+# Dynamic secrets: Vault creates short-lived DB users on demand
+# Enable the database secrets engine
+vault secrets enable database
+
+# Configure the Postgres connection (Vault needs a superuser to create/revoke roles)
+vault write database/config/construx-postgres \
+  plugin_name=postgresql-database-plugin \
+  allowed_roles="construx-api,construx-worker" \
+  connection_url="postgresql://{{username}}:{{password}}@postgres.service.consul:5432/construx" \
+  username="vault-admin" \
+  password="vaultAdminPassword"
+
+# Define a role: what SQL runs when a credential is issued
+vault write database/roles/construx-api \
+  db_name=construx-postgres \
+  creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO \"{{name}}\";" \
+  revocation_statements="DROP ROLE IF EXISTS \"{{name}}\";" \
+  default_ttl="1h" \
+  max_ttl="24h"
+
+# Request credentials (what the application does at startup)
+vault read database/creds/construx-api
+# Lease ID:      database/creds/construx-api/AbCdEfGh
+# Lease Duration: 1h
+# Key       Value
+# ---       -----
+# username  v-token-construx-api-aBcDeF
+# password  aX9mQ2...
+#
+# The credential is valid for 1 hour, then Vault revokes it (drops the role)
+
+# Renew a lease before it expires (app can renew up to max_ttl)
+vault lease renew database/creds/construx-api/AbCdEfGh
+
+# Revoke immediately (e.g., incident response)
+vault lease revoke database/creds/construx-api/AbCdEfGh
+# Drops the Postgres role immediately
+
+# Revoke all credentials for a role
+vault lease revoke -prefix database/creds/construx-api
+```
+
+## PKI secrets engine: internal CA
+
+```bash
+# Use Vault as an internal CA — issue TLS certs for services without manual CSRs
+
+# Enable PKI engine and configure root CA
+vault secrets enable pki
+vault secrets tune -max-lease-ttl=87600h pki
+
+# Generate root CA (self-signed)
+vault write pki/root/generate/internal \
+  common_name="Construx Internal CA" \
+  ttl=87600h  # 10 years
+
+# Generate intermediate CA
+vault secrets enable -path=pki_int pki
+vault write pki_int/intermediate/generate/internal \
+  common_name="Construx Intermediate CA"
+# Returns a CSR — sign it with the root CA
+vault write pki/root/sign-intermediate \
+  csr=@intermediate.csr \
+  format=pem_bundle ttl=43800h
+
+# Import signed cert
+vault write pki_int/intermediate/set-signed certificate=@signed.pem
+
+# Create a role: what certificates can be issued
+vault write pki_int/roles/construx-api \
+  allowed_domains="construx.internal,service.consul" \
+  allow_subdomains=true \
+  max_ttl=72h
+
+# Issue a certificate (e.g., from the service at startup)
+vault write pki_int/issue/construx-api \
+  common_name="construx-api.service.consul" \
+  alt_names="api.construx.internal" \
+  ttl=24h
+# Returns: certificate, private_key, ca_chain, serial_number
+# Certificate expires in 24h; the service requests a new one before expiry
+
+# With Consul Connect + Vault CA integration:
+# Consul automatically uses Vault as its CA for Connect mTLS certificates
+# Services get SPIFFE-compatible certs via Consul without calling Vault directly
+```
+
+## Policies and authentication methods
+
+```bash
+# Vault policies: HCL-based ACL rules
+cat > construx-api-policy.hcl <<'EOF'
+# Application can read its own secrets
+path "secret/data/construx/api" {
+  capabilities = ["read"]
+}
+
+# Application can request DB credentials
+path "database/creds/construx-api" {
+  capabilities = ["read"]
+}
+
+# Application can request TLS certs
+path "pki_int/issue/construx-api" {
+  capabilities = ["create", "update"]
+}
+
+# Application can renew its own leases
+path "sys/leases/renew" {
+  capabilities = ["create", "update"]
+}
+EOF
+
+vault policy write construx-api construx-api-policy.hcl
+
+# Enable Kubernetes auth method (for pods running in Kubernetes)
+vault auth enable kubernetes
+vault write auth/kubernetes/config \
+  kubernetes_host=https://kubernetes.default.svc \
+  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+# Bind a Kubernetes service account to a Vault policy
+vault write auth/kubernetes/role/construx-api \
+  bound_service_account_names=construx-api \
+  bound_service_account_namespaces=construx-prod \
+  policies=construx-api \
+  ttl=1h
+
+# In the pod: authenticate with the pod's service account JWT
+# (done by the Vault Agent sidecar automatically)
+VAULT_TOKEN=$(curl -s http://vault.service.consul:8200/v1/auth/kubernetes/login \
+  -d "{\"jwt\":\"$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\",\"role\":\"construx-api\"}" \
+  | jq -r .auth.client_token)
+
+# Vault Agent: sidecar that authenticates and injects secrets as files/env vars
+# No code changes in the app — Agent handles the token lifecycle
+cat > vault-agent.hcl <<'EOF'
+vault {
+  address = "https://vault.service.consul:8200"
+}
+
+auto_auth {
+  method "kubernetes" {
+    config = { role = "construx-api" }
+  }
+}
+
+template {
+  source      = "/vault/templates/env.tmpl"
+  destination = "/vault/secrets/env"
+  command     = "/bin/kill -HUP $(pidof construx-api)"  # reload on change
+}
+EOF
+```
+
+Vault vs AWS Secrets Manager vs 1Password Secrets Automation: AWS Secrets Manager is the right choice if you're AWS-only and want zero infrastructure overhead — it supports automatic rotation for RDS/Redshift, and Lambda hooks for custom rotation. The trade-off is AWS lock-in and per-secret pricing that scales poorly with many secrets. 1Password SA is developer-friendly and has excellent CLI/SDK support, but doesn't do dynamic credentials. Vault's strength is the dynamic secrets model — no other tool generates and revokes short-lived database credentials on demand at this level. The operational overhead (Raft HA cluster, unseal ceremony, renewal management) is real but pays off when you have many services, multi-cloud, or strict compliance requirements around credential lifetime.

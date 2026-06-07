@@ -1,0 +1,218 @@
+---
+title: "Consul: service discovery, health checks, and distributed KV"
+date: "2033-01-28"
+excerpt: "Consul solves three problems in one binary: service discovery (what IP and port is construx-api running on right now?), health checking (is that instance actually responding?), and distributed key-value storage (what is the current config?). Clients register services with Consul and query it via DNS or HTTP API. Healthy instances return SRV records; unhealthy ones are removed from DNS automatically. The KV store gives you distributed configuration without a separate system — feature flags, rate limits, and environment config live in Consul and are updated without a deploy. In Kubernetes, Consul Connect adds a service mesh layer: Envoy sidecars handle mTLS between services and enforce intentions (which service can call which). The whole thing runs as a Raft-consensus cluster of three or five nodes — no external database, no coordinator."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Service registration. DNS SRV queries. Health check routing. KV config. Connect intentions.
+
+## Service registration and health checks
+
+```bash
+# Install Consul
+brew install consul
+
+# Start a dev agent (single node, no persistence, for local testing)
+consul agent -dev
+
+# Register a service via config file
+cat > /etc/consul.d/construx-api.json <<'EOF'
+{
+  "service": {
+    "name": "construx-api",
+    "id": "construx-api-1",
+    "port": 8080,
+    "tags": ["v2", "primary"],
+    "check": {
+      "http": "http://localhost:8080/healthz",
+      "interval": "10s",
+      "timeout": "3s",
+      "deregister_critical_service_after": "90s"
+    }
+  }
+}
+EOF
+consul reload
+
+# Or register via API (useful from within the service itself at startup)
+curl -s -X PUT http://localhost:8500/v1/agent/service/register \
+  -d '{
+    "Name": "construx-api",
+    "ID": "construx-api-2",
+    "Port": 8080,
+    "Check": {
+      "HTTP": "http://localhost:8080/healthz",
+      "Interval": "10s",
+      "Timeout": "3s"
+    }
+  }'
+
+# View registered services
+consul catalog services
+# consul
+# construx-api
+# postgres
+# redis
+# worker
+
+# Check health of a service
+consul health checks construx-api
+# Node         CheckID               Status  Notes
+# ip-10-0-1-10 service:construx-api-1 passing HTTP check: 200 OK
+# ip-10-0-1-11 service:construx-api-2 passing HTTP check: 200 OK
+# ip-10-0-1-12 service:construx-api-3 critical HTTP check: connection refused
+
+# Only healthy instances (failing ones are excluded automatically)
+consul health service construx-api --passing
+# Returns only the two passing instances
+```
+
+## DNS-based service discovery
+
+```bash
+# Consul exposes a DNS interface on port 8600
+# Clients query it with standard DNS — no Consul client library needed
+
+# A record: one healthy instance
+dig @127.0.0.1 -p 8600 construx-api.service.consul +short
+# 10.0.1.10
+# 10.0.1.11
+
+# SRV record: all healthy instances with port
+dig @127.0.0.1 -p 8600 construx-api.service.consul SRV +short
+# 1 1 8080 ip-10-0-1-10.node.eu-west-1.consul.
+# 1 1 8080 ip-10-0-1-11.node.eu-west-1.consul.
+
+# Filter by tag: only instances tagged 'primary'
+dig @127.0.0.1 -p 8600 primary.construx-api.service.consul SRV +short
+
+# Near query: instances in the same datacenter, sorted by network distance
+dig @127.0.0.1 -p 8600 construx-api.service.consul.near=_ SRV +short
+
+# Prepared queries: more powerful than DNS (filter by tags, datacenter failover)
+consul query create \
+  -name construx-api-eu \
+  -service construx-api \
+  -tag primary \
+  -failover-datacenters us-east-1,ap-southeast-1
+
+dig @127.0.0.1 -p 8600 construx-api-eu.query.consul SRV +short
+# Returns primary instances; fails over to other DCs if none healthy
+
+# Configure system DNS to resolve .consul domains
+# /etc/resolvconf.conf or /etc/systemd/resolved.conf:
+# DNS=127.0.0.1:8600
+# Domains=~consul
+
+# After that, services query by name directly:
+curl http://construx-api.service.consul:8080/api/v1/status
+```
+
+## KV store for distributed configuration
+
+```bash
+# Write config values
+consul kv put construx/config/log-level warn
+consul kv put construx/config/rate-limit/api 1000
+consul kv put construx/config/feature-flags/new-checkout true
+consul kv put construx/config/feature-flags/dark-mode false
+
+# Read a single key
+consul kv get construx/config/log-level
+# warn
+
+# Read all keys under a prefix (recursive)
+consul kv get -recurse construx/config/
+# construx/config/feature-flags/dark-mode: false
+# construx/config/feature-flags/new-checkout: true
+# construx/config/log-level: warn
+# construx/config/rate-limit/api: 1000
+
+# Watch a key for changes (blocks until the value changes)
+consul watch -type key -key construx/config/log-level \
+  jq '.Value | @base64d'
+# Outputs the new value each time it changes
+
+# CAS (compare-and-swap): atomic updates to prevent races
+# Get the current ModifyIndex
+consul kv get -detailed construx/config/log-level
+# ModifyIndex: 42
+
+# Update only if ModifyIndex is still 42 (fails if another writer changed it)
+consul kv put -cas -modify-index=42 construx/config/log-level info
+# Success (updated)
+
+# Delete a key
+consul kv delete construx/config/feature-flags/dark-mode
+
+# Application side: watch KV and reload config on change
+# (using envconsul or consul-template, or direct API polling)
+envconsul -prefix construx/config/ -upcase ./construx-api serve
+# Sets LOG_LEVEL=warn, RATE_LIMIT_API=1000 as env vars
+# Restarts the process if any value changes
+```
+
+## Connect: service mesh with mTLS intentions
+
+```bash
+# Connect adds Envoy sidecar proxies that handle mTLS between services
+# Intentions define which services can communicate
+
+# Enable Connect in the service registration
+cat > /etc/consul.d/construx-api.json <<'EOF'
+{
+  "service": {
+    "name": "construx-api",
+    "port": 8080,
+    "connect": {
+      "sidecar_service": {
+        "port": 20000,
+        "proxy": {
+          "upstreams": [
+            { "destination_name": "postgres", "local_bind_port": 5432 },
+            { "destination_name": "redis",    "local_bind_port": 6379 }
+          ]
+        }
+      }
+    }
+  }
+}
+EOF
+
+# Start the Envoy sidecar
+consul connect envoy -sidecar-for construx-api &
+
+# Now the app connects to postgres via localhost:5432
+# Envoy handles mTLS to the postgres service automatically
+# No code changes in the application
+
+# Create intentions: allow construx-api to talk to postgres and redis
+consul intention create -allow construx-api postgres
+consul intention create -allow construx-api redis
+consul intention create -deny  "*"            "*"    # default deny
+
+# List intentions
+consul intention list
+# construx-api → postgres   allow
+# construx-api → redis      allow
+# *            → *          deny  (default)
+
+# Test an intention (does source X have permission to call destination Y?)
+consul intention check construx-api postgres
+# Allowed
+
+consul intention check worker postgres
+# Denied
+
+# Intentions are enforced at the sidecar proxy — the connection is rejected
+# at the network layer before it reaches the application
+
+# mTLS: Consul CA issues short-lived certificates (72h by default)
+# Each service gets a SPIFFE-compatible identity: spiffe://dc1.consul/ns/default/dc/dc1/svc/construx-api
+# Certificates rotate automatically — no manual cert management
+consul debug -duration 5s | grep cert
+```
+
+Consul vs etcd vs Zookeeper: etcd is purpose-built for Kubernetes and optimized for small keys read by many watchers — it doesn't do DNS, health checks, or service mesh. Zookeeper is older and Java-based, widely used in Kafka/Hadoop ecosystems, but has no first-class service discovery or health checking. Consul is the broadest: service discovery + health + DNS + KV + service mesh in one binary. For teams already using Vault, Consul integrates directly (Consul can use Vault for its CA). In Kubernetes specifically, Consul Connect competes with Linkerd and Istio — it's less complex than Istio but more featureful than Linkerd's basic mTLS-only approach.
