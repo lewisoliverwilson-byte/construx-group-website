@@ -21,6 +21,7 @@ import TrivyVulnPanel from '@/components/TrivyVulnPanel';
 import VeleroPanel from '@/components/VeleroPanel';
 import PulumiPanel from '@/components/PulumiPanel';
 import RclonePanel from '@/components/RclonePanel';
+import ValsPanel from '@/components/ValsPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -656,8 +657,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* rclone cloud storage sync */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <RclonePanel />
+      </section>
+
+      {/* vals secret interpolation */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <ValsPanel />
       </section>
 
       {/* CTA */}

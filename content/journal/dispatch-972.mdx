@@ -1,0 +1,259 @@
+---
+title: "Skaffold: inner-loop Kubernetes development with file sync and live reload"
+date: "2032-12-08"
+excerpt: "Skaffold is a Google-built tool for continuous development against a Kubernetes cluster — it watches for file changes, rebuilds images, and redeploys to the cluster automatically. The inner loop without Skaffold: edit code → docker build → docker push → kubectl apply → wait for rollout → check logs. With Skaffold: edit code → Skaffold detects change → rebuild (or sync changed files directly into running containers) → redeploy → logs streamed automatically. The key distinction from Tilt: Skaffold is YAML-configured and integrates with standard Kubernetes manifests and Helm charts, while Tilt uses a Starlark-based Tiltfile. Skaffold also handles the full pipeline from dev to CI to production with profiles."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+File watch → rebuild → redeploy. File sync skips rebuild. Profiles for dev/staging/prod.
+
+## Basic configuration
+
+```yaml
+# skaffold.yaml — Skaffold configuration at project root
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: construx-api
+
+build:
+  artifacts:
+    - image: registry.construx.io/construx/api
+      context: .
+      docker:
+        dockerfile: Dockerfile
+        buildArgs:
+          VERSION: "{{.SKAFFOLD_IMAGE_TAG}}"
+      # Sync changed files directly into running containers (skip rebuild)
+      sync:
+        manual:
+          - src: "**/*.html"
+            dest: /app/static
+          - src: "**/*.css"
+            dest: /app/static
+  # Use local Docker daemon (default)
+  local:
+    push: false                  # don't push to registry in dev mode
+    useBuildkit: true
+    concurrency: 2               # build multiple images in parallel
+
+deploy:
+  kubectl:
+    manifests:
+      - k8s/*.yaml
+    defaultNamespace: construx-dev
+
+# For Helm charts:
+# deploy:
+#   helm:
+#     releases:
+#       - name: construx-api
+#         chartPath: ./charts/construx-api
+#         valuesFiles:
+#           - values.yaml
+#           - values.dev.yaml
+
+portForward:
+  - resourceType: service
+    resourceName: construx-api
+    namespace: construx-dev
+    port: 8080
+    localPort: 8080
+
+# Stream logs from the deployed pods
+# (equivalent to kubectl logs -f -l app=construx-api)
+```
+
+## Running Skaffold
+
+```bash
+# Install Skaffold
+curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+chmod +x skaffold && mv skaffold /usr/local/bin/
+
+# dev mode: watch, build, deploy, stream logs
+skaffold dev
+
+# Output during skaffold dev:
+# Listing files to watch...
+# Generating tags...
+# Checking cache...
+# Starting build...
+# [construx-api] Building image construx/api:a1b2c3d...
+# [construx-api] Successfully built image
+# Deploying...
+# kubectl apply -f k8s/deployment.yaml
+# Waiting for deployments to stabilize...
+# Deployments stabilized in 8.2 seconds.
+# Press Ctrl+C to exit
+# [construx-api] 2032-12-08T09:00:01Z INFO server listening on :8080
+# [construx-api] 2032-12-08T09:00:03Z INFO GET /health 200 0.4ms
+
+# File sync (change a static file — no rebuild, just sync into running container)
+# Edit: src/static/styles.css
+# Syncing 1 files for registry.construx.io/construx/api:latest...
+# Watching for changes...  (no image rebuild, no redeployment)
+
+# One-off run (build and deploy, then exit — useful in CI)
+skaffold run
+
+# Build only (don't deploy)
+skaffold build
+
+# Clean up (delete all Skaffold-managed resources from the cluster)
+skaffold delete
+```
+
+## Profiles — dev, staging, production
+
+```yaml
+# skaffold.yaml with profiles
+apiVersion: skaffold/v4beta11
+kind: Config
+
+build:
+  artifacts:
+    - image: registry.construx.io/construx/api
+      docker:
+        dockerfile: Dockerfile
+
+deploy:
+  kubectl:
+    manifests:
+      - k8s/base/*.yaml
+
+profiles:
+  - name: dev
+    activation:
+      - env: SKAFFOLD_PROFILE=dev
+    build:
+      local:
+        push: false         # use local registry, no push
+    deploy:
+      kubectl:
+        manifests:
+          - k8s/base/*.yaml
+          - k8s/dev/*.yaml  # dev-specific overrides (lower resources, debug flags)
+    portForward:
+      - resourceType: service
+        resourceName: construx-api
+        port: 8080
+        localPort: 8080
+
+  - name: staging
+    build:
+      local:
+        push: true
+    deploy:
+      helm:
+        releases:
+          - name: construx-api
+            chartPath: ./charts/construx-api
+            valuesFiles:
+              - values.yaml
+              - values.staging.yaml
+            setValues:
+              image.tag: "{{.IMAGE_TAG}}"
+
+  - name: production
+    build:
+      googleCloudBuild:
+        projectId: construx-project
+        diskSizeGb: 100
+        machineType: N1_HIGHCPU_8
+    deploy:
+      helm:
+        releases:
+          - name: construx-api
+            chartPath: ./charts/construx-api
+            valuesFiles:
+              - values.yaml
+              - values.production.yaml
+```
+
+```bash
+# Activate a profile
+skaffold dev --profile dev
+skaffold run --profile staging
+skaffold run --profile production
+
+# Pass environment variables (available in skaffold.yaml as {{.VAR}})
+VERSION=v1.8.3 skaffold run --profile production
+```
+
+## File sync and hot reload
+
+```yaml
+# sync: copy changed files into running containers without rebuilding the image
+# Use when the application supports hot reload (static files, interpreted code)
+
+build:
+  artifacts:
+    - image: registry.construx.io/construx/api
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        # Manual sync: explicit src → dest rules
+        manual:
+          - src: "web/static/**/*.{html,css,js}"
+            dest: /app/static
+            strip: web/static/
+
+        # Inferred sync (for Go with air, Python with watchdog, etc.)
+        # Skaffold detects file types and syncs to the container path
+        infer:
+          - "**/*.py"
+
+        # Auto sync (for frameworks with built-in file watching)
+        auto: {}
+```
+
+```bash
+# With file sync enabled:
+# Edit web/static/styles.css:
+#   Syncing 1 files for construx/api...
+#   Watching for changes... (no rebuild, change visible in ~100ms)
+
+# Without file sync (rebuild on every change):
+#   Building image construx/api:a1b2c3d...
+#   Deploying...
+#   Waiting for rollout... (~30s)
+```
+
+## CI integration
+
+```bash
+# GitHub Actions: build and push with Skaffold
+# skaffold.yaml handles the build config — no separate docker build/push commands
+
+name: Build and Deploy
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Skaffold
+        run: |
+          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+          chmod +x skaffold && sudo mv skaffold /usr/local/bin/
+
+      - name: Configure Docker registry
+        run: gcloud auth configure-docker registry.construx.io
+
+      - name: Build and push (Skaffold handles tag generation)
+        run: skaffold build --file-output=images.json
+
+      - name: Deploy to staging
+        run: skaffold deploy --profile staging --build-artifacts=images.json
+
+# skaffold build outputs a JSON file mapping image names to their digests
+# skaffold deploy uses those digests — exact image, no "latest" ambiguity
+```
+
+Skaffold vs Tilt vs manual kubectl: manual kubectl is repeatable but slow — every change is a multi-step manual process. Tilt is more powerful (Starlark scripting, resource dependency graphs, browser UI) but requires learning a new scripting language. Skaffold is YAML-native and integrates with existing Kubernetes manifests and Helm charts without extra abstractions. The tradeoff: Tilt handles complex multi-service setups better (resource dependencies, conditional rebuilds, live update scripts). Skaffold is easier to adopt in an existing project because it wraps what you already have — your Dockerfile, your manifests, your Helm chart — without restructuring anything.
