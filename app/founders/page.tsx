@@ -71,6 +71,7 @@ import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
+import GVisorPanel from '@/components/GVisorPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -846,8 +847,13 @@ export default function FoundersPage() {
         </div>
 
         {/* github actions run — steps, jobs, durations, status */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GhActionsRunPanel />
+        </div>
+
+        {/* gvisor — container sandbox, syscall interception, runsc */}
+        <div className="mt-6 pb-10">
+          <GVisorPanel />
         </div>
 
         {/* CTA */}

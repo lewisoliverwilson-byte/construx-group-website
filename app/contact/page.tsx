@@ -70,6 +70,7 @@ import BrewListPanel from '@/components/BrewListPanel';
 import CosignPanel from '@/components/CosignPanel';
 import DruidPanel from '@/components/DruidPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
+import GitConfigPanel from '@/components/GitConfigPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -718,8 +719,13 @@ export default function ContactPage() {
       </section>
 
       {/* envoy stats — downstream, upstream, listener metrics */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <EnvoyStatsPanel />
+      </section>
+
+      {/* git config — user, remote, branch, protocol settings */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GitConfigPanel />
       </section>
     </div>
   );

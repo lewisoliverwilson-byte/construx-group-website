@@ -71,6 +71,7 @@ import ContainerdPanel from '@/components/ContainerdPanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GhCliPanel from '@/components/GhCliPanel';
+import HelmChartPanel from '@/components/HelmChartPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -710,8 +711,13 @@ export default function NowPage() {
         </div>
 
         {/* gh cli — repos, prs, issues, workflows, releases */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GhCliPanel />
+        </div>
+
+        {/* helm chart — templates, values, releases, rollbacks */}
+        <div className="mt-6 pb-10">
+          <HelmChartPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

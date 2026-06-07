@@ -73,6 +73,7 @@ import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
+import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -758,8 +759,13 @@ export default function StatsPage() {
       </div>
 
       {/* gatekeeper — opa admission, constraints, violations */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GatekeeperPanel />
+      </div>
+
+      {/* grafana alloy — telemetry pipeline, components, metrics */}
+      <div className="mt-6 pb-10">
+        <GrafanaAlloyPanel />
       </div>
     </div>
   );
