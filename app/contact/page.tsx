@@ -51,6 +51,7 @@ import VaultPanel from '@/components/VaultPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import IstioPanel from '@/components/IstioPanel';
 import OPAPanel from '@/components/OPAPanel';
+import FluentBitPanel from '@/components/FluentBitPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -604,8 +605,13 @@ export default function ContactPage() {
       </section>
 
       {/* opa open policy agent — rego, bundles, decisions */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <OPAPanel />
+      </section>
+
+      {/* fluent bit log processor — inputs, filters, outputs */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <FluentBitPanel />
       </section>
     </div>
   );

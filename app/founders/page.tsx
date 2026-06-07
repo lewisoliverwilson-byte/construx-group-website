@@ -51,6 +51,7 @@ import LonghornPanel from '@/components/LonghornPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import WoodpeckerCIPanel from '@/components/WoodpeckerCIPanel';
 import DronePanel from '@/components/DronePanel';
+import HarborPanel from '@/components/HarborPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -726,8 +727,13 @@ export default function FoundersPage() {
         </div>
 
         {/* drone ci container-native — repos, builds, steps */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DronePanel />
+        </div>
+
+        {/* harbor container registry — projects, repositories, replication */}
+        <div className="mt-6 pb-10">
+          <HarborPanel />
         </div>
 
         {/* CTA */}

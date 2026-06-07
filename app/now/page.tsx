@@ -51,6 +51,7 @@ import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import GrypePanel from '@/components/GrypePanel';
 import ThanosPanel from '@/components/ThanosPanel';
+import TetragonPanel from '@/components/TetragonPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -590,8 +591,13 @@ export default function NowPage() {
         </div>
 
         {/* thanos ha prometheus — stores, querier, compaction */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ThanosPanel />
+        </div>
+
+        {/* tetragon ebpf security — policies, execs, connects */}
+        <div className="mt-6 pb-10">
+          <TetragonPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -53,6 +53,7 @@ import PrometheusPanel from '@/components/PrometheusPanel';
 import TempoPanel from '@/components/TempoPanel';
 import VitessPanel from '@/components/VitessPanel';
 import YugaBytePanel from '@/components/YugaBytePanel';
+import KarpenterPanel from '@/components/KarpenterPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -638,8 +639,13 @@ export default function StatsPage() {
       </div>
 
       {/* yugabyte distributed sql — nodes, tablets, ysql */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <YugaBytePanel />
+      </div>
+
+      {/* karpenter kubernetes node autoscaler — nodes, provisioners */}
+      <div className="mt-6 pb-10">
+        <KarpenterPanel />
       </div>
     </div>
   );
