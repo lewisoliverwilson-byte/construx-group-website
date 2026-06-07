@@ -25,6 +25,7 @@ import KarpenterPanel from '@/components/KarpenterPanel';
 import OpenFgaPanel from '@/components/OpenFgaPanel';
 import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 import QdrantPanel from '@/components/QdrantPanel';
+import OpenSearchPanel from '@/components/OpenSearchPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -452,8 +453,13 @@ export default function UsesPage() {
         </div>
 
         {/* qdrant vector database — hnsw ann, hybrid bm25+dense, payload filtering */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <QdrantPanel />
+        </div>
+
+        {/* opensearch distributed search — inverted index, query dsl, bm25, vector */}
+        <div className="mt-6 pb-10">
+          <OpenSearchPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
