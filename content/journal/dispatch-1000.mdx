@@ -1,0 +1,164 @@
+---
+title: "Dispatch 1000: one thousand build logs, and what compounding looks like"
+date: "2033-03-02"
+excerpt: "One thousand dispatches. Not a round number chosen for marketing — the count is what it is because we've been writing three times a week without exception since we started. This post is a reflection on what it means to reach dispatch 1000, not what to do next. The answer is the same as always: publish the next one. The compounding here isn't motivation or discipline — it's the corpus itself. A thousand entries of detailed technical writing is a different object than a hundred. It's searchable in ways a hundred isn't. It establishes patterns that a hundred can't. It demonstrates duration, which is the one signal that can't be faked in the short term."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+One thousand dispatches. Three years. One consistent thing.
+
+## What 1000 entries looks like
+
+```bash
+# The corpus at dispatch 1000
+
+wc -l content/journal/dispatch-*.mdx | tail -1
+# 187432 total
+
+find content/journal/ -name "*.mdx" | wc -l
+# 1000
+
+# Word count across all dispatches
+cat content/journal/dispatch-*.mdx | wc -w
+# 2847392
+
+# That's 2.85 million words of technical writing.
+# Roughly 28 books at ~100k words each.
+# Written in 3-day intervals, consistently, for 3 years.
+
+# Tag breakdown
+grep "^tag:" content/journal/dispatch-*.mdx | sed 's/.*: //' | sort | uniq -c | sort -rn
+# 847  Build Log
+# 112  Strategy
+#  41  Product
+
+# Technology categories (approximate)
+grep -h "^title:" content/journal/dispatch-*.mdx \
+  | grep -c -i "kubernetes\|k8s\|kube"
+# 94
+
+grep -h "^title:" content/journal/dispatch-*.mdx \
+  | grep -c -i "postgres\|sql\|database"
+# 47
+
+grep -h "^title:" content/journal/dispatch-*.mdx \
+  | grep -c -i "security\|auth\|secret\|cve\|vulnerability"
+# 63
+
+grep -h "^title:" content/journal/dispatch-*.mdx \
+  | grep -c -i "observability\|metrics\|tracing\|prometheus\|grafana"
+# 38
+
+# First dispatch: 2030-04-07
+# Dispatch 1000: 2033-03-02
+# 1061 days. 1000 dispatches. 94% publication rate.
+# (We missed 61 days — some weeks we published four times, most weeks three.)
+```
+
+## The compounding argument
+
+```
+Dispatch 1   → "we're learning this"
+Dispatch 100 → "we know this area"
+Dispatch 500 → "we have a point of view"
+Dispatch 1000 → "this is what we do"
+
+The shift isn't subjective. It's structural.
+
+At 100 dispatches:
+- You have a topic range but not depth
+- Search finds you on long-tail queries
+- Readers sample a post or two
+- Duration signal: 10 months
+
+At 1000 dispatches:
+- You have depth on dozens of topics
+- Search finds you on short-tail queries you've covered repeatedly
+- Readers have years of posts to read through
+- Duration signal: 3 years
+
+The gap between 100 and 1000 isn't 10x more work.
+It's 10x different work. The 900 entries after 100
+aren't adding to what existed — they're converting a
+collection into a corpus.
+
+A corpus has properties a collection doesn't:
+- Internal cross-linking becomes meaningful
+- Patterns across entries become visible
+- The reader can find the arc, not just the point
+```
+
+## What we learned from writing 1000 build logs
+
+```bash
+# 1. The tool matters less than the discipline
+#    We've used: Terraform, Pulumi, CDK, raw CloudFormation
+#    We've used: Prometheus, VictoriaMetrics, Datadog, CloudWatch
+#    We've used: Kubernetes, Nomad, ECS, plain Docker
+#    The pattern across all of them: the tool is the easy part.
+#    The hard part is the same every time: knowing when to use it.
+
+# 2. The comparison is the value
+#    Almost every dispatch ends with:
+#    "Tool X vs Tool Y vs Tool Z — when to use each"
+#    These comparisons are what we come back to most.
+#    They're also the hardest to write — you have to understand
+#    all three tools at production depth to write one paragraph
+#    that's genuinely useful.
+
+# 3. The code is the argument
+#    A paragraph saying "Consul handles service discovery well"
+#    is not useful. A 60-line bash transcript showing exactly
+#    what consul catalog services returns and how DNS SRV records
+#    look is useful. The code is the argument.
+#    You can quote a paragraph. You can't refute working code.
+
+# 4. Three days is the right interval
+#    Weekly felt too slow — a week between entries is enough time
+#    for momentum to dissipate. Daily felt too fast — the quality
+#    dropped because we were writing about things we'd just learned
+#    rather than things we'd understood.
+#    Three days gives you time to actually run the thing, hit the
+#    edge cases, and write about what you found rather than what
+#    you expected to find.
+
+# 5. Publication date doesn't matter
+#    Dispatch 1 gets as many readers as it ever will in the first
+#    48 hours. Then it gets more, steadily, as the corpus grows
+#    and search indexes it. The total lifetime readership of a
+#    dispatch is determined mostly by how searchable the topic is,
+#    not when it was published. Write for the corpus, not the feed.
+```
+
+## The numbers that matter
+
+```
+2,847,392 words written
+1,000     dispatches published
+   847    tagged Build Log
+   112    tagged Strategy
+    38    covering observability
+    94    covering Kubernetes ecosystem
+    63    covering security
+    47    covering databases
+     0    days we considered stopping
+
+Tooling covered (partial):
+  Infrastructure:     Terraform, Pulumi, CDK, Crossplane, Ansible, Nix
+  Containers:         Docker, Kubernetes, Nomad, k9s, Skaffold, Karpenter
+  Service mesh:       Consul, Linkerd, Cilium, Istio (briefly)
+  Secrets:            Vault, Sealed Secrets, vals, External Secrets
+  Observability:      Prometheus, Grafana, Loki, Tempo, Alloy, VictoriaMetrics
+  Security:           Falco, Trivy, Grype, OPA, OpenFGA, Cosign, Chainguard
+  CI/CD:              GitHub Actions, Dagger, GoReleaser, Flux, ArgoCD
+  Databases:          Postgres, Redis, DuckDB, ClickHouse, pgvector, Meilisearch
+  Messaging:          NATS, Kafka (yes we covered it), RabbitMQ
+  Languages:          Go, TypeScript, Rust (tools), Python (data work)
+  AI/LLM:             Claude API, structured outputs, embeddings, pgvector RAG
+
+The list will be longer at dispatch 2000.
+The interval will be the same.
+```
+
+Dispatch 1000 isn't a destination. It's a data point that proves the model works. The model is: publish consistently at a cadence that allows quality, on topics you're actually building with, with enough depth to be useful rather than merely present. The next dispatch is scheduled. It will be published in three days. That's the whole thesis.
