@@ -66,6 +66,7 @@ import FlinkPanel from '@/components/FlinkPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
+import BrewListPanel from '@/components/BrewListPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -694,8 +695,13 @@ export default function ContactPage() {
       </section>
 
       {/* argo cd — gitops, sync, apps, rollbacks */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ArgoCDPanel />
+      </section>
+
+      {/* brew list — installed formulae, casks, versions */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BrewListPanel />
       </section>
     </div>
   );

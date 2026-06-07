@@ -69,6 +69,7 @@ import GoReleaserPanel from '@/components/GoReleaserPanel';
 import SpiffePanel from '@/components/SpiffePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
+import CIPipelinePanel from '@/components/CIPipelinePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -734,8 +735,13 @@ export default function StatsPage() {
       </div>
 
       {/* argo rollout — progressive delivery, canary, bluegreen */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ArgoRolloutPanel />
+      </div>
+
+      {/* ci pipeline — stages, jobs, artifacts, durations */}
+      <div className="mt-6 pb-10">
+        <CIPipelinePanel />
       </div>
     </div>
   );

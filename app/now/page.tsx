@@ -67,6 +67,7 @@ import AtlasPanel from '@/components/AtlasPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import QdrantPanel from '@/components/QdrantPanel';
 import BeylaPanel from '@/components/BeylaPanel';
+import ContainerdPanel from '@/components/ContainerdPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -686,8 +687,13 @@ export default function NowPage() {
         </div>
 
         {/* beyla — ebpf auto-instrumentation, spans, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BeylaPanel />
+        </div>
+
+        {/* containerd — container runtime, images, snapshots, tasks */}
+        <div className="mt-6 pb-10">
+          <ContainerdPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

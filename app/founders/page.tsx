@@ -67,6 +67,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import PulumiPanel from '@/components/PulumiPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
+import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -822,8 +823,13 @@ export default function FoundersPage() {
         </div>
 
         {/* argo workflows — dag pipelines, steps, templates */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoWorkflowsPanel />
+        </div>
+
+        {/* cloudnativepg — postgres operator, clusters, replicas */}
+        <div className="mt-6 pb-10">
+          <CloudNativePGPanel />
         </div>
 
         {/* CTA */}
