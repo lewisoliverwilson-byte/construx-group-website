@@ -87,6 +87,7 @@ import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PingPanel from '@/components/PingPanel';
+import RclonePanel from '@/components/RclonePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -942,8 +943,13 @@ export default function FoundersPage() {
         </div>
 
         {/* ping — rtt, loss, ttl, icmp, hosts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PingPanel />
+        </div>
+
+        {/* rclone — remotes, transfers, bandwidth, checksums */}
+        <div className="mt-6 pb-10">
+          <RclonePanel />
         </div>
 
         {/* CTA */}

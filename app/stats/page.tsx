@@ -89,6 +89,7 @@ import NomadPanel from '@/components/NomadPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import PineconePanel from '@/components/PineconePanel';
+import RabbitMQPanel from '@/components/RabbitMQPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -854,8 +855,13 @@ export default function StatsPage() {
       </div>
 
       {/* pinecone — vectors, indexes, queries, upserts */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PineconePanel />
+      </div>
+
+      {/* rabbitmq — queues, exchanges, bindings, messages */}
+      <div className="mt-6 pb-10">
+        <RabbitMQPanel />
       </div>
     </div>
   );

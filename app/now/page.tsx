@@ -87,6 +87,7 @@ import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
+import RekorPanel from '@/components/RekorPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -806,8 +807,13 @@ export default function NowPage() {
         </div>
 
         {/* prometheus alert — rules, state, severity, labels */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PrometheusAlertPanel />
+        </div>
+
+        {/* rekor — transparency log, signatures, checksums, artifacts */}
+        <div className="mt-6 pb-10">
+          <RekorPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
