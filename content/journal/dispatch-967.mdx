@@ -1,0 +1,194 @@
+---
+title: "vals: secret interpolation for Kubernetes and Helm from Vault, SSM, and GCP"
+date: "2032-11-23"
+excerpt: "vals is a command-line tool and Go library that resolves secret references embedded in YAML files at apply-time — pulling values from HashiCorp Vault, AWS SSM Parameter Store, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, or any other supported backend. The reference syntax is `ref+vault://secret/data/construx/db#password` inside any YAML field. vals evaluates the references and outputs the interpolated YAML to stdout, which you pipe into `kubectl apply` or `helm upgrade`. No secrets are committed to git. The tool also supports templating with `inline` references and `exec` to inject secrets as environment variables into a child process."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Secret references in YAML. Resolved at apply-time. No secrets in git. Vault, SSM, GCP.
+
+## Reference syntax and evaluation
+
+```bash
+# Install vals
+brew install vals
+# or
+go install github.com/helmfile/vals@latest
+
+# Secret reference syntax: ref+<backend>://<path>#<field>
+# Vault:           ref+vault://secret/data/construx/db#password
+# AWS SSM:         ref+awsssm:///construx/prod/db-password
+# AWS Secrets Mgr: ref+awssecrets:///construx/prod/db-creds#password
+# GCP Secret Mgr:  ref+gcpsecrets://my-project/construx-db-password
+# Azure Key Vault: ref+azurekeyvault://my-vault/construx-db-password
+# File:            ref+file:///etc/secrets/db-password
+# Environment var: ref+env:///DB_PASSWORD
+
+# Example: Kubernetes Secret manifest with vals references
+cat secrets.yaml
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: construx-db
+#   namespace: construx-prod
+# type: Opaque
+# stringData:
+#   password:     ref+vault://secret/data/construx/db#password
+#   api-key:      ref+awsssm:///construx/prod/stripe-key
+#   gcp-creds:    ref+gcpsecrets://construx-project/gcp-service-account
+
+# Evaluate references and apply to Kubernetes
+vals eval -f secrets.yaml | kubectl apply -f -
+
+# Evaluate and print (useful for debugging — secrets appear in stdout, use carefully)
+vals eval -f secrets.yaml
+
+# Multiple files
+vals eval -f base.yaml -f secrets.yaml | kubectl apply -f -
+```
+
+## Helm integration
+
+```bash
+# vals integrates with Helm via helmfile or the vals wrapper
+
+# values.yaml with secret references
+cat values.yaml
+# image:
+#   tag: v1.8.3
+# database:
+#   host:     postgres.construx-prod.svc.cluster.local
+#   port:     5432
+#   password: ref+vault://secret/data/construx/db#password
+# redis:
+#   url:      ref+awsssm:///construx/prod/redis-url
+# stripe:
+#   secretKey: ref+awssecrets:///construx/prod/stripe#secret_key
+
+# Apply via vals + helm (pipe evaluated values)
+vals eval -f values.yaml | helm upgrade --install construx-api ./charts/construx-api \
+  -n construx-prod \
+  -f -
+
+# Or use helmfile (which has built-in vals integration)
+# helmfile.yaml
+releases:
+  - name: construx-api
+    namespace: construx-prod
+    chart: ./charts/construx-api
+    values:
+      - values.yaml      # vals references are evaluated automatically by helmfile
+
+helmfile apply
+```
+
+## exec — inject secrets as environment variables
+
+```bash
+# vals exec: run a command with secrets injected as env vars
+# No secrets written to disk or visible in process list
+
+# env-secrets.yaml — map env var names to secret references
+cat env-secrets.yaml
+# DATABASE_PASSWORD: ref+vault://secret/data/construx/db#password
+# STRIPE_SECRET_KEY: ref+awssecrets:///construx/prod/stripe#secret_key
+# REDIS_URL:         ref+awsssm:///construx/prod/redis-url
+
+# Start the API server with secrets injected
+vals exec -f env-secrets.yaml -- ./construx-api serve
+
+# Run a migration with DB credentials injected
+vals exec -f env-secrets.yaml -- \
+  atlas migrate apply \
+  --url "postgres://construx:$DATABASE_PASSWORD@postgres:5432/construx_prod"
+
+# One-off secret fetch (print to stdout — handle carefully)
+vals eval --set "ref+vault://secret/data/construx/db#password"
+
+# Template mode: interpolate secrets inline in a heredoc
+vals eval <<EOF
+DATABASE_URL: "postgres://construx:ref+vault://secret/data/construx/db#password@postgres:5432/construx_prod"
+REDIS_URL:    "ref+awsssm:///construx/prod/redis-url"
+EOF
+```
+
+## Vault backend configuration
+
+```bash
+# Vault auth: vals uses the VAULT_ADDR and VAULT_TOKEN environment variables
+export VAULT_ADDR=https://vault.construx.io
+export VAULT_TOKEN=$(vault login -token-only -method=aws role=construx-api)
+
+# Or use the Vault agent (sidecar that handles renewal)
+# In Kubernetes: Vault Agent Injector or Vault Secrets Operator
+
+# Vault reference path breakdown:
+# ref+vault://secret/data/construx/db#password
+#             ^^^^^^                          ← KV v2 (data/ prefix required for KV v2)
+#                    ^^^^^^^^^^^^^^           ← path in Vault
+#                                   ^^^^^^^^ ← field within the secret
+
+# KV v1 (no data/ prefix):
+# ref+vault://secret/construx/db#password
+
+# Dynamic secrets (Vault database engine):
+# ref+vault://database/creds/construx-api-role#password
+# Each eval creates a new dynamic credential — use with caution
+
+# AWS SSM configuration (uses standard AWS credential chain)
+export AWS_REGION=eu-west-1
+export AWS_PROFILE=construx-prod
+
+# SSM path:
+# ref+awsssm:///construx/prod/db-password
+#             ^^                           ← leading / required
+# SecureString parameters are decrypted automatically
+```
+
+## CI/CD integration
+
+```bash
+# GitHub Actions: inject secrets at deploy time (no secrets in the repo)
+# .github/workflows/deploy.yml
+name: Deploy
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC for AWS auth
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789:role/github-construx-deploy
+          aws-region: eu-west-1
+
+      - name: Install vals
+        run: go install github.com/helmfile/vals@latest
+
+      - name: Deploy (secrets from SSM)
+        run: |
+          vals eval -f k8s/secrets.yaml | kubectl apply -f -
+          vals eval -f k8s/deployment.yaml | kubectl apply -f -
+
+# vals + OIDC: no static AWS credentials in GitHub secrets
+# OIDC token → AWS STS AssumeRoleWithWebIdentity → temporary credentials
+# vals uses the temporary credentials to read SSM parameters
+# Result: zero long-lived secrets in CI, full audit trail in CloudTrail
+
+# Diff secrets without revealing values (useful in PRs)
+vals eval -f secrets.yaml --output-format=json \
+  | jq 'to_entries | map({key, value: (.value | length | tostring) + " chars"}) | from_entries'
+# { "password": "32 chars", "api-key": "56 chars" }
+```
+
+vals vs External Secrets Operator vs sealed-secrets: sealed-secrets encrypts secrets at rest in git using a cluster-specific key — good for GitOps but tied to a single cluster. External Secrets Operator (ESO) syncs secrets from Vault/SSM/GCP into Kubernetes Secret objects on a schedule — the secret lives in the cluster. vals resolves references at apply-time without storing the resolved value anywhere — the secret is only in memory during the apply operation. The decision: ESO when you need secrets available to pods at all times via Kubernetes Secrets. vals when you want zero secrets at rest and are comfortable with apply-time resolution. Sealed-secrets when you need GitOps with a single cluster.
