@@ -1,0 +1,184 @@
+---
+title: "Cilium Gateway API: L7 load balancing, mTLS, traffic policies, eBPF data plane"
+date: "2034-03-24"
+excerpt: "Cilium's implementation of the Kubernetes Gateway API provides L7 HTTP routing, mTLS, traffic splitting, and header-based routing using eBPF as the data plane — without requiring a sidecar proxy on every pod. Traditional service meshes (Istio sidecar mode) inject an Envoy proxy into every pod, adding latency and memory overhead. Cilium Ambient (as distinct from the sidecar model) uses a per-node eBPF program for L3/L4 forwarding and a shared waypoint proxy for L7 policies, dramatically reducing the per-pod overhead. The Gateway API is the successor to Kubernetes Ingress: where Ingress has a single backend per route, the Gateway API supports weighted traffic splitting (canary deployments), header-based routing (route to service B if `X-Beta-User: true`), URL rewrites, request mirroring (shadow traffic), and per-route timeouts. Cilium's Gateway API implementation supports TLSRoute for passthrough TLS, TCPRoute for TCP load balancing, and GRPCRoute for gRPC-aware routing (with proper gRPC status code handling). The L7 visibility feature provides HTTP-level observability via Hubble without a sidecar: latency histograms, error rate, and per-path traffic breakdown are available from eBPF maps, visible in the Hubble UI and Prometheus metrics."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Gateway API. HTTPRoute. GRPCRoute. Traffic split. Waypoint. eBPF. mTLS. Hubble L7.
+
+## Cilium Gateway API configuration
+
+```yaml
+# Gateway: defines the listener (replaces Ingress controller concept)
+# Cilium implements the GatewayClass with its eBPF data plane
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: construx-gateway
+  namespace: construx-prod
+  annotations:
+    # Cilium: provision an AWS NLB for this gateway
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+spec:
+  gatewayClassName: cilium   # Cilium's GatewayClass
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: construx-tls
+            kind: Secret
+      allowedRoutes:
+        namespaces:
+          from: Same
+
+---
+# HTTPRoute: route traffic to different services based on path and headers
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: orders-api-route
+  namespace: construx-prod
+spec:
+  parentRefs:
+    - name: construx-gateway
+
+  hostnames:
+    - api.construx.io
+
+  rules:
+    # Route /api/v1/orders to orders-api
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1/orders
+      backendRefs:
+        - name: orders-api
+          port: 8080
+          weight: 100
+
+    # Canary: route 10% of /api/v2/orders to the new version
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v2/orders
+      backendRefs:
+        - name: orders-api-v2
+          port: 8080
+          weight: 10
+        - name: orders-api
+          port: 8080
+          weight: 90
+
+    # Header-based routing: beta users get the experimental service
+    - matches:
+        - headers:
+            - name: X-Beta-User
+              value: "true"
+          path:
+            type: PathPrefix
+            value: /api/v1/orders
+      backendRefs:
+        - name: orders-api-experimental
+          port: 8080
+          weight: 100
+
+  # Request timeout and retries (per-route)
+  rules:
+    - backendRefs:
+        - name: orders-api
+          port: 8080
+      timeouts:
+        request: 30s
+        backendRequest: 25s
+
+---
+# GRPCRoute: gRPC-specific routing (method-based, not path-based)
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: GRPCRoute
+metadata:
+  name: orders-grpc-route
+  namespace: construx-prod
+spec:
+  parentRefs:
+    - name: construx-gateway
+  hostnames:
+    - grpc.construx.io
+  rules:
+    - matches:
+        - method:
+            service: construx.orders.v1.OrderService
+            method: CreateOrder
+      backendRefs:
+        - name: orders-grpc-svc
+          port: 9090
+```
+
+```yaml
+# CiliumNetworkPolicy: L7 HTTP policy via eBPF
+# Unlike Kubernetes NetworkPolicy (L3/L4 only), Cilium can enforce L7 rules
+# without a sidecar — using eBPF maps for HTTP-aware policy
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: orders-api-l7-policy
+  namespace: construx-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: orders-api
+
+  ingress:
+    # Allow payments-api to call orders-api on any path
+    - fromEndpoints:
+        - matchLabels:
+            app: payments-api
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/api/v1/orders/.*"
+              - method: "POST"
+                path: "/api/v1/orders"
+
+    # Allow the gateway (ingress) to call any method
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: cilium-gateway
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+
+  egress:
+    # orders-api can reach postgres on port 5432 only
+    - toEndpoints:
+        - matchLabels:
+            app: postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # orders-api can reach kafka (for event publishing)
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: redpanda
+      toPorts:
+        - ports:
+            - port: "9092"
+              protocol: TCP
+```
+
+Cilium Gateway API vs Istio Gateway API vs NGINX Ingress vs Contour: NGINX Ingress is the most widely deployed — reliable, well-documented, and a safe choice for L7 HTTP routing. It doesn't support the newer Gateway API types (HTTPRoute, GRPCRoute) well, and it requires a sidecar or separate proxy for mTLS between services. Istio's Gateway API implementation uses Envoy sidecars on every pod for full L7 policy — excellent feature completeness (mTLS everywhere, retries, circuit breaking, traffic mirroring) but significant overhead (150-200MB RAM per sidecar, added latency, operational complexity). Contour uses Envoy as a proxy without sidecars — a middle ground between NGINX simplicity and Istio power. Cilium's advantage is eBPF: by implementing L3/L4 policy in the kernel, it avoids the per-hop latency of sidecar proxies entirely. For L7, Cilium's waypoint proxies are shared (one per namespace or service, not one per pod), dramatically reducing the resource cost vs Istio sidecars. The trade-off: Cilium Gateway API is newer and less feature-complete than Istio for advanced traffic management (circuit breaking, fault injection, virtual services). For teams running Cilium as the CNI (which provides eBPF-accelerated networking), using Cilium's Gateway API is the natural choice — it eliminates the NGINX Ingress controller entirely while gaining L7 routing with lower overhead than adding Istio.

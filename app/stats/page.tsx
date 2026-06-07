@@ -30,6 +30,7 @@ import TiDbPanel from '@/components/TiDbPanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import CephPanel from '@/components/CephPanel';
+import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -500,8 +501,13 @@ export default function StatsPage() {
       </div>
 
       {/* ceph rados distributed storage — rbd, cephfs, rgw, crush, bluestore */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CephPanel />
+      </div>
+
+      {/* otelcol receiver processor exporter pipeline — traces metrics logs */}
+      <div className="mt-6 pb-10">
+        <OtelCollectorPanel />
       </div>
     </div>
   );
