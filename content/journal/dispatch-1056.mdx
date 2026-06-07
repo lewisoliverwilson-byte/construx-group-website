@@ -1,0 +1,192 @@
+---
+title: "Nix: reproducible development environments — no 'works on my machine' ever again"
+date: "2033-08-17"
+excerpt: "Nix is a purely functional package manager and build system that derives packages from source by specifying all inputs — compilers, libraries, environment variables, build flags — in a derivation. Every package is built in an isolated sandbox with no access to the host filesystem or network, and the output is stored in an immutable content-addressed store (/nix/store/hash-name-version). Because all inputs are explicit and the build is hermetic, the same derivation always produces the same binary on any machine. Nix flakes (the modern interface) replace channels with a lock file (flake.lock) that pins all input versions — the same flake checked out on any machine at any point in time produces the same environment. The practical application for development teams: nix develop drops you into a shell with exactly the right Go version, Node.js version, PostgreSQL client, protoc, golangci-lint, and any other tool — no installation instructions, no version mismatches, no 'I have go1.21 but the CI uses go1.23'."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Derivations. Content-addressed store. Flakes. devShells. NixOS modules. Hermetic builds.
+
+## flake.nix for a development environment
+
+```nix
+# flake.nix: reproducible dev environment for construx-api
+
+{
+  description = "Construx API development environment";
+
+  inputs = {
+    nixpkgs.url     = "github:NixOS/nixpkgs/nixos-24.11";
+    flake-utils.url = "github:numtide/flake-utils";
+    # Gomod2nix for reproducible Go module builds
+    gomod2nix = {
+      url    = "github:nix-community/gomod2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, flake-utils, gomod2nix }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ gomod2nix.overlays.default ];
+        };
+      in {
+        # Development shell: dropped into with `nix develop`
+        devShells.default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            # Go toolchain — exact version, not "whatever go is installed"
+            go_1_23
+            gomod2nix.packages.${system}.default
+            golangci-lint
+            gopls
+            delve           # Go debugger
+
+            # Database tooling
+            postgresql_16   # psql CLI, pg_dump
+            pgformatter
+            sqlfluff
+
+            # Build tooling
+            protobuf
+            protoc-gen-go
+            buf             # protobuf schema linting and breaking change detection
+            ko              # fast Go container image builder
+
+            # Infrastructure
+            kubectl
+            kubernetes-helm
+            skaffold
+            talosctl
+
+            # Utilities
+            jq
+            yq-go
+            git
+            gh              # GitHub CLI
+            curl
+            httpie
+          ];
+
+          shellHook = ''
+            echo "construx-api dev environment"
+            echo "Go: $(go version)"
+            echo "kubectl: $(kubectl version --client --short 2>/dev/null || echo 'not configured')"
+            export GOPATH="$PWD/.gopath"
+            export GOBIN="$GOPATH/bin"
+            export PATH="$GOBIN:$PATH"
+          '';
+
+          # Environment variables available in the shell
+          CGO_ENABLED     = "0";
+          GOFLAGS         = "-mod=vendor";
+          DATABASE_URL    = "postgresql://construx:construx@localhost:5432/construx_dev";
+          REDIS_URL       = "redis://localhost:6379";
+        };
+
+        # Package: build the binary reproducibly
+        packages.default = pkgs.buildGoModule {
+          pname   = "construx-api";
+          version = "0.1.0";
+          src     = ./.;
+          vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";  # from gomod2nix
+          ldflags = [
+            "-s" "-w"
+            "-X main.version=${self.shortRev or "dev"}"
+          ];
+        };
+
+        # Docker image: built with Nix — no Dockerfile required
+        packages.docker = pkgs.dockerTools.buildImage {
+          name = "registry.construx.internal/construx/api";
+          tag  = "latest";
+          config.Cmd  = [ "${self.packages.${system}.default}/bin/construx-api" ];
+          config.Env  = [ "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" ];
+          config.User = "65534:65534";   # nobody
+        };
+      }
+    );
+}
+```
+
+## NixOS module for production
+
+```nix
+# nixos/modules/construx-api.nix
+# Declare the systemd service as a NixOS module
+
+{ config, lib, pkgs, ... }:
+
+with lib;
+
+let cfg = config.services.construx-api;
+in {
+  options.services.construx-api = {
+    enable      = mkEnableOption "Construx API service";
+    port        = mkOption { type = types.port; default = 8080; };
+    databaseUrl = mkOption { type = types.str; };
+    package     = mkOption { type = types.package; default = pkgs.construx-api; };
+  };
+
+  config = mkIf cfg.enable {
+    systemd.services.construx-api = {
+      description = "Construx API Server";
+      wantedBy    = [ "multi-user.target" ];
+      after       = [ "network.target" "postgresql.service" ];
+
+      serviceConfig = {
+        ExecStart        = "${cfg.package}/bin/construx-api --port ${toString cfg.port}";
+        DynamicUser      = true;     # systemd-managed user, no pre-created user needed
+        PrivateTmp       = true;
+        ProtectSystem    = "strict";
+        ProtectHome      = true;
+        NoNewPrivileges  = true;
+        MemoryMax        = "512M";
+        Restart          = "on-failure";
+        RestartSec       = "5s";
+      };
+
+      environment = {
+        DATABASE_URL = cfg.databaseUrl;
+        PORT         = toString cfg.port;
+        ENVIRONMENT  = "production";
+      };
+    };
+  };
+}
+```
+
+```bash
+# Nix CLI workflow
+
+# Enter dev shell (first run: downloads and builds all tools; subsequent: cached in /nix/store)
+nix develop
+
+# Build the binary reproducibly
+nix build
+ls -la result/bin/construx-api   # symlink to /nix/store/hash-construx-api/bin/construx-api
+
+# Build and load the Docker image
+nix build .#docker
+docker load < result
+
+# Update a single input without upgrading everything
+nix flake update nixpkgs
+
+# Lock file is committed — every developer and CI gets identical tools
+git add flake.lock && git commit -m "chore: update nixpkgs to 24.11-latest"
+
+# Run in CI (GitHub Actions)
+# - uses: DeterminateSystems/nix-installer-action@v14   # install Nix with flakes
+# - uses: DeterminateSystems/magic-nix-cache-action@v8   # cache /nix/store on GitHub cache
+# - run: nix build && nix flake check
+
+# direnv integration: auto-enter shell when cd-ing to the project
+# .envrc:
+# use flake
+# → nix develop automatically activates on directory entry
+```
+
+Nix vs Docker Dev Containers vs asdf vs mise vs Homebrew: Homebrew and asdf manage tool versions but not build-time dependencies — if a tool depends on a specific libssl version, that's not tracked. Docker Dev Containers (VS Code) containerise the entire dev environment and ensure consistency, but IDE integration is heavier, and the container-in-container story for Kubernetes development is awkward. mise (formerly rtx) is a fast alternative to asdf that manages language runtimes (Go, Node, Python, Ruby) — simpler than Nix and good for language-version pinning. Nix's advantage is the hermetic build guarantee: not just 'go1.23' but 'go1.23 built from these exact sources with these exact flags, reproducible to a hash'. The flake.lock ensures every developer, every CI run, and every Docker image build uses identical binaries. The tradeoff: Nix has a steep learning curve (the Nix language is functional and unusual), initial builds take time, and the ecosystem of pre-packaged software in nixpkgs (80,000+ packages) doesn't cover everything. For teams where 'works on my machine' is a recurring source of debugging pain, Nix flakes with direnv is the definitive solution.

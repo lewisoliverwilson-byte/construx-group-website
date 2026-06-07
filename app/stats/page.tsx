@@ -27,6 +27,7 @@ import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import TiDbPanel from '@/components/TiDbPanel';
+import FlinkPanel from '@/components/FlinkPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -482,8 +483,13 @@ export default function StatsPage() {
       </div>
 
       {/* tidb htap — tikv row storage + tiflash columnar, no separate analytics pipeline */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TiDbPanel />
+      </div>
+
+      {/* apache flink stateful stream processing — exactly-once, windows, checkpoint */}
+      <div className="mt-6 pb-10">
+        <FlinkPanel />
       </div>
     </div>
   );
