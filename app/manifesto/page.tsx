@@ -36,6 +36,7 @@ import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import DaprPanel from '@/components/DaprPanel';
+import BufPanel from '@/components/BufPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -401,6 +402,11 @@ export default function ManifestoPage() {
         {/* dapr distributed app runtime — building blocks, service invocation, sidecars */}
         <div className="mt-4 pb-6">
           <DaprPanel />
+        </div>
+
+        {/* buf protobuf schema registry — modules, lint, breaking changes */}
+        <div className="mt-4 pb-6">
+          <BufPanel />
         </div>
 
         {/* Sign-off */}

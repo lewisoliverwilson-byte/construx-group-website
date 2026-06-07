@@ -35,6 +35,7 @@ import KubeProxyPanel from '@/components/KubeProxyPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
 import KedaPanel from '@/components/KedaPanel';
 import ZarfPanel from '@/components/ZarfPanel';
+import BiomePanel from '@/components/BiomePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -514,6 +515,11 @@ export default function UsesPage() {
         {/* zarf air-gap k8s packaging — packages, components, internal registry */}
         <div className="mt-6 pb-10">
           <ZarfPanel />
+        </div>
+
+        {/* biome rust linter + formatter — files, diagnostics, lint rules */}
+        <div className="mt-6 pb-10">
+          <BiomePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

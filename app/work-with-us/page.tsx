@@ -35,6 +35,7 @@ import RekorPanel from '@/components/RekorPanel';
 import HarborPanel from '@/components/HarborPanel';
 import RiverPanel from '@/components/RiverPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
+import TypesensePanel from '@/components/TypesensePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -741,6 +742,11 @@ export default function WorkWithUsPage() {
       {/* earthly repeatable builds — earthfile targets, buildkit, cache */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <EarthlyPanel />
+      </section>
+
+      {/* typesense instant typo-tolerant search — collections, searches, raft cluster */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <TypesensePanel />
       </section>
 
       {/* CTA */}
