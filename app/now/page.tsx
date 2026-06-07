@@ -84,6 +84,7 @@ import EnvPanel from '@/components/EnvPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
+import OpenSearchPanel from '@/components/OpenSearchPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -788,8 +789,13 @@ export default function NowPage() {
         </div>
 
         {/* npm outdated — packages, current, wanted, latest */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NpmOutdatedPanel />
+        </div>
+
+        {/* opensearch — indices, shards, queries, cluster health */}
+        <div className="mt-6 pb-10">
+          <OpenSearchPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

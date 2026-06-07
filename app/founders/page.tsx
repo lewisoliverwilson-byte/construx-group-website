@@ -84,6 +84,7 @@ import DbMigrationPanel from '@/components/DbMigrationPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import OpenFGAPanel from '@/components/OpenFGAPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -924,8 +925,13 @@ export default function FoundersPage() {
         </div>
 
         {/* npm global — packages, versions, outdated, paths */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NpmGlobalPanel />
+        </div>
+
+        {/* openfga — relationships, tuples, model, store */}
+        <div className="mt-6 pb-10">
+          <OpenFGAPanel />
         </div>
 
         {/* CTA */}

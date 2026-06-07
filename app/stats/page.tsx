@@ -86,6 +86,7 @@ import CuePanel from '@/components/CuePanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NomadPanel from '@/components/NomadPanel';
+import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -836,8 +837,13 @@ export default function StatsPage() {
       </div>
 
       {/* nomad — jobs, allocations, nodes, namespaces */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NomadPanel />
+      </div>
+
+      {/* openfga audit — checks, tuples, store, model */}
+      <div className="mt-6 pb-10">
+        <OpenFgaAuditPanel />
       </div>
     </div>
   );

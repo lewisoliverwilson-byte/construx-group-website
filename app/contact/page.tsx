@@ -83,6 +83,7 @@ import CpuStatsPanel from '@/components/CpuStatsPanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NixShellPanel from '@/components/NixShellPanel';
+import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -796,8 +797,13 @@ export default function ContactPage() {
       </section>
 
       {/* nix shell — packages, derivations, env, flake */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NixShellPanel />
+      </section>
+
+      {/* oauth flow — authorize, token, introspect, revoke */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <OAuthFlowPanel />
       </section>
     </div>
   );
