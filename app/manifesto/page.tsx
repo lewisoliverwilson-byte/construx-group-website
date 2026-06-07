@@ -21,6 +21,7 @@ import NixFlakePanel from '@/components/NixFlakePanel';
 import PrometheusAlertPanel from '@/components/PrometheusAlertPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -309,8 +310,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* openssl certificate inspection and key generation */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OpensslPanel />
+        </div>
+
+        {/* grype vulnerability scanner — SBOM-aware CVE detection */}
+        <div className="mt-4 pb-6">
+          <GrypePanel />
         </div>
 
         {/* Sign-off */}
