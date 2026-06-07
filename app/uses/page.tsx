@@ -65,6 +65,7 @@ import FlinkPanel from '@/components/FlinkPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import CassandraPanel from '@/components/CassandraPanel';
+import CockroachDbPanel from '@/components/CockroachDbPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -692,8 +693,13 @@ export default function UsesPage() {
         </div>
 
         {/* cassandra — distributed wide-column store, keyspaces, cql */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CassandraPanel />
+        </div>
+
+        {/* cockroachdb — distributed sql, ranges, leases, replication */}
+        <div className="mt-6 pb-10">
+          <CockroachDbPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

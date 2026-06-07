@@ -67,6 +67,7 @@ import GoReleaserPanel from '@/components/GoReleaserPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -585,8 +586,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* auditd — linux audit daemon, syscalls, rules, events */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AuditdPanel />
+        </div>
+
+        {/* boundary — zero-trust access, targets, sessions, credentials */}
+        <div className="mt-4 pb-6">
+          <BoundaryPanel />
         </div>
 
         {/* Sign-off */}

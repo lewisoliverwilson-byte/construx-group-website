@@ -70,6 +70,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import SpiffePanel from '@/components/SpiffePanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import BazelPanel from '@/components/BazelPanel';
+import CertManagerPanel from '@/components/CertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -541,8 +542,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* bazel — build system, targets, deps, cache */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <BazelPanel />
+      </section>
+
+      {/* cert-manager — certificate lifecycle, issuers, renewals */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CertManagerPanel />
       </section>
 
       {/* Posts */}
