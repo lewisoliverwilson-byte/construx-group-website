@@ -84,6 +84,7 @@ import CurlJwtPanel from '@/components/CurlJwtPanel';
 import FioPanel from '@/components/FioPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
+import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -687,8 +688,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* keycloak — realms, clients, users, tokens */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KeycloakPanel />
+        </div>
+
+        {/* kubernetes gateway — routes, listeners, backends, policies */}
+        <div className="mt-4 pb-6">
+          <KubernetesGatewayPanel />
         </div>
 
         {/* Sign-off */}

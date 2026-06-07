@@ -87,6 +87,7 @@ import DigPanel from '@/components/DigPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import K6Panel from '@/components/K6Panel';
 import KubeflowPanel from '@/components/KubeflowPanel';
+import LastLoginPanel from '@/components/LastLoginPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -643,8 +644,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kubeflow — pipelines, runs, experiments, artifacts */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KubeflowPanel />
+      </section>
+
+      {/* last login — users, terminals, ips, timestamps */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LastLoginPanel />
       </section>
 
       {/* Posts */}

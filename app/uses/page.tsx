@@ -82,6 +82,7 @@ import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
+import LatencyMapPanel from '@/components/LatencyMapPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -794,8 +795,13 @@ export default function UsesPage() {
         </div>
 
         {/* kube prometheus — rules, alerts, scrapes, metrics */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubePrometheusPanel />
+        </div>
+
+        {/* latency map — p50, p95, p99, regions, heatmap */}
+        <div className="mt-6 pb-10">
+          <LatencyMapPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
