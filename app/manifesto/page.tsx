@@ -32,6 +32,7 @@ import AlertManagerPanel from '@/components/AlertManagerPanel';
 import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -377,6 +378,11 @@ export default function ManifestoPage() {
         {/* cloudnative-pg postgres operator — ha clusters, streaming replication, barman backup */}
         <div className="mt-4 pb-6">
           <CloudNativePGPanel />
+        </div>
+
+        {/* grafana tempo distributed tracing — spans, s3 backend, trace search */}
+        <div className="mt-4 pb-6">
+          <GrafanaTempoPanel />
         </div>
 
         {/* Sign-off */}

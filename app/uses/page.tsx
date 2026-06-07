@@ -31,6 +31,7 @@ import GatekeeperPanel from '@/components/GatekeeperPanel';
 import HubblePanel from '@/components/HubblePanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import NomadPanel from '@/components/NomadPanel';
+import KubeProxyPanel from '@/components/KubeProxyPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -488,8 +489,13 @@ export default function UsesPage() {
         </div>
 
         {/* nomad workload orchestrator — jobs, allocs, datacenters, task drivers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NomadPanel />
+        </div>
+
+        {/* kube-proxy service routing — iptables nat rules, cluster IP, endpoints */}
+        <div className="mt-6 pb-10">
+          <KubeProxyPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
