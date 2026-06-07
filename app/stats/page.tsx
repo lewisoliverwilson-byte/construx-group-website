@@ -22,6 +22,7 @@ import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import PprofPanel from '@/components/PprofPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
+import HtopPanel from '@/components/HtopPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -452,8 +453,13 @@ export default function StatsPage() {
       </div>
 
       {/* Flamegraph: perf record → stack collapse → SVG */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <FlamegraphPanel />
+      </div>
+
+      {/* btop real-time process monitor */}
+      <div className="mt-6 pb-10">
+        <HtopPanel />
       </div>
     </div>
   );
