@@ -77,6 +77,7 @@ import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
+import GitShortlogPanel from '@/components/GitShortlogPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -583,8 +584,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* flagger — canary analysis, metrics, webhooks, traffic */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <FlaggerPanel />
+      </section>
+
+      {/* git shortlog — contributors, commits, range summary */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GitShortlogPanel />
       </section>
 
       {/* Posts */}

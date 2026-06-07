@@ -74,6 +74,7 @@ import CortexPanel from '@/components/CortexPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
+import FluxCDPanel from '@/components/FluxCDPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -627,8 +628,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ebpf trace — syscalls, latency histogram, stack frames */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <EbpfTracePanel />
+        </div>
+
+        {/* flux cd — gitops, sources, kustomizations, reconcile */}
+        <div className="mt-4 pb-6">
+          <FluxCDPanel />
         </div>
 
         {/* Sign-off */}

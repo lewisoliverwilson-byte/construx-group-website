@@ -72,6 +72,7 @@ import DbtPanel from '@/components/DbtPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
+import GitSignPanel from '@/components/GitSignPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -734,8 +735,13 @@ export default function UsesPage() {
         </div>
 
         {/* flamegraph — cpu profiling, call stacks, hotspots */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FlamegraphPanel />
+        </div>
+
+        {/* git sign — gpg commit signing, key ids, verification */}
+        <div className="mt-6 pb-10">
+          <GitSignPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

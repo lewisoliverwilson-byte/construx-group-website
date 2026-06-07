@@ -73,6 +73,7 @@ import CpuStatsPanel from '@/components/CpuStatsPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
+import GatlingPanel from '@/components/GatlingPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -967,8 +968,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* external dns — sync, providers, endpoints, records */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ExternalDnsPanel />
+      </section>
+
+      {/* gatling — load testing, simulations, rps, response times */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GatlingPanel />
       </section>
 
       {/* CTA */}
