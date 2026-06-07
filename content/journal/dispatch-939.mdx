@@ -1,0 +1,160 @@
+---
+title: "restic: encrypted, deduplicated backups to any storage backend"
+date: "2032-08-31"
+excerpt: "restic is a backup tool written in Go that deduplicates, compresses, and encrypts data before sending it to a backend — local filesystem, SFTP, S3, B2, Azure, GCS, or rclone-compatible targets. Every backup creates an immutable snapshot; deduplication happens at the content-addressed chunk level (content-defined chunking with a rolling hash), so only changed chunks are uploaded. Snapshots share chunks across backups — storing 30 daily backups of a 20 GiB dataset typically uses 25-28 GiB total, not 600 GiB. Encryption uses AES-256-CTR with a Poly1305-AES MAC — the backend storage sees only ciphertext. The repository format is backend-agnostic: the same restic commands work against a local path, an S3 bucket, or an SFTP server."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Deduplicate. Encrypt. Prune. Verify. `restic check` after every restore.
+
+## Initialising and backing up
+
+```bash
+# restic needs a password — set via env var for scripting
+export RESTIC_PASSWORD="$(cat /etc/construx/backup-key)"
+
+# Initialise a repository — creates the repo structure + encryption keys
+restic init --repo s3:s3.amazonaws.com/construx-backups/prod
+
+# Or local:
+restic init --repo /mnt/backup-drive/construx
+
+# RESTIC_REPOSITORY: avoid repeating --repo on every command
+export RESTIC_REPOSITORY="s3:s3.amazonaws.com/construx-backups/prod"
+
+# First backup — construx data directory + postgres dump
+pg_dump construx_prod | gzip > /tmp/construx-$(date +%Y%m%d).sql.gz
+restic backup /var/lib/construx /tmp/construx-$(date +%Y%m%d).sql.gz
+
+# Snapshot created:
+# snapshot 3e4f9a2b saved
+# Files:           1,842 new, 0 changed, 0 unmodified
+# Dirs:              47 new, 0 changed, 0 unmodified
+# Added to repo: 1.284 GiB (compressed: 892.3 MiB, encrypted: 892.4 MiB)
+
+# Second backup (next day) — only changed chunks uploaded
+restic backup /var/lib/construx /tmp/construx-$(date +%Y%m%d).sql.gz
+
+# Files:            12 new, 38 changed, 1,792 unmodified  ← dedup at work
+# Added to repo: 4.2 MiB  ← only the deltas, not 1.3 GiB again
+
+# Backup with tags (useful for filtering and pruning policies)
+restic backup /var/lib/construx \
+  --tag daily \
+  --tag "$(hostname)" \
+  --tag "git:$(git rev-parse --short HEAD)"
+
+# Exclude files and directories
+restic backup /var/lib/construx \
+  --exclude '*.tmp' \
+  --exclude '**/node_modules' \
+  --exclude '/var/lib/construx/cache'
+```
+
+## Snapshots, restore, and mount
+
+```bash
+# List snapshots
+restic snapshots
+# ID        Time                 Host     Tags        Paths
+# 3e4f9a2b  2032-08-28 03:00:01  prod-01  daily       /var/lib/construx
+# 7c8d1e3f  2032-08-29 03:00:01  prod-01  daily       /var/lib/construx
+# a1b2c3d4  2032-08-30 03:00:01  prod-01  daily       /var/lib/construx
+
+# Filter snapshots by tag or host
+restic snapshots --tag daily --host prod-01
+
+# Show what's in a snapshot
+restic ls a1b2c3d4
+restic ls latest   # shorthand for the most recent snapshot
+
+# Restore a single file from a snapshot
+restic restore a1b2c3d4 \
+  --target /tmp/restore \
+  --include /var/lib/construx/config.yaml
+
+# Restore entire snapshot
+restic restore latest --target /var/lib/construx-restored
+
+# Mount: browse snapshots as a FUSE filesystem (Linux/macOS)
+restic mount /mnt/restic-browse
+# Now browsable at /mnt/restic-browse/snapshots/<id>/...
+# Copy individual files without a full restore:
+cp /mnt/restic-browse/snapshots/latest/var/lib/construx/state.db /tmp/
+
+# Diff: what changed between two snapshots
+restic diff 3e4f9a2b a1b2c3d4
+# +  /var/lib/construx/orders/2032-08-30.parquet   (new file, 2.1 MiB)
+# M  /var/lib/construx/state.db                    (modified, 48 KiB larger)
+# -  /var/lib/construx/tmp/scratch.json            (deleted)
+```
+
+## Pruning and retention policies
+
+```bash
+# restic forget: remove snapshots matching a retention policy
+# --keep-within: keep all snapshots within a time window
+# --keep-daily:  keep the last N daily snapshots
+# --keep-weekly: keep the last N weekly snapshots
+# --keep-monthly, --keep-yearly
+
+restic forget \
+  --keep-within 7d \
+  --keep-daily  14 \
+  --keep-weekly  8 \
+  --keep-monthly 12 \
+  --keep-yearly   3 \
+  --prune   # actually delete the data (not just the snapshot record)
+
+# Snapshots to remove: 47
+# Applying policy: keep 7d, 14 daily, 8 weekly, 12 monthly, 3 yearly
+# Keeping 31 snapshots
+# Removing 16 snapshots
+# [0:14] Removing packs...   freed 142 MiB
+
+# --dry-run: preview what would be removed without deleting
+restic forget --keep-daily 14 --dry-run
+
+# prune separately (after forget without --prune)
+restic prune           # remove unreferenced pack files
+restic prune --max-repack-size 1G  # limit repack I/O per run
+
+# Automation: cron job for daily backup + retention
+# /etc/cron.d/restic-backup
+# 0 3 * * * construx /usr/local/bin/restic-backup.sh >> /var/log/restic.log 2>&1
+```
+
+## Integrity verification
+
+```bash
+# restic check: verify repository integrity (reads pack metadata)
+restic check
+# Using temporary cache in /tmp/restic-cache-xxx
+# Load indexes: 100% |██████████| 38 / 38
+# Check all packs: 100% |██████████| 1842 / 1842
+# Check snapshots, trees and blobs: 100% |██████████| 47 / 47
+# No errors were found.
+
+# --read-data: download and verify ALL data (much slower, catches bitrot)
+restic check --read-data
+# Suitable for monthly verification (read-data reads every stored byte)
+
+# --read-data-subset: verify a fraction of pack files each run
+# Run daily with 1/7 subset → full verification each week, spread across days
+restic check --read-data-subset=1/7
+
+# Key management: rotate the backup password
+restic key list
+restic key add          # add a new password (prompts interactively)
+restic key remove <id>  # remove old key after confirming new one works
+
+# Stats: repository size and deduplication ratio
+restic stats
+# Total Size:           892 MiB (encrypted on backend)
+# Total File Size:     1.28 GiB (raw data across all snapshots)
+# Total Blob Count:   38,241
+# Dedup ratio:         1.43× (1.28 GiB raw → 892 MiB stored)
+```
+
+restic vs borgbackup vs duplicati: borgbackup is the closest competitor — similar dedup and encryption, but with a different chunking algorithm and a more complex repository format (borg repos are less portable across versions). Duplicati has a web UI and a simpler setup but is slower and has had reliability issues with repository corruption. restic's key advantages: the backend is abstracted (one tool for local, SFTP, S3, B2, Azure, rclone), the repository format is stable, and `restic check` with `--read-data` gives you cryptographic proof that your backups are intact. The practical rule: run `restic check` after every restore, not just before. Backups you haven't verified are speculation, not insurance.

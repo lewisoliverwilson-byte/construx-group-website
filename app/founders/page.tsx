@@ -20,6 +20,7 @@ import EbpfTracePanel from '@/components/EbpfTracePanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import ArgoCdPanel from '@/components/ArgoCdPanel';
 import JournaldPanel from '@/components/JournaldPanel';
+import HyperfinePanel from '@/components/HyperfinePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -540,8 +541,13 @@ export default function FoundersPage() {
         </div>
 
         {/* journald structured log inspection */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JournaldPanel />
+        </div>
+
+        {/* hyperfine statistical command-line benchmarking */}
+        <div className="mt-6 pb-10">
+          <HyperfinePanel />
         </div>
 
         {/* CTA */}
