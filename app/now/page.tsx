@@ -62,6 +62,7 @@ import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import DaprPanel from '@/components/DaprPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -656,8 +657,13 @@ export default function NowPage() {
         </div>
 
         {/* goreleaser — release automation, binaries, docker, changelog */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GoReleaserPanel />
+        </div>
+
+        {/* dapr distributed application runtime — actors, pub/sub, state */}
+        <div className="mt-6 pb-10">
+          <DaprPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

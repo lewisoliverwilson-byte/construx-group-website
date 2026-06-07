@@ -64,6 +64,7 @@ import AirflowPanel from '@/components/AirflowPanel';
 import DaprPanel from '@/components/DaprPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import AirbytePanel from '@/components/AirbytePanel';
+import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -704,8 +705,13 @@ export default function StatsPage() {
       </div>
 
       {/* airbyte open-source elt — connectors, syncs, data movement */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <AirbytePanel />
+      </div>
+
+      {/* nats jetstream — streams, consumers, messages, acks */}
+      <div className="mt-6 pb-10">
+        <NATSJetStreamPanel />
       </div>
     </div>
   );

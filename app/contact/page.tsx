@@ -62,6 +62,7 @@ import DaprPanel from '@/components/DaprPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AirflowPanel from '@/components/AirflowPanel';
+import FlinkPanel from '@/components/FlinkPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -670,8 +671,13 @@ export default function ContactPage() {
       </section>
 
       {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <AirflowPanel />
+      </section>
+
+      {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <FlinkPanel />
       </section>
     </div>
   );

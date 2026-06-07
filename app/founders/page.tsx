@@ -62,6 +62,7 @@ import AirbytePanel from '@/components/AirbytePanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import DaprPanel from '@/components/DaprPanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -792,8 +793,13 @@ export default function FoundersPage() {
         </div>
 
         {/* dapr distributed application runtime — actors, pub/sub, state */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DaprPanel />
+        </div>
+
+        {/* goreleaser — release automation, binaries, docker, changelog */}
+        <div className="mt-6 pb-10">
+          <GoReleaserPanel />
         </div>
 
         {/* CTA */}
