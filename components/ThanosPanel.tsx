@@ -1,179 +1,143 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'store' | 'block' | 'query' | 'dedup' | 'retention' | 'metric' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',   text: '# thanos: prometheus long-term storage — s3 backend, global query' },
-  { kind: 'prompt',    text: 'thanos query --store=dnssrv+_grpc._tcp.thanos-store.monitoring.svc' },
-  { kind: 'blank',     text: '' },
-  { kind: 'comment',   text: '# store gateways: 3 stores online across 2 clusters' },
-  { kind: 'store',     text: '  store/eu-west-2a    READY  blocks:1821  time:2031-01→now' },
-  { kind: 'store',     text: '  store/eu-west-2b    READY  blocks:1819  time:2031-01→now' },
-  { kind: 'store',     text: '  store/us-east-1a    READY  blocks:947   time:2032-06→now' },
-  { kind: 'blank',     text: '' },
-  { kind: 'comment',   text: '# compactor: 2h compaction pass — block consolidation' },
-  { kind: 'block',     text: '  raw → 2h:   48 blocks → 12 blocks  (75% reduction, 14m ETA)' },
-  { kind: 'block',     text: '  2h  → 24h:  in queue  24h → 1h: deferred  s3 size: 1.8TB' },
-  { kind: 'blank',     text: '' },
-  { kind: 'comment',   text: '# global query: cross-cluster rate — deduplicated' },
-  { kind: 'query',     text: '  rate(http_requests_total{cluster=~".+"}[5m]) by (cluster)' },
-  { kind: 'query',     text: '  eu-west-2: 4821/s   us-east-1: 2104/s   global: 6925/s' },
-  { kind: 'blank',     text: '' },
-  { kind: 'dedup',     text: '  dedup: replica label stripped — 1 series per logical timeseries' },
-  { kind: 'retention', text: '  raw:15d  →  5m:90d  →  1h:365d   s3://construx-thanos-prod' },
-  { kind: 'metric',    text: '  query elapsed: 0.31s  series-read: 2841  samples: 184k' },
-  { kind: 'stat',      text: '  2 clusters  3 stores  s3-backed  thanos 0.36.1' },
+const STORES = [
+  { component: 'sidecar', endpoint: 'thanos-sidecar-01:10901', type: 'sidecar', minTime: 'now-2h', maxTime: 'now', labelSets: 284, status: 'up' },
+  { component: 'store-gw', endpoint: 'thanos-store:10901', type: 'store', minTime: '2024-01-01', maxTime: 'now-2h', labelSets: 4840, status: 'up' },
+  { component: 'ruler', endpoint: 'thanos-ruler:10901', type: 'rule', minTime: 'now-6h', maxTime: 'now', labelSets: 48, status: 'up' },
+  { component: 'compact', endpoint: 'thanos-compact:10902', type: 'compactor', minTime: 'n/a', maxTime: 'n/a', labelSets: 0, status: 'up' },
 ];
 
-const TOTAL = LINES.length + 3;
+const QUERIES = [
+  { query: 'rate(http_requests_total{job="construx-api"}[5m])', duration: '48ms', series: 12, dedup: true, status: 'ok' },
+  { query: 'sum(container_memory_usage_bytes) by (namespace)', duration: '124ms', series: 8, dedup: true, status: 'ok' },
+  { query: 'histogram_quantile(0.99, rate(request_duration_seconds_bucket[1m]))', duration: '84ms', series: 24, dedup: false, status: 'ok' },
+  { query: 'ALERTS{alertstate="firing"}', duration: '28ms', series: 3, dedup: true, status: 'ok' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':   return 'rgba(240,239,255,0.22)';
-    case 'prompt':    return 'rgba(240,239,255,0.6)';
-    case 'store':     return '#4ade80';
-    case 'block':     return '#a78bfa';
-    case 'query':     return '#67e8f9';
-    case 'dedup':     return '#fbbf24';
-    case 'retention': return '#fbbf24';
-    case 'metric':    return 'rgba(240,239,255,0.5)';
-    case 'stat':      return 'rgba(240,239,255,0.45)';
-    default:          return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function ThanosPanel() {
-  const [revealed,    setRevealed]    = useState(0);
-  const [liveBlocks,  setLiveBlocks]  = useState(12);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [storeRows, setStoreRows] = useState(0);
+  const [queryRows, setQueryRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const samplesQueried = useCounter(284000, 2400, 400);
+  const blocksCompacted = useCounter(2840, 4, 800);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveBlocks(10 + Math.floor(Math.random() * 6));
-          }, 2800);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const s = setInterval(() => setStoreRows((x) => Math.min(x + 1, STORES.length)), 160);
+    const q = setInterval(() => setQueryRows((x) => Math.min(x + 1, QUERIES.length)), 140);
+    return () => { clearInterval(s); clearInterval(q); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(251,191,36,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(251,191,36,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@metrics — thanos · prometheus · long-term · s3 · global-query
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(251,191,36,0.08)', background: 'rgba(251,191,36,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.4)' }}>
+          thanos -- ha prometheus -- stores / querier / compaction
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#a78bfa' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveBlocks} blocks` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {(samplesQueried / 1000).toFixed(0)}k samples/q
         </span>
       </div>
 
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@metrics# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          thanos · store · compactor · query · dedup · s3 · global
-        </span>
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#fbbf24', fontWeight: 600 }}>thanos@querier</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>thanos query --store thanos-sidecar-01:10901 --store thanos-store:10901 --query.replica-label replica</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'samples / query', value: (samplesQueried / 1000).toFixed(0) + 'k', color: '#fbbf24' },
+          { label: 'blocks compacted', value: blocksCompacted.toLocaleString(), color: '#4ade80' },
+          { label: 'stores', value: STORES.length.toString(), color: '#67e8f9' },
+          { label: 'all up', value: STORES.filter(s => s.status === 'up').length.toString(), color: '#a78bfa' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Thanos 0.36.1 ·</span>
-          <span style={{ color: '#4ade80' }}>3 stores healthy</span>
-          <span style={{ color: '#67e8f9' }}>global query</span>
-          <span style={{ color: '#a78bfa' }}>{liveBlocks} compacted</span>
-          <span style={{ color: '#fbbf24' }}>dedup on</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Stores */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // store nodes
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {STORES.slice(0, storeRows).map((s) => (
+            <div key={s.component} style={{ display: 'grid', gridTemplateColumns: '64px 1fr 48px 48px 28px 28px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#fbbf24', fontSize: 8, fontWeight: 600 }}>{s.component}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.endpoint}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7 }}>{s.type}</span>
+              <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.minTime}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{s.labelSets}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{s.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Queries */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // recent queries
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {QUERIES.slice(0, queryRows).map((q, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 24px 36px 24px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.query}</span>
+              <span className="tabular-nums" style={{ color: Number(q.duration.replace('ms','')) > 100 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{q.duration}</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{q.series}s</span>
+              <span style={{ color: q.dedup ? '#4ade80' : 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'center' }}>{q.dedup ? 'dedup' : 'raw'}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{q.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          thanos · long-term-storage · s3 · compactor · store-gateway
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(251,191,36,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          thanos v0.36 - apache-2.0 - highly available prometheus with long-term storage
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#a78bfa' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● compacting' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {(samplesQueried / 1000).toFixed(0)}k samples - {blocksCompacted.toLocaleString()} blocks
         </span>
       </div>
     </div>

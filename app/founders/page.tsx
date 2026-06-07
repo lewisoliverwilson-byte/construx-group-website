@@ -50,6 +50,7 @@ import FluxCDPanel from '@/components/FluxCDPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import WoodpeckerCIPanel from '@/components/WoodpeckerCIPanel';
+import DronePanel from '@/components/DronePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -720,8 +721,13 @@ export default function FoundersPage() {
         </div>
 
         {/* woodpecker ci continuous integration — pipelines, steps, agents */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <WoodpeckerCIPanel />
+        </div>
+
+        {/* drone ci container-native — repos, builds, steps */}
+        <div className="mt-6 pb-10">
+          <DronePanel />
         </div>
 
         {/* CTA */}

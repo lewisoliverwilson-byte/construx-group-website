@@ -50,6 +50,7 @@ import MinIOPanel from '@/components/MinIOPanel';
 import VaultPanel from '@/components/VaultPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import IstioPanel from '@/components/IstioPanel';
+import OPAPanel from '@/components/OPAPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -598,8 +599,13 @@ export default function ContactPage() {
       </section>
 
       {/* istio service mesh — virtual services, destination rules, mtls */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-6 mx-auto max-w-2xl">
         <IstioPanel />
+      </section>
+
+      {/* opa open policy agent — rego, bundles, decisions */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <OPAPanel />
       </section>
     </div>
   );

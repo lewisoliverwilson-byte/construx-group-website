@@ -52,6 +52,7 @@ import NATSPanel from '@/components/NATSPanel';
 import PrometheusPanel from '@/components/PrometheusPanel';
 import TempoPanel from '@/components/TempoPanel';
 import VitessPanel from '@/components/VitessPanel';
+import YugaBytePanel from '@/components/YugaBytePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -632,8 +633,13 @@ export default function StatsPage() {
       </div>
 
       {/* vitess mysql sharding — keyspaces, tablets, vtgate */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <VitessPanel />
+      </div>
+
+      {/* yugabyte distributed sql — nodes, tablets, ysql */}
+      <div className="mt-6 pb-10">
+        <YugaBytePanel />
       </div>
     </div>
   );
