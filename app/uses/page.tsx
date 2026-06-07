@@ -77,6 +77,7 @@ import HtopPanel from '@/components/HtopPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import DronePanel from '@/components/DronePanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
+import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -764,8 +765,13 @@ export default function UsesPage() {
         </div>
 
         {/* cgroups — cpu, memory, io, pids quotas */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CgroupsPanel />
+        </div>
+
+        {/* curl headers — request, response, tls, timing */}
+        <div className="mt-6 pb-10">
+          <CurlHeadersPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

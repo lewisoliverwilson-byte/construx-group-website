@@ -82,6 +82,7 @@ import GrpcCallPanel from '@/components/GrpcCallPanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
+import CrontabPanel from '@/components/CrontabPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -613,8 +614,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* caddy access — requests, status, latency, paths */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CaddyAccessPanel />
+      </section>
+
+      {/* crontab — jobs, schedule, user, command */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CrontabPanel />
       </section>
 
       {/* Posts */}

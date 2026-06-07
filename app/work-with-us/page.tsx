@@ -78,6 +78,7 @@ import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
+import CniPanel from '@/components/CniPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -997,8 +998,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* build output — steps, artifacts, duration, cache hits */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BuildOutputPanel />
+      </section>
+
+      {/* cni — plugins, network, ipam, bridges */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CniPanel />
       </section>
 
       {/* CTA */}
