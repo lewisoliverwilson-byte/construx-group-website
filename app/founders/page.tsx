@@ -61,6 +61,7 @@ import GitGraphPanel from '@/components/GitGraphPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import FlinkPanel from '@/components/FlinkPanel';
 import AirflowPanel from '@/components/AirflowPanel';
+import DaprPanel from '@/components/DaprPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -786,8 +787,13 @@ export default function FoundersPage() {
         </div>
 
         {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AirflowPanel />
+        </div>
+
+        {/* dapr distributed application runtime — actors, pub/sub, state */}
+        <div className="mt-6 pb-10">
+          <DaprPanel />
         </div>
 
         {/* CTA */}

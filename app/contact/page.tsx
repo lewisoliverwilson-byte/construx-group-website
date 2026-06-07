@@ -61,6 +61,7 @@ import SpirePanel from '@/components/SpirePanel';
 import DaprPanel from '@/components/DaprPanel';
 import CiliumPanel from '@/components/CiliumPanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
+import AirflowPanel from '@/components/AirflowPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -664,8 +665,13 @@ export default function ContactPage() {
       </section>
 
       {/* nats jetstream — streams, consumers, messages, acks */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NATSJetStreamPanel />
+      </section>
+
+      {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <AirflowPanel />
       </section>
     </div>
   );

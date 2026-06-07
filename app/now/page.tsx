@@ -61,6 +61,7 @@ import GitBlamePanel from '@/components/GitBlamePanel';
 import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
 import AirbytePanel from '@/components/AirbytePanel';
 import FlinkPanel from '@/components/FlinkPanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -650,8 +651,13 @@ export default function NowPage() {
         </div>
 
         {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FlinkPanel />
+        </div>
+
+        {/* goreleaser — release automation, binaries, docker, changelog */}
+        <div className="mt-6 pb-10">
+          <GoReleaserPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
