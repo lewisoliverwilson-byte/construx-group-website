@@ -28,6 +28,7 @@ import RisingWavePanel from '@/components/RisingWavePanel';
 import DbtPanel from '@/components/DbtPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
+import PinotPanel from '@/components/PinotPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -588,8 +589,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cluster api declarative cluster lifecycle — capi, machines, machinedeployment, aws */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClusterApiPanel />
+        </div>
+
+        {/* apache pinot realtime olap — star-tree, upsert, hybrid, kafka ingestion */}
+        <div className="mt-6 pb-10">
+          <PinotPanel />
         </div>
 
         {/* CTA */}

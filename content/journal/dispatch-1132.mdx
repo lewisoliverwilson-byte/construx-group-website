@@ -1,0 +1,127 @@
+---
+title: "Weaviate: vector database — multi-modal search, hybrid search, modules, HNSW indexing"
+date: "2034-04-02"
+excerpt: "Weaviate is an open-source vector database that stores objects (documents, images, audio snippets) alongside their vector embeddings and enables semantic search via approximate nearest neighbour (ANN) retrieval. Unlike traditional databases that match exact values, a vector search returns the most similar results to a query based on embedding distance — so a search for 'contract termination clause' returns relevant contract paragraphs even if the exact phrase doesn't appear. Weaviate's module system supports a wide range of embedding models: text2vec-openai (OpenAI embedding API), text2vec-cohere, text2vec-huggingface, multi2vec-clip (image+text), and ref2vec-centroid for recommendation from user interaction graphs. Hybrid search combines dense vector search with BM25 sparse keyword search, with a configurable alpha parameter to weight the two signals — giving the precision of keyword matching for specific terms with the recall of semantic search for conceptual queries. Weaviate's HNSW (Hierarchical Navigable Small World) index provides sub-millisecond ANN retrieval at billion-scale, with product quantisation (PQ) for compressed in-memory storage. The GraphQL API queries objects with where filters, vector search parameters, and cross-references between collections. At Construx, Weaviate powers the contract search and knowledge base features: a 500K-document corpus with OpenAI embeddings is indexed and searchable in under 50ms, with reranking via Cohere Rerank applied to the top 20 candidates."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+HNSW. ANN. Hybrid search. BM25. Module. Embedding. PQ. Cross-reference. GraphQL.
+
+## Weaviate schema, ingestion, and hybrid search
+
+```python
+# Weaviate Python SDK: schema definition, object ingestion, and search
+
+import weaviate
+import weaviate.classes as wvc
+from weaviate.classes.config import Configure, Property, DataType, VectorDistances
+
+# Connect to Weaviate cluster
+client = weaviate.connect_to_custom(
+    http_host="weaviate.construx-prod.svc.cluster.local",
+    http_port=8080,
+    http_secure=False,
+    grpc_host="weaviate.construx-prod.svc.cluster.local",
+    grpc_port=50051,
+    grpc_secure=False,
+)
+
+# Create collection: ContractClause
+# text2vec-openai: Weaviate calls OpenAI embedding API automatically on ingest
+client.collections.create(
+    name="ContractClause",
+    description="Individual clauses from legal contracts",
+
+    vectorizer_config=Configure.Vectorizer.text2vec_openai(
+        model="text-embedding-3-large",
+        dimensions=1536,
+    ),
+    vector_index_config=Configure.VectorIndex.hnsw(
+        distance_metric=VectorDistances.COSINE,
+        ef_construction=256,     # higher = slower index, better recall
+        max_connections=64,
+        ef=128,                  # higher = slower query, better recall
+    ),
+    generative_config=Configure.Generative.openai(
+        model="gpt-4o",          # used for RAG: generate answers from retrieved chunks
+    ),
+    reranker_config=Configure.Reranker.cohere(
+        model="rerank-english-v3.0"
+    ),
+    properties=[
+        Property(name="text",       data_type=DataType.TEXT),
+        Property(name="contractId", data_type=DataType.TEXT),
+        Property(name="clauseType", data_type=DataType.TEXT),
+        Property(name="tenantId",   data_type=DataType.TEXT),
+        Property(name="pageNumber", data_type=DataType.INT),
+    ],
+)
+
+# Batch ingest: 10k objects per batch — Weaviate auto-vectorizes
+collection = client.collections.get("ContractClause")
+
+with collection.batch.dynamic() as batch:
+    for clause in clauses:                # generator over 500k clauses
+        batch.add_object(properties={
+            "text":       clause["text"],
+            "contractId": clause["contract_id"],
+            "clauseType": clause["type"],
+            "tenantId":   clause["tenant_id"],
+            "pageNumber": clause["page"],
+        })
+
+# Batch statistics after ingestion:
+# Objects added: 487,243
+# Errors:        0
+# Duration:      142s
+# Rate:          3,432 objects/second
+```
+
+```python
+# Hybrid search: semantic + keyword retrieval with reranking
+
+collection = client.collections.get("ContractClause")
+
+# Hybrid search: alpha=0.5 = equal weight BM25 + vector
+# Reranked by Cohere Rerank — improves relevance of top-10 results
+results = collection.query.hybrid(
+    query="termination for convenience notice period",
+    alpha=0.5,           # 0 = pure BM25, 1 = pure vector
+    limit=20,            # retrieve 20 candidates before reranking
+    rerank=wvc.query.Rerank(
+        prop="text",
+        query="termination notice period requirements",
+    ),
+    filters=wvc.query.Filter.by_property("tenantId").equal("acme"),
+    return_properties=["text", "contractId", "clauseType", "pageNumber"],
+    return_metadata=wvc.query.MetadataQuery(score=True, explain_score=True),
+)
+
+for obj in results.objects:
+    print(f"Score: {obj.metadata.score:.3f} | {obj.properties['clauseType']} | p{obj.properties['pageNumber']}")
+    print(f"  {obj.properties['text'][:200]}...")
+
+# Output:
+# Score: 0.982 | TERMINATION | p14
+#   Either party may terminate this Agreement for convenience by providing
+#   thirty (30) days written notice to the other party...
+
+# Score: 0.971 | NOTICE | p8
+#   All notices under this Agreement shall be provided in writing via...
+
+# RAG (Retrieval-Augmented Generation): retrieve + generate answer
+rag_result = collection.generate.hybrid(
+    query="what are the termination conditions",
+    single_prompt="Using the contract clause provided, answer: {text}",
+    alpha=0.75,
+    limit=5,
+    filters=wvc.query.Filter.by_property("tenantId").equal("acme"),
+)
+
+print(rag_result.generated)
+# "Based on the contract, either party may terminate for convenience with 30 days
+#  written notice. Immediate termination is permitted in cases of material breach..."
+```
+
+Weaviate vs Pinecone vs Qdrant vs pgvector vs ChromaDB vs Milvus: Pinecone is the managed vector database SaaS — zero operational overhead, automatic scaling, excellent performance at scale, but per-vector pricing becomes significant at hundreds of millions of vectors. Qdrant is the fastest open-source vector database for filtered ANN queries (using its custom HNSW implementation with payload-based filtering); it has a simpler data model than Weaviate (no built-in vectorization, no GraphQL) but better raw search performance. pgvector (dispatch extension) runs vector search inside PostgreSQL — ideal for teams that want vectors alongside their existing relational data, acceptable performance up to ~10M vectors, becomes slow beyond that. ChromaDB is the simplest option — embeds in Python, no server required, good for prototyping. Milvus is the most mature self-hosted vector database (used at Walmart, Shopee, Netflix) — excellent scalability and performance but complex to operate. Weaviate's differentiation is its module ecosystem: the text2vec-* modules eliminate the separate embedding step — Weaviate calls the embedding API automatically during ingest and search. For teams building RAG applications where the vectorization pipeline would otherwise require a separate service, Weaviate's integrated approach significantly reduces operational complexity.

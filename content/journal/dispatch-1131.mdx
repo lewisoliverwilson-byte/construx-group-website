@@ -1,0 +1,154 @@
+---
+title: "Parca: continuous profiling — eBPF, Go pprof, flamegraphs, CPU, memory, allocation"
+date: "2034-03-30"
+excerpt: "Parca is a continuous profiling system that collects CPU profiles, memory profiles, and goroutine traces from running applications without requiring application changes. It uses eBPF to profile any process on the node (language-agnostic, including compiled Go, Rust, C++), supplemented by native pprof integration for Go processes (which include allocation profiles and mutex contention). Continuous profiling differs from ad-hoc profiling: instead of running a profiler for 30 seconds when you notice a slowdown, Parca collects profiles every 10-60 seconds continuously, stores them in object storage (S3), and allows you to query and compare profiles across any time window. This makes it possible to answer questions like 'what was the CPU profile for the orders-api at the exact moment of the latency spike on Tuesday?' or 'how has memory allocation changed between version 1.42 and 1.43?' Parca's UI renders interactive flamegraphs with diff mode — selecting two time windows produces a differential flamegraph that highlights which functions increased or decreased in CPU usage. The eBPF agent (Parca Agent) runs as a DaemonSet and profiles every process on every node, including Kubernetes sidecar containers and infrastructure processes, with minimal overhead (typically under 1% CPU overhead per node). At Construx, Parca identified a JSON marshalling hot path in the orders-api that was consuming 12% of CPU — invisible in the Prometheus metrics but clear in the flamegraph."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Continuous profiling. Flamegraph. Diff. eBPF. pprof. CPU. Memory. DaemonSet. S3.
+
+## Parca deployment and profiling workflow
+
+```yaml
+# Parca server: stores and serves profiles from S3
+# parca-dev/parca Helm chart
+
+parca:
+  config: |
+    object_storage:
+      bucket:
+        type: S3
+        config:
+          bucket: construx-parca-profiles
+          region: eu-west-2
+          endpoint: ""
+
+    debuginfo:
+      uploads_signed_url: true
+      bucket:
+        type: S3
+        config:
+          bucket: construx-parca-debuginfo
+          region: eu-west-2
+
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+
+  persistence:
+    enabled: false   # profiles stored in S3, not local PVC
+
+  ingress:
+    enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: construx-intermediate-ca
+    hosts:
+      - host: parca.construx.internal
+        paths:
+          - path: /
+            pathType: Prefix
+
+# Parca Agent: DaemonSet — profiles every process on every node
+parca-agent:
+  enabled: true
+
+  config: |
+    remote_store_address: parca.construx-monitoring.svc.cluster.local:7070
+    insecure: true
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: 128Mi
+    limits:
+      cpu: "500m"
+      memory: 512Mi
+
+  # Necessary capabilities for eBPF profiling
+  securityContext:
+    capabilities:
+      add:
+        - SYS_ADMIN
+        - SYS_PTRACE
+        - NET_ADMIN
+```
+
+```go
+// Go pprof: expose profiling endpoint for Parca to scrape
+// Parca scrapes /debug/pprof endpoints in addition to eBPF profiling
+
+package main
+
+import (
+    _ "net/http/pprof"   // registers /debug/pprof/* endpoints automatically
+    "net/http"
+)
+
+func main() {
+    // Start pprof endpoint (separate port from main API)
+    go func() {
+        // http://orders-api:6060/debug/pprof/  — index page
+        // http://orders-api:6060/debug/pprof/profile?seconds=30  — CPU profile
+        // http://orders-api:6060/debug/pprof/heap  — heap profile
+        // http://orders-api:6060/debug/pprof/goroutine  — goroutine dump
+        // http://orders-api:6060/debug/pprof/allocs  — allocation profile
+        // http://orders-api:6060/debug/pprof/mutex   — mutex contention
+        if err := http.ListenAndServe(":6060", nil); err != nil {
+            panic(err)
+        }
+    }()
+
+    // main service startup...
+}
+```
+
+```bash
+# Parca CLI: query and compare profiles
+
+# Install parcacli
+go install github.com/parca-dev/parca/cmd/parcacli@latest
+
+# List available profiles for orders-api
+parcacli query \
+  --address parca.construx.internal:7070 \
+  --query 'process_cpu:cpu:nanoseconds:cpu:nanoseconds{namespace="construx-prod",pod=~"orders-api-.*"}' \
+  --start "2034-03-27T08:00:00Z" \
+  --end "2034-03-27T09:00:00Z" \
+  --report top
+
+# Output (top functions by CPU usage):
+# Flat%    Cum%   Function
+# 12.3%   12.3%   encoding/json.Marshal
+#  8.1%   22.4%   runtime.mallocgc
+#  6.7%   29.1%   sync.(*Mutex).Lock
+#  4.2%   33.3%   net/http.(*ServeMux).ServeHTTP
+
+# Fetch and view a specific profile (generate flamegraph SVG)
+curl "https://parca.construx.internal/api/query/merge?query=process_cpu:cpu:nanoseconds:cpu:nanoseconds%7Bnamespace%3D%22construx-prod%22%7D&start=2034-03-27T08:00:00Z&end=2034-03-27T09:00:00Z" \
+  -o profile.pb.gz
+
+go tool pprof -http=:8080 profile.pb.gz
+
+# Ad-hoc profile collection (not via Parca — direct pprof)
+# Collect 30-second CPU profile from a specific pod
+kubectl exec -n construx-prod orders-api-7xk2m -- \
+  curl -s "http://localhost:6060/debug/pprof/profile?seconds=30" -o /tmp/cpu.prof
+
+kubectl cp construx-prod/orders-api-7xk2m:/tmp/cpu.prof ./cpu.prof
+
+go tool pprof -http=:8080 cpu.prof
+# Opens flamegraph in browser — shows where CPU time is spent
+
+# Memory allocation profile (shows what's allocating heap)
+kubectl exec -n construx-prod orders-api-7xk2m -- \
+  curl -s "http://localhost:6060/debug/pprof/allocs" -o /tmp/allocs.prof
+
+go tool pprof -http=:8080 ./allocs.prof
+```
+
+Parca vs Pyroscope vs DataDog Continuous Profiler vs AWS CodeGuru Profiler vs ad-hoc pprof: Pyroscope is Parca's closest open-source competitor — it has similar continuous profiling capabilities with language-specific agents for Go, Python, Ruby, Java, and eBPF for native code. Pyroscope has a more polished UI and better multi-language support; Parca has tighter Kubernetes/eBPF integration and is fully open-source (Pyroscope was acquired by Grafana Labs and integrated into Grafana Cloud). DataDog Continuous Profiler provides excellent correlation between profiles, traces, and metrics — if you're already on DataDog, it's the natural choice, but per-host cost accumulates quickly. AWS CodeGuru Profiler is JVM and Lambda-focused — not suitable for Go or polyglot environments. Ad-hoc pprof (running a 30-second profile manually when you notice a problem) is what most Go teams start with — it works for diagnosing known slowdowns but misses transient problems and gives you no history. Continuous profiling's value proposition: you don't know which 5-minute window had the interesting CPU profile until after the incident. Parca stores every profile, so you can rewind to the exact moment of the incident and see what the CPU was doing — this turns "we noticed high CPU at 2am" into "we can see the exact function that was hot at 2am."
