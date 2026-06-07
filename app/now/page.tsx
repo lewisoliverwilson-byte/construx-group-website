@@ -27,6 +27,7 @@ import ConsulPanel from '@/components/ConsulPanel';
 import KedaPanel from '@/components/KedaPanel';
 import SpiffePanel from '@/components/SpiffePanel';
 import TrinoPanel from '@/components/TrinoPanel';
+import PulsarPanel from '@/components/PulsarPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -446,8 +447,13 @@ export default function NowPage() {
         </div>
 
         {/* trino distributed sql — federated queries across iceberg, postgres, kafka */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TrinoPanel />
+        </div>
+
+        {/* pulsar multi-tenant messaging — geo-replication, tiered storage, bookkeeper */}
+        <div className="mt-6 pb-10">
+          <PulsarPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

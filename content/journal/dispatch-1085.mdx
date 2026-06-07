@@ -1,0 +1,152 @@
+---
+title: "SPIFFE/SPIRE: workload identity for zero-trust — X.509 SVIDs, mTLS without manual cert management"
+date: "2033-11-12"
+excerpt: "SPIFFE (Secure Production Identity Framework For Everyone) is a CNCF standard for workload identity. Every workload (pod, VM, Lambda function, bare-metal process) gets a cryptographic identity: a SPIFFE Verifiable Identity Document (SVID), which is either an X.509 certificate or a JWT with a standardised URI Subject Alternative Name (spiffe://trust-domain/path/to/workload). SPIRE (SPIFFE Runtime Environment) is the reference implementation: a Server that acts as the certificate authority and an Agent that runs on each node and attests the identity of workloads running on that node. When a pod starts, the SPIRE Agent verifies its Kubernetes service account and pod name against registration entries, then fetches a short-lived X.509 SVID from the SPIRE Server. The SVID is delivered to the pod via the SPIFFE Workload API (a Unix socket). Applications use the SVID for mTLS without managing certificates: the SPIRE Agent handles rotation automatically before expiry. Istio and Linkerd can be configured to use SPIRE as their certificate authority instead of their built-in CA, giving you a unified identity layer across service mesh and non-mesh workloads."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SVID. SPIRE Server/Agent. Workload attestation. X.509 rotation. Kubernetes node attestor.
+
+## SPIRE server and agent setup
+
+```yaml
+# SPIRE Server: manages registration entries and issues SVIDs
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name:      spire-server
+  namespace: spire
+spec:
+  replicas: 1
+  template:
+    spec:
+      serviceAccountName: spire-server
+      containers:
+        - name:  spire-server
+          image: ghcr.io/spiffe/spire-server:1.9.4
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          ports:
+            - containerPort: 8081   # SPIRE Server API (gRPC)
+          volumeMounts:
+            - { name: spire-config,  mountPath: /run/spire/config  }
+            - { name: spire-data,    mountPath: /run/spire/data    }
+            - { name: spire-sockets, mountPath: /tmp/spire-server/private }
+---
+# SPIRE Server configuration: /run/spire/config/server.conf (ConfigMap)
+# server.conf:
+# server {
+#   bind_address     = "0.0.0.0"
+#   bind_port        = "8081"
+#   socket_path      = "/tmp/spire-server/private/api.sock"
+#   trust_domain     = "construx.internal"
+#   data_dir         = "/run/spire/data"
+#   log_level        = "INFO"
+#   ca_ttl           = "24h"     # SPIRE CA cert TTL
+#   default_svid_ttl = "1h"      # SVID expires every 1 hour (auto-rotated)
+# }
+# plugins {
+#   DataStore "sql" {
+#     plugin_data {
+#       database_type = "sqlite3"
+#       connection_string = "/run/spire/data/datastore.sqlite3"
+#     }
+#   }
+#   NodeAttestor "k8s_psat" {   # Kubernetes Projected Service Account Token attestor
+#     plugin_data {
+#       clusters = {
+#         "construx-prod" = {
+#           service_account_allow_list = ["spire:spire-agent"]
+#         }
+#       }
+#     }
+#   }
+#   KeyManager "memory" { plugin_data {} }
+# }
+```
+
+```yaml
+# SPIRE Agent: runs on each node, delivers SVIDs to workloads
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name:      spire-agent
+  namespace: spire
+spec:
+  template:
+    spec:
+      serviceAccountName: spire-agent
+      hostPID:            true   # needed for process attestation
+      containers:
+        - name:  spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.9.4
+          args:
+            - -config
+            - /run/spire/config/agent.conf
+          volumeMounts:
+            - { name: spire-config,        mountPath: /run/spire/config }
+            - { name: spire-bundle,        mountPath: /run/spire/bundle }
+            - { name: spire-agent-socket,  mountPath: /run/spire/sockets }
+            # Mount the node's /proc for process attestation
+            - { name: nodeinfo,            mountPath: /nodeInfo, readOnly: true }
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate
+```
+
+## Registration entries and workload API
+
+```bash
+# Register workloads with the SPIRE Server
+# Each entry maps a SPIFFE ID to a workload selector (Kubernetes pod labels)
+
+# Register construx-api in the construx-prod namespace
+kubectl exec -n spire spire-server-0 -- \
+  /opt/spire/bin/spire-server entry create \
+    -spiffeID spiffe://construx.internal/ns/construx-prod/sa/construx-api \
+    -parentID spiffe://construx.internal/k8s-psat/construx-prod/node \
+    -selector k8s:ns:construx-prod \
+    -selector k8s:sa:construx-api \
+    -ttl 3600   # SVID expires every 1 hour, agent rotates before expiry
+
+# List registered entries
+kubectl exec -n spire spire-server-0 -- \
+  /opt/spire/bin/spire-server entry show
+# Found 3 entries
+# Entry ID:    abc123...
+# SPIFFE ID:   spiffe://construx.internal/ns/construx-prod/sa/construx-api
+# Parent ID:   spiffe://construx.internal/k8s-psat/construx-prod/node
+# TTL:         3600
+# Selector:    k8s:ns:construx-prod
+# Selector:    k8s:sa:construx-api
+
+# Verify an SVID from inside a pod
+kubectl exec -n construx-prod construx-api-pod -- \
+  /opt/spiffe-helper/bin/fetch-svid -socketPath /run/spire/sockets/agent.sock
+# SVID:
+#   Subject: spiffe://construx.internal/ns/construx-prod/sa/construx-api
+#   Issued:  2033-11-12T09:00:01Z
+#   Expiry:  2033-11-12T10:00:01Z   ← 1 hour TTL, auto-rotated by agent
+
+# mTLS between services: each side presents its SVID and verifies the peer
+# (Using the SPIFFE/SPIRE Go SDK)
+# ---
+# conn, err := grpc.Dial("construx-worker:8080",
+#   grpc.WithTransportCredentials(
+#     spiffeGrpc.MTLSClientCredentials(workloadAPI),
+#   ),
+# )
+# The server verifies the client's SPIFFE ID matches an expected ID
+# ("only construx-api can call this endpoint")
+
+# Prometheus metrics from SPIRE
+# spire_server_svid_rotations_total 4821
+# spire_agent_svid_ttl_seconds{service="construx-api"} 3421
+# spire_server_registration_entries_total 3
+```
+
+SPIFFE/SPIRE vs Istio mTLS vs cert-manager vs manual mTLS: Istio and Linkerd handle mTLS within the service mesh automatically using their built-in certificate authority — but they only cover services in the mesh. For services outside the mesh (VMs, Lambda functions, bare-metal processes), Istio's CA doesn't help. cert-manager (covered in dispatch-1065) automates X.509 issuance but requires a human to map certificates to workloads — it's not identity-aware. SPIFFE's key innovation is workload attestation: the SPIRE Agent proves a workload's identity by checking its Kubernetes service account, container image hash, or process metadata before issuing an SVID. No human hands an X.509 certificate to a container; the identity emerges from the workload's cryptographically verifiable attributes. Istio can be configured to use SPIRE as its certificate authority, giving you SPIFFE-attested identity for mesh traffic and the same identity for non-mesh traffic. For multi-cluster, multi-platform environments (Kubernetes + VMs + serverless) where zero-trust requires every workload to have a verifiable cryptographic identity, SPIFFE/SPIRE is the standard.

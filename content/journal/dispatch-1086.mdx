@@ -1,0 +1,145 @@
+---
+title: "KubeVirt: run virtual machines on Kubernetes — VM lifecycle, hot migration, CDI"
+date: "2033-11-15"
+excerpt: "KubeVirt extends Kubernetes to manage Virtual Machines alongside containers. A VirtualMachine CRD defines a VM's hardware configuration (CPU, RAM, disks, network interfaces) and the disk image source. The KubeVirt controller runs the VM as a pod containing the libvirt/QEMU process — from the Kubernetes scheduler's perspective, a VM is just another workload with CPU and memory requests. VMs appear in kubectl get vms, have labels and annotations, mount PersistentVolumes as block devices, and connect to Kubernetes Services for networking. KubeVirt's live migration feature moves a running VM from one node to another without shutdown (using QEMU's live migration protocol over the cluster network), enabling node maintenance without VM downtime. The Containerized Data Importer (CDI) handles disk image import: CDI fetches a qcow2, ISO, or raw disk image from HTTP, S3, or a container registry and writes it to a PersistentVolumeClaim, which the VM then boots from. KubeVirt is used at Construx for workloads that require a full Linux kernel (kernel module loading, specific kernel versions), legacy applications that cannot be containerised, and Windows workloads that must run alongside Kubernetes-native services."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+VirtualMachine CRD. QEMU/libvirt. Live migration. CDI disk import. Network attachment. VM lifecycle.
+
+## VirtualMachine and boot image setup
+
+```bash
+# Install KubeVirt operator and CR
+export KUBEVIRT_VERSION=$(curl -s https://storage.googleapis.com/kubevirt-prs/latest | jq -r .kubevirt)
+kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml
+kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-cr.yaml
+
+# Wait for all KubeVirt components to be ready
+kubectl wait kubevirt kubevirt -n kubevirt --for condition=Available --timeout=300s
+
+# Install CDI (Containerized Data Importer)
+export CDI_VERSION=$(curl -s https://api.github.com/repos/kubevirt/containerized-data-importer/releases/latest | jq -r .tag_name)
+kubectl apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-operator.yaml
+kubectl apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/${CDI_VERSION}/cdi-cr.yaml
+
+# Install virtctl CLI
+curl -L -o /usr/local/bin/virtctl \
+  https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-amd64
+chmod +x /usr/local/bin/virtctl
+```
+
+```yaml
+# DataVolume: CDI imports a Fedora cloud image and creates a PVC
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name:      fedora-vm-disk
+  namespace: construx-vms
+spec:
+  source:
+    http:
+      url: https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2
+  pvc:
+    storageClassName: longhorn-encrypted
+    accessModes:
+      - ReadWriteMany   # RWX required for live migration
+    resources:
+      requests:
+        storage: 20Gi
+---
+# VirtualMachine: declarative VM specification
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name:      construx-legacy-app
+  namespace: construx-vms
+spec:
+  running: true   # start the VM immediately
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: construx-legacy-app
+    spec:
+      domain:
+        cpu:
+          cores:   4
+          sockets: 1
+          threads: 2
+        memory:
+          guest: 8Gi
+        devices:
+          disks:
+            - name:      rootdisk
+              bootOrder: 1
+              disk:
+                bus: virtio
+            - name:      cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name:           default
+              masquerade: {}   # NAT via pod network
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: fedora-vm-disk
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              user: construx
+              password: changeme
+              chpasswd: { expire: False }
+              runcmd:
+                - dnf install -y legacy-app
+                - systemctl enable --now legacy-app
+```
+
+```bash
+# VM lifecycle management via virtctl and kubectl
+
+# Check VM status
+kubectl get vms -n construx-vms
+# NAME                   AGE  STATUS   READY
+# construx-legacy-app    4d   Running  True
+
+# Get VM instance (the running pod equivalent)
+kubectl get vmis -n construx-vms
+# NAME                   AGE  PHASE    IP           NODENAME
+# construx-legacy-app    4d   Running  10.0.4.142   node-02
+
+# Console access: open a serial console to the VM
+virtctl console construx-legacy-app -n construx-vms
+# login: construx
+# password: changeme
+
+# VNC: graphical console (for desktop VMs)
+virtctl vnc construx-legacy-app -n construx-vms
+
+# SSH via virtctl port-forward (no SSH service needed in Kubernetes)
+virtctl ssh construx@construx-legacy-app -n construx-vms
+
+# Live migration: move VM to another node without downtime
+virtctl migrate construx-legacy-app -n construx-vms
+# VirtualMachineInstanceMigration created: construx-legacy-app-migration-xk2j9
+
+kubectl get vmim -n construx-vms
+# NAME                                    PHASE     VMI
+# construx-legacy-app-migration-xk2j9    Succeeded construx-legacy-app
+
+# Pause and unpause a running VM
+virtctl pause  construx-legacy-app -n construx-vms
+virtctl unpause construx-legacy-app -n construx-vms
+
+# Prometheus metrics
+# kubevirt_vm_running_status_last_transition_timestamp_seconds{name="construx-legacy-app"} 1.73e+09
+# kubevirt_vmi_cpu_usage_seconds_total{name="construx-legacy-app"} 12841.3
+# kubevirt_vmi_memory_available_bytes{name="construx-legacy-app"} 7.52e+09
+```
+
+KubeVirt vs separate VM infrastructure (VMware/Proxmox) vs containers vs Firecracker: Separate VM infrastructure (VMware vSphere, Proxmox, OpenStack) runs VMs on dedicated hypervisors with separate management planes — correct for large-scale VM-centric deployments, but means managing two separate infrastructure systems (VMs + Kubernetes) with separate networking, storage, and identity models. KubeVirt collapses this by running VMs as first-class Kubernetes workloads: the same RBAC, the same PersistentVolumes, the same Services, the same GitOps pipeline applies to VMs and containers alike. Firecracker (AWS Lambda/Fargate) is purpose-built for microVMs with sub-millisecond cold start and minimal memory overhead — but it's not a general-purpose VM; it doesn't support full Linux with arbitrary kernel modules or legacy Windows workloads. The live migration capability is KubeVirt's key operational advantage over pure containerisation for long-running stateful VMs: you can drain a node for maintenance without shutting down the VM, equivalent to VMware vMotion but on Kubernetes infrastructure.

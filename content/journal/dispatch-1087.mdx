@@ -1,0 +1,192 @@
+---
+title: "Argo Workflows: DAG-based pipeline orchestration on Kubernetes — parallel steps, artifacts, templates"
+date: "2033-11-18"
+excerpt: "Argo Workflows is a Kubernetes-native workflow engine for running complex, multi-step pipelines as directed acyclic graphs (DAGs). Each step in a workflow runs as a Kubernetes pod. Steps can run sequentially, in parallel, or as DAGs with explicit dependency declarations. Argo Workflows handles artifact passing between steps (output files or data produced by one step become inputs to the next, stored in S3 or a PVC), conditional execution (a step runs only if a previous step produced a specific output), loop iterations (run a step once per item in a list), and retries with exponential backoff. The WorkflowTemplate CRD defines reusable pipeline blueprints that other workflows reference. CronWorkflow schedules recurring workflow runs. Argo Workflows is used at Construx for ML training pipelines (data preprocessing → feature engineering → model training → evaluation → model registry push as a DAG), ETL pipelines, report generation, and CI/CD (as an alternative to GitHub Actions for complex multi-step builds that benefit from in-cluster execution and artifact reuse). It differs from Argo CD: Argo Workflows is a workflow engine; Argo CD is a GitOps deployment controller. They are separate projects that happen to share the Argo name and organization."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+DAG steps. Artifacts. WorkflowTemplate. CronWorkflow. Parallel execution. Retry. Loop.
+
+## Workflow definition with DAG and artifacts
+
+```yaml
+# Workflow: ML training pipeline as a DAG
+# Each step runs as a Kubernetes pod
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ml-training-
+  namespace:    construx-prod
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint:  ml-pipeline
+  arguments:
+    parameters:
+      - name:  model_version
+        value: v1.42
+      - name:  dataset_date
+        value: "2033-11-18"
+
+  templates:
+    # DAG template: defines the pipeline graph
+    - name: ml-pipeline
+      dag:
+        tasks:
+          - name: prepare-data
+            template: data-prep
+            arguments:
+              parameters:
+                - name:  date
+                  value: "{{workflow.parameters.dataset_date}}"
+
+          - name: feature-engineering
+            template: features
+            dependencies: [prepare-data]     # depends on prepare-data
+            arguments:
+              artifacts:
+                - name:  raw-data
+                  from:  "{{tasks.prepare-data.outputs.artifacts.dataset}}"
+
+          # Two model variants trained in parallel
+          - name: train-model-a
+            template: train
+            dependencies: [feature-engineering]
+            arguments:
+              parameters:
+                - { name: algorithm, value: xgboost }
+              artifacts:
+                - { name: features, from: "{{tasks.feature-engineering.outputs.artifacts.features}}" }
+
+          - name: train-model-b
+            template: train
+            dependencies: [feature-engineering]
+            arguments:
+              parameters:
+                - { name: algorithm, value: lightgbm }
+              artifacts:
+                - { name: features, from: "{{tasks.feature-engineering.outputs.artifacts.features}}" }
+
+          - name: evaluate
+            template: evaluate-models
+            dependencies: [train-model-a, train-model-b]
+
+    # Step template: data preparation pod
+    - name: data-prep
+      inputs:
+        parameters:
+          - name: date
+      outputs:
+        artifacts:
+          - name: dataset
+            path: /tmp/dataset.parquet   # output artifact stored to S3
+            s3:
+              bucket: construx-artifacts
+              key:    "ml/datasets/{{inputs.parameters.date}}/dataset.parquet"
+      container:
+        image:   registry.construx.internal/ml-data-prep:latest
+        command: [python, prep.py]
+        args:    ["--date={{inputs.parameters.date}}", "--output=/tmp/dataset.parquet"]
+        resources:
+          requests: { cpu: 2, memory: 4Gi }
+
+    # Step template: model training pod (used for both variants via parameters)
+    - name: train
+      retryStrategy:
+        limit:   3
+        retryPolicy: OnFailure
+        backoff:
+          duration:    "1m"
+          factor:      2
+          maxDuration: "10m"
+      inputs:
+        parameters:
+          - name: algorithm
+        artifacts:
+          - name: features
+            path: /tmp/features.parquet
+      outputs:
+        artifacts:
+          - name: model
+            path: /tmp/model.pkl
+      container:
+        image:   registry.construx.internal/ml-train:latest
+        command: [python, train.py]
+        args:    ["--algorithm={{inputs.parameters.algorithm}}"]
+        resources:
+          requests:
+            cpu:    8
+            memory: 32Gi
+          limits:
+            nvidia.com/gpu: "1"   # GPU training
+```
+
+## WorkflowTemplate, CronWorkflow, and monitoring
+
+```yaml
+# WorkflowTemplate: reusable pipeline blueprint
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name:      ml-training-template
+  namespace: construx-prod
+spec:
+  templates:
+    # ... (same template definitions as above, reusable)
+
+---
+# CronWorkflow: scheduled nightly training run
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name:      nightly-ml-training
+  namespace: construx-prod
+spec:
+  schedule:         "0 2 * * *"      # 02:00 UTC daily
+  timezone:         Europe/London
+  concurrencyPolicy: Forbid          # skip if a previous run is still in progress
+  workflowSpec:
+    workflowTemplateRef:
+      name: ml-training-template
+    arguments:
+      parameters:
+        - name:  dataset_date
+          value: "{{= toDate('2006-01-02', sprig.now()) }}"   # today's date
+```
+
+```bash
+# Argo CLI: workflow management
+
+# Install Argo Workflows
+kubectl create namespace argo
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.10/install.yaml
+
+# Submit a workflow
+argo submit -n construx-prod --watch ml-training.yaml
+
+# Watch workflow progress
+argo get -n construx-prod @latest
+# Name:         ml-training-xyz123
+# Namespace:    construx-prod
+# Status:       Running
+# Duration:     3 minutes 42 seconds
+# Progress:     3/6
+#
+# STEP                      PODNAME              DURATION  MESSAGE
+# ✔ ml-training             ─                              succeeded
+# ├─✔ prepare-data          ml-training-prep-...  1m12s
+# ├─✔ feature-engineering   ml-training-feat-...  2m04s
+# ├─⚙ train-model-a         ml-training-trn-a...  running
+# └─⚙ train-model-b         ml-training-trn-b...  running
+
+# List completed workflows
+argo list -n construx-prod --completed --limit 5
+
+# Prometheus metrics
+# argo_workflows_count{phase="Running"} 2
+# argo_workflows_count{phase="Succeeded"} 142
+# argo_workflows_error_count{cause="PodError"} 3
+```
+
+Argo Workflows vs Airflow vs Prefect vs GitHub Actions vs Kubeflow Pipelines: Airflow is the dominant open-source workflow scheduler — mature, Python-native, large ecosystem — but it has a separate infrastructure footprint (scheduler, webserver, workers) and DAGs are defined in Python code rather than Kubernetes CRDs. Prefect and Dagster are modern Airflow alternatives with better Python-native syntax and cloud orchestration layers. GitHub Actions is the right choice for CI/CD pipelines that build and test code — its trigger model (on push, on PR) and marketplace ecosystem are hard to beat for software delivery. Argo Workflows is the right choice for workflows that run in-cluster (access to Kubernetes storage, services, GPU nodes), benefit from Kubernetes pod isolation per step, and need artifact reuse across DAG steps. Kubeflow Pipelines (built on Argo Workflows under the hood) adds a higher-level ML-specific SDK (Python decorators that generate workflow YAML) and a model registry. For teams doing ML training or complex ETL on Kubernetes, Argo Workflows is the standard orchestration layer.
