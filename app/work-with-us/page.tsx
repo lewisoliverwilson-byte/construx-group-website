@@ -20,6 +20,7 @@ import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import TrivyVulnPanel from '@/components/TrivyVulnPanel';
 import VeleroPanel from '@/components/VeleroPanel';
 import PulumiPanel from '@/components/PulumiPanel';
+import RclonePanel from '@/components/RclonePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -650,8 +651,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* Pulumi infrastructure as code */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <PulumiPanel />
+      </section>
+
+      {/* rclone cloud storage sync */}
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <RclonePanel />
       </section>
 
       {/* CTA */}

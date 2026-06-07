@@ -1,0 +1,203 @@
+---
+title: "Atlas: database schema management with versioned migrations and schema diffing"
+date: "2032-09-27"
+excerpt: "Atlas is a database schema management tool from Ariga that treats database schemas as code — you declare the desired schema state in HCL or SQL, and Atlas figures out the migration steps. `atlas schema diff` computes the DDL changes between two schema states without touching any database. `atlas migrate diff` generates numbered migration files. `atlas migrate apply` applies pending migrations with rollback support. Atlas integrates with the Atlas Cloud for migration linting (detecting dangerous operations like DROP COLUMN without a backup), CI approval gates, and production deployment tracking. It supports PostgreSQL, MySQL, SQLite, and MariaDB."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Declare schema state. Diff against the database. Apply with rollback. Lint before prod.
+
+## Schema declaration and inspection
+
+```bash
+# Atlas schema: declare the desired schema state in HCL
+cat schema.hcl
+# schema "construx" {}
+#
+# table "orders" {
+#   schema = schema.construx
+#   column "id" {
+#     type = uuid
+#     default = sql("gen_random_uuid()")
+#   }
+#   column "customer_id" { type = uuid }
+#   column "status" {
+#     type = enum("pending", "shipped", "cancelled")
+#     default = "pending"
+#   }
+#   column "total_cents" { type = int }
+#   column "created_at" {
+#     type    = timestamptz
+#     default = sql("now()")
+#   }
+#   primary_key { columns = [column.id] }
+#   index "idx_orders_customer_id" { columns = [column.customer_id] }
+#   index "idx_orders_status_created" {
+#     columns = [column.status, column.created_at]
+#   }
+# }
+
+# Inspect: read schema from an existing database and write HCL
+atlas schema inspect \
+  --url "postgres://construx:pass@localhost:5432/construx_dev" \
+  --format '{{ sql . }}' \
+  > current-schema.sql
+
+# Or output as HCL
+atlas schema inspect \
+  --url "postgres://construx:pass@localhost:5432/construx_dev" \
+  > current-schema.hcl
+```
+
+## Schema diff and apply
+
+```bash
+# schema diff: compute DDL to migrate from one state to another (no DB required)
+atlas schema diff \
+  --from "postgres://construx:pass@localhost:5432/construx_dev" \
+  --to file://schema.hcl
+
+# Output (SQL DDL):
+# -- Add new column to orders
+# ALTER TABLE "construx"."orders" ADD COLUMN "shipped_at" timestamptz NULL;
+# -- Add index for shipped_at queries
+# CREATE INDEX "idx_orders_shipped_at" ON "construx"."orders" ("shipped_at");
+
+# schema apply: bring the database in sync with schema.hcl
+atlas schema apply \
+  --url "postgres://construx:pass@localhost:5432/construx_dev" \
+  --to file://schema.hcl
+
+# -- Planned changes:
+# ADD COLUMN "construx"."orders"."shipped_at" timestamptz NULL
+# CREATE INDEX "idx_orders_shipped_at" ON "construx"."orders" ("shipped_at")
+#
+# Apply? [yes/no]: yes
+# ✓ Applied
+
+# --dry-run: show what would happen without making changes
+atlas schema apply \
+  --url "postgres://construx:pass@localhost:5432/construx_dev" \
+  --to file://schema.hcl \
+  --dry-run
+```
+
+## Versioned migrations
+
+```bash
+# Versioned migrations: generate numbered migration files like Flyway/Liquibase
+# Directory structure: migrations/20320924000001_add_shipped_at.sql, etc.
+
+# migrate diff: compute and write a new migration file
+atlas migrate diff add_shipped_at_to_orders \
+  --dir "file://migrations" \
+  --to file://schema.hcl \
+  --dev-url "postgres://construx:pass@localhost:5432/construx_devdb"
+
+# Creates:
+# migrations/
+# ├── 20320924000001_add_shipped_at_to_orders.sql
+# └── atlas.sum   (checksum file — tampering detected if broken)
+
+cat migrations/20320924000001_add_shipped_at_to_orders.sql
+# -- Add shipment timestamp column
+# ALTER TABLE "construx"."orders" ADD COLUMN "shipped_at" timestamptz NULL;
+# CREATE INDEX "idx_orders_shipped_at" ON "construx"."orders" ("shipped_at");
+
+# migrate apply: apply pending migrations
+atlas migrate apply \
+  --url "postgres://construx:pass@localhost:5432/construx_prod" \
+  --dir "file://migrations"
+
+# Applied migrations:
+# 20320924000001_add_shipped_at_to_orders.sql
+
+# migrate status: see which migrations are applied
+atlas migrate status \
+  --url "postgres://construx:pass@localhost:5432/construx_prod" \
+  --dir "file://migrations"
+
+# Migration                               Applied  Error
+# 20320901000001_init_schema.sql          ✓
+# 20320910000001_add_customers.sql        ✓
+# 20320924000001_add_shipped_at.sql       ✓
+# 20320927000001_add_events_table.sql     pending
+```
+
+## Migration linting and safety
+
+```bash
+# migrate lint: detect dangerous schema changes before applying
+atlas migrate lint \
+  --dir "file://migrations" \
+  --dev-url "postgres://construx:pass@localhost:5432/construx_devdb" \
+  --latest 1
+
+# Linting checks:
+# ✗ 20320924000002_drop_old_status.sql
+#   MF103: Dropping non-virtual column "old_status" from table "orders"
+#         This is a destructive change — data will be lost
+#         Consider: rename first, deploy, then drop in a future migration
+#
+# ✗ 20320924000003_add_not_null_col.sql
+#   BC101: Adding a non-nullable column "invoice_id" without a DEFAULT
+#         Will fail on PostgreSQL if existing rows exist
+#         Consider: add with NULL, backfill, then add NOT NULL constraint
+
+# Safe migration patterns Atlas lint checks:
+# - DROP COLUMN without prior deprecation cycle
+# - ADD NOT NULL without DEFAULT or backfill
+# - Creating non-concurrent index on a large table (locks writes)
+# - Changing column type (e.g. varchar(50) → varchar(100))
+
+# Use CONCURRENTLY for large table indexes (no write lock)
+# atlas knows about this and will suggest it:
+atlas migrate diff add_orders_index \
+  --dir "file://migrations" \
+  --to file://schema.hcl \
+  --dev-url "postgres://construx:pass@localhost:5432/construx_devdb"
+# -- Suggested migration:
+# CREATE INDEX CONCURRENTLY "idx_orders_customer_status"
+#   ON "construx"."orders" ("customer_id", "status");
+# Note: CONCURRENTLY cannot run inside a transaction
+```
+
+## Atlas Cloud and CI integration
+
+```bash
+# atlas.hcl: project config including Cloud integration
+cat atlas.hcl
+# env "prod" {
+#   url = getenv("DATABASE_URL")
+#   migration {
+#     dir = "file://migrations"
+#   }
+#   cloud {
+#     token   = getenv("ATLAS_TOKEN")
+#     project = "construx-prod"
+#   }
+# }
+
+# Push migration directory to Atlas Cloud (lint + approval gate)
+atlas migrate push construx \
+  --env prod
+
+# Apply via Cloud (with approval gate if configured)
+atlas migrate apply \
+  --env prod \
+  --cloud
+
+# GitHub Actions: lint migrations on PR
+# - name: Atlas Lint
+#   uses: ariga/atlas-action/migrate/lint@v1
+#   with:
+#     dir: 'file://migrations'
+#     dir-format: 'atlas'
+#     dev-url: 'postgres://construx:pass@localhost:5432/construx_devdb'
+#   env:
+#     GITHUB_TOKEN: ${{ github.token }}
+#     ATLAS_TOKEN: ${{ secrets.ATLAS_TOKEN }}
+```
+
+Atlas vs Flyway vs Liquibase vs golang-migrate: Flyway and Liquibase are mature Java tools with large feature sets — good for enterprise Java shops. golang-migrate is the Go ecosystem default — simple, no server, reads numbered .sql files, minimal overhead. Atlas is more opinionated: it understands schema state (not just ordered SQL files), can compute migrations from schema declarations, and integrates linting that catches destructive changes before they reach production. The key advantage: `atlas schema diff` computes the exact DDL without you writing it. The key trade-off: Atlas is newer, the HCL format is less portable than plain SQL, and golang-migrate is simpler for teams that just want numbered migration files without the schema-diff machinery.

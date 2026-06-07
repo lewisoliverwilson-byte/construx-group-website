@@ -1,0 +1,207 @@
+---
+title: "WebAssembly in production: WASI, component model, and running Wasm outside the browser"
+date: "2032-09-30"
+excerpt: "WebAssembly (Wasm) was designed as a portable binary instruction format for the browser, but WASI (WebAssembly System Interface) brought it to the server — a capability-based API for filesystem, network, and environment access that lets Wasm modules run in any WASI-compatible runtime (Wasmtime, WasmEdge, wasm-micro-runtime). The Component Model standardises how Wasm modules compose and communicate — replacing ad-hoc extern bindings with typed interfaces defined in WIT (Wasm Interface Type). Production use cases: plugin systems (sandboxed, untrusted code in the same process), edge compute (Cloudflare Workers, Fastly Compute), and portable build tools. Wasm's security model — capabilities must be explicitly granted, no ambient authority — is stronger than the POSIX model for untrusted code."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Sandbox per module. Grant capabilities explicitly. Compile once, run anywhere. Component Model for composition.
+
+## Compiling and running Wasm modules
+
+```bash
+# Build a Go binary as a WASI module
+# TinyGo: compiles Go to small Wasm binaries (full toolchain)
+tinygo build -o construx-plugin.wasm -target=wasi ./cmd/plugin
+
+# Standard Go (Go 1.21+): WASI preview 1 support
+GOOS=wasip1 GOARCH=wasm go build -o construx-plugin.wasm ./cmd/plugin
+
+# Rust: compile to wasm32-wasi target
+cargo build --target wasm32-wasip1 --release
+# Output: target/wasm32-wasip1/release/construx_plugin.wasm
+
+# C/C++ with wasi-sdk
+/opt/wasi-sdk/bin/clang --sysroot=/opt/wasi-sdk/share/wasi-sysroot \
+  -target wasm32-wasi plugin.c -o plugin.wasm
+
+# Run with Wasmtime (the reference WASI runtime from Bytecode Alliance)
+wasmtime construx-plugin.wasm
+
+# Grant filesystem access (capabilities must be explicit — no ambient access)
+wasmtime --dir /etc/construx::/ construx-plugin.wasm
+# Maps /etc/construx on the host to / inside the Wasm sandbox
+
+# Grant only the /etc/construx/config.yaml file (not the whole directory)
+wasmtime --mapdir /config::/etc/construx/config.yaml construx-plugin.wasm
+
+# Run with env vars (none by default — must be explicitly passed)
+wasmtime --env DATABASE_URL="postgres://..." construx-plugin.wasm
+
+# Network access (requires --wasi-modules=experimental-wasi-sockets)
+wasmtime --wasi-modules=experimental-wasi-sockets construx-plugin.wasm
+```
+
+## Component Model and WIT interfaces
+
+```bash
+# WIT (Wasm Interface Types): define typed interfaces for Wasm components
+cat construx-plugin.wit
+
+# package construx:plugin@1.0.0;
+#
+# interface order-processor {
+#   record order-input {
+#     id: string,
+#     customer-id: string,
+#     items: list<item>,
+#   }
+#
+#   record item {
+#     sku: string,
+#     quantity: u32,
+#     price-cents: s32,
+#   }
+#
+#   record order-result {
+#     total-cents: s32,
+#     discount-cents: s32,
+#     approved: bool,
+#   }
+#
+#   process-order: func(input: order-input) -> order-result;
+#   validate-sku: func(sku: string) -> bool;
+# }
+#
+# world plugin {
+#   export order-processor;
+# }
+
+# Build a component from a core Wasm module
+wasm-tools component new construx-plugin.wasm \
+  -o construx-plugin-component.wasm \
+  --adapt wasi_snapshot_preview1.wasm   # WASI adapter shim
+
+# Inspect the component (show imports/exports)
+wasm-tools component wit construx-plugin-component.wasm
+```
+
+## Embedding Wasm in a Go host with Wasmtime
+
+```go
+// Embed a Wasm plugin in a Go service using Wasmtime Go SDK
+// The plugin runs sandboxed — it can only access what the host explicitly provides
+
+package plugin
+
+import (
+    "github.com/bytecodealliance/wasmtime-go/v21"
+)
+
+type PluginHost struct {
+    engine *wasmtime.Engine
+    module *wasmtime.Module
+}
+
+func NewPluginHost(wasmPath string) (*PluginHost, error) {
+    engine := wasmtime.NewEngine()
+
+    wasmBytes, err := os.ReadFile(wasmPath)
+    if err != nil {
+        return nil, err
+    }
+
+    module, err := wasmtime.NewModule(engine, wasmBytes)
+    if err != nil {
+        return nil, err
+    }
+
+    return &PluginHost{engine: engine, module: module}, nil
+}
+
+func (h *PluginHost) ProcessOrder(order Order) (OrderResult, error) {
+    // Each invocation gets a fresh Store (isolated state)
+    store := wasmtime.NewStore(h.engine)
+
+    // Configure WASI — grant only what the plugin needs
+    wasiConfig := wasmtime.NewWasiConfig()
+    wasiConfig.SetEnv([]string{"LOG_LEVEL"}, []string{"warn"})
+    // No filesystem or network access granted — plugin runs in pure compute mode
+    store.SetWasi(wasiConfig)
+
+    // Linker: provides WASI functions to the plugin
+    linker := wasmtime.NewLinker(h.engine)
+    linker.DefineWasi()
+
+    instance, _ := linker.Instantiate(store, h.module)
+
+    // Call exported Wasm function
+    processOrder := instance.GetFunc(store, "process_order")
+    result, _ := processOrder.Call(store, order.ID, order.TotalCents)
+
+    return OrderResult{Approved: result.(int32) == 1}, nil
+}
+```
+
+## Cloudflare Workers and edge Wasm
+
+```javascript
+// Cloudflare Workers: Wasm runs at the edge (300+ PoPs, <1ms cold start)
+// Worker script instantiates the Wasm module per request
+
+import wasmModule from './construx-validator.wasm';
+
+export default {
+  async fetch(request, env) {
+    // Instantiate Wasm module with imports (memory, env functions)
+    const instance = await WebAssembly.instantiate(wasmModule, {
+      env: {
+        memory: new WebAssembly.Memory({ initial: 16 }),
+        log: (ptr, len) => {
+          const bytes = new Uint8Array(instance.exports.memory.buffer, ptr, len);
+          console.log(new TextDecoder().decode(bytes));
+        },
+      },
+    });
+
+    const { validate_order, alloc, dealloc, memory } = instance.exports;
+
+    // Serialize input, write to Wasm memory, call function
+    const body = await request.json();
+    const payload = JSON.stringify(body);
+    const ptr = alloc(payload.length);
+    new TextEncoder().encodeInto(payload, new Uint8Array(memory.buffer, ptr));
+
+    const result = validate_order(ptr, payload.length);
+    dealloc(ptr, payload.length);
+
+    return new Response(JSON.stringify({ valid: result === 1 }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+};
+```
+
+```bash
+# Deploy to Cloudflare Workers
+wrangler deploy
+
+# wrangler.toml
+# name = "construx-validator"
+# main = "src/worker.js"
+# compatibility_date = "2032-09-01"
+#
+# [[rules]]
+# type = "CompiledWasm"
+# globs = ["**/*.wasm"]
+
+# Test at the edge (routes to nearest Cloudflare PoP)
+curl -X POST https://construx-validator.construx.workers.dev/validate \
+  -H 'Content-Type: application/json' \
+  -d '{"sku":"PRD-001","quantity":2}'
+# {"valid":true}
+# Latency: 1.2ms (from Frankfurt PoP)
+```
+
+Wasm vs containers for isolation: a container uses Linux namespaces and cgroups to isolate processes — the kernel boundary is the security boundary. Wasm uses a language-level sandbox — the module can only access what the host explicitly provides via the WASI API. Wasm starts in microseconds (no namespace setup), uses less memory (no OS overhead), and can run multiple isolated modules in the same process. The trade-off: Wasm cannot (yet) run arbitrary OS code — it needs a WASI-compatible API for every capability. The practical split: use containers for full services with complex OS dependencies; use Wasm for plugins, edge compute, untrusted code execution (scoring functions, user-defined transforms), and anywhere the millisecond startup and byte-level portability matter.
