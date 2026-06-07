@@ -41,6 +41,7 @@ import SocketPanel from '@/components/SocketPanel';
 import PixiePanel from '@/components/PixiePanel';
 import NatsPanel from '@/components/NatsPanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
+import LinkerdPanel from '@/components/LinkerdPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -548,8 +549,13 @@ export default function UsesPage() {
         </div>
 
         {/* envoy service proxy — clusters, listeners, admin api */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EnvoyPanel />
+        </div>
+
+        {/* linkerd service mesh — mtls, golden signals, routes */}
+        <div className="mt-6 pb-10">
+          <LinkerdPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

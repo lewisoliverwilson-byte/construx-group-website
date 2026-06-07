@@ -42,6 +42,7 @@ import StepSecurityPanel from '@/components/StepSecurityPanel';
 import GrypePanel from '@/components/GrypePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import SyftPanel from '@/components/SyftPanel';
+import ScorecardPanel from '@/components/ScorecardPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -783,6 +784,11 @@ export default function WorkWithUsPage() {
       {/* syft sbom generator — packages, cpes, ecosystems */}
       <section className="px-5 pb-6 mx-auto max-w-6xl">
         <SyftPanel />
+      </section>
+
+      {/* openssf scorecard — supply chain checks, scores */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ScorecardPanel />
       </section>
 
       {/* CTA */}

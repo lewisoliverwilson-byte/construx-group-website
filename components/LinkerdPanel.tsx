@@ -1,186 +1,143 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'ok' | 'mtls' | 'latency' | 'route' | 'policy' | 'stat' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',  text: '# linkerd: ultralight service mesh — mTLS, observability, traffic policy' },
-  { kind: 'prompt',   text: 'linkerd check' },
-  { kind: 'ok',       text: '  ✓  control plane is running in linkerd namespace' },
-  { kind: 'ok',       text: '  ✓  control plane components are healthy' },
-  { kind: 'ok',       text: '  ✓  heartbeat API token is valid' },
-  { kind: 'ok',       text: '  ✓  proxy injection is working' },
-  { kind: 'blank',    text: '' },
-  { kind: 'comment',  text: '# meshed pod status — sidecar injected and mTLS active' },
-  { kind: 'prompt',   text: 'linkerd viz stat pods -n construx-prod' },
-  { kind: 'mtls',     text: '  NAME                    MESHED  SUCCESS   RPS   LATENCY_P99  TLS' },
-  { kind: 'mtls',     text: '  construx-api-7d9f-x4k2   1/1     99.8%   142/s    18ms       100%' },
-  { kind: 'mtls',     text: '  construx-api-7d9f-m8n3   1/1     99.9%   139/s    16ms       100%' },
-  { kind: 'mtls',     text: '  construx-api-7d9f-p2q7   1/1     99.7%   137/s    21ms       100%' },
-  { kind: 'mtls',     text: '  postgres-0               1/1    100.0%    18/s     4ms       100%' },
-  { kind: 'mtls',     text: '  redis-0                  1/1    100.0%    94/s     1ms       100%' },
-  { kind: 'blank',    text: '' },
-  { kind: 'comment',  text: '# per-route latency — inbound traffic to construx-api' },
-  { kind: 'prompt',   text: 'linkerd viz routes deploy/construx-api -n construx-prod' },
-  { kind: 'route',    text: '  ROUTE                   SUCCESS   RPS  LATENCY_P50  LATENCY_P99' },
-  { kind: 'route',    text: '  GET /api/v1/products     99.9%   98/s      9ms          23ms' },
-  { kind: 'route',    text: '  POST /api/v1/orders      99.6%   22/s     14ms          41ms' },
-  { kind: 'route',    text: '  GET /api/v1/search       99.1%   18/s     31ms          89ms' },
-  { kind: 'route',    text: '  [DEFAULT]                99.8%    4/s      7ms          19ms' },
-  { kind: 'blank',    text: '' },
-  { kind: 'comment',  text: '# traffic policy: circuit breaker + retry budget' },
-  { kind: 'prompt',   text: 'kubectl get httproute,serviceprofile -n construx-prod' },
-  { kind: 'policy',   text: '  retryBudget: 20% / 10s   circuit-break: 5xx > 50%' },
-  { kind: 'stat',     text: '  mTLS: SPIFFE identities via Linkerd CA  TTL 24h' },
+const DEPLOYMENTS = [
+  { name: 'construx-api', namespace: 'prod', meshed: 4, unmeshed: 0, successRate: 99.9, p99: 48, rps: 284 },
+  { name: 'construx-worker', namespace: 'prod', meshed: 2, unmeshed: 0, successRate: 99.7, p99: 840, rps: 48 },
+  { name: 'construx-auth', namespace: 'prod', meshed: 3, unmeshed: 0, successRate: 100.0, p99: 12, rps: 120 },
+  { name: 'construx-media', namespace: 'prod', meshed: 2, unmeshed: 0, successRate: 96.2, p99: 8400, rps: 8 },
 ];
 
-const TOTAL = LINES.length + 3;
+const ROUTES = [
+  { route: 'GET /api/listings', deployment: 'construx-api', rps: 84, successRate: 99.9, p99: 28, effectiveTimeout: '30s' },
+  { route: 'POST /api/search', deployment: 'construx-api', rps: 48, successRate: 99.6, p99: 184, effectiveTimeout: '10s' },
+  { route: 'POST /api/checkout', deployment: 'construx-api', rps: 4, successRate: 99.8, p99: 840, effectiveTimeout: '60s' },
+  { route: 'GET /healthz', deployment: 'construx-auth', rps: 120, successRate: 100.0, p99: 2, effectiveTimeout: '5s' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':  return 'rgba(240,239,255,0.22)';
-    case 'prompt':   return 'rgba(240,239,255,0.6)';
-    case 'ok':       return '#4ade80';
-    case 'mtls':     return '#67e8f9';
-    case 'latency':  return '#fbbf24';
-    case 'route':    return '#a78bfa';
-    case 'policy':   return '#fb923c';
-    case 'stat':     return 'rgba(240,239,255,0.45)';
-    default:         return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
 export default function LinkerdPanel() {
-  const [revealed,      setRevealed]      = useState(0);
-  const [liveSuccessPs, setLiveSuccessPs] = useState(99.8);
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [depRows, setDepRows] = useState(0);
+  const [rtRows, setRtRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const rpsTotal = useCounter(460, 4, 400);
+  const requestsTotal = useCounter(2840000, 840, 500);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            setLiveSuccessPs(+(99.5 + Math.random() * 0.5).toFixed(1));
-          }, 2100);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const d = setInterval(() => setDepRows((x) => Math.min(x + 1, DEPLOYMENTS.length)), 160);
+    const r = setInterval(() => setRtRows((x) => Math.min(x + 1, ROUTES.length)), 140);
+    return () => { clearInterval(d); clearInterval(r); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(167,139,250,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(167,139,250,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@prod-eu — linkerd · service mesh · mTLS · observability
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(167,139,250,0.08)', background: 'rgba(167,139,250,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.4)' }}>
+          linkerd -- service mesh -- mTLS / routes / golden signals
         </span>
-        <span className="text-[8px] tabular-nums" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `${liveSuccessPs}% success` : 'loading…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {rpsTotal.toLocaleString()} rps
         </span>
       </div>
 
-      {/* Shell prompt bar */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@prod-eu# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          linkerd · mTLS · proxy · routes · retries · circuit-breaker
-        </span>
+      {/* Shell prompt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#a78bfa', fontWeight: 600 }}>linkerd@mesh</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>linkerd viz stat deployments -n prod --from deploy/construx-api && linkerd viz routes deploy/construx-api</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'rps', value: rpsTotal.toLocaleString(), color: '#a78bfa' },
+          { label: 'requests', value: (requestsTotal / 1000000).toFixed(1) + 'M', color: '#4ade80' },
+          { label: 'deployments', value: DEPLOYMENTS.length.toString(), color: '#67e8f9' },
+          { label: 'degraded', value: DEPLOYMENTS.filter(d => d.successRate < 99).length.toString(), color: '#fbbf24' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Linkerd 2.16 ·</span>
-          <span style={{ color: '#4ade80' }}>{liveSuccessPs}% success</span>
-          <span style={{ color: '#67e8f9' }}>100% mTLS</span>
-          <span style={{ color: '#a78bfa' }}>per-route metrics</span>
-          <span style={{ color: '#fb923c' }}>retry budget</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Deployments */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // deployments
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {DEPLOYMENTS.slice(0, depRows).map((dep) => (
+            <div key={dep.name} style={{ display: 'grid', gridTemplateColumns: '72px 36px 24px 48px 36px 36px', alignItems: 'center', gap: 8, padding: '5px 8px', background: dep.successRate < 99 ? 'rgba(251,191,36,0.04)' : 'rgba(167,139,250,0.04)', border: `1px solid ${dep.successRate < 99 ? 'rgba(251,191,36,0.1)' : 'rgba(167,139,250,0.1)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#a78bfa', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dep.name}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{dep.namespace}</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'center' }}>{dep.meshed}</span>
+              <span className="tabular-nums" style={{ color: dep.successRate < 99 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{dep.successRate}%</span>
+              <span className="tabular-nums" style={{ color: dep.p99 > 1000 ? '#f87171' : dep.p99 > 200 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{dep.p99}ms</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{dep.rps}/s</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Routes */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // routes
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {ROUTES.slice(0, rtRows).map((rt) => (
+            <div key={rt.route} style={{ display: 'grid', gridTemplateColumns: '1fr 28px 48px 40px 32px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rt.route}</span>
+              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'center' }}>{rt.rps}/s</span>
+              <span className="tabular-nums" style={{ color: rt.successRate < 99.5 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{rt.successRate}%</span>
+              <span className="tabular-nums" style={{ color: rt.p99 > 500 ? '#fbbf24' : '#67e8f9', fontSize: 7, textAlign: 'right' }}>{rt.p99}ms</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{rt.effectiveTimeout}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          linkerd · service-mesh · mTLS · SPIFFE · proxy · routes · retries
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(167,139,250,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          linkerd v2.15 - apache-2.0 - cncf service mesh
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● watching' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {rpsTotal.toLocaleString()} rps - {(requestsTotal / 1000000).toFixed(1)}M total
         </span>
       </div>
     </div>

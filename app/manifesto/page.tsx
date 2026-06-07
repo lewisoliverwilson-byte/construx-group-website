@@ -43,6 +43,7 @@ import KedaPanel from '@/components/KedaPanel';
 import OpaPanel from '@/components/OpaPanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 import TemporalPanel from '@/components/TemporalPanel';
+import CrossplanePanel from '@/components/CrossplanePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -441,8 +442,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* temporal workflow orchestration — workflows, activities, namespaces */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <TemporalPanel />
+        </div>
+
+        {/* crossplane infrastructure-as-code — claims, compositions, providers */}
+        <div className="mt-4 pb-6">
+          <CrossplanePanel />
         </div>
 
         {/* Sign-off */}

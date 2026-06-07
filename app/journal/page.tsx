@@ -47,6 +47,7 @@ import SigstorePanel from '@/components/SigstorePanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import RenovatePanel from '@/components/RenovatePanel';
+import RekorPanel from '@/components/RekorPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -400,6 +401,11 @@ export default async function JournalPage({ searchParams }: Props) {
       {/* renovate dependency automation — repos, updates, automerge */}
       <section className="px-5 pb-6 mx-auto max-w-3xl">
         <RenovatePanel />
+      </section>
+
+      {/* rekor transparency log — signed artifacts, monitors, merkle tree */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <RekorPanel />
       </section>
 
       {/* Posts */}

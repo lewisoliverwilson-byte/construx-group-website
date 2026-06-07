@@ -2,17 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const PROVIDERS = [
-  { name: 'provider-aws', version: 'v0.47.0', healthy: true, managed: 42, age: '2h' },
-  { name: 'provider-gcp', version: 'v0.38.0', healthy: true, managed: 12, age: '2h' },
-  { name: 'provider-helm', version: 'v0.18.0', healthy: true, managed: 8, age: '30m' },
+const CLAIMS = [
+  { name: 'construx-prod-cluster', kind: 'EKSCluster', provider: 'aws', ready: true, synced: true, age: '42d' },
+  { name: 'construx-rds-prod', kind: 'RDSInstance', provider: 'aws', ready: true, synced: true, age: '42d' },
+  { name: 'construx-redis-prod', kind: 'ElastiCacheCluster', provider: 'aws', ready: true, synced: true, age: '42d' },
+  { name: 'construx-s3-assets', kind: 'S3Bucket', provider: 'aws', ready: true, synced: false, age: '2m' },
 ];
 
-const MANAGED = [
-  { name: 'construx-prod-vpc', kind: 'VPC', provider: 'aws', synced: true, ready: true, age: '2h' },
-  { name: 'construx-prod-rds', kind: 'RDSInstance', provider: 'aws', synced: true, ready: true, age: '2h' },
-  { name: 'construx-prod-bucket', kind: 'Bucket', provider: 'gcp', synced: true, ready: false, age: '12m' },
-  { name: 'construx-staging-redis', kind: 'MemoryStore', provider: 'gcp', synced: false, ready: false, age: '4m' },
+const COMPOSITIONS = [
+  { name: 'xeks.construxgroup.io', resources: 8, ready: 3, notReady: 0, claims: 1, revision: 'v4' },
+  { name: 'xrds.construxgroup.io', resources: 4, ready: 4, notReady: 0, claims: 1, revision: 'v2' },
+  { name: 'xredis.construxgroup.io', resources: 3, ready: 3, notReady: 0, claims: 1, revision: 'v1' },
+  { name: 'xs3.construxgroup.io', resources: 2, ready: 1, notReady: 1, claims: 1, revision: 'v3' },
 ];
 
 function useCounter(base: number, delta: number, ms = 900) {
@@ -26,11 +27,11 @@ function useCounter(base: number, delta: number, ms = 900) {
 
 export default function CrossplanePanel() {
   const [visible, setVisible] = useState(false);
-  const [pRows, setPRows] = useState(0);
-  const [mRows, setMRows] = useState(0);
+  const [clRows, setClRows] = useState(0);
+  const [compRows, setCompRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const totalManaged = PROVIDERS.reduce((a, p) => a + p.managed, 0);
-  const reconciles = useCounter(2840, 8, 900);
+  const reconciledTotal = useCounter(284000, 480, 600);
+  const managedResources = useCounter(17, 1, 14400);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -40,9 +41,9 @@ export default function CrossplanePanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const p = setInterval(() => setPRows((x) => Math.min(x + 1, PROVIDERS.length)), 160);
-    const m = setInterval(() => setMRows((x) => Math.min(x + 1, MANAGED.length)), 140);
-    return () => { clearInterval(p); clearInterval(m); };
+    const c = setInterval(() => setClRows((x) => Math.min(x + 1, CLAIMS.length)), 160);
+    const co = setInterval(() => setCompRows((x) => Math.min(x + 1, COMPOSITIONS.length)), 140);
+    return () => { clearInterval(c); clearInterval(co); };
   }, [visible]);
 
   return (
@@ -50,43 +51,43 @@ export default function CrossplanePanel() {
       ref={ref}
       style={{
         background: 'rgba(2,2,12,0.92)',
-        border: '1px solid rgba(59,130,246,0.13)',
+        border: '1px solid rgba(249,115,22,0.13)',
         borderRadius: '4px',
         overflow: 'hidden',
         fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-        boxShadow: '0 0 28px rgba(59,130,246,0.04)',
+        boxShadow: '0 0 28px rgba(249,115,22,0.04)',
         opacity: visible ? 1 : 0,
         transform: visible ? 'none' : 'translateY(10px)',
         transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(59,130,246,0.08)', background: 'rgba(59,130,246,0.02)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(249,115,22,0.08)', background: 'rgba(249,115,22,0.02)' }}>
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
-        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(59,130,246,0.4)' }}>
-          crossplane -- universal k8s control plane -- managed resources
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(249,115,22,0.4)' }}>
+          crossplane -- infrastructure -- claims / compositions / providers
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {reconciles.toLocaleString()} reconciles
+          {managedResources.toLocaleString()} resources
         </span>
       </div>
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#3b82f6', fontWeight: 600 }}>crossplane@k8s</span>
+        <span style={{ color: '#f97316', fontWeight: 600 }}>kubectl@crossplane</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>kubectl get providers && kubectl get managed --all-namespaces</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>kubectl get managed --all-namespaces && crossplane beta trace eksclusters.construxgroup.io/construx-prod-cluster</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'reconciles', value: reconciles.toLocaleString(), color: '#3b82f6' },
-          { label: 'managed', value: totalManaged.toString(), color: '#4ade80' },
-          { label: 'providers', value: PROVIDERS.length.toString(), color: '#a78bfa' },
-          { label: 'not-ready', value: MANAGED.filter(m => !m.ready).length.toString(), color: '#f87171' },
+          { label: 'managed', value: managedResources.toLocaleString(), color: '#f97316' },
+          { label: 'reconciled', value: (reconciledTotal / 1000).toFixed(0) + 'k', color: '#4ade80' },
+          { label: 'claims', value: CLAIMS.length.toString(), color: '#a78bfa' },
+          { label: 'not synced', value: CLAIMS.filter(c => !c.synced).length.toString(), color: '#fbbf24' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -96,33 +97,36 @@ export default function CrossplanePanel() {
       </div>
 
       <div style={{ padding: '10px 14px 0' }}>
-        {/* Providers */}
+        {/* Claims */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // providers
+          // composite resource claims
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {PROVIDERS.slice(0, pRows).map((p) => (
-            <div key={p.name} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 24px 28px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)', borderRadius: 2 }}>
-              <span style={{ color: '#3b82f6', fontSize: 8, fontWeight: 600 }}>{p.name}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{p.version}</span>
-              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 8, textAlign: 'center' }}>{p.managed}</span>
-              <span style={{ color: p.healthy ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{p.healthy ? 'ok' : 'err'}</span>
+          {CLAIMS.slice(0, clRows).map((claim) => (
+            <div key={claim.name} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 40px 40px 40px 32px', alignItems: 'center', gap: 8, padding: '5px 8px', background: !claim.synced ? 'rgba(251,191,36,0.04)' : 'rgba(249,115,22,0.04)', border: `1px solid ${!claim.synced ? 'rgba(251,191,36,0.1)' : 'rgba(249,115,22,0.1)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#f97316', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{claim.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{claim.kind}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{claim.provider}</span>
+              <span style={{ color: claim.ready ? '#4ade80' : '#f87171', fontSize: 7, textAlign: 'center' }}>{claim.ready ? 'ready' : 'wait'}</span>
+              <span style={{ color: claim.synced ? '#4ade80' : '#fbbf24', fontSize: 7, textAlign: 'center' }}>{claim.synced ? 'sync' : 'sync!'}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{claim.age}</span>
             </div>
           ))}
         </div>
 
-        {/* Managed Resources */}
+        {/* Compositions */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // managed resources
+          // compositions
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {MANAGED.slice(0, mRows).map((m) => (
-            <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '1fr 68px 40px 28px 28px', alignItems: 'center', gap: 8, padding: '4px 8px', background: m.ready ? 'rgba(74,222,128,0.04)' : 'rgba(248,113,113,0.04)', border: `1px solid ${m.ready ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.1)'}`, borderRadius: 2 }}>
-              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
-              <span style={{ color: '#3b82f6', fontSize: 7 }}>{m.kind}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{m.provider}</span>
-              <span style={{ color: m.synced ? '#4ade80' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'center' }}>{m.synced ? 'sync' : 'wait'}</span>
-              <span style={{ color: m.ready ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{m.ready ? 'rdy' : 'no'}</span>
+          {COMPOSITIONS.slice(0, compRows).map((comp) => (
+            <div key={comp.name} style={{ display: 'grid', gridTemplateColumns: '1fr 24px 24px 24px 24px 32px', alignItems: 'center', gap: 8, padding: '4px 8px', background: comp.notReady > 0 ? 'rgba(251,191,36,0.04)' : 'rgba(249,115,22,0.04)', border: `1px solid ${comp.notReady > 0 ? 'rgba(251,191,36,0.1)' : 'rgba(249,115,22,0.08)'}`, borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{comp.name}</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{comp.resources}r</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'center' }}>{comp.ready}</span>
+              <span className="tabular-nums" style={{ color: comp.notReady > 0 ? '#fbbf24' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'center' }}>{comp.notReady}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{comp.claims}c</span>
+              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 7, textAlign: 'right' }}>{comp.revision}</span>
             </div>
           ))}
         </div>
@@ -130,11 +134,11 @@ export default function CrossplanePanel() {
 
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
-        <span style={{ fontSize: 8, color: 'rgba(59,130,246,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          crossplane v1.15 - apache 2.0 - cncf graduated
+        <span style={{ fontSize: 8, color: 'rgba(249,115,22,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          crossplane v1.16 - apache-2.0 - cncf infrastructure-as-code
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {PROVIDERS.length} providers - {totalManaged} managed
+          {managedResources.toLocaleString()} managed - {(reconciledTotal / 1000).toFixed(0)}k reconciled
         </span>
       </div>
     </div>
