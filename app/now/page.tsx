@@ -15,6 +15,7 @@ import SystemdTimersPanel from '@/components/SystemdTimersPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import WireGuardPanel from '@/components/WireGuardPanel';
+import SystemdStatusPanel from '@/components/SystemdStatusPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -374,8 +375,13 @@ export default function NowPage() {
         </div>
 
         {/* WireGuard VPN peer status */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <WireGuardPanel />
+        </div>
+
+        {/* systemd service units */}
+        <div className="mt-6 pb-10">
+          <SystemdStatusPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

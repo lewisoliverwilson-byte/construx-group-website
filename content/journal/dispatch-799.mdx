@@ -1,0 +1,161 @@
+---
+title: "Sentry: error tracking that tells you what actually broke"
+date: "2031-07-07"
+excerpt: "Sentry captures unhandled exceptions and rejected promises, groups them by root cause, attaches the full stack trace with source maps applied, records the user actions that led to the error, and sends an alert to Slack or email. For production applications where silent errors are the norm without instrumentation, Sentry is the cheapest way to find out what's broken before a user reports it."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Errors that you find before users report them. Source-mapped stack traces. Breadcrumbs.
+
+## Next.js setup
+
+```bash
+bun add @sentry/nextjs
+bunx @sentry/wizard@latest -i nextjs
+```
+
+The wizard creates `sentry.client.config.ts`, `sentry.server.config.ts`, and instruments `next.config.js` automatically.
+
+```ts
+// sentry.client.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn:              process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment:      process.env.NODE_ENV,
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1.0,  // Always replay on error
+  integrations: [
+    Sentry.replayIntegration({
+      maskAllText:    true,
+      blockAllMedia:  false,
+    }),
+  ],
+  beforeSend(event) {
+    // Scrub sensitive data before sending
+    if (event.request?.data) {
+      delete (event.request.data as Record<string, unknown>).password;
+      delete (event.request.data as Record<string, unknown>).cardNumber;
+    }
+    return event;
+  },
+});
+```
+
+## Capture errors manually
+
+```ts
+import * as Sentry from '@sentry/nextjs';
+
+async function processPayment(orderId: string, amount: number) {
+  try {
+    return await stripe.paymentIntents.create({ amount, currency: 'gbp' });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: {
+        feature:   'payments',
+        operation: 'create_intent',
+      },
+      extra: {
+        orderId,
+        amount,
+      },
+      user: {
+        id:    currentUser.id,
+        email: currentUser.email,
+      },
+    });
+    throw err;
+  }
+}
+```
+
+## Breadcrumbs — record user actions
+
+```ts
+import * as Sentry from '@sentry/nextjs';
+
+function CheckoutFlow() {
+  const handleStepChange = (step: string) => {
+    Sentry.addBreadcrumb({
+      category: 'checkout',
+      message:  `Moved to step: ${step}`,
+      level:    'info',
+      data:     { step },
+    });
+    setCurrentStep(step);
+  };
+
+  return <Steps onChange={handleStepChange} />;
+}
+```
+
+When an error occurs at the payment step, Sentry shows: `address → shipping → payment → ERROR`, making root cause analysis instant.
+
+## Performance — transaction tracing
+
+```ts
+// Wrap a critical operation in a Sentry transaction
+async function importProducts(fileUrl: string) {
+  return Sentry.startSpan(
+    { op: 'import', name: 'Products CSV Import' },
+    async (span) => {
+      span.setAttribute('file.url', fileUrl);
+
+      const rows = await parseCSV(fileUrl);
+      span.setAttribute('rows.count', rows.length);
+
+      const result = await db.products.createMany({ data: rows });
+      span.setAttribute('rows.imported', result.count);
+
+      return result;
+    },
+  );
+}
+```
+
+## Source maps — human-readable stack traces
+
+```ts
+// next.config.ts
+import { withSentryConfig } from '@sentry/nextjs';
+
+export default withSentryConfig(nextConfig, {
+  org:     'construx-group',
+  project: 'construx-website',
+  silent:  true,
+
+  // Upload source maps during build — Sentry applies them to stack traces
+  sourcemaps: {
+    disable: false,
+    deleteFilesAfterUpload: ['./dist/**/*.map'],  // Don't ship source maps to users
+  },
+
+  // Automatically set the release version from git
+  release: {
+    name: process.env.VERCEL_GIT_COMMIT_SHA ?? 'local',
+  },
+});
+```
+
+## Alert routing
+
+```json
+// Sentry alert rule — in the dashboard or via the API
+{
+  "name": "Critical error rate spike",
+  "conditions": [
+    { "id": "sentry.rules.conditions.event_frequency.EventFrequencyCondition", "value": 10, "interval": "5m" }
+  ],
+  "actions": [
+    { "id": "sentry.integrations.slack.notify_action.SlackNotifyServiceAction", "channel": "#alerts", "tags": "environment,level" }
+  ],
+  "filters": [
+    { "id": "sentry.rules.filters.level.LevelFilter", "level": "error", "match": "gte" }
+  ]
+}
+```
+
+Sentry vs Datadog APM vs self-hosted Glitchtip: Glitchtip is a Sentry-compatible open-source alternative. Datadog APM has more features but costs significantly more. Sentry's free tier covers most small products (5k errors/month). The Construx default: Sentry cloud on the free/team tier; Glitchtip for clients with strict data residency requirements.

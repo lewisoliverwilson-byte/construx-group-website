@@ -1,0 +1,145 @@
+---
+title: "systemd: the service manager you should understand"
+date: "2031-07-01"
+excerpt: "systemd manages every long-running process on a Linux server. It handles start order (dependencies between services), automatic restarts, logging (journald), resource limits, timers (cron replacement), and socket activation. Understanding systemd units means you can deploy Node.js applications, manage scheduled jobs, and inspect service failures without reaching for a process manager like pm2. This post covers the patterns used on every Construx VPS."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+No pm2. systemd manages processes directly, with dependencies and logging built in.
+
+## Service unit file
+
+```ini
+# /etc/systemd/system/construx-api.service
+[Unit]
+Description=Construx API Server
+After=network.target postgresql.service redis.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=construx
+WorkingDirectory=/opt/construx/api
+ExecStart=/usr/local/bin/bun run start
+Restart=on-failure
+RestartSec=5s
+
+# Environment
+EnvironmentFile=/opt/construx/.env
+Environment=NODE_ENV=production
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=200%  # 2 cores
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/construx/api/logs
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Install and start
+sudo systemctl daemon-reload
+sudo systemctl enable construx-api  # Start on boot
+sudo systemctl start construx-api
+
+# Status
+sudo systemctl status construx-api
+```
+
+## Automatic restart
+
+```ini
+[Service]
+Restart=on-failure
+RestartSec=5s
+RestartBurst=3       # Max 3 restarts
+RestartLimitInterval=60s  # Within 60 seconds — then give up
+```
+
+If the API crashes, systemd restarts it after 5 seconds. After 3 crashes in 60 seconds, it stops retrying and alerts via `systemctl status`.
+
+## Timers — replace cron
+
+```ini
+# /etc/systemd/system/pgbackup.timer
+[Unit]
+Description=PostgreSQL Daily Backup Timer
+
+[Timer]
+OnCalendar=*-*-* 02:00:00  # 2am every day
+RandomizedDelaySec=300      # Random delay up to 5 minutes
+Persistent=true             # Run missed jobs on boot
+
+[Install]
+WantedBy=timers.target
+```
+
+```ini
+# /etc/systemd/system/pgbackup.service
+[Unit]
+Description=PostgreSQL Daily Backup
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/opt/construx/scripts/pg-backup.sh
+```
+
+```bash
+sudo systemctl enable pgbackup.timer
+sudo systemctl start pgbackup.timer
+sudo systemctl list-timers
+```
+
+## Journal — structured logging
+
+```bash
+# Follow logs for a specific service
+journalctl -fu construx-api
+
+# Last 100 lines
+journalctl -n 100 -u construx-api
+
+# Since a specific time
+journalctl -u construx-api --since "2031-07-01 00:00:00"
+
+# Error level only
+journalctl -p err -u construx-api
+
+# Export as JSON
+journalctl -u construx-api -o json | jq '.MESSAGE'
+```
+
+## Deployment — rolling restart
+
+```bash
+# Deploy script — zero downtime for stateless services
+git -C /opt/construx/api pull origin master
+bun install --production
+sudo systemctl reload-or-restart construx-api  # Reload config if supported, restart otherwise
+systemctl is-active construx-api
+```
+
+## Override files — modify without touching the unit
+
+```bash
+sudo systemctl edit construx-api
+```
+
+Creates `/etc/systemd/system/construx-api.service.d/override.conf` — applies on top of the base unit, survives package updates:
+
+```ini
+[Service]
+Environment=LOG_LEVEL=debug
+MemoryMax=1G
+```
+
+systemd vs pm2: pm2 is a Node.js-only process manager. systemd manages any process, integrates with the OS logging system (journald), respects system resource limits, and is available on every Linux distribution. The Construx default: systemd for all production services; pm2 only when deploying to environments where we don't have root access.
