@@ -45,6 +45,7 @@ import SyftPanel from '@/components/SyftPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
 import SpirePanel from '@/components/SpirePanel';
 import GiteaPanel from '@/components/GiteaPanel';
+import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -799,8 +800,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* gitea self-hosted git — repos, pushes, ci */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GiteaPanel />
+      </section>
+
+      {/* grafana oncall incident mgmt — escalations, alerts, oncall */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GrafanaOnCallPanel />
       </section>
 
       {/* CTA */}

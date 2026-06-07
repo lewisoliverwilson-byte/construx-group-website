@@ -46,6 +46,7 @@ import TemporalPanel from '@/components/TemporalPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import BackstagePanel from '@/components/BackstagePanel';
+import OllamaPanel from '@/components/OllamaPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -459,8 +460,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* backstage developer portal — catalog, techdocs, plugins */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BackstagePanel />
+        </div>
+
+        {/* ollama local llm — models, generations, embeddings */}
+        <div className="mt-4 pb-6">
+          <OllamaPanel />
         </div>
 
         {/* Sign-off */}
