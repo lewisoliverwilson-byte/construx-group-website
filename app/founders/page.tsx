@@ -25,6 +25,7 @@ import OpaPanel from '@/components/OpaPanel';
 import TrivyPanel from '@/components/TrivyPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import RisingWavePanel from '@/components/RisingWavePanel';
+import DbtPanel from '@/components/DbtPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -570,8 +571,13 @@ export default function FoundersPage() {
         </div>
 
         {/* risingwave postgresql-compatible streaming database — incremental sql over kafka */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <RisingWavePanel />
+        </div>
+
+        {/* dbt sql-first data transformation — models, tests, lineage dag */}
+        <div className="mt-6 pb-10">
+          <DbtPanel />
         </div>
 
         {/* CTA */}

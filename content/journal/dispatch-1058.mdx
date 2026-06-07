@@ -1,0 +1,146 @@
+---
+title: "Redpanda: Kafka-compatible streaming — no JVM, no ZooKeeper, 10x lower latency"
+date: "2033-08-23"
+excerpt: "Redpanda is a Kafka-compatible streaming platform built in C++ that eliminates the JVM, ZooKeeper, and Kafka's multi-node coordination overhead. Any Kafka client (kafkajs, confluent-kafka, kafka-go, Faust) connects to Redpanda without code changes — it speaks the Kafka wire protocol. Redpanda uses the Raft consensus algorithm for each partition (replacing ZooKeeper's coordination model), which allows it to achieve deterministic latency (p99 under 1ms on local NVMe) compared to Kafka's p99 of 5-20ms under load. Each Redpanda broker is a thread-per-core process using Seastar (the same framework as ScyllaDB) — no GC pauses, no JVM heap tuning. The result: a 3-node Redpanda cluster handles the same workload as a 6-node Kafka cluster (with a 3-node ZooKeeper ensemble) with lower operational complexity. Redpanda also embeds a schema registry and HTTP proxy (Pandaproxy) — no separate schema registry deployment."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Kafka-compatible. C++ thread-per-core. Raft per partition. No JVM. Embedded schema registry.
+
+## Cluster setup and topic operations
+
+```bash
+# Redpanda: rpk CLI (Redpanda's equivalent of kafka-cli tools)
+
+# Create a topic
+rpk topic create construx.orders \
+  --partitions 12 \
+  --replicas 3 \
+  --topic-config retention.ms=604800000 \
+  --topic-config retention.bytes=10737418240 \
+  --topic-config compression.type=zstd
+
+# Topic info
+rpk topic describe construx.orders
+# NAME              PARTITIONS  REPLICAS  LEADER  OFFLINE  ISR
+# construx.orders   12          3         2       0        [0,1,2]
+
+# Produce messages (Kafka protocol — same as kafka-console-producer)
+echo '{"order_id":"ord-7f2a","tenant_id":"10001","status":"pending"}' | \
+  rpk topic produce construx.orders --key "10001"
+
+# Consume from beginning
+rpk topic consume construx.orders --from-beginning --num 5
+# {
+#   "topic":     "construx.orders",
+#   "key":       "10001",
+#   "value":     "{\"order_id\":\"ord-7f2a\",...}",
+#   "timestamp": 1724369040000,
+#   "partition": 3,
+#   "offset":    48291
+# }
+
+# Consumer group lag
+rpk group describe construx-api-consumer
+# GROUP                    TOPIC              PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
+# construx-api-consumer    construx.orders    0          12048           12050           2
+# construx-api-consumer    construx.orders    1          11291           11291           0
+
+# Cluster health
+rpk cluster health
+# CONTROLLER: 2
+# IS HEALTHY: true
+# NODES:
+#   ID  ADDRESS                          IS ALIVE  VERSION
+#   0   broker-0.construx.internal:9092  true      v24.2.1
+#   1   broker-1.construx.internal:9092  true      v24.2.1
+#   2   broker-2.construx.internal:9092  true      v24.2.1
+```
+
+## Kubernetes deployment via Helm
+
+```yaml
+# values.yaml: Redpanda Helm chart configuration
+
+statefulset:
+  replicas: 3
+  podTemplate:
+    resources:
+      requests:
+        cpu:    4
+        memory: 8Gi
+      limits:
+        memory: 8Gi   # fixed limit prevents OOM — C++ uses memory-mapped I/O
+
+storage:
+  persistentVolume:
+    enabled: true
+    size:    500Gi
+    storageClass: gp3-nvme   # NVMe is critical for p99 latency
+
+config:
+  cluster:
+    kafka_connection_rate_limit: 1000
+    fetch_max_bytes: 67108864         # 64MB max fetch per request
+  tunable:
+    log_segment_size: 134217728       # 128MB segments
+    compacted_log_segment_size: 67108864
+
+# Schema registry: built into Redpanda, no separate service
+schemaRegistry:
+  enabled: true
+  external:
+    enabled: false
+
+# HTTP proxy: REST API for producing/consuming without Kafka client
+pandaproxy:
+  enabled: true
+```
+
+```typescript
+// TypeScript: use kafkajs — identical to Kafka, no Redpanda SDK needed
+
+import { Kafka, CompressionTypes, logLevel } from "kafkajs";
+
+const kafka = new Kafka({
+    clientId: "construx-api",
+    brokers:  ["broker-0.construx.internal:9092",
+               "broker-1.construx.internal:9092",
+               "broker-2.construx.internal:9092"],
+    logLevel: logLevel.WARN,
+});
+
+const producer = kafka.producer({
+    idempotent:         true,
+    transactionalId:    "construx-order-producer",   // exactly-once
+    maxInFlightRequests: 5,
+});
+await producer.connect();
+
+// Produce with schema registry validation (Confluent-compatible encoding)
+await producer.send({
+    topic:       "construx.orders",
+    compression: CompressionTypes.ZSTD,
+    messages: [{
+        key:   tenantId,
+        value: schemaRegistryClient.encode(schemaId, orderEvent),
+        headers: { "x-correlation-id": correlationId },
+    }],
+});
+
+// Consumer
+const consumer = kafka.consumer({ groupId: "construx-search-indexer" });
+await consumer.connect();
+await consumer.subscribe({ topics: ["construx.orders"], fromBeginning: false });
+
+await consumer.run({
+    partitionsConsumedConcurrently: 4,
+    eachMessage: async ({ message, partition, offset }) => {
+        const event = schemaRegistryClient.decode(message.value);
+        await searchIndex.upsert(event.order_id, event);
+    },
+});
+```
+
+Redpanda vs Apache Kafka vs Pulsar vs NATS JetStream: Apache Kafka is the incumbent — mature, widely supported, rich ecosystem (Kafka Streams, Kafka Connect, ksqlDB) but requires JVM tuning, ZooKeeper (pre-3.0) or KRaft mode, and often a 3-node ZooKeeper + 3-node Kafka ensemble to get started. Apache Pulsar separates storage (BookKeeper) from compute (brokers) which improves storage elasticity but doubles the cluster complexity. NATS JetStream is extremely lightweight and fast for small messages but lacks Kafka's partition model and ecosystem. Redpanda's advantage is Kafka compatibility with no JVM and consistently lower tail latency (1ms p99 vs 10-20ms). The tradeoff: Redpanda is newer than Kafka — some Kafka ecosystem tools (Kafka Streams, MirrorMaker 2) have compatibility limitations or missing features. Redpanda Connect (formerly Benthos) covers many connector use cases. For teams starting new streaming infrastructure or replacing Kafka due to operational complexity, Redpanda is the most compelling alternative.

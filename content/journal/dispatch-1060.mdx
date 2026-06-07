@@ -1,0 +1,158 @@
+---
+title: "Trino: distributed SQL query engine — query anything, anywhere, at scale"
+date: "2033-08-29"
+excerpt: "Trino (formerly PrestoSQL) is a distributed SQL query engine that federates queries across multiple data sources — S3/Iceberg, PostgreSQL, MySQL, Kafka, Elasticsearch, Redis, MongoDB, and 50+ more — using a single SQL dialect. You declare a catalog in Trino's configuration (iceberg, postgresql, kafka, etc.) and query them with standard SQL: you can JOIN an Iceberg table on S3 with a live PostgreSQL table in one query, without moving data. Trino's architecture is a coordinator + N worker nodes. The coordinator parses the SQL, builds a distributed execution plan, and schedules stages across workers. Each stage is split into tasks that process splits (chunks of data from the source). Workers exchange intermediate results via an in-memory shuffle network. Trino is not a storage system — it pushes down predicates and aggregations into the source systems where possible, and only transfers the data needed for joins and final aggregation. This makes it fast for analytical queries over large datasets without ingesting everything into a single warehouse."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Distributed SQL federation. Connector architecture. Predicate pushdown. Memory-based shuffle. Cost-based optimizer.
+
+## Catalog configuration and federated queries
+
+```properties
+# Trino catalog configuration: connector per data source
+# /etc/trino/catalog/iceberg.properties
+
+connector.name=iceberg
+iceberg.catalog.type=glue
+hive.metastore.glue.region=eu-west-2
+iceberg.file-format=PARQUET
+iceberg.compression-codec=ZSTD
+iceberg.target-max-file-size=134217728
+```
+
+```properties
+# /etc/trino/catalog/postgres.properties
+connector.name=postgresql
+connection-url=jdbc:postgresql://postgres.construx.internal:5432/construx_prod
+connection-user=trino
+connection-password=${ENV:TRINO_POSTGRES_PASSWORD}
+postgresql.include-system-tables=false
+```
+
+```properties
+# /etc/trino/catalog/kafka.properties
+connector.name=kafka
+kafka.nodes=kafka-0.construx.internal:9092,kafka-1.construx.internal:9092
+kafka.table-description-supplier=FILE
+kafka.table-description-dir=/etc/trino/kafka-topics/
+kafka.hide-internal-columns=false
+```
+
+## Federated SQL queries
+
+```sql
+-- Trino CLI: federated query across Iceberg + PostgreSQL
+-- JOIN data from S3 (Iceberg) with live PostgreSQL — no ETL required
+
+-- Cross-catalog join: analytics data (Iceberg on S3) × live tenant config (PostgreSQL)
+SELECT
+    t.name                                      AS tenant_name,
+    t.plan_tier,
+    o.order_date,
+    o.order_count,
+    o.revenue_gbp,
+    o.revenue_gbp / t.monthly_price_gbp * 100  AS revenue_vs_plan_pct
+FROM iceberg.analytics.orders_daily       AS o
+JOIN postgres.public.tenants              AS t ON o.tenant_id = t.id
+WHERE o.order_date >= DATE '2033-08-01'
+  AND t.active = TRUE
+ORDER BY revenue_gbp DESC
+LIMIT 20;
+
+-- Kafka live data: query topics as SQL tables
+SELECT
+    partition,
+    count(*)                         AS message_count,
+    min("_timestamp")                AS oldest_message,
+    max("_timestamp")                AS newest_message,
+    max("_offset") - min("_offset") AS offset_range
+FROM kafka.default."construx.orders"
+WHERE "$timestamp" > current_timestamp - interval '1' hour
+GROUP BY partition
+ORDER BY partition;
+
+-- Cross-catalog INSERT: materialise query results to Iceberg
+CREATE TABLE iceberg.analytics.tenant_revenue_snapshot AS
+SELECT
+    t.id AS tenant_id, t.name, t.plan_tier,
+    SUM(o.revenue_gbp)   AS total_revenue_gbp,
+    COUNT(o.order_count) AS total_orders,
+    NOW()                AS snapshotted_at
+FROM iceberg.analytics.orders_daily o
+JOIN postgres.public.tenants        t ON o.tenant_id = t.id
+WHERE o.order_date >= DATE '2033-08-01'
+GROUP BY t.id, t.name, t.plan_tier;
+
+-- EXPLAIN: view the distributed execution plan
+EXPLAIN (FORMAT JSON)
+SELECT count(*), sum(total_pence) / 100.0
+FROM iceberg.analytics.orders
+WHERE created_at >= DATE '2033-08-01'
+  AND status = 'completed';
+-- Shows: Fragment stages, Exchange types (gather/repartition), partial aggregation pushdown
+```
+
+## Cluster configuration and resource tuning
+
+```yaml
+# Trino Kubernetes deployment: coordinator + workers
+
+# coordinator config.properties
+coordinator=true
+node-scheduler.include-coordinator=false
+http-server.http.port=8080
+query.max-memory=50GB
+query.max-memory-per-node=8GB
+query.max-total-memory-per-node=10GB
+discovery.uri=http://trino-coordinator.construx.internal:8080
+task.low-memory-killer.policy=total-reservation-on-blocked-nodes
+
+# worker config.properties
+coordinator=false
+http-server.http.port=8080
+query.max-memory=50GB
+query.max-memory-per-node=8GB
+discovery.uri=http://trino-coordinator.construx.internal:8080
+```
+
+```bash
+# Trino CLI
+
+# Connect and run queries
+trino --server https://trino.construx.internal:8443 \
+  --catalog iceberg --schema analytics \
+  --user construx-analyst
+
+# Show available catalogs
+SHOW CATALOGS;
+-- iceberg, kafka, postgres, memory, tpcds
+
+# Show Iceberg tables
+SHOW TABLES FROM iceberg.analytics;
+-- orders, orders_daily, tenant_summary, product_stats, ...
+
+# Running queries dashboard
+trino --server https://trino.construx.internal:8443 \
+  --execute "SELECT query_id, state, elapsed_time, rows_processed FROM system.runtime.queries WHERE state = 'RUNNING'"
+
+# Kill a long-running query
+CALL system.runtime.kill_query(query_id => 'q_20330829_abc123', message => 'too slow');
+
+# Resource group: limit query concurrency per team
+# /etc/trino/resource-groups.json:
+# {
+#   "rootGroups": [{
+#     "name": "global",
+#     "maxQueued": 1000,
+#     "hardConcurrencyLimit": 50,
+#     "subGroups": [
+#       {"name": "analytics", "maxQueued": 100, "hardConcurrencyLimit": 20},
+#       {"name": "etl",       "maxQueued": 50,  "hardConcurrencyLimit": 10}
+#     ]
+#   }]
+# }
+```
+
+Trino vs BigQuery vs Spark SQL vs DuckDB vs Athena: BigQuery is Trino's closest managed equivalent — federated queries, serverless, fast — but is GCP-only and expensive for continuous queries. Athena is AWS's managed Trino/Presto service — convenient but you lose control over cluster configuration and connector choice. Spark SQL handles the same analytical workloads but requires a Spark cluster, has higher per-query startup latency, and is less suited for ad-hoc interactive queries. DuckDB is a single-node columnar query engine — blazing fast on a laptop or single server (20GB+ Iceberg queries in seconds), but doesn't distribute across nodes. Trino's niche is federated queries across heterogeneous sources at scale that need to run in seconds (interactive analytics) rather than minutes (batch). For teams running a data lakehouse on Iceberg/S3 who also have live PostgreSQL data they want to join without ETL, Trino is the query engine that makes 'query anything, anywhere' practical.
