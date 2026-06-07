@@ -27,6 +27,7 @@ import ClickHousePanel from '@/components/ClickHousePanel';
 import RisingWavePanel from '@/components/RisingWavePanel';
 import DbtPanel from '@/components/DbtPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -582,8 +583,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cert-manager tls automation — acme, vault pki, auto-renewal, x509 */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CertManagerPanel />
+        </div>
+
+        {/* cluster api declarative cluster lifecycle — capi, machines, machinedeployment, aws */}
+        <div className="mt-6 pb-10">
+          <ClusterApiPanel />
         </div>
 
         {/* CTA */}

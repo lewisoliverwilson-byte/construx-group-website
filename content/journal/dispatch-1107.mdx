@@ -1,0 +1,132 @@
+---
+title: "Vault PKI: internal certificate authority — intermediate CA, auto-rotation, Kubernetes auth"
+date: "2034-01-17"
+excerpt: "HashiCorp Vault's PKI secrets engine provides a full internal certificate authority — issuing X.509 certificates for services, databases, and mTLS on demand. The typical architecture uses a two-tier CA: an offline root CA signs an intermediate CA stored in Vault; the Vault intermediate CA issues leaf certificates to services. This keeps the root CA offline (air-gapped) while enabling automated certificate issuance. The PKI engine issues short-lived certificates (1-hour or 24-hour TTL is common) — instead of rotating long-lived certificates, services renew them continuously. cert-manager (dispatch-1065) integrates with Vault PKI via a VaultIssuer: when cert-manager renews a Certificate, it authenticates to Vault using the pod's Kubernetes service account token (Vault's kubernetes auth method) and calls the PKI sign endpoint. Vault validates the Kubernetes JWT against the API server, checks the role policy, and issues a certificate if the role permits it. This creates a complete PKI chain: Vault authenticates the requesting pod's identity (via its Kubernetes service account), enforces policy (which services can request which certificate domains), and issues short-lived certificates that are automatically rotated before expiry."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+PKI engine. Intermediate CA. Role. sign-verbatim. Kubernetes auth. cert-manager. Short-lived certs.
+
+## Vault PKI setup and certificate issuance
+
+```bash
+# 1. Enable PKI secrets engine for internal CA
+vault secrets enable -path=pki pki
+vault secrets tune -max-lease-ttl=87600h pki
+
+# 2. Generate an intermediate CA CSR (to be signed by offline root CA)
+vault write -format=json pki/intermediate/generate/internal \
+  common_name="Construx Internal CA" \
+  issuer_name="construx-intermediate-2034" \
+  key_type="ec" \
+  key_bits=384 \
+  | jq -r '.data.csr' > construx-intermediate.csr
+
+# 3. Sign the CSR with the offline root CA (out of band)
+# openssl ca -config root-ca.cnf -extensions v3_intermediate_ca \
+#   -in construx-intermediate.csr -out construx-intermediate.crt
+
+# 4. Import the signed certificate back into Vault
+vault write pki/intermediate/set-signed certificate=@construx-intermediate.crt
+
+# 5. Create a role: services in construx-prod can request certs for *.construx.internal
+vault write pki/roles/construx-internal-services \
+  issuer_ref="construx-intermediate-2034" \
+  allowed_domains="construx.internal,svc.cluster.local" \
+  allow_subdomains=true \
+  allow_bare_domains=false \
+  max_ttl="24h" \
+  key_type="ec" \
+  key_bits=256 \
+  require_cn=false
+
+# 6. Issue a certificate manually
+vault write pki/issue/construx-internal-services \
+  common_name="orders-api.construx.internal" \
+  alt_names="orders-api.construx-prod.svc.cluster.local" \
+  ttl="24h"
+
+# Output:
+# certificate     -----BEGIN CERTIFICATE-----
+# expiration      1704844800  (2034-01-10T12:00:00Z)
+# issuing_ca      -----BEGIN CERTIFICATE-----
+# private_key     -----BEGIN EC PRIVATE KEY-----
+# serial_number   45:6b:c2:...
+```
+
+```hcl
+# Vault policy: allow orders-api service account to request certificates
+path "pki/issue/construx-internal-services" {
+  capabilities = ["create", "update"]
+}
+
+path "pki/sign/construx-internal-services" {
+  capabilities = ["create", "update"]
+}
+```
+
+```bash
+# Vault Kubernetes auth: authenticate pods using their service account JWT
+vault auth enable kubernetes
+
+vault write auth/kubernetes/config \
+  kubernetes_host="https://kubernetes.default.svc.cluster.local:443" \
+  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+  issuer="https://kubernetes.default.svc.cluster.local"
+
+# Role: bind Kubernetes service account to Vault policy
+vault write auth/kubernetes/role/orders-api \
+  bound_service_account_names=orders-api \
+  bound_service_account_namespaces=construx-prod \
+  policies=construx-pki-orders \
+  ttl=1h
+```
+
+```yaml
+# cert-manager VaultIssuer: issue certificates from Vault PKI
+# cert-manager authenticates to Vault using the pod's service account token
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: vault-pki-issuer
+spec:
+  vault:
+    path: pki/sign/construx-internal-services
+    server: https://vault.construx-infra.svc.cluster.local:8200
+    caBundle: "LS0tLS1CRUdJTi..."   # Vault's TLS CA cert, base64
+    auth:
+      kubernetes:
+        role:          cert-manager-pki
+        mountPath:     /v1/auth/kubernetes
+        serviceAccountRef:
+          name: cert-manager
+
+---
+# Certificate: orders-api gets an automatically-rotated mTLS certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: orders-api-tls
+  namespace: construx-prod
+spec:
+  secretName: orders-api-tls-cert
+  duration: 24h
+  renewBefore: 8h        # renew 8 hours before expiry
+  issuerRef:
+    name: vault-pki-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - orders-api.construx.internal
+    - orders-api.construx-prod.svc.cluster.local
+  usages:
+    - server auth
+    - client auth   # mTLS: both server and client certificates
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always   # generate a new key on every renewal
+```
+
+Vault PKI vs cert-manager ACME vs self-signed vs cloud CA (AWS ACM Private CA): Let's Encrypt / ACME certificates are for public-facing services — they require HTTP-01 or DNS-01 challenge validation and are publicly trusted. They are not appropriate for internal mTLS between services (no HTTP endpoint available, slow issuance, public record in CT logs). AWS ACM Private CA is a managed private CA — correct for AWS-native deployments, integrates with ALB, RDS, and ECS, but proprietary to AWS and expensive (per-certificate costs). Self-signed certificates eliminate the CA infrastructure but create trust management problems — every service must explicitly trust each self-signed certificate, and revocation is manual. Vault PKI provides an internal CA that is self-hosted, cloud-agnostic, and integrates with cert-manager for automatic rotation. The Vault Kubernetes auth method is the key security primitive: a pod's identity is its Kubernetes service account token, which Vault validates against the Kubernetes API server — no passwords or long-lived credentials anywhere in the certificate issuance flow.
