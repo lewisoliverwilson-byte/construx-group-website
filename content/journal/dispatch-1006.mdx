@@ -1,0 +1,214 @@
+---
+title: "Dragonfly: in-memory data store with Redis compatibility and better memory efficiency"
+date: "2033-03-20"
+excerpt: "Dragonfly is an in-memory data store that is API-compatible with Redis but uses a completely different architecture internally — shared-nothing multi-threading on a single process instead of Redis's single-threaded event loop. The result: Dragonfly uses 25-80% less memory than Redis for the same data (via dashtable, a novel hash table design) and can saturate all CPU cores on a single machine, giving throughput of 3-4 million ops/sec on a 64-core server instead of Redis's 100-200k ops/sec ceiling on one thread. A single Dragonfly node can replace a Redis cluster for most use cases, eliminating the operational complexity of cluster topology, slot-based sharding, and cross-slot transaction restrictions."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Redis-compatible API. Multi-threaded. 25-80% less memory. No cluster required. Dashtable.
+
+## Setup and basic operations
+
+```bash
+# Run Dragonfly (Redis-compatible port 6379)
+docker run -d \
+  --name dragonfly \
+  -p 6379:6379 \
+  --ulimit memlock=-1 \
+  ghcr.io/dragonflydb/dragonfly:latest \
+  --cache_mode \           # optimize for cache (evicts when full)
+  --maxmemory 4gb \
+  --save ""                # disable RDB snapshots for pure cache mode
+
+# Connect with redis-cli (it's 100% compatible)
+redis-cli -h localhost PING
+# PONG
+
+redis-cli -h localhost INFO server | grep version
+# redis_version:7.0.0    ← Dragonfly reports itself as Redis 7.0
+
+# Dragonfly-specific INFO
+redis-cli -h localhost INFO dragonfly
+# dragonfly_version: 1.19.0
+# used_memory_human: 1.24G   ← 25-80% less than Redis for same data
+# connected_threads: 16       ← uses all CPU cores
+
+# Any existing Redis client works:
+# jedis, ioredis, redis-py, go-redis — no code changes
+
+# Test: set and get the same way as Redis
+redis-cli -h localhost SET user:12345:session "abc123" EX 3600
+# OK
+redis-cli -h localhost GET user:12345:session
+# "abc123"
+redis-cli -h localhost TTL user:12345:session
+# 3591
+
+# Sorted set (leaderboard)
+redis-cli -h localhost ZADD game:scores 1000 "alice" 800 "bob" 1200 "carol"
+redis-cli -h localhost ZREVRANGE game:scores 0 2 WITHSCORES
+# 1) "carol"   2) "1200"
+# 3) "alice"   4) "1000"
+# 5) "bob"     6) "800"
+```
+
+## Memory efficiency: dashtable vs Redis dict
+
+```bash
+# Dashtable: Dragonfly's novel hash table
+# Conventional Redis uses a chained hash table with load factor ~0.7
+# At load factor 0.7: 43% of memory is table overhead, not data
+# Dashtable: open addressing with displacement and bounded probe length
+# Load factor up to 0.95 before resize: ~5% overhead per bucket
+
+# Practical comparison (1M string keys, 100-byte values):
+# Redis:
+#   - Data: 100MB
+#   - Redis overhead (dict + SDS strings + robj): ~220MB total
+#   - Utilization: 45%
+
+# Dragonfly:
+#   - Data: 100MB
+#   - Dragonfly overhead (dashtable + fibers): ~140MB total
+#   - Utilization: 71%
+#   - Savings: 36% less memory for the same data
+
+# Check memory usage
+redis-cli -h dragonfly:6379 MEMORY USAGE user:12345:session
+# (integer) 80   ← bytes consumed by this key
+
+# Memory doctor (Dragonfly extension)
+redis-cli -h dragonfly:6379 DEBUG SLEEP 0
+redis-cli -h dragonfly:6379 MEMORY DOCTOR
+# Dragonfly is fine. No memory warnings.
+
+# Configure memory limit and eviction policy
+# (in redis.conf format — Dragonfly reads the same config format)
+maxmemory 8gb
+maxmemory-policy allkeys-lru   # evict least recently used when full
+
+# Cache mode: more aggressive eviction optimized for caching use case
+# --cache_mode flag on startup, or at runtime:
+redis-cli -h dragonfly:6379 CONFIG SET cache-mode yes
+```
+
+## Multi-threading: saturating all CPU cores
+
+```bash
+# Redis: single-threaded for commands (I/O threads added in Redis 6 for reads)
+# Maximum throughput on one instance: ~100-200k ops/sec depending on command mix
+
+# Dragonfly: runs one fiber per CPU core for commands
+# On a 32-core machine: ~2M ops/sec for GET/SET mix
+# On a 64-core machine: ~4M ops/sec
+
+# Benchmark comparison
+# Redis 7 (single node):
+redis-benchmark -h redis:6379 -t get,set -n 1000000 -c 100 -q
+# SET: 198432.00 requests per second
+# GET: 201847.00 requests per second
+
+# Dragonfly (same machine, same command):
+redis-benchmark -h dragonfly:6379 -t get,set -n 1000000 -c 100 -q
+# SET: 2847192.00 requests per second
+# GET: 3012847.00 requests per second
+# ~15x higher throughput on the same hardware
+
+# The thread architecture means:
+# - No single-threaded bottleneck
+# - Pipeline overhead is lower (commands processed in parallel)
+# - No need for cluster mode for throughput (one node replaces a 6-node cluster)
+
+# Dragonfly handles pipelining correctly — pipeline requests go to the same fiber
+# No cross-thread coordination overhead for single-client pipelines
+redis-benchmark -h dragonfly:6379 -t get,set -n 1000000 -c 100 --pipe -q
+# SET: 4218492.00 requests per second  ← pipeline further improves throughput
+```
+
+## Persistence and replication
+
+```bash
+# Dragonfly supports both RDB snapshots and AOF persistence
+# Same config as Redis:
+
+# RDB snapshot every 5 minutes if at least 10 keys changed
+save 300 10
+dbfilename dump.rdb
+dir /data
+
+# AOF: append-only file for durability
+appendonly yes
+appendfsync everysec   # fsync every second (balance of durability vs performance)
+
+# Dragonfly-specific: point-in-time snapshots using copy-on-write
+# Much faster than Redis RDB because it doesn't fork the process
+# (Dragonfly uses fibers, not processes — forking would copy all thread stacks)
+
+# Replica setup (same as Redis replication)
+# On the replica:
+REPLICAOF dragonfly-primary.messaging.svc 6379
+
+# Check replication status
+redis-cli -h dragonfly-primary:6379 INFO replication
+# role:master
+# connected_slaves:1
+# slave0:ip=10.0.1.15,port=6379,state=online,offset=2847192,lag=0
+
+# Dragonfly replication uses a different protocol internally
+# but appears as standard Redis replication to the replica
+# Replicas can be Redis instances (compatible) or other Dragonfly nodes
+
+# Kubernetes deployment with one primary and two replicas
+helm upgrade --install dragonfly oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly \
+  --namespace cache \
+  --set replication.enabled=true \
+  --set replication.replicas=2 \
+  --set resources.limits.memory=8Gi \
+  --set storage.enabled=true \
+  --set storage.requests.storage=20Gi
+```
+
+## Lua scripting and Dragonfly extensions
+
+```bash
+# Dragonfly supports Lua scripting (same as Redis EVAL)
+# MULTI/EXEC transactions work the same way
+
+# Atomic increment with Lua
+redis-cli -h dragonfly:6379 EVAL "
+  local current = redis.call('GET', KEYS[1])
+  if current == false then current = 0 end
+  local new = tonumber(current) + tonumber(ARGV[1])
+  redis.call('SET', KEYS[1], new)
+  return new
+" 1 "user:12345:credits" 100
+# (integer) 100
+
+# Rate limiting with sliding window (common pattern)
+redis-cli -h dragonfly:6379 EVAL "
+  local key = KEYS[1]
+  local limit = tonumber(ARGV[1])
+  local window = tonumber(ARGV[2])
+  local now = tonumber(ARGV[3])
+  local window_start = now - window
+
+  redis.call('ZREMRANGEBYSCORE', key, '-inf', window_start)
+  local count = redis.call('ZCARD', key)
+
+  if count >= limit then
+    return 0  -- rate limited
+  end
+
+  redis.call('ZADD', key, now, now)
+  redis.call('EXPIRE', key, window)
+  return 1  -- allowed
+" 1 "ratelimit:user:12345" 100 60000 $(date +%s%3N)
+# 1 (allowed, first request)
+
+# Dragonfly DFly command (Dragonfly-specific extensions)
+redis-cli -h dragonfly:6379 DFLY GETSET user:session:12345 "newvalue" EX 3600
+# Returns old value, sets new value atomically — more efficient than GET+SET
+```
+
+Dragonfly vs Redis vs KeyDB: KeyDB (now Snap KV, acquired by Snap) is the other multi-threaded Redis fork — similar architecture, similar performance gains vs single-threaded Redis. Dragonfly's memory efficiency advantage (dashtable) is the main differentiator from KeyDB. Both are Redis-compatible. The production case for Dragonfly: teams running Redis Cluster who have hit the single-node throughput ceiling. Redis Cluster solves the throughput problem but adds slot-based sharding complexity, cross-slot transaction restrictions (MULTI/EXEC across different keys that hash to different slots fails), and operational overhead (6+ nodes for a minimal cluster with replicas). A single Dragonfly node matching the throughput of a 6-node Redis Cluster with none of the cluster topology management is a significant operational simplification. The adoption risk: Dragonfly is newer (founded 2022) and has less production battle-testing than Redis's 15-year history.

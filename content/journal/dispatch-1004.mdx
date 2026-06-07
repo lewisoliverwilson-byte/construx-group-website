@@ -1,0 +1,245 @@
+---
+title: "Redpanda Console: Kafka/Redpanda cluster management UI"
+date: "2033-03-14"
+excerpt: "Redpanda Console (formerly Kowl) is a web UI for Kafka and Redpanda clusters. It surfaces topic metadata, consumer group lag, message browsing with schema-aware deserialization, and connect pipeline configuration — things that previously required the JARs from the Kafka distribution or separate tooling. The message browser deserializes Avro, Protobuf, and JSON schema payloads from the Schema Registry, so you see the actual event structure rather than binary blobs. Consumer group lag visualization shows which groups are behind and by how much — the information you need to know if a processing backlog is growing before it becomes an incident."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Topic browser. Schema-aware deserialization. Consumer group lag. Kafka Connect UI. ACL management.
+
+## Deployment and configuration
+
+```yaml
+# Redpanda Console Helm chart
+helm upgrade --install redpanda-console redpanda/console \
+  --namespace messaging \
+  -f console-values.yaml
+
+cat > console-values.yaml <<'EOF'
+console:
+  config:
+    kafka:
+      brokers:
+        - redpanda-0.redpanda.messaging.svc:9093
+        - redpanda-1.redpanda.messaging.svc:9093
+        - redpanda-2.redpanda.messaging.svc:9093
+      tls:
+        enabled: true
+        caFilepath: /etc/ssl/certs/kafka-ca.crt
+      sasl:
+        enabled: true
+        mechanism: SCRAM-SHA-512
+        username: console
+        password: ${KAFKA_SASL_PASSWORD}
+
+    schemaRegistry:
+      enabled: true
+      urls:
+        - http://redpanda.messaging.svc:8081
+
+    connect:
+      enabled: true
+      clusters:
+        - name: construx-connect
+          url: http://kafka-connect.messaging.svc:8083
+
+    # Topic documentation: link topics to their schema/docs
+    topicDocumentation:
+      enabled: true
+      git:
+        enabled: true
+        repository:
+          url: https://github.com/construx/kafka-schemas
+          branch: main
+          baseDirectory: docs/topics
+
+login:
+  enabled: true
+  github:
+    enabled: true
+    clientId: ${GITHUB_CLIENT_ID}
+    clientSecret: ${GITHUB_CLIENT_SECRET}
+    organizations:
+      - construx   # only allow members of the 'construx' GitHub org
+EOF
+
+# Or run locally against a Redpanda dev cluster
+docker run -d \
+  --name console \
+  -p 8080:8080 \
+  -e CONFIG_FILEPATH=/tmp/config.yaml \
+  -v $PWD/console-config.yaml:/tmp/config.yaml \
+  docker.redpanda.com/redpandadata/console:latest
+```
+
+## Message browser and schema-aware deserialization
+
+```bash
+# Redpanda Console's message browser fetches messages and deserializes them
+# using the Schema Registry — you see the actual event data, not binary
+
+# Topics list (via Console API, also visible in UI)
+curl -s http://console:8080/api/topics | jq '.[].topicName'
+# "construx.events"
+# "construx.orders"
+# "construx.inventory"
+# "_redpanda.consumer_offsets"
+
+# Topic details
+curl -s http://console:8080/api/topics/construx.events | jq '{
+  partitions: .partitionCount,
+  replicas: .replicationFactor,
+  config: (.config | to_entries | map(select(.key | test("retention|compression"))))
+}'
+
+# Message browsing (via Console API)
+curl -s 'http://console:8080/api/topics/construx.events/messages' \
+  -G \
+  --data-urlencode 'startOffset=-1' \    # -1 = newest
+  --data-urlencode 'partitionID=-1' \    # -1 = all partitions
+  --data-urlencode 'pageSize=10' \
+  | jq '.messages[] | {
+      offset:    .offset,
+      partition: .partitionID,
+      key:       .key.payload,
+      value:     .value.payload,   # already deserialized from Avro/Protobuf
+      timestamp: .timestamp
+    }'
+
+# Search within messages (server-side filter)
+curl -s 'http://console:8080/api/topics/construx.events/messages' \
+  -G \
+  --data-urlencode 'startOffset=0' \
+  --data-urlencode 'filter=return value.user_id === 12345' \
+  | jq '.messages | length'
+# Returns only messages matching the JavaScript filter expression
+
+# The Console runs the filter expression on the broker side
+# (Redpanda-specific feature — standard Kafka requires client-side filtering)
+```
+
+## Consumer group lag monitoring
+
+```bash
+# Consumer groups page shows lag per partition
+curl -s http://console:8080/api/consumer-groups | jq '.[] | {
+  group:      .groupId,
+  state:      .state,
+  totalLag:   .lagSum,
+  members:    (.members | length)
+}' | sort_by(.totalLag) | reverse
+
+# {
+#   "group":    "construx-checkout-processor",
+#   "state":    "stable",
+#   "totalLag": 47,
+#   "members":  3
+# }
+# {
+#   "group":    "construx-analytics-sink",
+#   "state":    "stable",
+#   "totalLag": 12847,    ← this group is falling behind
+#   "members":  1
+# }
+
+# Detailed lag per partition for a slow group
+curl -s http://console:8080/api/consumer-groups/construx-analytics-sink | \
+  jq '.lag.topicLags[] | .topicName as $topic |
+      .partitionLags[] | {
+        topic:     $topic,
+        partition: .partitionID,
+        lag:       .lag,
+        memberID:  .memberID
+      }' | sort_by(.lag) | reverse
+
+# Lag alerts: trigger when lag exceeds threshold
+# Using the Console's Prometheus metrics endpoint:
+curl -s http://console:8080/api/metrics | grep 'kowl_consumer_group_lag'
+# kowl_consumer_group_lag{group="construx-analytics-sink",partition="0",topic="construx.events"} 4291
+# kowl_consumer_group_lag{group="construx-analytics-sink",partition="1",topic="construx.events"} 3847
+
+# Prometheus alert rule:
+# - alert: KafkaConsumerGroupLagHigh
+#   expr: kowl_consumer_group_lag{group=~"construx-.*"} > 10000
+#   for: 5m
+#   annotations:
+#     summary: "Consumer group {{ $labels.group }} lag {{ $value }} on {{ $labels.topic }}"
+```
+
+## Kafka Connect pipeline management
+
+```bash
+# Kafka Connect: move data between Kafka topics and external systems
+# (Postgres CDC → Kafka, Kafka → S3, Kafka → ClickHouse)
+
+# Console shows all connectors and their status
+curl -s http://console:8080/api/kafka-connect/clusters/construx-connect/connectors \
+  | jq '.[] | {name: .name, state: .status.connector.state, tasks: (.status.tasks | length)}'
+
+# Postgres CDC connector (Debezium): stream changes from Postgres to Kafka
+curl -X POST http://kafka-connect.messaging.svc:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "construx-postgres-cdc",
+    "config": {
+      "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+      "database.hostname": "postgres.construx-prod.svc",
+      "database.port": "5432",
+      "database.user": "debezium",
+      "database.password": "${POSTGRES_PASSWORD}",
+      "database.dbname": "construx",
+      "table.include.list": "public.orders,public.products",
+      "plugin.name": "pgoutput",
+      "slot.name": "debezium",
+      "topic.prefix": "construx.db",
+      "transforms": "unwrap",
+      "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+      "transforms.unwrap.drop.tombstones": "false",
+      "key.converter": "io.confluent.kafka.serializers.KafkaAvroSerializer",
+      "value.converter": "io.confluent.kafka.serializers.KafkaAvroSerializer",
+      "key.converter.schema.registry.url": "http://redpanda.messaging.svc:8081",
+      "value.converter.schema.registry.url": "http://redpanda.messaging.svc:8081"
+    }
+  }'
+
+# S3 sink: archive Kafka topics to S3 as Parquet
+curl -X POST http://kafka-connect.messaging.svc:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "construx-s3-sink",
+    "config": {
+      "connector.class": "io.confluent.connect.s3.S3SinkConnector",
+      "tasks.max": "3",
+      "topics.regex": "construx\\..*",
+      "s3.region": "eu-west-1",
+      "s3.bucket.name": "construx-kafka-archive",
+      "s3.part.size": "5242880",
+      "storage.class": "io.confluent.connect.s3.storage.S3Storage",
+      "format.class": "io.confluent.connect.s3.format.parquet.ParquetFormat",
+      "parquet.codec": "snappy",
+      "flush.size": "10000",
+      "rotate.interval.ms": "600000",   # flush every 10 min or 10k messages
+      "path.format": "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH"
+    }
+  }'
+
+# ClickHouse sink: stream events into ClickHouse for analytics
+curl -X POST http://kafka-connect.messaging.svc:8083/connectors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "construx-clickhouse-sink",
+    "config": {
+      "connector.class": "com.clickhouse.kafka.connect.ClickHouseSinkConnector",
+      "topics": "construx.events",
+      "hostname": "clickhouse.analytics.svc",
+      "database": "construx",
+      "ssl": "true",
+      "username": "kafka_ingest",
+      "password": "${CLICKHOUSE_PASSWORD}",
+      "exactlyOnce": "true"
+    }
+  }'
+```
+
+Kafka Connect vs custom consumers for data pipelines: Kafka Connect provides a declarative, configuration-driven way to move data between Kafka and external systems with built-in offset management, parallelism, and dead-letter queues. The Debezium CDC connector in particular is mature and handles Postgres WAL replication, schema changes, and backfill correctly in ways that are difficult to implement correctly in custom code. The trade-off: Connect is a heavy JVM process (500MB RAM per connector JVM), and the Confluent connector ecosystem has a mix of open-source and paid connectors. For high-volume simple transformations, custom consumers written in Go or Python are faster and more operationally predictable. For CDC and data warehouse pipelines where correctness matters more than throughput, Connect + Debezium is the right default.
