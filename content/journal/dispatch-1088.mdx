@@ -1,0 +1,155 @@
+---
+title: "Kubeflow Pipelines: ML pipeline platform — Python SDK, component reuse, experiment tracking"
+date: "2033-11-21"
+excerpt: "Kubeflow Pipelines (KFP) is an ML-specific pipeline platform built on top of Argo Workflows. Where Argo Workflows requires writing YAML, KFP provides a Python SDK: you decorate Python functions with @component to turn them into containerised pipeline steps, then compose them into a pipeline using @pipeline. KFP compiles the Python pipeline definition to an Argo Workflow YAML and submits it to the cluster. KFP adds ML-specific features on top of Argo: an experiment system for grouping related pipeline runs, a model registry for tracking trained model artifacts, run comparison (comparing metrics and hyperparameters across runs), and a cache layer that detects when a step's inputs and code hash haven't changed and re-uses the previous output (skipping recomputation). The KFP UI provides a visual DAG view, per-step logs, and metric plots. KFP integrates with Google Vertex AI, AWS SageMaker Pipelines, and Azure ML for cloud-native execution. For teams doing serious ML in production — tracking experiments, comparing model versions, ensuring reproducibility — KFP provides the scaffolding that raw Argo Workflows doesn't include out of the box."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Python SDK. @component. @pipeline. Experiment tracking. Step caching. Model registry. SDK v2.
+
+## Pipeline definition with KFP Python SDK
+
+```python
+# KFP Python SDK v2: define ML pipeline as Python functions
+
+from kfp import dsl
+from kfp import compiler
+from kfp.dsl import Dataset, Model, Output, Input, Metrics
+
+# Component: data preparation
+# @component compiles this function to a Docker container step
+@dsl.component(
+    base_image='python:3.11',
+    packages_to_install=['pandas', 'pyarrow', 'boto3'],
+)
+def prepare_data(
+    dataset_date: str,
+    output_dataset: Output[Dataset],   # KFP tracks this as a typed artifact
+):
+    import pandas as pd
+    # ... load data from S3
+    df = pd.read_parquet(f's3://construx-lakehouse/events/date={dataset_date}/')
+    df.to_parquet(output_dataset.path, index=False)
+
+    # Record metadata on the artifact
+    output_dataset.metadata['rows']    = len(df)
+    output_dataset.metadata['columns'] = list(df.columns)
+    output_dataset.metadata['date']    = dataset_date
+
+# Component: feature engineering
+@dsl.component(
+    base_image='registry.construx.internal/ml-base:python3.11',
+    packages_to_install=['scikit-learn'],
+)
+def engineer_features(
+    raw_dataset:     Input[Dataset],
+    feature_dataset: Output[Dataset],
+):
+    import pandas as pd
+    from sklearn.preprocessing import StandardScaler
+
+    df = pd.read_parquet(raw_dataset.path)
+    scaler = StandardScaler()
+    numeric_cols = df.select_dtypes('number').columns
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    df.to_parquet(feature_dataset.path, index=False)
+
+# Component: model training — runs on GPU
+@dsl.component(
+    base_image='registry.construx.internal/ml-gpu:cuda12.4',
+    packages_to_install=['xgboost', 'mlflow'],
+)
+def train_model(
+    features:    Input[Dataset],
+    algorithm:   str,
+    n_estimators: int,
+    trained_model: Output[Model],
+    metrics:       Output[Metrics],
+):
+    import xgboost as xgb
+    import pandas as pd
+
+    df = pd.read_parquet(features.path)
+    X, y = df.drop('target', axis=1), df['target']
+
+    model = xgb.XGBClassifier(n_estimators=n_estimators)
+    model.fit(X, y)
+
+    import pickle
+    with open(trained_model.path, 'wb') as f:
+        pickle.dump(model, f)
+
+    # Log metrics — visible in KFP UI and MLflow
+    from sklearn.metrics import accuracy_score
+    metrics.log_metric('accuracy', float(accuracy_score(y, model.predict(X))))
+    metrics.log_metric('n_estimators', n_estimators)
+
+# Pipeline: compose components into a DAG
+@dsl.pipeline(
+    name='construx-ml-training',
+    description='End-to-end ML training pipeline',
+)
+def ml_training_pipeline(
+    dataset_date: str = '2033-11-21',
+    n_estimators: int = 500,
+):
+    # Step 1: prepare data
+    prep_task = prepare_data(dataset_date=dataset_date)
+
+    # Step 2: feature engineering (depends on prep)
+    feat_task = engineer_features(raw_dataset=prep_task.outputs['output_dataset'])
+
+    # Step 3: train two models in parallel
+    train_a = train_model(
+        features=feat_task.outputs['feature_dataset'],
+        algorithm='xgboost',
+        n_estimators=n_estimators,
+    ).set_accelerator_type('nvidia.com/gpu').set_accelerator_limit(1)
+
+    train_b = train_model(
+        features=feat_task.outputs['feature_dataset'],
+        algorithm='lightgbm',
+        n_estimators=n_estimators,
+    ).set_accelerator_type('nvidia.com/gpu').set_accelerator_limit(1)
+
+# Compile pipeline to YAML and submit
+compiler.Compiler().compile(ml_training_pipeline, 'pipeline.yaml')
+```
+
+```python
+# Submit and track pipeline runs via KFP client
+
+import kfp
+
+client = kfp.Client(host='https://kubeflow.construx.internal/pipeline')
+
+# Create an experiment (groups related runs)
+experiment = client.create_experiment(name='construx-ml-v2')
+
+# Submit a run
+run = client.create_run_from_pipeline_func(
+    ml_training_pipeline,
+    experiment_name = 'construx-ml-v2',
+    run_name        = 'training-20331121',
+    arguments       = {
+        'dataset_date': '2033-11-21',
+        'n_estimators': 500,
+    },
+    enable_caching  = True,   # re-use previous step outputs if inputs unchanged
+)
+
+# Monitor run status
+run.wait_for_run_completion(timeout=3600)
+print(run.state)   # SUCCEEDED or FAILED
+
+# List experiments and compare run metrics
+runs = client.list_runs(experiment_id=experiment.experiment_id)
+for r in runs.runs:
+    print(f"{r.name}: {r.metrics}")
+# training-20331121: accuracy=0.924
+# training-20331118: accuracy=0.919
+# training-20331115: accuracy=0.921
+```
+
+Kubeflow Pipelines vs MLflow vs Metaflow vs raw Argo Workflows vs SageMaker Pipelines: MLflow is an experiment tracking and model registry platform — it tracks metrics, parameters, and artifacts per run but doesn't orchestrate the pipeline itself (it doesn't schedule GPU pods, pass artifacts between steps, or handle retries). You use MLflow inside KFP steps to log metrics. Metaflow (Netflix) is a Python-native pipeline framework with local and cloud execution — excellent developer ergonomics, but Kubernetes-native features (GPU requests, PVC artifacts) require Metaflow's Kubernetes plugin. Raw Argo Workflows (dispatch-1087) requires YAML definitions — KFP's Python SDK is a higher-level abstraction on top. SageMaker Pipelines is the managed AWS alternative — correct for teams fully committed to AWS who want managed infrastructure, but it locks you to AWS. KFP runs on any Kubernetes cluster with Argo Workflows installed. For ML teams doing production training on Kubernetes with reproducibility requirements (experiment comparison, cached intermediate results, artifact lineage), KFP provides the tooling layer between raw Argo and a full managed ML platform.

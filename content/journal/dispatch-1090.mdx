@@ -1,0 +1,221 @@
+---
+title: "NATS JetStream: persistent messaging and object store — subjects, consumers, key-value"
+date: "2033-11-27"
+excerpt: "NATS is a lightweight, high-throughput messaging system originally designed for fire-and-forget pub/sub. JetStream is NATS's persistence layer: it adds durable streams (ordered, replicated logs of messages) and consumers (cursor-based, push or pull, with ack tracking) on top of the core NATS protocol. A JetStream stream captures all messages on a set of subjects into an ordered log stored on disk with configurable replication (1, 3, or 5 replicas via Raft). Consumers are views into that stream — each consumer tracks its own cursor and acknowledgement state independently, so multiple services can consume the same stream at different speeds without affecting each other. JetStream also provides a Key-Value store (strongly consistent, watch for changes, history per key, TTL) and an Object Store (large binary blobs stored as chunked NATS messages). The operational footprint is extremely light: a single NATS server binary, no ZooKeeper, no Kafka broker overhead. NATS JetStream clusters with 3-5 servers handle millions of messages per second at sub-millisecond latency. At Construx, JetStream is the event bus for real-time pipeline events, the config store for distributed service configuration, and the object store tier for ML artifact hand-off between pipeline steps."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Streams. Consumers. Subjects. Ack. Key-Value. Object Store. Push/pull. Replication.
+
+## Stream and consumer configuration
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "time"
+
+    "github.com/nats-io/nats.go"
+    "github.com/nats-io/nats.go/jetstream"
+)
+
+func main() {
+    // Connect to NATS cluster
+    nc, _ := nats.Connect("nats://nats.construx.svc.cluster.local:4222",
+        nats.UserCredentials("/etc/nats/creds/construx-api.creds"),
+        nats.MaxReconnects(-1),
+    )
+    defer nc.Drain()
+
+    js, _ := jetstream.New(nc)
+    ctx := context.Background()
+
+    // Create a stream: captures all events on construx.events.>
+    stream, _ := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+        Name:        "CONSTRUX_EVENTS",
+        Description: "All construx domain events",
+        Subjects:    []string{"construx.events.>"},
+        MaxAge:      7 * 24 * time.Hour,   // retain for 7 days
+        MaxBytes:    10 << 30,             // 10 GB cap
+        Replicas:    3,                    // replicated across 3 NATS servers
+        Storage:     jetstream.FileStorage,
+        Retention:   jetstream.LimitsPolicy,
+        Discard:     jetstream.DiscardOld,
+    })
+    _ = stream
+
+    // Publish domain events
+    // Subject hierarchy: construx.events.<domain>.<type>
+    js.Publish(ctx, "construx.events.orders.created", []byte(`{
+        "tenant_id": "acme",
+        "order_id":  "ord_9f3k2",
+        "amount":    1249.00,
+        "ts":        "2033-11-27T09:14:22Z"
+    }`))
+
+    js.Publish(ctx, "construx.events.payments.succeeded", []byte(`{
+        "tenant_id":  "acme",
+        "payment_id": "pay_7x1q9",
+        "order_id":   "ord_9f3k2",
+        "ts":         "2033-11-27T09:14:23Z"
+    }`))
+
+    // Pull consumer: billing service processes payment events
+    // Each service gets its own consumer — independent cursors, independent ack state
+    consumer, _ := js.CreateOrUpdateConsumer(ctx, "CONSTRUX_EVENTS", jetstream.ConsumerConfig{
+        Durable:        "billing-service",
+        FilterSubject:  "construx.events.payments.>",
+        DeliverPolicy:  jetstream.DeliverAllPolicy,
+        AckPolicy:      jetstream.AckExplicitPolicy,
+        MaxDeliver:     5,              // retry up to 5 times before NAK-ing to DLQ
+        AckWait:        30 * time.Second,
+    })
+
+    // Pull messages in batches
+    msgs, _ := consumer.Fetch(10, jetstream.FetchMaxWait(5*time.Second))
+    for msg := range msgs.Messages() {
+        fmt.Printf("subject=%s data=%s\n", msg.Subject(), string(msg.Data()))
+
+        if err := processBillingEvent(msg.Data()); err != nil {
+            msg.Nak()   // requeue for retry
+            continue
+        }
+        msg.Ack()       // advance consumer cursor
+    }
+}
+
+func processBillingEvent(data []byte) error { return nil }
+```
+
+```go
+// JetStream Key-Value store: distributed configuration, feature flags, state
+// Backed by a JetStream stream under the hood — strongly consistent, watchable
+
+kv, _ := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+    Bucket:   "construx-config",
+    History:  10,                  // keep last 10 versions of each key
+    TTL:      0,                   // no expiry by default
+    Replicas: 3,
+    Storage:  jetstream.FileStorage,
+})
+
+// Write config values
+kv.Put(ctx, "tenants.acme.feature_flags.new_checkout", []byte("true"))
+kv.Put(ctx, "tenants.acme.rate_limit.requests_per_minute", []byte("1000"))
+
+// Read a value
+entry, _ := kv.Get(ctx, "tenants.acme.feature_flags.new_checkout")
+fmt.Println(string(entry.Value()))   // true
+
+// Watch for changes in real time — services self-update without polling
+watcher, _ := kv.WatchAll(ctx)
+for entry := range watcher.Updates() {
+    if entry == nil { break }   // nil signals initial values delivered
+    fmt.Printf("key=%s value=%s revision=%d\n",
+        entry.Key(), string(entry.Value()), entry.Revision())
+}
+
+// Object Store: ML artifacts (model files, datasets) stored as chunked NATS messages
+// Replaces a dedicated S3 call for intra-cluster artifact hand-off
+obs, _ := js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
+    Bucket:      "construx-ml-artifacts",
+    Description: "ML pipeline intermediate artifacts",
+    Replicas:    3,
+    Storage:     jetstream.FileStorage,
+    MaxChunkSize: 128 * 1024,   // 128 KB chunks
+})
+
+// Store a model artifact
+obs.PutFile(ctx, "/tmp/model.pkl")   // streams file in chunks to NATS
+
+// Retrieve in next pipeline step
+obs.GetFile(ctx, "model.pkl", "/tmp/model-retrieved.pkl")
+```
+
+```yaml
+# NATS cluster deployment on Kubernetes via nats-operator / Helm
+# nats/nats Helm chart — 3-server cluster with JetStream enabled
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: construx-infra
+data:
+  nats.conf: |
+    server_name: $POD_NAME
+    listen: 0.0.0.0:4222
+    monitor_port: 8222
+
+    cluster {
+      name: construx-nats
+      listen: 0.0.0.0:6222
+      routes: [
+        nats-0.nats-headless.construx-infra.svc.cluster.local:6222
+        nats-1.nats-headless.construx-infra.svc.cluster.local:6222
+        nats-2.nats-headless.construx-infra.svc.cluster.local:6222
+      ]
+    }
+
+    jetstream {
+      store_dir: /data/jetstream
+      max_memory_store: 4GB
+      max_file_store:   50GB
+    }
+
+    # mTLS: verify client credentials
+    tls {
+      cert_file:  /etc/nats/certs/server.crt
+      key_file:   /etc/nats/certs/server.key
+      ca_file:    /etc/nats/certs/ca.crt
+      verify:     true
+    }
+```
+
+```bash
+# NATS CLI: stream and consumer management
+
+# Install NATS CLI
+brew install nats-io/nats-tools/nats
+
+# Create stream
+nats stream add CONSTRUX_EVENTS \
+  --subjects "construx.events.>" \
+  --retention limits \
+  --max-age 7d \
+  --replicas 3 \
+  --storage file
+
+# Inspect stream state
+nats stream info CONSTRUX_EVENTS
+# Information for Stream CONSTRUX_EVENTS
+#   Subjects:  construx.events.>
+#   Replicas:  3
+#   Messages:  2,847,391
+#   Bytes:     4.2 GiB
+#   FirstSeq:  1 @ 2033-11-20T00:00:01Z
+#   LastSeq:   2847391 @ 2033-11-27T09:14:23Z
+#   Consumers: 4
+
+# View consumer lag
+nats consumer info CONSTRUX_EVENTS billing-service
+# Ack Pending:  0         ← fully caught up
+# Unprocessed:  0
+# Last Deliver: 2847391
+
+# Publish a test message
+nats pub construx.events.orders.created '{"test": true}'
+
+# Subscribe to a subject
+nats sub "construx.events.>"
+
+# Prometheus metrics scraping — NATS exposes /varz, /connz, /jsz
+# jetstream_api_total{account="$G"} 48291
+# jetstream_messages_total{stream="CONSTRUX_EVENTS"} 2847391
+# nats_server_in_msgs_total 14392847
+```
+
+NATS JetStream vs Kafka vs Pulsar vs Redis Streams vs RabbitMQ: Kafka is the dominant durable streaming platform — excellent for very high throughput, strong ecosystem (Kafka Connect, Kafka Streams, ksqlDB), but operationally heavy (ZooKeeper or KRaft, separate schema registry, high broker memory). Pulsar (dispatch-1072) separates storage (BookKeeper) from serving (brokers) for independent scaling, and adds multi-tenancy and geo-replication as first-class features — better than Kafka for multi-tenant SaaS at scale. Redis Streams is the lightest option for simple queue-style workloads — good developer ergonomics, but not designed for high-throughput durable streaming or multi-consumer fan-out at scale. RabbitMQ is the AMQP standard — mature, good for routing-heavy workloads (exchanges, bindings), but not architected for streaming semantics (replay, cursor, long retention). NATS JetStream occupies a distinct position: single binary, zero external dependencies, sub-millisecond latency, and a unified model that covers pub/sub + persistent streams + KV store + object store. The trade-off is ecosystem depth — Kafka has a vastly larger connector and tooling ecosystem. For microservices needing fast, lightweight messaging with durable semantics and a built-in KV store for config, NATS JetStream is unmatched on operational simplicity.

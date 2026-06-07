@@ -27,6 +27,7 @@ import LinkerdPanel from '@/components/LinkerdPanel';
 import TetragonPanel from '@/components/TetragonPanel';
 import IstioPanel from '@/components/IstioPanel';
 import ThanosPanel from '@/components/ThanosPanel';
+import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -345,8 +346,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* thanos prometheus long-term storage — s3, global query, deduplication, compaction */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ThanosPanel />
+        </div>
+
+        {/* argo workflows dag pipelines — ml training, artifacts, parallel steps */}
+        <div className="mt-4 pb-6">
+          <ArgoWorkflowsPanel />
         </div>
 
         {/* Sign-off */}
