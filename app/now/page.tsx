@@ -83,6 +83,7 @@ import CoverageReportPanel from '@/components/CoverageReportPanel';
 import EnvPanel from '@/components/EnvPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -782,8 +783,13 @@ export default function NowPage() {
         </div>
 
         {/* nftables — chains, rules, sets, counters */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NftablesPanel />
+        </div>
+
+        {/* npm outdated — packages, current, wanted, latest */}
+        <div className="mt-6 pb-10">
+          <NpmOutdatedPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

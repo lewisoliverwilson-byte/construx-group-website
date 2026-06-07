@@ -83,6 +83,7 @@ import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
+import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -918,8 +919,13 @@ export default function FoundersPage() {
         </div>
 
         {/* network ping — hosts, rtt, loss, jitter */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NetworkPingPanel />
+        </div>
+
+        {/* npm global — packages, versions, outdated, paths */}
+        <div className="mt-6 pb-10">
+          <NpmGlobalPanel />
         </div>
 
         {/* CTA */}

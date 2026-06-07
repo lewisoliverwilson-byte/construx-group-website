@@ -85,6 +85,7 @@ import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import CuePanel from '@/components/CuePanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import NetdataPanel from '@/components/NetdataPanel';
+import NomadPanel from '@/components/NomadPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -830,8 +831,13 @@ export default function StatsPage() {
       </div>
 
       {/* netdata — real-time metrics, alarms, charts, agents */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NetdataPanel />
+      </div>
+
+      {/* nomad — jobs, allocations, nodes, namespaces */}
+      <div className="mt-6 pb-10">
+        <NomadPanel />
       </div>
     </div>
   );
