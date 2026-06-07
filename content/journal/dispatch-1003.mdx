@@ -1,0 +1,226 @@
+---
+title: "Redpanda: Kafka-compatible streaming without JVM overhead"
+date: "2033-03-11"
+excerpt: "Redpanda is a Kafka-compatible event streaming platform written in C++ (not Java). It implements the Kafka wire protocol completely, meaning existing Kafka clients, Kafka Streams, and Kafka Connect connectors work unchanged. The motivation for rewriting in C++: the JVM adds startup latency (seconds vs milliseconds), GC pauses create p99 latency spikes at high throughput, and the operational complexity of tuning JVM heap sizes and GC settings is a constant source of incidents. Redpanda uses the Seastar framework for async I/O, runs one thread per CPU core without OS thread switching, and eliminates ZooKeeper entirely — the Raft consensus for controller metadata is built in. A three-node Redpanda cluster cold starts in under 500ms."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Kafka wire protocol. C++ / Seastar. No JVM. No ZooKeeper. Raft consensus built in. 500ms cold start.
+
+## Setup and basic operations
+
+```bash
+# Install Redpanda CLI
+curl -1sLf 'https://dl.redpanda.com/public/redpanda/setup.rpm.sh' | bash
+yum install redpanda
+
+# Or Docker (single node for development)
+docker run -d \
+  --name redpanda \
+  --pull=always \
+  -p 9092:9092 \
+  -p 8081:8081 \   # Schema Registry
+  -p 8082:8082 \   # HTTP Proxy (Pandaproxy)
+  -p 9644:9644 \   # Admin API
+  docker.redpanda.com/redpandadata/redpanda:latest \
+  redpanda start \
+  --overprovisioned \
+  --smp 1 \
+  --memory 1G \
+  --reserve-memory 0M \
+  --node-id 0 \
+  --kafka-addr PLAINTEXT://0.0.0.0:9092 \
+  --advertise-kafka-addr PLAINTEXT://127.0.0.1:9092
+
+# rpk: Redpanda's CLI (replaces Kafka's bin/kafka-*.sh scripts)
+# rpk is also a Kafka-compatible CLI — works with standard Kafka too
+
+# Create a topic
+rpk topic create construx.events \
+  --partitions 12 \
+  --replicas 3 \       # for 3-node cluster
+  --topic-config retention.ms=604800000  # 7 days retention
+
+# Produce messages
+echo '{"event_type":"checkout","user_id":12345,"total_cents":4999}' \
+  | rpk topic produce construx.events --key=user:12345
+
+# Consume messages
+rpk topic consume construx.events --from-beginning --num 5
+# {
+#   "topic": "construx.events",
+#   "key": "user:12345",
+#   "value": "{\"event_type\":\"checkout\",\"user_id\":12345,\"total_cents\":4999}",
+#   "timestamp": 1677664800000,
+#   "partition": 4,
+#   "offset": 0
+# }
+
+# Topic metadata
+rpk topic describe construx.events
+# NAME              PARTITIONS  REPLICAS
+# construx.events   12          3
+
+rpk topic describe construx.events --print-partitions
+# PARTITION  LEADER  EPOCH  REPLICAS    LOG-START-OFFSET  HIGH-WATERMARK
+# 0          1       2      [1, 2, 3]   0                 18472
+# 1          2       2      [2, 3, 1]   0                 19103
+# ...
+```
+
+## Kubernetes deployment with Redpanda Helm chart
+
+```yaml
+# Production 3-node cluster on Kubernetes
+helm repo add redpanda https://charts.redpanda.com
+helm upgrade --install redpanda redpanda/redpanda \
+  --namespace messaging \
+  -f redpanda-values.yaml
+
+# redpanda-values.yaml
+statefulset:
+  replicas: 3
+
+storage:
+  persistentVolume:
+    enabled: true
+    size: 500Gi
+    storageClass: gp3-io1   # high-IOPS SSD for low-latency writes
+
+resources:
+  cpu:
+    cores: 4         # Redpanda uses --smp=4, one thread per core
+  memory:
+    container:
+      max: 8Gi
+
+config:
+  cluster:
+    auto_create_topics_enabled: false  # prevent accidental topic creation
+    default_topic_replications: 3
+    default_topic_partitions: 12
+
+  tunable:
+    kafka_batch_max_bytes: 1048576      # 1MB max batch size
+    log_segment_size: 134217728         # 128MB segment size
+    compacted_log_segment_size: 67108864  # 64MB for compacted topics
+    retention_bytes: -1   # unlimited (use retention.ms instead)
+
+tls:
+  enabled: true  # enable mTLS between brokers and for clients
+
+auth:
+  sasl:
+    enabled: true   # SASL authentication for clients
+```
+
+## Schema Registry and Pandaproxy
+
+```bash
+# Schema Registry: Avro/Protobuf/JSON Schema versioning and compatibility checking
+# Redpanda bundles a Confluent-compatible Schema Registry at :8081
+
+# Register an Avro schema
+curl -X POST http://localhost:8081/subjects/construx.events-value/versions \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  -d '{
+    "schema": "{\"type\":\"record\",\"name\":\"Event\",\"fields\":[{\"name\":\"event_type\",\"type\":\"string\"},{\"name\":\"user_id\",\"type\":\"long\"},{\"name\":\"occurred_at_ms\",\"type\":\"long\"}]}"
+  }'
+# {"id": 1}
+
+# Retrieve the latest schema
+curl http://localhost:8081/subjects/construx.events-value/versions/latest
+# {"subject":"construx.events-value","version":1,"id":1,"schema":"..."}
+
+# Compatibility check: is this new schema backward-compatible?
+# (BACKWARD: new schema can read data written by old schema)
+curl -X POST http://localhost:8081/compatibility/subjects/construx.events-value/versions/latest \
+  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  -d '{"schema": "<new-schema-with-added-nullable-field>"}'
+# {"is_compatible": true}
+
+# Pandaproxy: HTTP interface for producing and consuming (no Kafka client needed)
+# Produce via HTTP
+curl -X POST http://localhost:8082/topics/construx.events \
+  -H "Content-Type: application/vnd.kafka.json.v2+json" \
+  -d '{"records":[{"key":"user:12345","value":{"event_type":"checkout","user_id":12345}}]}'
+# {"offsets":[{"partition":4,"offset":18473}]}
+
+# Consume via HTTP (create a consumer group first)
+curl -X POST http://localhost:8082/consumers/construx-events-cg \
+  -H "Content-Type: application/vnd.kafka.v2+json" \
+  -d '{"name":"consumer1","auto.offset.reset":"earliest","format":"json"}'
+
+curl -X POST http://localhost:8082/consumers/construx-events-cg/instances/consumer1/subscription \
+  -d '{"topics":["construx.events"]}'
+
+curl http://localhost:8082/consumers/construx-events-cg/instances/consumer1/records
+```
+
+## Consumer groups in Go
+
+```go
+package main
+
+import (
+  "context"
+  "encoding/json"
+  "log"
+  "github.com/twmb/franz-go/pkg/kgo"
+)
+
+type Event struct {
+  EventType   string `json:"event_type"`
+  UserID      int64  `json:"user_id"`
+  TotalCents  int    `json:"total_cents,omitempty"`
+}
+
+func main() {
+  client, err := kgo.NewClient(
+    kgo.SeedBrokers("redpanda.messaging.svc:9092"),
+    kgo.ConsumerGroup("construx-checkout-processor"),
+    kgo.ConsumeTopics("construx.events"),
+    kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+
+    // franz-go: high-performance Kafka client for Go (not confluent-kafka-go)
+    // Uses the same low-level protocol as the Kafka wire spec
+    kgo.WithLogger(kgo.BasicLogger(log.Writer(), kgo.LogLevelInfo, nil)),
+  )
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer client.Close()
+
+  for {
+    fetches := client.PollFetches(context.Background())
+    if errs := fetches.Errors(); len(errs) > 0 {
+      log.Printf("fetch errors: %v", errs)
+      continue
+    }
+
+    fetches.EachRecord(func(r *kgo.Record) {
+      var event Event
+      if err := json.Unmarshal(r.Value, &event); err != nil {
+        log.Printf("unmarshal error for offset %d: %v", r.Offset, err)
+        return
+      }
+
+      if event.EventType == "checkout" {
+        processCheckout(event)
+      }
+    })
+
+    // Commit offsets after processing (explicit, not auto-commit)
+    if err := client.CommitUncommittedOffsets(context.Background()); err != nil {
+      log.Printf("commit error: %v", err)
+    }
+  }
+}
+
+func processCheckout(event Event) {
+  // ... business logic
+}
+```
+
+Redpanda vs Apache Kafka vs Pulsar: Apache Kafka is the established standard — the largest ecosystem, most operator knowledge, and the most battle-tested at scale (10TB/day, thousands of topics). The operational overhead is real: ZooKeeper (or KRaft in newer versions), JVM tuning, heap management. Pulsar adds a tiered storage architecture and multi-tenancy natively but has even more operational complexity (BookKeeper + ZooKeeper + Pulsar brokers). Redpanda's bet is that teams can get Kafka compatibility without the JVM and ZooKeeper operational burden. At startup latency and p99 tail latency, Redpanda wins clearly. At extreme scale (petabytes, thousands of partitions), Kafka has more production evidence. For teams starting a new streaming project, Redpanda is the pragmatic default — Kafka-compatible tooling, significantly less operational overhead.

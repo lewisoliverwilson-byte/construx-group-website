@@ -1,0 +1,206 @@
+---
+title: "ClickHouse: columnar analytics at scale — events, logs, and product analytics"
+date: "2033-03-08"
+excerpt: "ClickHouse is a columnar database designed for analytical workloads — aggregating billions of rows with sub-second latency. The design is opposite to Postgres: data is stored column-by-column (not row-by-row), so a query that reads three columns from a table with 200 columns reads 1.5% of the data instead of 100%. This makes aggregation fast: SELECT count(), avg(duration_ms), percentile(99)(duration_ms) FROM events WHERE event_type='checkout' GROUP BY user_id scans only three columns across billions of rows in seconds. ClickHouse is the right backend for product analytics (Mixpanel-equivalent), log analytics (replacing Elasticsearch for high-volume logs), and any query that's slow in Postgres because it's aggregating millions of rows."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Column storage. Billion-row aggregations in seconds. MergeTree engines. Materialized views. ReplicatedMergeTree HA.
+
+## Data model and table design
+
+```sql
+-- ClickHouse table design: choose the right MergeTree engine
+
+-- ReplacingMergeTree: for upserts (keeps the latest version of each row)
+CREATE TABLE construx.events
+(
+    event_id     UUID         DEFAULT generateUUIDv4(),
+    event_type   LowCardinality(String),  -- LowCardinality = dictionary encoding, fast for <10k values
+    user_id      UInt64,
+    session_id   UInt64,
+    occurred_at  DateTime64(3, 'UTC'),    -- millisecond precision
+    properties   String,                 -- JSON, or use Map(String, String)
+
+    -- Metadata
+    app_version  LowCardinality(String),
+    platform     LowCardinality(String),  -- 'web' | 'ios' | 'android'
+    country      LowCardinality(String),
+
+    -- Partition by month: ClickHouse can skip entire partitions in WHERE clauses
+    _partition_date  Date MATERIALIZED toDate(occurred_at)
+)
+ENGINE = MergeTree()
+PARTITION BY toYYYYMM(_partition_date)   -- partition by month
+ORDER BY (event_type, user_id, occurred_at)  -- sort key = primary index
+SETTINGS index_granularity = 8192;      -- rows per index granule (default)
+
+-- Insert events (batch insert is essential — ClickHouse is not designed for one-row inserts)
+INSERT INTO construx.events
+  (event_type, user_id, session_id, occurred_at, properties, platform)
+VALUES
+  ('page_view', 12345, 98765, '2033-03-08 09:01:00.123', '{"page":"/products"}', 'web'),
+  ('checkout',  12345, 98765, '2033-03-08 09:03:00.456', '{"total_cents":4999,"sku":"WIDGET-01"}', 'web'),
+  ('purchase',  12345, 98765, '2033-03-08 09:03:01.789', '{"order_id":"ORD-9876"}', 'web');
+
+-- ClickHouse is optimized for INSERT of 100-100k rows at a time
+-- Writing one row at a time creates small parts that ClickHouse merges in background
+-- In production: buffer inserts and flush every 1s or 1000 rows
+```
+
+## Analytical queries
+
+```sql
+-- Count events by type for the last 7 days
+-- ClickHouse executes this in ~100ms on 10B rows
+SELECT
+    event_type,
+    count() AS events,
+    count(DISTINCT user_id) AS unique_users
+FROM construx.events
+WHERE occurred_at >= now() - INTERVAL 7 DAY
+GROUP BY event_type
+ORDER BY events DESC;
+
+-- Result (100ms on 10B rows):
+-- event_type    events        unique_users
+-- page_view     1,847,239,012  2,847,192
+-- search        847,192,038    2,102,948
+-- checkout      41,829,402     8,192,847
+-- purchase      12,847,192     7,847,019
+
+-- Funnel analysis: page_view → checkout → purchase
+-- How many users completed each step today?
+SELECT
+    countIf(has_page_view)  AS step1_page_view,
+    countIf(has_checkout)   AS step2_checkout,
+    countIf(has_purchase)   AS step3_purchase,
+    round(100 * countIf(has_checkout) / countIf(has_page_view), 2) AS pct_page_to_checkout,
+    round(100 * countIf(has_purchase) / countIf(has_checkout), 2)  AS pct_checkout_to_purchase
+FROM (
+    SELECT
+        user_id,
+        max(event_type = 'page_view') AS has_page_view,
+        max(event_type = 'checkout')  AS has_checkout,
+        max(event_type = 'purchase')  AS has_purchase
+    FROM construx.events
+    WHERE occurred_at >= today()
+    GROUP BY user_id
+);
+
+-- Retention analysis: day-1 and day-7 retention for new users
+-- Users who signed up last week and returned on day 1 and day 7
+WITH
+    signup_users AS (
+        SELECT DISTINCT user_id, min(occurred_at) AS first_seen
+        FROM construx.events
+        WHERE event_type = 'signup'
+          AND occurred_at >= today() - INTERVAL 14 DAY
+          AND occurred_at < today() - INTERVAL 7 DAY
+        GROUP BY user_id
+    )
+SELECT
+    count(DISTINCT s.user_id) AS cohort_size,
+    countDistinctIf(e.user_id, e.occurred_at >= s.first_seen + INTERVAL 1 DAY
+                               AND e.occurred_at < s.first_seen + INTERVAL 2 DAY) AS day1_retained,
+    countDistinctIf(e.user_id, e.occurred_at >= s.first_seen + INTERVAL 7 DAY
+                               AND e.occurred_at < s.first_seen + INTERVAL 8 DAY) AS day7_retained
+FROM signup_users s
+LEFT JOIN construx.events e ON s.user_id = e.user_id;
+```
+
+## Materialized views: pre-aggregate for faster queries
+
+```sql
+-- Materialized views: triggered on INSERT, pre-compute aggregates
+-- Queries against the aggregate are instant even at billion-row scale
+
+-- Source table: raw events
+-- Aggregate table: pre-computed hourly event counts by type + country
+CREATE TABLE construx.events_hourly_agg
+(
+    hour        DateTime,
+    event_type  LowCardinality(String),
+    country     LowCardinality(String),
+    events      UInt64,
+    unique_users AggregateFunction(uniq, UInt64)  -- HyperLogLog sketch for approx distinct count
+)
+ENGINE = AggregatingMergeTree()
+PARTITION BY toYYYYMM(hour)
+ORDER BY (hour, event_type, country);
+
+-- Materialized view: triggers on INSERT to construx.events
+CREATE MATERIALIZED VIEW construx.events_hourly_mv
+TO construx.events_hourly_agg
+AS SELECT
+    toStartOfHour(occurred_at) AS hour,
+    event_type,
+    country,
+    count()                         AS events,
+    uniqState(user_id)              AS unique_users   -- AggregateState, not a count
+FROM construx.events
+GROUP BY hour, event_type, country;
+
+-- Query the aggregate (1000x faster than querying raw events):
+SELECT
+    hour,
+    event_type,
+    sum(events)                     AS total_events,
+    uniqMerge(unique_users)         AS approx_unique_users  -- merge HyperLogLog sketches
+FROM construx.events_hourly_agg
+WHERE hour >= now() - INTERVAL 24 HOUR
+GROUP BY hour, event_type
+ORDER BY hour, total_events DESC;
+
+-- Result in ~5ms (vs ~2s querying raw events):
+-- 2033-03-08 08:00:00  page_view  8,847,192  2,102,948
+-- 2033-03-08 08:00:00  search     4,192,038    847,192
+```
+
+## ReplicatedMergeTree: HA and replication
+
+```sql
+-- ReplicatedMergeTree: leader-based replication using ZooKeeper (or ClickHouse Keeper)
+-- Replace MergeTree with ReplicatedMergeTree for production HA
+
+CREATE TABLE construx.events ON CLUSTER 'construx_cluster'
+(
+    -- same columns as before
+    event_id     UUID DEFAULT generateUUIDv4(),
+    event_type   LowCardinality(String),
+    user_id      UInt64,
+    occurred_at  DateTime64(3, 'UTC'),
+    _partition_date  Date MATERIALIZED toDate(occurred_at)
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/events', '{replica}')
+PARTITION BY toYYYYMM(_partition_date)
+ORDER BY (event_type, user_id, occurred_at);
+
+-- {shard} and {replica} are macros defined in config.xml per node:
+-- Node ch-1 (shard 1, replica 1): shard=01, replica=01
+-- Node ch-2 (shard 1, replica 2): shard=01, replica=02
+-- Node ch-3 (shard 2, replica 1): shard=02, replica=01
+-- Node ch-4 (shard 2, replica 2): shard=02, replica=02
+
+-- Distributed table: a virtual table that shards queries across all shards
+CREATE TABLE construx.events_distributed ON CLUSTER 'construx_cluster'
+AS construx.events
+ENGINE = Distributed('construx_cluster', construx, events, rand());
+-- rand() = random shard selection on insert (use a hash for locality)
+
+-- Insert goes to Distributed table → sharded to local ReplicatedMergeTree tables
+-- Query on Distributed table → ClickHouse queries all shards in parallel → merges results
+
+-- Check replication lag
+SELECT
+    database,
+    table,
+    replica_name,
+    is_leader,
+    queue_size
+FROM system.replicas
+WHERE database = 'construx';
+```
+
+ClickHouse vs BigQuery vs Redshift vs DuckDB: BigQuery and Redshift are managed services — zero infrastructure management but high cost at scale and latency from the network round-trip to the managed service. ClickHouse self-hosted has higher operational overhead but can be 10-100x cheaper per query at scale. DuckDB is the right answer for single-machine analytical workloads (local data files, analytics in application memory) — it's embedded, needs no server, and is excellent for SQL on Parquet/CSV. ClickHouse is the right answer when DuckDB runs out of memory (>500GB dataset) or when you need a server multiple services can query. The decision point: if your analytics data is below 100GB and you don't need a shared query server, use DuckDB. Above 100GB or multi-service access, use ClickHouse.

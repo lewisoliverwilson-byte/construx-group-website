@@ -22,6 +22,7 @@ import GitWorktreePanel from '@/components/GitWorktreePanel';
 import MisePanel from '@/components/MisePanel';
 import ActPanel from '@/components/ActPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
+import OpenFgaPanel from '@/components/OpenFgaPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -434,8 +435,13 @@ export default function UsesPage() {
         </div>
 
         {/* karpenter node autoscaler by workload shape */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KarpenterPanel />
+        </div>
+
+        {/* openfga fine-grained authorization — zanzibar model */}
+        <div className="mt-6 pb-10">
+          <OpenFgaPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

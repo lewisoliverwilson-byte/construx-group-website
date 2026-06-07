@@ -1,0 +1,247 @@
+---
+title: "Parca: continuous profiling for Go, Python, and Rust in production"
+date: "2033-03-05"
+excerpt: "Parca is a continuous profiling system that collects CPU, memory, goroutine, and mutex profiles from running applications at a configurable sample rate (10Hz by default) and stores them in a columnar format for querying. The key insight is 'continuous': instead of attaching a profiler manually when you notice a problem, Parca runs always and stores profiles indefinitely — when an incident happens at 3am, you can query Parca for what the CPU was doing during the spike, not just a snapshot of what it's doing now. Parca Agent uses eBPF to collect profiles without any application-side SDK or code changes, making it zero-instrumentation for languages with DWARF debug symbols."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+eBPF profiles. Zero instrumentation. Always-on collection. Differential flame graphs. Incident-time replay.
+
+## Deployment and agent configuration
+
+```bash
+# Parca server: stores and queries profiles
+helm repo add parca https://parca-dev.github.io/helm-charts
+helm upgrade --install parca parca/parca \
+  --namespace monitoring \
+  -f parca-values.yaml
+
+cat > parca-values.yaml <<'EOF'
+parca:
+  configFileContents: |
+    object_storage:
+      bucket:
+        type: S3
+        config:
+          bucket: construx-parca-profiles
+          endpoint: s3.eu-west-1.amazonaws.com
+          region: eu-west-1
+
+    scrape_configs:
+      # Parca Agent (eBPF, runs as DaemonSet)
+      - job_name: parca-agent
+        scrape_interval: 10s
+        static_configs:
+          - targets: ["parca-agent.monitoring.svc:7071"]
+
+      # Direct SDK scrape: Go applications with net/http/pprof
+      - job_name: construx-api
+        scrape_interval: 10s
+        static_configs:
+          - targets: ["construx-api.construx-prod.svc:6060"]
+        profiling_config:
+          pprof_config:
+            memory:
+              enabled: true
+            block:
+              enabled: true
+            goroutine:
+              enabled: true
+            mutex:
+              enabled: true
+            process_cpu:
+              enabled: true
+              delta: true     # only collect diff since last scrape
+EOF
+
+# Parca Agent: eBPF-based profiler (DaemonSet, no app changes needed)
+helm upgrade --install parca-agent parca/parca-agent \
+  --namespace monitoring \
+  -f parca-agent-values.yaml
+
+cat > parca-agent-values.yaml <<'EOF'
+parca_agent:
+  args:
+    node: $(NODE_NAME)        # labels profiles with the K8s node
+    store-address: parca.monitoring.svc:7070
+    insecure: true
+    sampling-ratio: 0.5       # sample 50% of all processes (default: 1.0)
+    profiling-duration: 10s   # profile each selected process for 10s
+EOF
+
+# Verify agent is running on every node
+kubectl get pods -n monitoring -l app=parca-agent
+# NAME                 READY  STATUS    RESTARTS  AGE
+# parca-agent-4bx9k    1/1    Running   0         2d
+# parca-agent-7mh3n    1/1    Running   0         2d
+# parca-agent-k2p8s    1/1    Running   0         2d
+```
+
+## Go application: pprof endpoint
+
+```go
+// Enable pprof in Go applications (zero external dependencies)
+// In main.go or server setup:
+
+import (
+  "net/http"
+  _ "net/http/pprof"   // blank import registers /debug/pprof/ routes
+)
+
+func main() {
+  // Profiling endpoint on a separate port (don't expose on public port)
+  go func() {
+    if err := http.ListenAndServe(":6060", nil); err != nil {
+      log.Fatal("pprof server failed:", err)
+    }
+  }()
+
+  // ... rest of application startup
+}
+
+// Available endpoints after enabling:
+// GET /debug/pprof/           — index page
+// GET /debug/pprof/heap       — heap memory profile (allocs + in-use)
+// GET /debug/pprof/goroutine  — goroutine stacks
+// GET /debug/pprof/cpu?seconds=30  — CPU profile for 30s
+// GET /debug/pprof/block      — goroutine blocking (requires SetBlockProfileRate)
+// GET /debug/pprof/mutex      — mutex contention (requires SetMutexProfileFraction)
+// GET /debug/pprof/trace?seconds=5 — execution trace for 5s
+
+// Enable block and mutex profiling at startup
+func init() {
+  runtime.SetBlockProfileRate(1)       // profile all blocking events
+  runtime.SetMutexProfileFraction(1)   // profile all mutex contention
+}
+
+// Secure the pprof endpoint with basic auth or network policy
+// Never expose :6060 externally — it leaks memory contents and goroutine stacks
+// Kubernetes NetworkPolicy: allow only monitoring namespace to reach :6060
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pprof-from-monitoring
+  namespace: construx-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: construx-api
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 6060
+```
+
+## Querying profiles with ParcaQL
+
+```bash
+# Parca UI: http://parca.monitoring.svc:7070
+# Or query via API
+
+# ParcaQL: profile query language (similar to PromQL but for profiles)
+
+# Fetch a CPU flamegraph for construx-api in the last 1 hour
+curl -s 'http://parca:7070/api/query/range' \
+  -d '{
+    "query": "process_cpu:cpu:nanoseconds:cpu:nanoseconds{job=\"construx-api\"}",
+    "start": "2033-03-05T08:00:00Z",
+    "end":   "2033-03-05T09:00:00Z",
+    "step":  "60s"
+  }' | jq '.series[0].samples | length'
+# 60  ← 60 samples (one per minute)
+
+# Merge all samples into a single flamegraph (aggregate over the time range)
+# This is done in the UI — click "Aggregate" button
+
+# What ParcaQL selects on:
+# process_cpu:cpu:nanoseconds:cpu:nanoseconds{job="construx-api", namespace="construx-prod"}
+# │            │   │          │   │
+# │            │   │          │   └── Sample unit (nanoseconds of CPU time)
+# │            │   │          └────── Period type (cpu)
+# │            │   └───────────────── Period unit (nanoseconds)
+# │            └───────────────────── Sample type (cpu)
+# └────────────────────────────────── Profile type (process CPU)
+
+# Memory profile (heap allocations)
+process_cpu:alloc_objects:count:space:bytes{job="construx-api"}
+
+# Goroutine count over time (useful for goroutine leak detection)
+process_cpu:goroutine:count:goroutine:count{job="construx-api"}
+```
+
+## Differential profiles: before vs after
+
+```bash
+# The most powerful feature: compare two profiles to find what changed
+# "What was different about CPU usage during the incident vs normal operation?"
+
+# Via the Parca UI:
+# 1. Select time range A (normal operation): 2033-03-05T07:00 to 08:00
+# 2. Select time range B (during incident):  2033-03-05T09:30 to 10:00
+# 3. Click "Compare" — shows differential flame graph
+#    Red = more time spent here during incident
+#    Blue = less time spent here during incident
+#    Size = magnitude of difference
+
+# Example incident investigation:
+# Normal: 40% CPU in json.Marshal (serialization is the bottleneck as expected)
+# Incident spike: 68% CPU in regexp.MustCompile — unintended recompilation
+
+# The diff immediately shows: regexp.MustCompile is 28% MORE in the incident window
+# Root cause: a regex was being compiled per-request instead of at startup
+# Fix: move regexp.MustCompile to package-level var (compiled once)
+
+# Before fix (incident profile):
+# main.handleSearch          100%
+#   ├── regexp.MustCompile    68%  ← recompiling on every request
+#   ├── json.Marshal          18%
+#   └── postgres.Query        14%
+
+# After fix (post-deploy profile):
+# main.handleSearch          100%
+#   ├── json.Marshal          41%
+#   ├── postgres.Query        32%
+#   └── regexp.MatchString    22%  ← now uses pre-compiled regexp
+
+# The flamegraph before/after comparison shows the fix worked
+# and reveals the new bottleneck (postgres.Query) for the next optimization
+```
+
+## Continuous profiling vs on-demand profiling
+
+```bash
+# On-demand profiling (traditional approach):
+go tool pprof http://construx-api:6060/debug/pprof/cpu?seconds=30
+# Problem: you only profile when you're already watching
+# Incident happens at 3am, resolved by 3:05am, no one was profiling
+
+# Continuous profiling with Parca:
+# Parca scrapes profiles every 10s, always
+# At 3am incident: cpu was high for 8 minutes
+# At 8am: query Parca for 3am-3:08am
+# → flame graph of every 10s slice during the incident
+# → differential vs the prior hour shows exactly what changed
+
+# Example: query for incident window after-the-fact
+curl -s 'http://parca:7070/api/query/range' \
+  -d '{
+    "query": "process_cpu:cpu:nanoseconds:cpu:nanoseconds{job=\"construx-api\"}",
+    "start": "2033-03-05T03:00:00Z",
+    "end":   "2033-03-05T03:08:00Z",
+    "step":  "10s"
+  }' | jq '.series[0].samples | length'
+# 48  ← 48 samples at 10s resolution for the 8-minute incident window
+
+# Storage cost estimate:
+# 100k active processes × 10s sample interval × profile size ~10KB
+# = 100MB/s at full fleet scale (most profiles are much smaller)
+# Parca uses delta encoding and compression to reduce this by ~10x
+# Practical: ~50GB/day for a 500-node cluster at 10s resolution
+# Retained for: 14 days default (configurable, stored in S3)
+```
+
+Parca vs Pyroscope vs Clinic.js vs manual pprof: Pyroscope (acquired by Grafana, now part of Grafana Faro) is the closest competitor — it also does continuous profiling with eBPF and SDK support, and integrates tightly into the Grafana LGTM stack as the "P" pillar. If you're already running Grafana, Pyroscope has better UI integration. Parca is CNCF-incubating and has a cleaner data model (ParcaQL is more consistent than Pyroscope's query UI). For Node.js, Clinic.js is purpose-built and far more detailed. Manual pprof is still the right tool for one-off debugging — it's zero infrastructure and already available if your Go app has the pprof endpoint. Continuous profiling becomes worth the infrastructure cost at 50+ services where you can't feasibly instrument every incident manually.
