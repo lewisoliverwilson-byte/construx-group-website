@@ -63,7 +63,7 @@ import TalosPanel from '@/components/TalosPanel';
 import AirflowPanel from '@/components/AirflowPanel';
 import DaprPanel from '@/components/DaprPanel';
 import CiliumPanel from '@/components/CiliumPanel';
-import FlinkPanel from '@/components/FlinkPanel';
+import AirbytePanel from '@/components/AirbytePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -703,9 +703,9 @@ export default function StatsPage() {
         <CiliumPanel />
       </div>
 
-      {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
+      {/* airbyte open-source elt — connectors, syncs, data movement */}
       <div className="mt-6 pb-10">
-        <FlinkPanel />
+        <AirbytePanel />
       </div>
     </div>
   );
