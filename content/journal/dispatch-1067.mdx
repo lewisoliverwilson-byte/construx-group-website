@@ -1,0 +1,139 @@
+---
+title: "MinIO: S3-compatible object storage — erasure coding, multi-site replication, Kubernetes operator"
+date: "2033-09-19"
+excerpt: "MinIO is a high-performance, S3-compatible object storage server designed for private cloud and on-premise deployments. It speaks the S3 API natively — any application that works with AWS S3 works with MinIO without code changes. MinIO uses erasure coding instead of replication for data durability: with a 4-node, 16-drive pool and EC:8/8, MinIO can sustain the loss of up to 8 drives or 2 full nodes without losing data or write availability. MinIO runs as a single binary (or a set of pods via the MinIO Kubernetes Operator), with all nodes forming a single pool with a distributed namespace. MinIO's performance on NVMe storage exceeds 300 GB/s on high-end hardware — it is the storage layer used by AI/ML training pipelines that need to feed GPUs at line rate. MinIO also provides bucket versioning (immutable object history), server-side encryption (SSE-S3, SSE-KMS), lifecycle management (automatic expiry and transition to cheaper storage tiers), and multi-site replication (active-active or active-passive across two MinIO deployments)."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Erasure coding. S3 API. Multi-site replication. Versioning. Lifecycle. Kubernetes operator.
+
+## MinIO Kubernetes Operator deployment
+
+```yaml
+# MinIO Operator: manages MinIO Tenant CRDs on Kubernetes
+# Install via Helm
+
+helm install minio-operator operator/minio-operator \
+  --namespace minio-operator \
+  --create-namespace \
+  --version 5.0.15
+---
+# MinIO Tenant: declarative MinIO cluster definition
+apiVersion: minio.min.io/v2
+kind: Tenant
+metadata:
+  name: minio-prod
+  namespace: minio
+spec:
+  image: minio/minio:RELEASE.2033-08-25T15-33-17Z
+  pools:
+    - name:    pool-0
+      servers: 4        # 4 pods
+      volumesPerServer: 4   # 4 PVCs per pod = 16 drives total
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-nvme   # NVMe-backed StorageClass
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 8Ti   # 8TiB per drive = 32TiB raw per pod, 128TiB total raw
+      resources:
+        requests:
+          cpu:    4
+          memory: 32Gi
+        limits:
+          memory: 64Gi
+  mountPath: /export
+  # Erasure coding: EC:8/8 — 8 data + 8 parity shards across 16 drives
+  # Tolerates loss of any 8 drives (or 2 full nodes)
+
+  # TLS — cert-manager issues MinIO's TLS certificate
+  requestAutoCert: false
+  externalCertSecret:
+    - name: minio-tls
+      type: cert-manager
+
+  # S3 bucket creation and IAM policy via MinIO CRDs
+  buckets:
+    - name: construx-lakehouse
+    - name: construx-thanos-prod
+    - name: construx-backups
+    - name: construx-artifacts
+  users:
+    - name: minio-service-account   # references a Secret with username/password
+```
+
+## Bucket policies and lifecycle rules
+
+```bash
+# mc (MinIO Client): equivalent of AWS CLI for MinIO
+
+# Connect to a MinIO deployment
+mc alias set minio-prod https://minio.construx.internal \
+  $ACCESS_KEY $SECRET_KEY
+
+# Bucket info
+mc ls minio-prod
+# [2033-01-01 00:00:00 UTC]     0B construx-lakehouse/
+# [2033-01-01 00:00:00 UTC]     0B construx-thanos-prod/
+# [2033-01-01 00:00:00 UTC]     0B construx-backups/
+# [2033-01-01 00:00:00 UTC]     0B construx-artifacts/
+
+mc du minio-prod/construx-lakehouse
+# 6.1 TiB  12202481 objects  construx-lakehouse
+
+# Enable versioning on lakehouse bucket
+mc version enable minio-prod/construx-lakehouse
+# minio-prod/construx-lakehouse versioning is enabled
+
+# Server-side encryption: auto-encrypt all objects with a KMS key
+mc encrypt set sse-kms construx-kms-key minio-prod/construx-lakehouse
+
+# Lifecycle: expire objects older than 90 days in backups bucket
+mc ilm add minio-prod/construx-backups \
+  --expiry-days 90 \
+  --prefix backups/daily/
+# Lifecycle rule added with ID: "7a3f8c2d-..."
+
+# Storage class transition: move objects > 30 days to DEEP_ARCHIVE
+mc ilm add minio-prod/construx-lakehouse \
+  --transition-days 30 \
+  --storage-class DEEP_ARCHIVE \
+  --transition-tier construx-glacier-tier   # a registered remote tier (AWS Glacier)
+```
+
+```bash
+# Multi-site replication: eu-west-2 → us-east-1
+
+# Set up replication credentials
+mc admin user add minio-us-east-1 replication-user $REPL_SECRET
+mc admin policy attach minio-us-east-1 readwrite --user replication-user
+
+# Configure bucket-level replication (active-passive)
+mc replicate add minio-prod/construx-lakehouse \
+  --remote-bucket https://replication-user:$REPL_SECRET@minio-us-east-1.construx.internal/construx-lakehouse \
+  --replicate delete,delete-marker,existing-objects \
+  --bandwidth 500MB
+
+# Check replication lag
+mc replicate status minio-prod/construx-lakehouse
+# Replication status: Active
+# Pending objects: 0
+# Failed objects:  0
+# Transfer rate:   412 MB/s
+# Replication lag: 1.4s
+
+# Performance test: sustained throughput on NVMe pool
+mc support perf net minio-prod
+# PUT: 2.84 GB/s  GET: 4.12 GB/s  (16-thread, 256MB objects)
+
+# MinIO Prometheus metrics
+# minio_bucket_usage_total_bytes{bucket="construx-lakehouse"} 6.72e+12
+# minio_s3_requests_total{api="PutObject",bucket="construx-lakehouse"} 1.24e+07
+# minio_node_drive_online_total 16
+# minio_cluster_capacity_usable_total_bytes 4.26e+13
+```
+
+MinIO vs AWS S3 vs Ceph RGW vs Rook-Ceph vs local filesystem: AWS S3 is the correct answer for most production workloads — zero operational overhead, 11 9s durability, global CDN integration. MinIO is correct when you need S3 API compatibility on-premise (regulated data that can't leave your data centre), in air-gapped environments, or for workloads where egress cost to S3 would be prohibitive at scale. Ceph RGW (the Ceph object gateway) also exposes an S3-compatible API but through the full Ceph stack — more feature-complete but significantly more operationally complex. MinIO's single-binary deployment and the mc client make day-two operations (replication, lifecycle, bucket policy) accessible via a CLI that mirrors the AWS CLI ergonomics. For AI/ML training pipelines running on bare-metal GPU clusters, MinIO is the standard storage layer: it saturates NVMe drives at multi-GB/s and runs inside Kubernetes via the operator, making it operationally consistent with the rest of the stack.

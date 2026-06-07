@@ -25,6 +25,7 @@ import ValsPanel from '@/components/ValsPanel';
 import VictoriaMetricsPanel from '@/components/VictoriaMetricsPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import VitessPanel from '@/components/VitessPanel';
+import MinIOPanel from '@/components/MinIOPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -680,8 +681,12 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* vitess mysql sharding — vtgate, vtctldclient, vschema, resharding */}
-      <section className="px-5 pb-10 mx-auto max-w-6xl">
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
         <VitessPanel />
+      </section>
+
+      <section className="px-5 pb-10 mx-auto max-w-6xl">
+        <MinIOPanel />
       </section>
 
       {/* CTA */}

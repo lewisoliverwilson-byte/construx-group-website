@@ -1,0 +1,168 @@
+---
+title: "External Secrets Operator: sync secrets from AWS Secrets Manager and Vault to Kubernetes"
+date: "2033-09-25"
+excerpt: "External Secrets Operator (ESO) is a Kubernetes controller that reads secrets from external systems — AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager, Azure Key Vault, 1Password — and materialises them as native Kubernetes Secret objects. Instead of storing secrets in etcd (where they are base64-encoded and accessible to anyone with cluster-admin), you store secrets in your secret management system of choice and let ESO sync them into the cluster. ESO uses a SecretStore (or ClusterSecretStore for cluster-wide access) to define the connection to the external system — including how ESO authenticates, such as IRSA for AWS Secrets Manager or a Kubernetes ServiceAccount token for Vault. ExternalSecret resources declare which external secret to read, how to map the external keys to Kubernetes Secret keys, and how frequently to refresh. ESO handles rotation automatically: when a secret rotates in AWS Secrets Manager, ESO detects the change (on the next refresh interval) and updates the Kubernetes Secret, which triggers a pod restart if the Secret is mounted as a volume. This eliminates the manual secret update process and removes the window between credential rotation and application pickup."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+SecretStore. ExternalSecret. IRSA. Vault auth. Auto-refresh. Secret rotation.
+
+## ClusterSecretStore and ExternalSecret configuration
+
+```yaml
+# ClusterSecretStore: AWS Secrets Manager via IRSA (IAM Roles for Service Accounts)
+# Works cluster-wide — no per-namespace configuration needed
+
+apiVersion: external-secrets.io/v1beta1
+kind: ClusterSecretStore
+metadata:
+  name: aws-secrets-manager
+spec:
+  provider:
+    aws:
+      service:  SecretsManager
+      region:   eu-west-2
+      auth:
+        jwt:
+          serviceAccountRef:
+            name:      external-secrets-sa     # ServiceAccount with IRSA annotation
+            namespace: external-secrets
+---
+# ClusterSecretStore: HashiCorp Vault via Kubernetes auth
+apiVersion: external-secrets.io/v1beta1
+kind: ClusterSecretStore
+metadata:
+  name: vault
+spec:
+  provider:
+    vault:
+      server:   https://vault.construx.internal
+      path:     secret                         # KV v2 mount
+      version:  v2
+      auth:
+        kubernetes:
+          mountPath: kubernetes
+          role:      external-secrets          # Vault role bound to the ESO ServiceAccount
+          serviceAccountRef:
+            name:      external-secrets-sa
+            namespace: external-secrets
+---
+# ExternalSecret: pull database credentials from AWS Secrets Manager
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: construx-db-credentials
+  namespace: construx-prod
+spec:
+  refreshInterval: 5m    # re-sync every 5 minutes
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secrets-manager
+  target:
+    name:             construx-db-credentials    # Kubernetes Secret to create/update
+    creationPolicy:   Owner                      # ESO owns and manages this Secret
+    deletionPolicy:   Retain                     # keep Secret if ExternalSecret is deleted
+    template:
+      type: Opaque
+      engineVersion: v2
+  data:
+    - secretKey: DB_PASSWORD       # key in the Kubernetes Secret
+      remoteRef:
+        key:      /construx/prod/database       # path in AWS Secrets Manager
+        property: password                       # JSON field within the secret
+    - secretKey: DB_USERNAME
+      remoteRef:
+        key:      /construx/prod/database
+        property: username
+```
+
+```yaml
+# ExternalSecret: pull multiple secrets from Vault KV with a dataFrom (bulk fetch)
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: construx-api-secrets
+  namespace: construx-prod
+spec:
+  refreshInterval: 2m
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  target:
+    name: construx-api-secrets
+    creationPolicy: Owner
+  # dataFrom: pull ALL key-value pairs from a Vault path into the Kubernetes Secret
+  dataFrom:
+    - extract:
+        key: secret/construx/prod/api    # Vault KV v2 path
+        # All keys at this path become Kubernetes Secret keys:
+        # STRIPE_SECRET_KEY → STRIPE_SECRET_KEY
+        # SENDGRID_API_KEY  → SENDGRID_API_KEY
+        # OPENAI_API_KEY    → OPENAI_API_KEY
+---
+# PushSecret: write a Kubernetes Secret back to Vault (reverse direction)
+# Useful for generated credentials (e.g., a Kubernetes ServiceAccount token)
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: push-generated-token
+  namespace: construx-prod
+spec:
+  refreshInterval: 10m
+  secretStoreRefs:
+    - name: vault
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: generated-token   # Kubernetes Secret to push
+  data:
+    - match:
+        secretKey: token
+        remoteRef:
+          remoteKey: secret/construx/prod/generated-token
+          property:  token
+```
+
+```bash
+# ESO monitoring and debugging
+
+# Check ExternalSecret sync status
+kubectl get externalsecret -n construx-prod
+# NAME                     STORE                REFRESH INTERVAL  STATUS   READY
+# construx-db-credentials  aws-secrets-manager  5m                SecretSynced  True
+# construx-api-secrets     vault                2m                SecretSynced  True
+
+# Describe ExternalSecret — shows last sync time and any errors
+kubectl describe externalsecret construx-db-credentials -n construx-prod
+# Status:
+#   Conditions:
+#     Message:   Secret was synced
+#     Reason:    SecretSynced
+#     Status:    True
+#   Refresh Time:  2033-09-25T09:14:02Z   ← last successful sync
+#   Sync Count:    842
+
+# Verify the Kubernetes Secret was created and has the expected keys
+kubectl get secret construx-db-credentials -n construx-prod -o json | \
+  jq '.data | keys'
+# ["DB_PASSWORD", "DB_USERNAME"]
+
+# ESO controller logs: watch for sync errors or auth failures
+kubectl logs -n external-secrets deploy/external-secrets -f | \
+  grep -E "synced|error|failed|rotation"
+# I0925 09:14:02 external-secrets secret synced construx-db-credentials
+# I0925 09:16:02 external-secrets secret synced construx-api-secrets
+
+# Trigger immediate re-sync (annotate the ExternalSecret)
+kubectl annotate externalsecret construx-db-credentials \
+  -n construx-prod \
+  force-sync=$(date +%s) --overwrite
+
+# Prometheus metrics
+# externalsecret_status_condition{name="construx-db-credentials",condition="Ready",status="True"} 1
+# externalsecret_sync_calls_total{name="construx-db-credentials",error="false"} 842
+# externalsecret_sync_duration_seconds{quantile="0.99"} 0.34
+```
+
+External Secrets Operator vs Sealed Secrets vs Vault Agent Injector vs SOPS vs storing secrets in etcd: Storing secrets directly in Kubernetes (base64-encoded in etcd) is the simplest path but gives you no rotation, no audit trail, and no separation of concerns — anyone with cluster-admin can read all secrets. Sealed Secrets (Bitnami) encrypts secrets with a cluster-side key before storing in git — useful for GitOps where you want secrets in the repo, but rotation requires re-sealing. SOPS (Mozilla) encrypts files at rest in git using KMS keys — GitOps-friendly, but no automatic rotation pickup. Vault Agent Injector runs a sidecar in each pod that fetches secrets from Vault at pod start and delivers them as files — very flexible but adds a sidecar to every pod and complicates the pod spec. ESO is a middle path: secrets stay in the external system (the canonical store with audit logging and rotation), ESO syncs them into Kubernetes Secrets on a refresh cycle, and pods consume them as normal Kubernetes Secrets (no sidecar, no code change). The refresh interval is the rotation lag — set it to match your credential rotation frequency. For teams running on Kubernetes with AWS Secrets Manager or Vault as the canonical secret store, ESO is the standard integration layer.
