@@ -72,6 +72,7 @@ import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import BazelPanel from '@/components/BazelPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
+import CertInfoPanel from '@/components/CertInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -553,8 +554,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cluster api — machine management, providers, bootstrap */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ClusterApiPanel />
+      </section>
+
+      {/* cert info — tls certificate details, san, validity, chain */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CertInfoPanel />
       </section>
 
       {/* Posts */}

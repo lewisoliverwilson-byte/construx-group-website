@@ -69,6 +69,7 @@ import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import CaddyPanel from '@/components/CaddyPanel';
+import BpftracePanel from '@/components/BpftracePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -597,8 +598,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* caddy — reverse proxy, https, routes, upstreams */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CaddyPanel />
+        </div>
+
+        {/* bpftrace — kernel tracing, probes, maps, aggregations */}
+        <div className="mt-4 pb-6">
+          <BpftracePanel />
         </div>
 
         {/* Sign-off */}

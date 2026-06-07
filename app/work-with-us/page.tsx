@@ -68,6 +68,7 @@ import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import CephPanel from '@/components/CephPanel';
 import CitusPanel from '@/components/CitusPanel';
+import CargoPanel from '@/components/CargoPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -937,8 +938,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* citus — distributed postgres, shards, workers, tables */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CitusPanel />
+      </section>
+
+      {/* cargo — rust build, deps, features, publish */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CargoPanel />
       </section>
 
       {/* CTA */}

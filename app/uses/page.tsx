@@ -67,6 +67,7 @@ import BenthosPanel from '@/components/BenthosPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
+import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -704,8 +705,13 @@ export default function UsesPage() {
         </div>
 
         {/* consul — service mesh, kv, health checks, intentions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ConsulPanel />
+        </div>
+
+        {/* clickhouse migration — schema versions, runs, checksums */}
+        <div className="mt-6 pb-10">
+          <ClickhouseMigrationPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
