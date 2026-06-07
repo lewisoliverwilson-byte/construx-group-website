@@ -1,0 +1,179 @@
+---
+title: "CockroachDB: distributed SQL with serializable transactions and automatic sharding"
+date: "2032-10-18"
+excerpt: "CockroachDB is a distributed SQL database that survives node failures and data-centre outages without data loss. It is PostgreSQL-wire-compatible — most PostgreSQL clients, ORMs, and drivers work without changes. Data is automatically sharded into ranges (default 512MB) and replicated with Raft consensus across nodes. Transactions are serializable by default — the strongest isolation level — using multi-version concurrency control (MVCC) and timestamp ordering. The geo-partitioning feature places specific rows or tables in specific regions, reducing latency for geographically distributed workloads. CockroachDB is the right choice when you need PostgreSQL compatibility, global distribution, and automated failover — and the wrong choice when you need single-node write performance or strict cost control."
+author: "Lewis Wilson"
+tag: "Build Log"
+---
+
+Postgres wire compatible. Serializable by default. Raft replication. Automatic resharding.
+
+## Cluster setup and basic operations
+
+```sql
+-- CockroachDB is mostly PostgreSQL-compatible
+-- Connect with psql, pgx, or any PostgreSQL driver
+
+-- Create a database and table (standard SQL)
+CREATE DATABASE construx;
+USE construx;
+
+CREATE TABLE orders (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  customer_id UUID NOT NULL,
+  status      STRING NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'shipped', 'cancelled')),
+  total_cents INT NOT NULL,
+  region      STRING NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- CockroachDB-specific: show how data is distributed
+SHOW RANGES FROM TABLE orders;
+-- start_key | end_key | range_id | replicas | lease_holder
+-- <min>     | <max>   | 72       | {1,2,3}  | 1
+-- (all data in one range at first — splits as data grows)
+
+-- Show cluster nodes
+SELECT node_id, address, locality, is_available FROM crdb_internal.gossip_nodes;
+-- node_id | address              | locality              | is_available
+-- 1       | construx-db-1:26257  | region=eu-west-1,az=a | true
+-- 2       | construx-db-2:26257  | region=eu-west-1,az=b | true
+-- 3       | construx-db-3:26257  | region=eu-west-1,az=c | true
+```
+
+## Transactions and serializable isolation
+
+```sql
+-- CockroachDB uses serializable isolation by default
+-- (PostgreSQL defaults to read committed)
+
+BEGIN;
+SELECT balance FROM accounts WHERE id = 'acc-001' FOR UPDATE;
+UPDATE accounts SET balance = balance - 100 WHERE id = 'acc-001';
+UPDATE accounts SET balance = balance + 100 WHERE id = 'acc-002';
+COMMIT;
+
+-- Retry logic: CockroachDB may return a 40001 (serialization failure)
+-- when concurrent transactions conflict. The client must retry.
+-- In Go with pgx:
+
+func transferWithRetry(ctx context.Context, db *pgxpool.Pool, from, to string, amount int) error {
+    const maxRetries = 5
+    for attempt := 0; attempt < maxRetries; attempt++ {
+        err := transfer(ctx, db, from, to, amount)
+        if err == nil {
+            return nil
+        }
+        // Check for serialization failure (40001 in PostgreSQL error codes)
+        var pgErr *pgconn.PgError
+        if errors.As(err, &pgErr) && pgErr.Code == "40001" {
+            // Exponential backoff
+            time.Sleep(time.Duration(attempt*attempt) * 10 * time.Millisecond)
+            continue
+        }
+        return err // non-retryable error
+    }
+    return fmt.Errorf("too many retries")
+}
+
+-- Savepoints for efficient retry within a transaction
+BEGIN;
+SAVEPOINT cockroach_restart;
+-- ... transaction logic ...
+-- If 40001 occurs:
+ROLLBACK TO SAVEPOINT cockroach_restart;
+-- ... retry the same logic ...
+RELEASE SAVEPOINT cockroach_restart;
+COMMIT;
+```
+
+## Geo-partitioning and regional tables
+
+```sql
+-- Geo-partitioning: pin rows to specific regions to reduce latency
+-- Requires an Enterprise licence for zone configs
+
+-- Create a table partitioned by region
+CREATE TABLE orders_geo (
+  id          UUID DEFAULT gen_random_uuid(),
+  region      crdb_internal_region STRING NOT NULL,
+  customer_id UUID NOT NULL,
+  total_cents INT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (region, id)
+) LOCALITY REGIONAL BY ROW;   -- CockroachDB pins each row to its region
+
+-- Rows where region='eu-west-1' are stored on EU nodes
+-- Reads from EU apps hit EU nodes with ~2ms latency
+-- vs ~180ms round-trip to US nodes
+
+-- GLOBAL table: replicated across all regions (for reference data)
+CREATE TABLE products (
+  id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sku   STRING NOT NULL,
+  price INT    NOT NULL
+) LOCALITY GLOBAL;
+
+-- REGIONAL BY TABLE: pin entire table to one region (for single-region data)
+ALTER TABLE orders SET LOCALITY REGIONAL IN "eu-west-1";
+
+-- Check table locality
+SHOW LOCALITY FROM TABLE orders_geo;
+-- REGIONAL BY ROW
+```
+
+## Bulk import and export
+
+```bash
+# IMPORT: bulk-load data from CSV or Parquet in cloud storage
+# Much faster than INSERT for initial data loads
+
+# Import from S3
+IMPORT INTO orders (id, customer_id, total_cents, region, created_at)
+CSV DATA ('s3://construx-data/orders/2032-08/*.csv?AWS_ACCESS_KEY_ID=...&AWS_SECRET_ACCESS_KEY=...')
+WITH delimiter = ',', nullif = '', skip = '1';
+
+# Import from nodelocal (for development)
+IMPORT INTO orders
+CSV DATA ('nodelocal://1/orders-export.csv');
+
+# EXPORT: write table data to cloud storage
+EXPORT INTO CSV 's3://construx-backups/orders/' FROM TABLE orders
+WITH delimiter = ',';
+
+# Backup and restore
+BACKUP DATABASE construx INTO 's3://construx-backups/full/' AS OF SYSTEM TIME '-10s';
+
+RESTORE DATABASE construx
+FROM 's3://construx-backups/full/2032/09/30-030000.00/'
+WITH new_db_name = 'construx_restore';
+```
+
+## Monitoring and observability
+
+```sql
+-- Built-in Admin UI: http://node1:8080
+-- Shows: node health, SQL metrics, slow queries, range distribution
+
+-- Cluster-wide slow query log
+SET CLUSTER SETTING sql.log.slow_query.latency_threshold = '100ms';
+
+-- Active statements
+SELECT query, user_name, application_name, start, age(start)
+FROM crdb_internal.cluster_queries
+ORDER BY start ASC
+LIMIT 20;
+
+-- Table statistics (updated by ANALYZE)
+SHOW STATISTICS FOR TABLE orders;
+-- statistics_name | row_count | distinct_count | null_count | avg_size
+-- __auto__        | 1,247,382 | 1,247,241      | 0          | 142
+
+-- Explain plan
+EXPLAIN (VERBOSE, TYPES) SELECT * FROM orders WHERE customer_id = 'cust-001';
+-- scan orders@idx_orders_customer_id (spans: /customer_id/cust-001 - /customer_id/cust-001/#)
+-- estimated rows: 4.1
+```
+
+CockroachDB vs PostgreSQL vs Vitess: PostgreSQL is the default for relational data — easier to operate, faster single-node, more extension support (pgvector, PostGIS, timescaledb). CockroachDB is the choice when you need automatic failover across availability zones or regions, global data distribution, and PostgreSQL compatibility — at the cost of higher latency for cross-shard transactions and a more complex operational model. Vitess shards MySQL horizontally — it's what YouTube uses, but it requires more application-level awareness (shard keys). The practical trigger for CockroachDB: you've outgrown a single PostgreSQL primary, you need cross-region writes (not just read replicas), and you want it to be automatic rather than hand-managed. Most applications never reach this threshold — don't add CockroachDB's complexity if a well-tuned PostgreSQL with read replicas and connection pooling would suffice.

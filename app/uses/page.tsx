@@ -20,6 +20,7 @@ import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import MisePanel from '@/components/MisePanel';
+import ActPanel from '@/components/ActPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -422,8 +423,13 @@ export default function UsesPage() {
         </div>
 
         {/* mise polyglot tool version manager */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MisePanel />
+        </div>
+
+        {/* act: run GitHub Actions workflows locally */}
+        <div className="mt-6 pb-10">
+          <ActPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
