@@ -256,6 +256,7 @@ import OpensslPanel from '@/components/OpensslPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PatroniPanel from '@/components/PatroniPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
+import PgExplainPanel from '@/components/PgExplainPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1856,8 +1857,13 @@ export default function StatsPage() {
       </div>
 
       {/* pgbouncer — connection pooling, pool modes, clients, servers */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PgBouncerPanel />
+      </div>
+
+      {/* pg-explain — query plans, nodes, cost, buffers */}
+      <div className="mt-6 pb-10">
+        <PgExplainPanel />
       </div>
     </div>
   );

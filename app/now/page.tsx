@@ -254,6 +254,7 @@ import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
+import OpensslPanel from '@/components/OpensslPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1808,8 +1809,13 @@ export default function NowPage() {
         </div>
 
         {/* openobserve — logs, metrics, traces, unified observability */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenObservePanel />
+        </div>
+
+        {/* openssl — certs, keys, ciphers, tls handshake */}
+        <div className="mt-6 pb-10">
+          <OpensslPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
