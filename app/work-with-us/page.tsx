@@ -222,6 +222,7 @@ import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import LinkerdPanel from '@/components/LinkerdPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1861,8 +1862,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* lighthouse — performance, accessibility, seo, best practices */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <LighthousePanel />
+      </section>
+
+      {/* linkerd — service mesh, proxies, traffic, retries */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <LinkerdPanel />
       </section>
 
       {/* CTA */}

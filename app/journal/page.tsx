@@ -226,6 +226,7 @@ import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
+import MaterializePanel from '@/components/MaterializePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1477,8 +1478,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* lsof — open files, sockets, pids, fds */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <LsofPanel />
+      </section>
+
+      {/* materialize — streaming sql, views, sources, sinks */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MaterializePanel />
       </section>
 
       {/* Posts */}

@@ -221,6 +221,7 @@ import LastLoginPanel from '@/components/LastLoginPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
+import LonghornPanel from '@/components/LonghornPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1628,8 +1629,13 @@ export default function UsesPage() {
         </div>
 
         {/* loki — log aggregation, streams, labels, queries */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LokiPanel />
+        </div>
+
+        {/* longhorn — distributed block storage, volumes, snapshots, replicas */}
+        <div className="mt-6 pb-10">
+          <LonghornPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

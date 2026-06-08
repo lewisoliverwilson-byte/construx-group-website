@@ -223,6 +223,7 @@ import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MimirPanel from '@/components/MimirPanel';
+import MinIOPanel from '@/components/MinIOPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1521,8 +1522,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <MimirPanel />
+        </div>
+
+        {/* minio — s3-compatible object storage, buckets, objects, policies */}
+        <div className="mt-4 pb-6">
+          <MinIOPanel />
         </div>
 
         {/* Sign-off */}
