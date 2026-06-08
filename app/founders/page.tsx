@@ -179,6 +179,7 @@ import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
+import HubblePanel from '@/components/HubblePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1494,8 +1495,13 @@ export default function FoundersPage() {
         </div>
 
         {/* http bench — rps, latency, percentiles, connections */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HttpBenchPanel />
+        </div>
+
+        {/* hubble — flows, services, endpoints, policies */}
+        <div className="mt-6 pb-10">
+          <HubblePanel />
         </div>
 
         {/* CTA */}

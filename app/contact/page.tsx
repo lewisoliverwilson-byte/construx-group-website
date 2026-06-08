@@ -178,6 +178,7 @@ import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1366,8 +1367,13 @@ export default function ContactPage() {
       </section>
 
       {/* grafana tempo — traces, spans, services, latency */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GrafanaTempoPanel />
+      </section>
+
+      {/* grype — vulnerabilities, packages, severity, cvss */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GrypePanel />
       </section>
     </div>
   );

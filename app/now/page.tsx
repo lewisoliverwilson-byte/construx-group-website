@@ -179,6 +179,7 @@ import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
+import GitSignPanel from '@/components/GitSignPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1358,8 +1359,13 @@ export default function NowPage() {
         </div>
 
         {/* git shortlog — authors, commits, files, insertions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitShortlogPanel />
+        </div>
+
+        {/* git sign — signers, keys, status, fingerprints */}
+        <div className="mt-6 pb-10">
+          <GitSignPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
