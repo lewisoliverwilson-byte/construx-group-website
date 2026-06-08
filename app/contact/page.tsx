@@ -186,6 +186,7 @@ import HtopPanel from '@/components/HtopPanel';
 import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
+import InfluxDbPanel from '@/components/InfluxDbPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1414,8 +1415,13 @@ export default function ContactPage() {
       </section>
 
       {/* hyperfine — benchmarks, commands, runs, statistics */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <HyperfinePanel />
+      </section>
+
+      {/* influxdb — measurements, tags, fields, retention */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <InfluxDbPanel />
       </section>
     </div>
   );

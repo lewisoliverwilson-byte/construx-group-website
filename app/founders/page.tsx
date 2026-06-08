@@ -187,6 +187,7 @@ import IostatPanel from '@/components/IostatPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
+import JournalctlPanel from '@/components/JournalctlPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1542,8 +1543,13 @@ export default function FoundersPage() {
         </div>
 
         {/* jaeger trace — traces, spans, services, durations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JaegerTracePanel />
+        </div>
+
+        {/* journalctl — units, logs, priorities, boots */}
+        <div className="mt-6 pb-10">
+          <JournalctlPanel />
         </div>
 
         {/* CTA */}
