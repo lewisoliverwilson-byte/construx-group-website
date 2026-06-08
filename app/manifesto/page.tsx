@@ -100,6 +100,7 @@ import SarPanel from '@/components/SarPanel';
 import SensorsPanel from '@/components/SensorsPanel';
 import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
 import SpfDkimPanel from '@/components/SpfDkimPanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -783,8 +784,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* spf dkim — email auth, dmarc, dns records, alignment */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <SpfDkimPanel />
+        </div>
+
+        {/* argo cd — gitops, sync, apps, rollbacks */}
+        <div className="mt-4 pb-6">
+          <ArgoCDPanel />
         </div>
 
         {/* Sign-off */}

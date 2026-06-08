@@ -98,6 +98,7 @@ import UlimitPanel from '@/components/UlimitPanel';
 import VaultPanel from '@/components/VaultPanel';
 import VaultPkiPanel from '@/components/VaultPkiPanel';
 import VegetaPanel from '@/components/VegetaPanel';
+import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -890,8 +891,13 @@ export default function UsesPage() {
         </div>
 
         {/* vegeta — http load testing, constant rate, latency histograms */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VegetaPanel />
+        </div>
+
+        {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
+        <div className="mt-6 pb-10">
+          <AnsiblePlaybookPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

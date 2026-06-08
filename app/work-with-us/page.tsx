@@ -99,6 +99,7 @@ import TempoPanel from '@/components/TempoPanel';
 import SslCertPanel from '@/components/SslCertPanel';
 import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
 import SysdigPanel from '@/components/SysdigPanel';
+import ActPanel from '@/components/ActPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1123,8 +1124,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* sysdig — container-aware syscall tracing, events, processes */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <SysdigPanel />
+      </section>
+
+      {/* act — github actions local runner, jobs, steps, env */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ActPanel />
       </section>
 
       {/* CTA */}
