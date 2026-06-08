@@ -162,6 +162,7 @@ import FluentBitPanel from '@/components/FluentBitPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GatlingPanel from '@/components/GatlingPanel';
+import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1155,8 +1156,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* gatling — scenarios, users, rps, latency */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GatlingPanel />
+        </div>
+
+        {/* gh actions run — jobs, steps, status, duration */}
+        <div className="mt-4 pb-6">
+          <GhActionsRunPanel />
         </div>
 
         {/* Sign-off */}

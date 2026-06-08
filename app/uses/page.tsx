@@ -160,6 +160,7 @@ import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
+import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1262,8 +1263,13 @@ export default function UsesPage() {
         </div>
 
         {/* eslint output — rules, warnings, errors, fixable */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EslintOutputPanel />
+        </div>
+
+        {/* external dns — records, providers, sources, sync */}
+        <div className="mt-6 pb-10">
+          <ExternalDnsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
