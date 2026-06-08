@@ -225,6 +225,7 @@ import LighthousePanel from '@/components/LighthousePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
+import LonghornPanel from '@/components/LonghornPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1634,8 +1635,13 @@ export default function NowPage() {
         </div>
 
         {/* loki — log aggregation, streams, labels, queries */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LokiPanel />
+        </div>
+
+        {/* longhorn — distributed block storage, volumes, snapshots, replicas */}
+        <div className="mt-6 pb-10">
+          <LonghornPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
