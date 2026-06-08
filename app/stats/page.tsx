@@ -241,6 +241,7 @@ import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
+import NftablesPanel from '@/components/NftablesPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1766,8 +1767,13 @@ export default function StatsPage() {
       </div>
 
       {/* network-ping — icmp, rtt, packet loss, host reachability */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NetworkPingPanel />
+      </div>
+
+      {/* nftables — firewall rules, chains, sets, counters */}
+      <div className="mt-6 pb-10">
+        <NftablesPanel />
       </div>
     </div>
   );

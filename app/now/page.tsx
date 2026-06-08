@@ -239,6 +239,7 @@ import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1718,8 +1719,13 @@ export default function NowPage() {
         </div>
 
         {/* netstat — connections, listening ports, routing, interfaces */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NetstatPanel />
+        </div>
+
+        {/* network-ping — icmp, rtt, packet loss, host reachability */}
+        <div className="mt-6 pb-10">
+          <NetworkPingPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -238,6 +238,7 @@ import NixFlakePanel from '@/components/NixFlakePanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1726,8 +1727,13 @@ export default function ContactPage() {
       </section>
 
       {/* npm-outdated — stale dependencies, versions, wanted, latest */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NpmOutdatedPanel />
+      </section>
+
+      {/* nvidia-smi — gpu stats, memory, utilization, processes */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NvidiaSmiPanel />
       </section>
     </div>
   );
