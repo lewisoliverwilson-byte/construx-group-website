@@ -238,6 +238,7 @@ import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import NixShellPanel from '@/components/NixShellPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1549,8 +1550,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* nix-flake — flake.nix, inputs, outputs, devShells */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NixFlakePanel />
+      </section>
+
+      {/* nix-shell — reproducible dev envs, packages, shells */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NixShellPanel />
       </section>
 
       {/* Posts */}

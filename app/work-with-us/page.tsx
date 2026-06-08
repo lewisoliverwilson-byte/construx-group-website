@@ -234,6 +234,7 @@ import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
+import NATSPanel from '@/components/NATSPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1933,8 +1934,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* mlflow — experiment tracking, runs, metrics, artifacts */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <MLflowPanel />
+      </section>
+
+      {/* nats — messaging, subjects, streams, consumers */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NATSPanel />
       </section>
 
       {/* CTA */}

@@ -233,6 +233,7 @@ import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1700,8 +1701,13 @@ export default function UsesPage() {
         </div>
 
         {/* netdata — real-time metrics, agents, dashboards, alerts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NetdataPanel />
+        </div>
+
+        {/* network-ping — icmp, rtt, packet loss, host reachability */}
+        <div className="mt-6 pb-10">
+          <NetworkPingPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

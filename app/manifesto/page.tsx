@@ -235,6 +235,7 @@ import NetstatPanel from '@/components/NetstatPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
+import NomadPanel from '@/components/NomadPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1593,8 +1594,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nmap-scan — port scanner, os detection, services, scripts */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NmapScanPanel />
+        </div>
+
+        {/* nomad — workload orchestration, jobs, tasks, allocations */}
+        <div className="mt-4 pb-6">
+          <NomadPanel />
         </div>
 
         {/* Sign-off */}
