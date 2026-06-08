@@ -125,6 +125,7 @@ import CaddyPanel from '@/components/CaddyPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
+import CgroupsPanel from '@/components/CgroupsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -871,8 +872,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* ceph cluster — osds, pools, pg, replication */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CephPanel />
+      </section>
+
+      {/* cgroups — cpu, memory, blkio, hierarchy */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CgroupsPanel />
       </section>
 
       {/* Posts */}

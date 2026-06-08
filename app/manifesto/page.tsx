@@ -122,6 +122,7 @@ import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
+import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -915,8 +916,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* citus distributed postgres — shards, workers, routing */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CitusPanel />
+        </div>
+
+        {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
+        <div className="mt-4 pb-6">
+          <ClickHouseKeeperPanel />
         </div>
 
         {/* Sign-off */}

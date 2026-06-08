@@ -121,6 +121,7 @@ import BufPanel from '@/components/BufPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1255,8 +1256,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* caddy reverse proxy — routes, tls, upstreams, logs */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CaddyPanel />
+      </section>
+
+      {/* cassandra query — keyspace, table, cql, latency */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CassandraPanel />
       </section>
 
       {/* CTA */}

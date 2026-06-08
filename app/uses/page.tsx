@@ -120,6 +120,7 @@ import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
+import CaddyPanel from '@/components/CaddyPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1022,8 +1023,13 @@ export default function UsesPage() {
         </div>
 
         {/* caddy access log — requests, status, latency, bytes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CaddyAccessPanel />
+        </div>
+
+        {/* caddy reverse proxy — routes, tls, upstreams, logs */}
+        <div className="mt-6 pb-10">
+          <CaddyPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
