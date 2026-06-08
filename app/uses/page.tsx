@@ -219,6 +219,7 @@ import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import LitestreamPanel from '@/components/LitestreamPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1616,8 +1617,13 @@ export default function UsesPage() {
         </div>
 
         {/* lighthouse — performance, accessibility, seo, best practices */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LighthousePanel />
+        </div>
+
+        {/* litestream — sqlite replication, wal, s3, snapshots */}
+        <div className="mt-6 pb-10">
+          <LitestreamPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -221,6 +221,7 @@ import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
+import MemInfoPanel from '@/components/MemInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1509,8 +1510,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* meilisearch — index, search, filters, facets */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <MeilisearchPanel />
+        </div>
+
+        {/* meminfo — ram, swap, buffers, cached, available */}
+        <div className="mt-4 pb-6">
+          <MemInfoPanel />
         </div>
 
         {/* Sign-off */}

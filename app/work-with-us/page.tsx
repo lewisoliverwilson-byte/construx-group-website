@@ -220,6 +220,7 @@ import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
+import LatencyMapPanel from '@/components/LatencyMapPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1849,8 +1850,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* last login — auth log, last session, ip, terminal */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <LastLoginPanel />
+      </section>
+
+      {/* latency map — regions, p50, p95, p99 */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <LatencyMapPanel />
       </section>
 
       {/* CTA */}
