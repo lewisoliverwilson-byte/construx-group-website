@@ -220,6 +220,7 @@ import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import LsofPanel from '@/components/LsofPanel';
+import MaterializePanel from '@/components/MaterializePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1618,8 +1619,13 @@ export default function ContactPage() {
       </section>
 
       {/* lsof — open files, sockets, pids, fds */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <LsofPanel />
+      </section>
+
+      {/* materialize — streaming sql, views, sources, sinks */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <MaterializePanel />
       </section>
     </div>
   );
