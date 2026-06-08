@@ -204,6 +204,7 @@ import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
+import KubeflowPanel from '@/components/KubeflowPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1407,8 +1408,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kubectl pods — names, status, restarts, age */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubectlPodsPanel />
+        </div>
+
+        {/* kubeflow — pipelines, runs, experiments, artifacts */}
+        <div className="mt-4 pb-6">
+          <KubeflowPanel />
         </div>
 
         {/* Sign-off */}
