@@ -140,6 +140,7 @@ import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import CortexPanel from '@/components/CortexPanel';
+import CosignPanel from '@/components/CosignPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1124,8 +1125,13 @@ export default function NowPage() {
         </div>
 
         {/* cortex — query engine, ruler, compactor, store-gateway */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CortexPanel />
+        </div>
+
+        {/* cosign — keyless signing, sbom, attestation, policy */}
+        <div className="mt-6 pb-10">
+          <CosignPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

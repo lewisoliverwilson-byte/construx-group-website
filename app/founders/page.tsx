@@ -140,6 +140,7 @@ import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
+import CycloneDxPanel from '@/components/CycloneDxPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1260,8 +1261,13 @@ export default function FoundersPage() {
         </div>
 
         {/* curl verbose — trace, redirect, ssl, timing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CurlVerbosePanel />
+        </div>
+
+        {/* cyclonedx — bom, components, vulnerabilities, metadata */}
+        <div className="mt-6 pb-10">
+          <CycloneDxPanel />
         </div>
 
         {/* CTA */}

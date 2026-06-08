@@ -139,6 +139,7 @@ import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
+import DbMigrationPanel from '@/components/DbMigrationPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1132,8 +1133,13 @@ export default function ContactPage() {
       </section>
 
       {/* dagger — pipelines, containers, cache, secrets */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DaggerPanel />
+      </section>
+
+      {/* db migration — flyway, liquibase, versions, checksums */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DbMigrationPanel />
       </section>
     </div>
   );
