@@ -123,6 +123,7 @@ import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
+import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1036,8 +1037,13 @@ export default function ContactPage() {
       </section>
 
       {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ClickHouseKeeperPanel />
+      </section>
+
+      {/* clickhouse mv — materialized views, triggers, refresh */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ClickhouseMvPanel />
       </section>
     </div>
   );

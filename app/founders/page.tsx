@@ -124,6 +124,7 @@ import CertInfoPanel from '@/components/CertInfoPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
+import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1164,8 +1165,13 @@ export default function FoundersPage() {
         </div>
 
         {/* clickhouse migration — schema, versions, apply, rollback */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickhouseMigrationPanel />
+        </div>
+
+        {/* clickhouse mv — materialized views, triggers, refresh */}
+        <div className="mt-6 pb-10">
+          <ClickhouseMvPanel />
         </div>
 
         {/* CTA */}

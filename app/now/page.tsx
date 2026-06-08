@@ -124,6 +124,7 @@ import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
+import CephPanel from '@/components/CephPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1028,8 +1029,13 @@ export default function NowPage() {
         </div>
 
         {/* cassandra query — keyspace, table, cql, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CassandraPanel />
+        </div>
+
+        {/* ceph cluster — osds, pools, pg, replication */}
+        <div className="mt-6 pb-10">
+          <CephPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

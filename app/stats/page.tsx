@@ -126,6 +126,7 @@ import CertInfoPanel from '@/components/CertInfoPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
+import CitusPanel from '@/components/CitusPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1076,8 +1077,13 @@ export default function StatsPage() {
       </div>
 
       {/* chaos mesh — faults, experiments, schedules, pods */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ChaosMeshPanel />
+      </div>
+
+      {/* citus distributed postgres — shards, workers, routing */}
+      <div className="mt-6 pb-10">
+        <CitusPanel />
       </div>
     </div>
   );
