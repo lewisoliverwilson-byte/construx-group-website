@@ -236,6 +236,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
+import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1599,8 +1600,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nomad — workload orchestration, jobs, tasks, allocations */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NomadPanel />
+        </div>
+
+        {/* npm-global — global packages, versions, install, link */}
+        <div className="mt-4 pb-6">
+          <NpmGlobalPanel />
         </div>
 
         {/* Sign-off */}

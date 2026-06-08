@@ -235,6 +235,7 @@ import MimirPanel from '@/components/MimirPanel';
 import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import NATSPanel from '@/components/NATSPanel';
+import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1939,8 +1940,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* nats — messaging, subjects, streams, consumers */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NATSPanel />
+      </section>
+
+      {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NatsPubSubPanel />
       </section>
 
       {/* CTA */}
