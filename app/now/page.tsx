@@ -235,6 +235,7 @@ import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
+import NeofetchPanel from '@/components/NeofetchPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1694,8 +1695,13 @@ export default function NowPage() {
         </div>
 
         {/* nats — messaging, subjects, streams, consumers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NATSPanel />
+        </div>
+
+        {/* neofetch — system info, distro, kernel, uptime, cpu */}
+        <div className="mt-6 pb-10">
+          <NeofetchPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

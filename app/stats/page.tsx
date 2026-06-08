@@ -237,6 +237,7 @@ import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
+import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1742,8 +1743,13 @@ export default function StatsPage() {
       </div>
 
       {/* mtr — network diagnostics, hops, latency, packet loss */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MtrPanel />
+      </div>
+
+      {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
+      <div className="mt-6 pb-10">
+        <NatsPubSubPanel />
       </div>
     </div>
   );

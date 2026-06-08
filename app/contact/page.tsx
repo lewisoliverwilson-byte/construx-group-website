@@ -234,6 +234,7 @@ import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
+import NixFlakePanel from '@/components/NixFlakePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1702,8 +1703,13 @@ export default function ContactPage() {
       </section>
 
       {/* nginx-access-log — requests, status codes, methods, ips */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NginxAccessLogPanel />
+      </section>
+
+      {/* nix-flake — flake.nix, inputs, outputs, devShells */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NixFlakePanel />
       </section>
     </div>
   );
