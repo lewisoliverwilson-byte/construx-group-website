@@ -138,6 +138,7 @@ import CniPanel from '@/components/CniPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
+import CoverageReportPanel from '@/components/CoverageReportPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1130,8 +1131,13 @@ export default function UsesPage() {
         </div>
 
         {/* cosign — keyless signing, sbom, attestation, policy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CosignPanel />
+        </div>
+
+        {/* coverage report — lcov, html, badge, threshold */}
+        <div className="mt-6 pb-10">
+          <CoverageReportPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

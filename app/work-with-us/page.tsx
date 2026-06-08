@@ -139,6 +139,7 @@ import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
+import CrontabPanel from '@/components/CrontabPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1363,8 +1364,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* coverage report — lcov, html, badge, threshold */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CoverageReportPanel />
+      </section>
+
+      {/* crontab — schedule, jobs, logs, next-run */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CrontabPanel />
       </section>
 
       {/* CTA */}

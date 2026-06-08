@@ -140,6 +140,7 @@ import DbtPanel from '@/components/DbtPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DigPanel from '@/components/DigPanel';
+import DiskUsagePanel from '@/components/DiskUsagePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1023,8 +1024,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* dig — dns query, records, trace, reverse */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DigPanel />
+        </div>
+
+        {/* disk usage — df, partitions, inodes, mounts */}
+        <div className="mt-4 pb-6">
+          <DiskUsagePanel />
         </div>
 
         {/* Sign-off */}
