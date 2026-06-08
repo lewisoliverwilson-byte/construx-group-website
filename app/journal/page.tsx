@@ -204,6 +204,7 @@ import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
+import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1345,8 +1346,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kafka connect — connectors, tasks, status, plugins */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KafkaConnectPanel />
+      </section>
+
+      {/* kafka streams — topologies, tasks, threads, stores */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KafkaStreamsPanel />
       </section>
 
       {/* Posts */}

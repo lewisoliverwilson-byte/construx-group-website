@@ -201,6 +201,7 @@ import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
+import KubeAuditPanel from '@/components/KubeAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1389,8 +1390,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* knative — services, revisions, routes, events */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KnativePanel />
+        </div>
+
+        {/* kube audit — events, rules, verbs, resources */}
+        <div className="mt-4 pb-6">
+          <KubeAuditPanel />
         </div>
 
         {/* Sign-off */}
