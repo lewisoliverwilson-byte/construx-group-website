@@ -169,6 +169,7 @@ import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
+import GitWorktreePanel from '@/components/GitWorktreePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1197,8 +1198,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* git sign — signers, keys, status, fingerprints */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GitSignPanel />
+        </div>
+
+        {/* git worktree — branches, linked, prune, list */}
+        <div className="mt-4 pb-6">
+          <GitWorktreePanel />
         </div>
 
         {/* Sign-off */}

@@ -167,6 +167,7 @@ import FlaggerPanel from '@/components/FlaggerPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
+import GatlingPanel from '@/components/GatlingPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1304,8 +1305,13 @@ export default function UsesPage() {
         </div>
 
         {/* freemem — rss, heap, external, arraybuffers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FreeMemPanel />
+        </div>
+
+        {/* gatling — scenarios, users, rps, latency */}
+        <div className="mt-6 pb-10">
+          <GatlingPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

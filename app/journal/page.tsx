@@ -172,6 +172,7 @@ import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
+import GatlingPanel from '@/components/GatlingPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1153,8 +1154,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* gatekeeper — constraints, violations, audit, policy */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GatekeeperPanel />
+      </section>
+
+      {/* gatling — scenarios, users, rps, latency */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GatlingPanel />
       </section>
 
       {/* Posts */}
