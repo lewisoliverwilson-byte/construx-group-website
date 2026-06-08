@@ -136,6 +136,7 @@ import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
+import ContainerdPanel from '@/components/ContainerdPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1136,8 +1137,13 @@ export default function StatsPage() {
       </div>
 
       {/* consul — service mesh, kv, intentions, health checks */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ConsulPanel />
+      </div>
+
+      {/* containerd — images, containers, namespaces, snapshots */}
+      <div className="mt-6 pb-10">
+        <ContainerdPanel />
       </div>
     </div>
   );

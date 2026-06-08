@@ -134,6 +134,7 @@ import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
+import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1088,8 +1089,13 @@ export default function NowPage() {
         </div>
 
         {/* clickhouse — mergetree, partitions, replicas, mutations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickHousePanel />
+        </div>
+
+        {/* clickhouse query — explain, profiling, system tables */}
+        <div className="mt-6 pb-10">
+          <ClickhouseQueryPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

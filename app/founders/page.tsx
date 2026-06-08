@@ -134,6 +134,7 @@ import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
+import CrossplanePanel from '@/components/CrossplanePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1224,8 +1225,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cpu stats — load, cores, frequency, temperature */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CpuStatsPanel />
+        </div>
+
+        {/* crossplane — providers, compositions, claims, xrds */}
+        <div className="mt-6 pb-10">
+          <CrossplanePanel />
         </div>
 
         {/* CTA */}
