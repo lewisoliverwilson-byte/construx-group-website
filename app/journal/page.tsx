@@ -195,6 +195,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import IpLinkPanel from '@/components/IpLinkPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1291,8 +1292,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* ip addr — addresses, interfaces, prefixes, scope */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <IpAddrPanel />
+      </section>
+
+      {/* ip link — interfaces, states, addresses, routes */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <IpLinkPanel />
       </section>
 
       {/* Posts */}

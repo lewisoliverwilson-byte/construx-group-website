@@ -191,6 +191,7 @@ import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
+import IostatPanel from '@/components/IostatPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1675,8 +1676,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* influxdb — measurements, tags, fields, retention */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <InfluxDbPanel />
+      </section>
+
+      {/* iostat — disks, throughput, iops, utilization */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <IostatPanel />
       </section>
 
       {/* CTA */}

@@ -190,6 +190,7 @@ import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
+import IcebergPanel from '@/components/IcebergPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1442,8 +1443,13 @@ export default function UsesPage() {
         </div>
 
         {/* hyperfine — benchmarks, commands, runs, statistics */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HyperfinePanel />
+        </div>
+
+        {/* iceberg — tables, snapshots, partitions, manifests */}
+        <div className="mt-6 pb-10">
+          <IcebergPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

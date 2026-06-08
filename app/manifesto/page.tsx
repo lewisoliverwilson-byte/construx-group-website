@@ -192,6 +192,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournaldPanel from '@/components/JournaldPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
+import K3sPanel from '@/components/K3sPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1335,8 +1336,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* journal wc — words, lines, bytes, messages */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <JournalWcPanel />
+        </div>
+
+        {/* k3s — clusters, nodes, pods, services */}
+        <div className="mt-4 pb-6">
+          <K3sPanel />
         </div>
 
         {/* Sign-off */}
