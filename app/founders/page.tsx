@@ -196,6 +196,7 @@ import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
+import KarpenterPanel from '@/components/KarpenterPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1596,8 +1597,13 @@ export default function FoundersPage() {
         </div>
 
         {/* kafka streams — topologies, tasks, threads, stores */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KafkaStreamsPanel />
+        </div>
+
+        {/* karpenter — nodes, provisioners, machines, capacity */}
+        <div className="mt-6 pb-10">
+          <KarpenterPanel />
         </div>
 
         {/* CTA */}

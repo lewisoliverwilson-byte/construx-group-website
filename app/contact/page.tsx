@@ -195,6 +195,7 @@ import JournalctlPanel from '@/components/JournalctlPanel';
 import JournaldPanel from '@/components/JournaldPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
+import K6SummaryPanel from '@/components/K6SummaryPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1468,8 +1469,13 @@ export default function ContactPage() {
       </section>
 
       {/* k6 load test — vus, iterations, checks, http */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <K6LoadTestPanel />
+      </section>
+
+      {/* k6 summary — passes, fails, rate, percentiles */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <K6SummaryPanel />
       </section>
     </div>
   );

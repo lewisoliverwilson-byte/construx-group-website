@@ -196,6 +196,7 @@ import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
+import IpAddrPanel from '@/components/IpAddrPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1460,8 +1461,13 @@ export default function NowPage() {
         </div>
 
         {/* influxdb — measurements, tags, fields, retention */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <InfluxDbPanel />
+        </div>
+
+        {/* ip addr — interfaces, addresses, states, flags */}
+        <div className="mt-6 pb-10">
+          <IpAddrPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -198,6 +198,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import IpLinkPanel from '@/components/IpLinkPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1508,8 +1509,13 @@ export default function StatsPage() {
       </div>
 
       {/* ip addr — interfaces, addresses, states, flags */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <IpAddrPanel />
+      </div>
+
+      {/* ip link — interfaces, states, addresses, routes */}
+      <div className="mt-6 pb-10">
+        <IpLinkPanel />
       </div>
     </div>
   );
