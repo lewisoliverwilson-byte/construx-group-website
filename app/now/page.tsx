@@ -170,6 +170,7 @@ import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
+import FluxCDPanel from '@/components/FluxCDPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1304,8 +1305,13 @@ export default function NowPage() {
         </div>
 
         {/* fluentbit — pipelines, inputs, outputs, filters */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FluentBitPanel />
+        </div>
+
+        {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
+        <div className="mt-6 pb-10">
+          <FluxCDPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -170,6 +170,7 @@ import GiteaPanel from '@/components/GiteaPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
+import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1440,8 +1441,13 @@ export default function FoundersPage() {
         </div>
 
         {/* grafana alloy — pipelines, components, otel, logs */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaAlloyPanel />
+        </div>
+
+        {/* grafana oncall — rotations, alerts, escalations, silences */}
+        <div className="mt-6 pb-10">
+          <GrafanaOnCallPanel />
         </div>
 
         {/* CTA */}
