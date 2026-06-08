@@ -142,6 +142,7 @@ import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
+import CrossplanePanel from '@/components/CrossplanePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -973,8 +974,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cpu stats — load, cores, frequency, temperature */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CpuStatsPanel />
+      </section>
+
+      {/* crossplane — providers, compositions, claims, xrds */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CrossplanePanel />
       </section>
 
       {/* Posts */}

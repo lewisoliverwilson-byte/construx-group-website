@@ -138,6 +138,7 @@ import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
+import CoverageReportPanel from '@/components/CoverageReportPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1357,8 +1358,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cosign — keyless signing, sbom, attestation, policy */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CosignPanel />
+      </section>
+
+      {/* coverage report — lcov, html, badge, threshold */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CoverageReportPanel />
       </section>
 
       {/* CTA */}

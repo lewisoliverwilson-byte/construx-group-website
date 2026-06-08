@@ -139,6 +139,7 @@ import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
+import DigPanel from '@/components/DigPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1017,8 +1018,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* delta lake — acid, time travel, schema evolution, partitions */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DeltaLakePanel />
+        </div>
+
+        {/* dig — dns query, records, trace, reverse */}
+        <div className="mt-4 pb-6">
+          <DigPanel />
         </div>
 
         {/* Sign-off */}
