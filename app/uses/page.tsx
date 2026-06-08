@@ -231,6 +231,7 @@ import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
+import NeonPanel from '@/components/NeonPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1688,8 +1689,13 @@ export default function UsesPage() {
         </div>
 
         {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NatsPubSubPanel />
+        </div>
+
+        {/* neon — serverless postgres, branches, compute, storage */}
+        <div className="mt-6 pb-10">
+          <NeonPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

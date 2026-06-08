@@ -233,6 +233,7 @@ import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import NixShellPanel from '@/components/NixShellPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1581,8 +1582,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nftables — firewall rules, chains, sets, expressions */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NftablesPanel />
+        </div>
+
+        {/* nix-shell — reproducible dev envs, packages, shells */}
+        <div className="mt-4 pb-6">
+          <NixShellPanel />
         </div>
 
         {/* Sign-off */}

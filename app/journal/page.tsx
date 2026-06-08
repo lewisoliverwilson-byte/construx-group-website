@@ -236,6 +236,7 @@ import MtrPanel from '@/components/MtrPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1537,8 +1538,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* network-ping — icmp, rtt, packet loss, host reachability */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NetworkPingPanel />
+      </section>
+
+      {/* nginx-access-log — requests, status codes, methods, ips */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NginxAccessLogPanel />
       </section>
 
       {/* Posts */}
