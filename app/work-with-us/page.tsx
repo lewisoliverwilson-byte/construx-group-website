@@ -137,6 +137,7 @@ import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
+import CosignPanel from '@/components/CosignPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1351,8 +1352,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cortex — query engine, ruler, compactor, store-gateway */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CortexPanel />
+      </section>
+
+      {/* cosign — keyless signing, sbom, attestation, policy */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CosignPanel />
       </section>
 
       {/* CTA */}

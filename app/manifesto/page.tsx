@@ -138,6 +138,7 @@ import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
+import DeltaLakePanel from '@/components/DeltaLakePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1011,8 +1012,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* debezium — cdc, connectors, transforms, offsets */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DebeziumPanel />
+        </div>
+
+        {/* delta lake — acid, time travel, schema evolution, partitions */}
+        <div className="mt-4 pb-6">
+          <DeltaLakePanel />
         </div>
 
         {/* Sign-off */}

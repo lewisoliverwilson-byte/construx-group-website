@@ -136,6 +136,7 @@ import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import CortexPanel from '@/components/CortexPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1118,8 +1119,13 @@ export default function UsesPage() {
         </div>
 
         {/* containerd — images, containers, namespaces, snapshots */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ContainerdPanel />
+        </div>
+
+        {/* cortex — query engine, ruler, compactor, store-gateway */}
+        <div className="mt-6 pb-10">
+          <CortexPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

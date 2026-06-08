@@ -141,6 +141,7 @@ import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
+import CpuStatsPanel from '@/components/CpuStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -967,8 +968,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* coverage report — lcov, html, badge, threshold */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CoverageReportPanel />
+      </section>
+
+      {/* cpu stats — load, cores, frequency, temperature */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CpuStatsPanel />
       </section>
 
       {/* Posts */}
