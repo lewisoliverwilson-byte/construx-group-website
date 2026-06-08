@@ -218,6 +218,7 @@ import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
+import KubeProxyPanel from '@/components/KubeProxyPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1628,8 +1629,13 @@ export default function StatsPage() {
       </div>
 
       {/* kubeflow pipelines — dag, steps, inputs, outputs */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KubeflowPipelinesPanel />
+      </div>
+
+      {/* kube proxy — iptables, ipvs, endpoints, nodeports */}
+      <div className="mt-6 pb-10">
+        <KubeProxyPanel />
       </div>
     </div>
   );

@@ -216,6 +216,7 @@ import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
+import LokiQueryPanel from '@/components/LokiQueryPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1716,8 +1717,13 @@ export default function FoundersPage() {
         </div>
 
         {/* litestream — sqlite replication, wal, s3, snapshots */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LitestreamPanel />
+        </div>
+
+        {/* loki query — logql, streams, labels, filters */}
+        <div className="mt-6 pb-10">
+          <LokiQueryPanel />
         </div>
 
         {/* CTA */}

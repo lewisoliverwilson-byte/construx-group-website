@@ -216,6 +216,7 @@ import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
+import KubescapePanel from '@/components/KubescapePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1580,8 +1581,13 @@ export default function NowPage() {
         </div>
 
         {/* kubernetes gateway — routes, backends, listeners, status */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubernetesGatewayPanel />
+        </div>
+
+        {/* kubescape — kspm, nsa, mitre, cis, risk scores */}
+        <div className="mt-6 pb-10">
+          <KubescapePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

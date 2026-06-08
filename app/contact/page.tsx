@@ -215,6 +215,7 @@ import KubeVirtPanel from '@/components/KubeVirtPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import LinkerdPanel from '@/components/LinkerdPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1588,8 +1589,13 @@ export default function ContactPage() {
       </section>
 
       {/* lighthouse — performance, accessibility, seo, best practices */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <LighthousePanel />
+      </section>
+
+      {/* linkerd — service mesh, mtls, traffic shaping, stats */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LinkerdPanel />
       </section>
     </div>
   );
