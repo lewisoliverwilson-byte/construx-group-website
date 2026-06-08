@@ -180,6 +180,7 @@ import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
+import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1382,8 +1383,13 @@ export default function UsesPage() {
         </div>
 
         {/* grafana faro — errors, sessions, vitals, frontend */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaFaroPanel />
+        </div>
+
+        {/* grafana oncall — rotations, alerts, escalations, silences */}
+        <div className="mt-6 pb-10">
+          <GrafanaOnCallPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

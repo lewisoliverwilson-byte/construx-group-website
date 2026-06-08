@@ -185,6 +185,7 @@ import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1231,8 +1232,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* grpcurl — services, methods, requests, responses */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GrpcurlPanel />
+      </section>
+
+      {/* grype — vulnerabilities, packages, severity, cvss */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GrypePanel />
       </section>
 
       {/* Posts */}
