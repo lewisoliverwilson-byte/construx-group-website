@@ -177,6 +177,7 @@ import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
+import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1360,8 +1361,13 @@ export default function ContactPage() {
       </section>
 
       {/* grafana oncall — rotations, alerts, escalations, silences */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GrafanaOnCallPanel />
+      </section>
+
+      {/* grafana tempo — traces, spans, services, latency */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GrafanaTempoPanel />
       </section>
     </div>
   );

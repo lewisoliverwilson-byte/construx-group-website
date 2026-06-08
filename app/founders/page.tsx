@@ -178,6 +178,7 @@ import GrypePanel from '@/components/GrypePanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
+import HttpBenchPanel from '@/components/HttpBenchPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1488,8 +1489,13 @@ export default function FoundersPage() {
         </div>
 
         {/* http archive — requests, timings, waterfall, headers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HttpArchivePanel />
+        </div>
+
+        {/* http bench — rps, latency, percentiles, connections */}
+        <div className="mt-6 pb-10">
+          <HttpBenchPanel />
         </div>
 
         {/* CTA */}
