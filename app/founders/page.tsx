@@ -190,6 +190,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K3sPanel from '@/components/K3sPanel';
+import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1560,8 +1561,13 @@ export default function FoundersPage() {
         </div>
 
         {/* k3s — clusters, nodes, pods, services */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K3sPanel />
+        </div>
+
+        {/* k6 load test — vus, requests, duration, errors */}
+        <div className="mt-6 pb-10">
+          <K6LoadTestPanel />
         </div>
 
         {/* CTA */}

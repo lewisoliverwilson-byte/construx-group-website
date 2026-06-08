@@ -189,6 +189,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import JaegerTracePanel from '@/components/JaegerTracePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1432,8 +1433,13 @@ export default function ContactPage() {
       </section>
 
       {/* ip addr — addresses, interfaces, prefixes, scope */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <IpAddrPanel />
+      </section>
+
+      {/* jaeger trace — traces, spans, services, durations */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <JaegerTracePanel />
       </section>
     </div>
   );
