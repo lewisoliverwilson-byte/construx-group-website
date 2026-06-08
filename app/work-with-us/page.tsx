@@ -253,6 +253,7 @@ import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
+import OpenSearchPanel from '@/components/OpenSearchPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -2047,8 +2048,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* openobserve — logs, metrics, traces, unified observability */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <OpenObservePanel />
+      </section>
+
+      {/* opensearch — full-text search, indices, queries, aggregations */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <OpenSearchPanel />
       </section>
 
       {/* CTA */}

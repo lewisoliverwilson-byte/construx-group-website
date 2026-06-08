@@ -254,6 +254,7 @@ import PgvectorPanel from '@/components/PgvectorPanel';
 import PineconePanel from '@/components/PineconePanel';
 import PingPanel from '@/components/PingPanel';
 import PinotPanel from '@/components/PinotPanel';
+import PixiePanel from '@/components/PixiePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1707,8 +1708,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* pinot — real-time olap, segments, tables, queries */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PinotPanel />
+        </div>
+
+        {/* pixie — ebpf auto-instrumentation, http traces, cpu flamegraphs */}
+        <div className="mt-4 pb-6">
+          <PixiePanel />
         </div>
 
         {/* Sign-off */}

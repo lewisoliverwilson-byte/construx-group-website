@@ -252,6 +252,7 @@ import PatroniPanel from '@/components/PatroniPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
+import PgvectorPanel from '@/components/PgvectorPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1814,8 +1815,13 @@ export default function UsesPage() {
         </div>
 
         {/* pg-explain — query plans, nodes, cost, buffers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PgExplainPanel />
+        </div>
+
+        {/* pgvector — vector embeddings, similarity search, indexing */}
+        <div className="mt-6 pb-10">
+          <PgvectorPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
