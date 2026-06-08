@@ -244,6 +244,7 @@ import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
+import NmapScanPanel from '@/components/NmapScanPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1784,8 +1785,13 @@ export default function StatsPage() {
       </div>
 
       {/* nix-shell — nix-shell, packages, environment, derivation */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NixShellPanel />
+      </div>
+
+      {/* nmap-scan — port scanning, service detection, os fingerprint */}
+      <div className="mt-6 pb-10">
+        <NmapScanPanel />
       </div>
     </div>
   );

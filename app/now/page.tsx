@@ -242,6 +242,7 @@ import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import NixShellPanel from '@/components/NixShellPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1736,8 +1737,13 @@ export default function NowPage() {
         </div>
 
         {/* nix-flake — flake.nix, inputs, outputs, devShells */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NixFlakePanel />
+        </div>
+
+        {/* nix-shell — nix-shell, packages, environment, derivation */}
+        <div className="mt-6 pb-10">
+          <NixShellPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
