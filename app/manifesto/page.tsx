@@ -114,6 +114,7 @@ import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CargoPanel from '@/components/CargoPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -867,8 +868,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cargo release build — compile, link, test, artifact */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CargoPanel />
+        </div>
+
+        {/* cassandra distributed db — ring, keyspaces, replication factor */}
+        <div className="mt-4 pb-6">
+          <CassandraPanel />
         </div>
 
         {/* Sign-off */}

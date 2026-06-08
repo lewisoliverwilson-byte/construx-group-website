@@ -117,6 +117,7 @@ import BenthosPanel from '@/components/BenthosPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
+import BpftracePanel from '@/components/BpftracePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -823,8 +824,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <BoundaryPanel />
+      </section>
+
+      {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <BpftracePanel />
       </section>
 
       {/* Posts */}

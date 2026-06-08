@@ -112,6 +112,7 @@ import AwsCliPanel from '@/components/AwsCliPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
 import BeylaPanel from '@/components/BeylaPanel';
+import BgpLookupPanel from '@/components/BgpLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -974,8 +975,13 @@ export default function UsesPage() {
         </div>
 
         {/* beyla ebpf auto-instrumentation — spans, latency, red metrics */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BeylaPanel />
+        </div>
+
+        {/* bgp routing table lookup — asn, prefixes, peers, path */}
+        <div className="mt-6 pb-10">
+          <BgpLookupPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
