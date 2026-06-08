@@ -219,6 +219,7 @@ import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
+import LatencyMapPanel from '@/components/LatencyMapPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1435,8 +1436,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kube state metrics — pods, deployments, nodes, conditions */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KubeStateMetricsPanel />
+      </section>
+
+      {/* latency map — regions, p50, p95, p99, heatmap */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LatencyMapPanel />
       </section>
 
       {/* Posts */}

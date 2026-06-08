@@ -215,6 +215,7 @@ import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
+import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1819,8 +1820,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* kubernetes gateway — routes, backends, listeners, policies */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KubernetesGatewayPanel />
+      </section>
+
+      {/* kube state metrics — pods, deployments, nodes, conditions */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KubeStateMetricsPanel />
       </section>
 
       {/* CTA */}

@@ -214,6 +214,7 @@ import KubeflowPanel from '@/components/KubeflowPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
+import KubeVirtPanel from '@/components/KubeVirtPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1586,8 +1587,13 @@ export default function UsesPage() {
         </div>
 
         {/* kubescape — risks, controls, frameworks, scores */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubescapePanel />
+        </div>
+
+        {/* kubevirt — vms, vmis, disks, networks */}
+        <div className="mt-6 pb-10">
+          <KubeVirtPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

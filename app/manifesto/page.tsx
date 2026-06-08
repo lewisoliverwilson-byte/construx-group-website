@@ -216,6 +216,7 @@ import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
+import LonghornPanel from '@/components/LonghornPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1479,8 +1480,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* loki query — logql, streams, labels, filters */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LokiQueryPanel />
+        </div>
+
+        {/* longhorn — distributed block storage, replicas, snapshots, s3 */}
+        <div className="mt-4 pb-6">
+          <LonghornPanel />
         </div>
 
         {/* Sign-off */}
