@@ -253,6 +253,7 @@ import PerfStatPanel from '@/components/PerfStatPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
+import PineconePanel from '@/components/PineconePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1820,8 +1821,13 @@ export default function UsesPage() {
         </div>
 
         {/* pgvector — vector embeddings, similarity search, indexing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PgvectorPanel />
+        </div>
+
+        {/* pinecone — managed vector db, namespaces, upsert, query */}
+        <div className="mt-6 pb-10">
+          <PineconePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

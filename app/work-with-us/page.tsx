@@ -254,6 +254,7 @@ import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
+import OpensslPanel from '@/components/OpensslPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -2053,8 +2054,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* opensearch — full-text search, indices, queries, aggregations */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <OpenSearchPanel />
+      </section>
+
+      {/* openssl — certs, keys, ciphers, tls handshake */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <OpensslPanel />
       </section>
 
       {/* CTA */}

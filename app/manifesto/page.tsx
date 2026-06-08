@@ -255,6 +255,7 @@ import PineconePanel from '@/components/PineconePanel';
 import PingPanel from '@/components/PingPanel';
 import PinotPanel from '@/components/PinotPanel';
 import PixiePanel from '@/components/PixiePanel';
+import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1713,8 +1714,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* pixie — ebpf auto-instrumentation, http traces, cpu flamegraphs */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PixiePanel />
+        </div>
+
+        {/* pnpm-workspace — monorepo, workspaces, hoisting, filters */}
+        <div className="mt-4 pb-6">
+          <PnpmWorkspacePanel />
         </div>
 
         {/* Sign-off */}
