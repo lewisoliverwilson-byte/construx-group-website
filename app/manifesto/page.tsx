@@ -217,6 +217,7 @@ import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
+import LshwPanel from '@/components/LshwPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1485,8 +1486,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* longhorn — distributed block storage, replicas, snapshots, s3 */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LonghornPanel />
+        </div>
+
+        {/* lshw — hardware list, buses, memory, cpus, disks */}
+        <div className="mt-4 pb-6">
+          <LshwPanel />
         </div>
 
         {/* Sign-off */}
