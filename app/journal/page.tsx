@@ -240,6 +240,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
+import NomadPanel from '@/components/NomadPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1561,8 +1562,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* nmap-scan — port scanner, os detection, services, scripts */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NmapScanPanel />
+      </section>
+
+      {/* nomad — workload orchestration, jobs, tasks, allocations */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NomadPanel />
       </section>
 
       {/* Posts */}

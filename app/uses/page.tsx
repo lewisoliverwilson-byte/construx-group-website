@@ -235,6 +235,7 @@ import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1712,8 +1713,13 @@ export default function UsesPage() {
         </div>
 
         {/* nftables — firewall rules, chains, sets, expressions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NftablesPanel />
+        </div>
+
+        {/* nginx-access-log — requests, status codes, methods, ips */}
+        <div className="mt-6 pb-10">
+          <NginxAccessLogPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

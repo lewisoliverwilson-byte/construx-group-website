@@ -236,6 +236,7 @@ import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
+import NeofetchPanel from '@/components/NeofetchPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1945,8 +1946,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NatsPubSubPanel />
+      </section>
+
+      {/* neofetch — system info, distro, kernel, uptime, cpu */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NeofetchPanel />
       </section>
 
       {/* CTA */}

@@ -237,6 +237,7 @@ import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1605,8 +1606,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* npm-global — global packages, versions, install, link */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NpmGlobalPanel />
+        </div>
+
+        {/* npm-outdated — stale dependencies, versions, wanted, latest */}
+        <div className="mt-4 pb-6">
+          <NpmOutdatedPanel />
         </div>
 
         {/* Sign-off */}
