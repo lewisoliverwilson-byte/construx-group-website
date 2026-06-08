@@ -221,6 +221,7 @@ import KubescapePanel from '@/components/KubescapePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
+import LitestreamPanel from '@/components/LitestreamPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1447,8 +1448,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* linkerd — service mesh, mtls, traffic, retries */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <LinkerdPanel />
+      </section>
+
+      {/* litestream — sqlite replication, wal, s3, snapshots */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LitestreamPanel />
       </section>
 
       {/* Posts */}

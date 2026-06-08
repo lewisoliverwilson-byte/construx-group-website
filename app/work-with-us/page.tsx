@@ -217,6 +217,7 @@ import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
+import KyvernoPanel from '@/components/KyvernoPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1831,8 +1832,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* kubevirt — vms, vmis, disks, networks */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KubeVirtPanel />
+      </section>
+
+      {/* kyverno — policy engine, mutations, validations, generates */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KyvernoPanel />
       </section>
 
       {/* CTA */}

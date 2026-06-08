@@ -218,6 +218,7 @@ import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import LshwPanel from '@/components/LshwPanel';
+import LsofPanel from '@/components/LsofPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1491,8 +1492,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* lshw — hardware list, buses, memory, cpus, disks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LshwPanel />
+        </div>
+
+        {/* lsof — open files, sockets, pids, fds */}
+        <div className="mt-4 pb-6">
+          <LsofPanel />
         </div>
 
         {/* Sign-off */}

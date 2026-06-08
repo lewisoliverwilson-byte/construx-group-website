@@ -216,6 +216,7 @@ import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
+import LangfusePanel from '@/components/LangfusePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1598,8 +1599,13 @@ export default function UsesPage() {
         </div>
 
         {/* kyverno — policy engine, mutations, validations, generates */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KyvernoPanel />
+        </div>
+
+        {/* langfuse — llm observability, traces, scores, generations */}
+        <div className="mt-6 pb-10">
+          <LangfusePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
