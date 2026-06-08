@@ -216,6 +216,7 @@ import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
+import KubeflowPanel from '@/components/KubeflowPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1616,8 +1617,13 @@ export default function StatsPage() {
       </div>
 
       {/* kubectl logs — container, pod, namespace, timestamps */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KubectlLogsPanel />
+      </div>
+
+      {/* kubeflow — pipelines, runs, experiments, artifacts */}
+      <div className="mt-6 pb-10">
+        <KubeflowPanel />
       </div>
     </div>
   );

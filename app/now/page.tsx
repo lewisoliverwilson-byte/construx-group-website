@@ -214,6 +214,7 @@ import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
+import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1568,8 +1569,13 @@ export default function NowPage() {
         </div>
 
         {/* kubectl pods — name, ready, status, restarts, age */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubectlPodsPanel />
+        </div>
+
+        {/* kubeflow pipelines — dag, steps, inputs, outputs */}
+        <div className="mt-6 pb-10">
+          <KubeflowPipelinesPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

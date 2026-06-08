@@ -214,6 +214,7 @@ import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import LinkerdPanel from '@/components/LinkerdPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1704,8 +1705,13 @@ export default function FoundersPage() {
         </div>
 
         {/* lighthouse — performance, accessibility, seo, best practices */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LighthousePanel />
+        </div>
+
+        {/* linkerd — proxies, traffic, retries, timeouts */}
+        <div className="mt-6 pb-10">
+          <LinkerdPanel />
         </div>
 
         {/* CTA */}
