@@ -237,6 +237,7 @@ import NeofetchPanel from '@/components/NeofetchPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
+import NixFlakePanel from '@/components/NixFlakePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1543,8 +1544,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* nginx-access-log — requests, status codes, methods, ips */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NginxAccessLogPanel />
+      </section>
+
+      {/* nix-flake — flake.nix, inputs, outputs, devShells */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NixFlakePanel />
       </section>
 
       {/* Posts */}

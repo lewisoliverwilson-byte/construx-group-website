@@ -232,6 +232,7 @@ import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeonPanel from '@/components/NeonPanel';
+import NetdataPanel from '@/components/NetdataPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1694,8 +1695,13 @@ export default function UsesPage() {
         </div>
 
         {/* neon — serverless postgres, branches, compute, storage */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NeonPanel />
+        </div>
+
+        {/* netdata — real-time metrics, agents, dashboards, alerts */}
+        <div className="mt-6 pb-10">
+          <NetdataPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
