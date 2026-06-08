@@ -144,6 +144,7 @@ import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
+import DigPanel from '@/components/DigPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1284,8 +1285,13 @@ export default function FoundersPage() {
         </div>
 
         {/* debezium — cdc, connectors, transforms, offsets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DebeziumPanel />
+        </div>
+
+        {/* dig — dns query, records, trace, reverse */}
+        <div className="mt-6 pb-10">
+          <DigPanel />
         </div>
 
         {/* CTA */}

@@ -146,6 +146,7 @@ import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import DaggerPanel from '@/components/DaggerPanel';
+import DbMigrationPanel from '@/components/DbMigrationPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1196,8 +1197,13 @@ export default function StatsPage() {
       </div>
 
       {/* dagger — pipelines, containers, cache, secrets */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DaggerPanel />
+      </div>
+
+      {/* db migration — flyway, liquibase, versions, checksums */}
+      <div className="mt-6 pb-10">
+        <DbMigrationPanel />
       </div>
     </div>
   );
