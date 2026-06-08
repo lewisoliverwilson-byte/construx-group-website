@@ -203,6 +203,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournaldPanel from '@/components/JournaldPanel';
 import K3sPanel from '@/components/K3sPanel';
+import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1502,8 +1503,13 @@ export default function NowPage() {
         </div>
 
         {/* k3s — clusters, nodes, pods, services */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K3sPanel />
+        </div>
+
+        {/* k6 load test — vus, iterations, checks, http */}
+        <div className="mt-6 pb-10">
+          <K6LoadTestPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

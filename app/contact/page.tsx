@@ -202,6 +202,7 @@ import KarpenterPanel from '@/components/KarpenterPanel';
 import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KindPanel from '@/components/KindPanel';
+import KnativePanel from '@/components/KnativePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1510,8 +1511,13 @@ export default function ContactPage() {
       </section>
 
       {/* kind — clusters, nodes, images, configs */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KindPanel />
+      </section>
+
+      {/* knative — services, revisions, routes, events */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KnativePanel />
       </section>
     </div>
   );

@@ -203,6 +203,7 @@ import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
+import KubeflowPanel from '@/components/KubeflowPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1638,8 +1639,13 @@ export default function FoundersPage() {
         </div>
 
         {/* kubectl pods — names, status, restarts, age */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubectlPodsPanel />
+        </div>
+
+        {/* kubeflow — pipelines, runs, experiments, artifacts */}
+        <div className="mt-6 pb-10">
+          <KubeflowPanel />
         </div>
 
         {/* CTA */}
