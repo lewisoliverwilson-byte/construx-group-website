@@ -222,6 +222,7 @@ import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
+import MimirPanel from '@/components/MimirPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1515,8 +1516,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* meminfo — ram, swap, buffers, cached, available */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <MemInfoPanel />
+        </div>
+
+        {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
+        <div className="mt-4 pb-6">
+          <MimirPanel />
         </div>
 
         {/* Sign-off */}

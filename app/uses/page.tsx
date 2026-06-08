@@ -220,6 +220,7 @@ import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
+import LokiPanel from '@/components/LokiPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1622,8 +1623,13 @@ export default function UsesPage() {
         </div>
 
         {/* litestream — sqlite replication, wal, s3, snapshots */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LitestreamPanel />
+        </div>
+
+        {/* loki — log aggregation, streams, labels, queries */}
+        <div className="mt-6 pb-10">
+          <LokiPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

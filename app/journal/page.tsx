@@ -225,6 +225,7 @@ import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import LshwPanel from '@/components/LshwPanel';
+import LsofPanel from '@/components/LsofPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1471,8 +1472,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* lshw — hardware list, buses, memory, cpus, disks */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <LshwPanel />
+      </section>
+
+      {/* lsof — open files, sockets, pids, fds */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LsofPanel />
       </section>
 
       {/* Posts */}
