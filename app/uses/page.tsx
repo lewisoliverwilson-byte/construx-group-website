@@ -225,6 +225,7 @@ import LonghornPanel from '@/components/LonghornPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
+import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1652,8 +1653,13 @@ export default function UsesPage() {
         </div>
 
         {/* meminfo — ram, swap, buffers, cached, available */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MemInfoPanel />
+        </div>
+
+        {/* methodology-diff — approach comparison, old vs new, decision log */}
+        <div className="mt-6 pb-10">
+          <MethodologyDiffPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

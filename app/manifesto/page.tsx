@@ -227,6 +227,7 @@ import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
 import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
+import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1545,8 +1546,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nats — messaging, subjects, consumers, streams */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NATSPanel />
+        </div>
+
+        {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
+        <div className="mt-4 pb-6">
+          <NatsPubSubPanel />
         </div>
 
         {/* Sign-off */}

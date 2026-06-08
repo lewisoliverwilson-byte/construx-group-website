@@ -226,6 +226,7 @@ import LinkerdPanel from '@/components/LinkerdPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
+import LshwPanel from '@/components/LshwPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1885,8 +1886,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* loki query — logql, streams, labels, filters */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <LokiQueryPanel />
+      </section>
+
+      {/* lshw — hardware list, cpu, memory, disk, network */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <LshwPanel />
       </section>
 
       {/* CTA */}

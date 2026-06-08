@@ -230,6 +230,7 @@ import MaterializePanel from '@/components/MaterializePanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
+import MisePanel from '@/components/MisePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1501,8 +1502,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* minio — s3-compatible object storage, buckets, objects, policies */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <MinIOPanel />
+      </section>
+
+      {/* mise — runtime version manager, tools, env, tasks */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MisePanel />
       </section>
 
       {/* Posts */}
