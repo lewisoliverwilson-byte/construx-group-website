@@ -119,6 +119,7 @@ import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1016,8 +1017,13 @@ export default function UsesPage() {
         </div>
 
         {/* bundle analysis — size, chunks, treeshake, deps */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BundleAnalysisPanel />
+        </div>
+
+        {/* caddy access log — requests, status, latency, bytes */}
+        <div className="mt-6 pb-10">
+          <CaddyAccessPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -121,6 +121,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
+import CitusPanel from '@/components/CitusPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -909,8 +910,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ci pipeline — stages, jobs, artifacts, runners */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CIPipelinePanel />
+        </div>
+
+        {/* citus distributed postgres — shards, workers, routing */}
+        <div className="mt-4 pb-6">
+          <CitusPanel />
         </div>
 
         {/* Sign-off */}
