@@ -218,6 +218,7 @@ import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
+import LighthousePanel from '@/components/LighthousePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1610,8 +1611,13 @@ export default function UsesPage() {
         </div>
 
         {/* last login — auth log, last session, ip, terminal */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LastLoginPanel />
+        </div>
+
+        {/* lighthouse — performance, accessibility, seo, best practices */}
+        <div className="mt-6 pb-10">
+          <LighthousePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

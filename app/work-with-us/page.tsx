@@ -219,6 +219,7 @@ import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
+import LastLoginPanel from '@/components/LastLoginPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1843,8 +1844,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* langfuse — llm observability, traces, scores, generations */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <LangfusePanel />
+      </section>
+
+      {/* last login — auth log, last session, ip, terminal */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <LastLoginPanel />
       </section>
 
       {/* CTA */}
