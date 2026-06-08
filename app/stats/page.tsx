@@ -258,6 +258,7 @@ import PatroniPanel from '@/components/PatroniPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
+import PingPanel from '@/components/PingPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1868,8 +1869,13 @@ export default function StatsPage() {
       </div>
 
       {/* pgvector — vector embeddings, similarity search, indexing */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PgvectorPanel />
+      </div>
+
+      {/* ping — latency, packet loss, ttl, icmp */}
+      <div className="mt-6 pb-10">
+        <PingPanel />
       </div>
     </div>
   );

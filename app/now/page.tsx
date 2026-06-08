@@ -256,6 +256,7 @@ import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
+import PackerBuildPanel from '@/components/PackerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1820,8 +1821,13 @@ export default function NowPage() {
         </div>
 
         {/* opentelemetry — sdk, instrumentation, otlp, traces */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenTelemetryPanel />
+        </div>
+
+        {/* packer-build — image templates, builders, provisioners, post-processors */}
+        <div className="mt-6 pb-10">
+          <PackerBuildPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

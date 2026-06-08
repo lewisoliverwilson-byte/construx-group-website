@@ -256,6 +256,7 @@ import PatroniPanel from '@/components/PatroniPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
+import PineconePanel from '@/components/PineconePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1956,8 +1957,13 @@ export default function FoundersPage() {
         </div>
 
         {/* pgvector — vector embeddings, similarity search, indexing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PgvectorPanel />
+        </div>
+
+        {/* pinecone — managed vector db, namespaces, upsert, query */}
+        <div className="mt-6 pb-10">
+          <PineconePanel />
         </div>
 
         {/* CTA */}
