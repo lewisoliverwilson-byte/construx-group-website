@@ -197,6 +197,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import IpLinkPanel from '@/components/IpLinkPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1466,8 +1467,13 @@ export default function NowPage() {
         </div>
 
         {/* ip addr — interfaces, addresses, states, flags */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IpAddrPanel />
+        </div>
+
+        {/* ip link — interfaces, states, addresses, routes */}
+        <div className="mt-6 pb-10">
+          <IpLinkPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

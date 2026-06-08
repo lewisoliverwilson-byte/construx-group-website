@@ -199,6 +199,7 @@ import IcebergPanel from '@/components/IcebergPanel';
 import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
+import IstioPanel from '@/components/IstioPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1514,8 +1515,13 @@ export default function StatsPage() {
       </div>
 
       {/* ip link — interfaces, states, addresses, routes */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <IpLinkPanel />
+      </div>
+
+      {/* istio — services, traffic, policies, telemetry */}
+      <div className="mt-6 pb-10">
+        <IstioPanel />
       </div>
     </div>
   );
