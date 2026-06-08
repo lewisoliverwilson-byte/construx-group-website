@@ -138,6 +138,7 @@ import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
+import DaggerPanel from '@/components/DaggerPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1126,8 +1127,13 @@ export default function ContactPage() {
       </section>
 
       {/* cyclonedx — bom, components, vulnerabilities, metadata */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CycloneDxPanel />
+      </section>
+
+      {/* dagger — pipelines, containers, cache, secrets */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DaggerPanel />
       </section>
     </div>
   );

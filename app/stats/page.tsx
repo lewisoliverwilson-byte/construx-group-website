@@ -141,6 +141,7 @@ import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrontabPanel from '@/components/CrontabPanel';
+import CrossplanePanel from '@/components/CrossplanePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1166,8 +1167,13 @@ export default function StatsPage() {
       </div>
 
       {/* crontab — schedule, jobs, logs, next-run */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CrontabPanel />
+      </div>
+
+      {/* crossplane — providers, compositions, claims, xrds */}
+      <div className="mt-6 pb-10">
+        <CrossplanePanel />
       </div>
     </div>
   );

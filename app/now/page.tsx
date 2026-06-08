@@ -139,6 +139,7 @@ import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
+import CortexPanel from '@/components/CortexPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1118,8 +1119,13 @@ export default function NowPage() {
         </div>
 
         {/* cockroachdb — distributed sql, replication, zones, backup */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CockroachDbPanel />
+        </div>
+
+        {/* cortex — query engine, ruler, compactor, store-gateway */}
+        <div className="mt-6 pb-10">
+          <CortexPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

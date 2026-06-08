@@ -139,6 +139,7 @@ import CrontabPanel from '@/components/CrontabPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1254,8 +1255,13 @@ export default function FoundersPage() {
         </div>
 
         {/* curl headers — request, response, timing, tls */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CurlHeadersPanel />
+        </div>
+
+        {/* curl verbose — trace, redirect, ssl, timing */}
+        <div className="mt-6 pb-10">
+          <CurlVerbosePanel />
         </div>
 
         {/* CTA */}
