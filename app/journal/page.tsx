@@ -201,6 +201,7 @@ import JournalctlPanel from '@/components/JournalctlPanel';
 import JournaldPanel from '@/components/JournaldPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
+import K8sEventsPanel from '@/components/K8sEventsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1327,8 +1328,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* k6 summary — passes, fails, rate, percentiles */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <K6SummaryPanel />
+      </section>
+
+      {/* k8s events — reasons, objects, counts, timestamps */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <K8sEventsPanel />
       </section>
 
       {/* Posts */}

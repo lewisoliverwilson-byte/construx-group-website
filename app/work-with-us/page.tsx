@@ -197,6 +197,7 @@ import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
+import JournalWcPanel from '@/components/JournalWcPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1711,8 +1712,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* journalctl — units, logs, priorities, boots */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <JournalctlPanel />
+      </section>
+
+      {/* journal wc — lines, words, bytes, files */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <JournalWcPanel />
       </section>
 
       {/* CTA */}
