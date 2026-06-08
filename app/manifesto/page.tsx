@@ -104,6 +104,7 @@ import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
+import AwsCliPanel from '@/components/AwsCliPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -807,8 +808,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* aws bedrock — foundation models, inference, agents */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AwsBedrockPanel />
+        </div>
+
+        {/* aws cli — s3, ec2, iam, lambda commands */}
+        <div className="mt-4 pb-6">
+          <AwsCliPanel />
         </div>
 
         {/* Sign-off */}

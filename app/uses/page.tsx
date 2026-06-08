@@ -102,6 +102,7 @@ import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
+import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -914,8 +915,13 @@ export default function UsesPage() {
         </div>
 
         {/* argo events — event-driven workflows, event sources, sensors, triggers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoEventsPanel />
+        </div>
+
+        {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
+        <div className="mt-6 pb-10">
+          <ArgoRolloutPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
