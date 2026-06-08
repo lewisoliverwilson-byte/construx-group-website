@@ -213,6 +213,7 @@ import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
+import LatencyMapPanel from '@/components/LatencyMapPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1461,8 +1462,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* last login — user, ip, device, timestamp */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LastLoginPanel />
+        </div>
+
+        {/* latency map — regions, p50, p95, p99 */}
+        <div className="mt-4 pb-6">
+          <LatencyMapPanel />
         </div>
 
         {/* Sign-off */}

@@ -211,6 +211,7 @@ import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
+import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1568,8 +1569,13 @@ export default function UsesPage() {
         </div>
 
         {/* kubeflow — pipelines, runs, experiments, artifacts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeflowPanel />
+        </div>
+
+        {/* kubeflow pipelines — dag, steps, inputs, outputs */}
+        <div className="mt-6 pb-10">
+          <KubeflowPipelinesPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

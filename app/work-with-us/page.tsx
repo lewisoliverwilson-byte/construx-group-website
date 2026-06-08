@@ -212,6 +212,7 @@ import KnativePanel from '@/components/KnativePanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
+import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1801,8 +1802,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* kubeflow pipelines — dag, steps, inputs, outputs */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KubeflowPipelinesPanel />
+      </section>
+
+      {/* kube prometheus — metrics, alerts, targets, rules */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KubePrometheusPanel />
       </section>
 
       {/* CTA */}
