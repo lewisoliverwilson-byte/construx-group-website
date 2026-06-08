@@ -231,6 +231,7 @@ import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
+import MimirPanel from '@/components/MimirPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1670,8 +1671,13 @@ export default function NowPage() {
         </div>
 
         {/* methodology-diff — approach comparison, old vs new, decision log */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MethodologyDiffPanel />
+        </div>
+
+        {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
+        <div className="mt-6 pb-10">
+          <MimirPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -230,6 +230,7 @@ import MLflowPanel from '@/components/MLflowPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NetdataPanel from '@/components/NetdataPanel';
+import NetstatPanel from '@/components/NetstatPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1678,8 +1679,13 @@ export default function ContactPage() {
       </section>
 
       {/* netdata — real-time metrics, agents, dashboards, alerts */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NetdataPanel />
+      </section>
+
+      {/* netstat — connections, listening ports, routing, interfaces */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NetstatPanel />
       </section>
     </div>
   );

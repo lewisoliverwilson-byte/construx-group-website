@@ -233,6 +233,7 @@ import LshwPanel from '@/components/LshwPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
+import MinIOPanel from '@/components/MinIOPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1718,8 +1719,13 @@ export default function StatsPage() {
       </div>
 
       {/* methodology-diff — approach comparison, old vs new, decision log */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MethodologyDiffPanel />
+      </div>
+
+      {/* minio — s3-compatible object storage, buckets, objects, policies */}
+      <div className="mt-6 pb-10">
+        <MinIOPanel />
       </div>
     </div>
   );

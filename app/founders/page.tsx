@@ -231,6 +231,7 @@ import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
+import NetstatPanel from '@/components/NetstatPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1806,8 +1807,13 @@ export default function FoundersPage() {
         </div>
 
         {/* netdata — real-time metrics, agents, dashboards, alerts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NetdataPanel />
+        </div>
+
+        {/* netstat — connections, listening ports, routing, interfaces */}
+        <div className="mt-6 pb-10">
+          <NetstatPanel />
         </div>
 
         {/* CTA */}
