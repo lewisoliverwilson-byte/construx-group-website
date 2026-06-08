@@ -99,6 +99,7 @@ import WebVitalsPanel from '@/components/WebVitalsPanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
 import VscodeExtensionsPanel from '@/components/VscodeExtensionsPanel';
 import ZitadelPanel from '@/components/ZitadelPanel';
+import AlertManagerPanel from '@/components/AlertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -878,8 +879,13 @@ export default function NowPage() {
         </div>
 
         {/* zitadel — iam, oidc, saml, organizations, audit */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ZitadelPanel />
+        </div>
+
+        {/* alertmanager — prometheus alerts, groups, silences, receivers */}
+        <div className="mt-6 pb-10">
+          <AlertManagerPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

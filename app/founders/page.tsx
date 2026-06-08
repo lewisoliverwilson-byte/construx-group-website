@@ -99,6 +99,7 @@ import TurboRepoPanel from '@/components/TurboRepoPanel';
 import ValsPanel from '@/components/ValsPanel';
 import VclusterPanel from '@/components/VclusterPanel';
 import ZarfPanel from '@/components/ZarfPanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1014,8 +1015,13 @@ export default function FoundersPage() {
         </div>
 
         {/* zarf — airgap k8s packages, declarative deployment, oci */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ZarfPanel />
+        </div>
+
+        {/* argo cd — gitops, sync, apps, rollbacks */}
+        <div className="mt-6 pb-10">
+          <ArgoCDPanel />
         </div>
 
         {/* CTA */}

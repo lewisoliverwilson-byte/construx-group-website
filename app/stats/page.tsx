@@ -101,6 +101,7 @@ import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
 import TrivyVulnPanel from '@/components/TrivyVulnPanel';
 import TypesensePanel from '@/components/TypesensePanel';
 import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
+import ActPanel from '@/components/ActPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -926,8 +927,13 @@ export default function StatsPage() {
       </div>
 
       {/* wrk benchmark — rps, latency, throughput, threads */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <WrkBenchmarkPanel />
+      </div>
+
+      {/* act — github actions local runner, jobs, steps, env */}
+      <div className="mt-6 pb-10">
+        <ActPanel />
       </div>
     </div>
   );
