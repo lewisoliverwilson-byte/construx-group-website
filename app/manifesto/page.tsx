@@ -157,6 +157,7 @@ import EnvPanel from '@/components/EnvPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
+import FlamegraphPanel from '@/components/FlamegraphPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1125,8 +1126,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* flagger — canary, rollout, analysis, webhooks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FlaggerPanel />
+        </div>
+
+        {/* flamegraph — cpu, memory, wall, flamegraph */}
+        <div className="mt-4 pb-6">
+          <FlamegraphPanel />
         </div>
 
         {/* Sign-off */}
