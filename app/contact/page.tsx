@@ -250,6 +250,7 @@ import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
+import PgBouncerPanel from '@/components/PgBouncerPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1798,8 +1799,13 @@ export default function ContactPage() {
       </section>
 
       {/* perf-stat — hardware counters, instructions, cycles, cache */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <PerfStatPanel />
+      </section>
+
+      {/* pgbouncer — connection pooling, pool modes, clients, servers */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <PgBouncerPanel />
       </section>
     </div>
   );

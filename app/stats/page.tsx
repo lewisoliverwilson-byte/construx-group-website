@@ -253,6 +253,7 @@ import OPAPanel from '@/components/OPAPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import OtelTracesPanel from '@/components/OtelTracesPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1838,8 +1839,13 @@ export default function StatsPage() {
       </div>
 
       {/* openssl — certs, keys, ciphers, tls handshake */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpensslPanel />
+      </div>
+
+      {/* otel-traces — spans, traceids, latency, service graph */}
+      <div className="mt-6 pb-10">
+        <OtelTracesPanel />
       </div>
     </div>
   );

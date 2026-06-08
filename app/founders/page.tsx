@@ -251,6 +251,7 @@ import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
+import ParcaPanel from '@/components/ParcaPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1926,8 +1927,13 @@ export default function FoundersPage() {
         </div>
 
         {/* packer-build — image templates, builders, provisioners, post-processors */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PackerBuildPanel />
+        </div>
+
+        {/* parca — continuous profiling, flame graphs, cpu, memory */}
+        <div className="mt-6 pb-10">
+          <ParcaPanel />
         </div>
 
         {/* CTA */}
