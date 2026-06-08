@@ -140,6 +140,7 @@ import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
+import CrontabPanel from '@/components/CrontabPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1142,8 +1143,13 @@ export default function UsesPage() {
         </div>
 
         {/* cpu stats — load, cores, frequency, temperature */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CpuStatsPanel />
+        </div>
+
+        {/* crontab — schedule, jobs, logs, next-run */}
+        <div className="mt-6 pb-10">
+          <CrontabPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

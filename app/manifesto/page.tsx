@@ -142,6 +142,7 @@ import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DigPanel from '@/components/DigPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import DnsLookupPanel from '@/components/DnsLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1035,8 +1036,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* dmesg — kernel, boot, drivers, errors */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DmesgPanel />
+        </div>
+
+        {/* dns lookup — a, aaaa, mx, txt records */}
+        <div className="mt-4 pb-6">
+          <DnsLookupPanel />
         </div>
 
         {/* Sign-off */}
