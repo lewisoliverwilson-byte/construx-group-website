@@ -110,6 +110,7 @@ import BackstagePanel from '@/components/BackstagePanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
+import BpftracePanel from '@/components/BpftracePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -958,8 +959,13 @@ export default function ContactPage() {
       </section>
 
       {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BoundaryPanel />
+      </section>
+
+      {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BpftracePanel />
       </section>
     </div>
   );

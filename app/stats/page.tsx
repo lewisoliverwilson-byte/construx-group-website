@@ -113,6 +113,7 @@ import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
+import BenthosPanel from '@/components/BenthosPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -998,8 +999,13 @@ export default function StatsPage() {
       </div>
 
       {/* bazel hermetic build — remote cache, targets, action cache stats */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BazelPanel />
+      </div>
+
+      {/* benthos stream processor — pipelines, bloblang, fanout */}
+      <div className="mt-6 pb-10">
+        <BenthosPanel />
       </div>
     </div>
   );
