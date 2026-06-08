@@ -241,6 +241,7 @@ import NmapScanPanel from '@/components/NmapScanPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
+import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1748,8 +1749,13 @@ export default function UsesPage() {
         </div>
 
         {/* opa — policy engine, rego, bundles, decisions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OPAPanel />
+        </div>
+
+        {/* openfga-audit — authorization model, tuples, check, expand */}
+        <div className="mt-6 pb-10">
+          <OpenFgaAuditPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

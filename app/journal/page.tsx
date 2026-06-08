@@ -246,6 +246,7 @@ import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
+import OpenCostPanel from '@/components/OpenCostPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1597,8 +1598,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* ollama — local llm inference, models, pull, run */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OllamaPanel />
+      </section>
+
+      {/* opencost — kubernetes cost allocation, namespaces, workloads */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OpenCostPanel />
       </section>
 
       {/* Posts */}

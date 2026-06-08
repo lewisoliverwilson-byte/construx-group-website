@@ -243,6 +243,7 @@ import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
+import OpenSearchPanel from '@/components/OpenSearchPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1641,8 +1642,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* openfga — fine-grained authorization, relationships, checks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OpenFGAPanel />
+        </div>
+
+        {/* opensearch — search engine, indices, queries, clusters */}
+        <div className="mt-4 pb-6">
+          <OpenSearchPanel />
         </div>
 
         {/* Sign-off */}
