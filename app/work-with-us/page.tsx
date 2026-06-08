@@ -101,6 +101,7 @@ import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
 import SysdigPanel from '@/components/SysdigPanel';
 import ActPanel from '@/components/ActPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1135,8 +1136,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* alertmanager — prometheus alerts, groups, silences, receivers */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <AlertManagerPanel />
+      </section>
+
+      {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <AnsiblePlaybookPanel />
       </section>
 
       {/* CTA */}

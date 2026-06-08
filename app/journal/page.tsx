@@ -105,6 +105,7 @@ import TrinoPanel from '@/components/TrinoPanel';
 import TlsHandshakePanel from '@/components/TlsHandshakePanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import ActPanel from '@/components/ActPanel';
+import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -751,8 +752,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* act — github actions local runner, jobs, steps, env */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ActPanel />
+      </section>
+
+      {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <AnsiblePlaybookPanel />
       </section>
 
       {/* Posts */}

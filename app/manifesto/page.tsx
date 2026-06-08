@@ -102,6 +102,7 @@ import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
 import SpfDkimPanel from '@/components/SpfDkimPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
+import AuthentikPanel from '@/components/AuthentikPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -795,8 +796,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ArgoRolloutPanel />
+        </div>
+
+        {/* authentik — identity provider, sso, oauth2, audit */}
+        <div className="mt-4 pb-6">
+          <AuthentikPanel />
         </div>
 
         {/* Sign-off */}

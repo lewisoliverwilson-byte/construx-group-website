@@ -100,6 +100,7 @@ import VaultPkiPanel from '@/components/VaultPkiPanel';
 import VegetaPanel from '@/components/VegetaPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -902,8 +903,13 @@ export default function UsesPage() {
         </div>
 
         {/* alertmanager — prometheus alerts, groups, silences, receivers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AlertManagerPanel />
+        </div>
+
+        {/* argo cd — gitops, sync, apps, rollbacks */}
+        <div className="mt-6 pb-10">
+          <ArgoCDPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
