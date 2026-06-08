@@ -246,6 +246,7 @@ import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1796,8 +1797,13 @@ export default function StatsPage() {
       </div>
 
       {/* npm-global — global packages, versions, install, link */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NpmGlobalPanel />
+      </div>
+
+      {/* npm-outdated — stale dependencies, versions, wanted, latest */}
+      <div className="mt-6 pb-10">
+        <NpmOutdatedPanel />
       </div>
     </div>
   );

@@ -244,6 +244,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
+import OpenObservePanel from '@/components/OpenObservePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1884,8 +1885,13 @@ export default function FoundersPage() {
         </div>
 
         {/* openfga-audit — authorization model, tuples, check, expand */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenFgaAuditPanel />
+        </div>
+
+        {/* openobserve — logs, metrics, traces, dashboards */}
+        <div className="mt-6 pb-10">
+          <OpenObservePanel />
         </div>
 
         {/* CTA */}

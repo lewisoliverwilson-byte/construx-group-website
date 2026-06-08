@@ -244,6 +244,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
+import NomadPanel from '@/components/NomadPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1748,8 +1749,13 @@ export default function NowPage() {
         </div>
 
         {/* nmap-scan — port scanning, service detection, os fingerprint */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NmapScanPanel />
+        </div>
+
+        {/* nomad — workload orchestration, jobs, tasks, allocations */}
+        <div className="mt-6 pb-10">
+          <NomadPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
