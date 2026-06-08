@@ -226,6 +226,7 @@ import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
 import MtrPanel from '@/components/MtrPanel';
+import NATSPanel from '@/components/NATSPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1539,8 +1540,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* mtr — network diagnostics, hops, latency, packet loss */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <MtrPanel />
+        </div>
+
+        {/* nats — messaging, subjects, consumers, streams */}
+        <div className="mt-4 pb-6">
+          <NATSPanel />
         </div>
 
         {/* Sign-off */}
