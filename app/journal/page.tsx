@@ -127,6 +127,7 @@ import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
+import CitusPanel from '@/components/CitusPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -883,8 +884,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* ci pipeline — stages, jobs, artifacts, runners */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CIPipelinePanel />
+      </section>
+
+      {/* citus distributed postgres — shards, workers, routing */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CitusPanel />
       </section>
 
       {/* Posts */}

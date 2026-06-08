@@ -124,6 +124,7 @@ import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
+import ClickHousePanel from '@/components/ClickHousePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -927,8 +928,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* clickhouse migration — schema, versions, apply, rollback */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ClickhouseMigrationPanel />
+        </div>
+
+        {/* clickhouse query — mergetree, replicas, parts, mutations */}
+        <div className="mt-4 pb-6">
+          <ClickHousePanel />
         </div>
 
         {/* Sign-off */}

@@ -122,6 +122,7 @@ import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import CargoPanel from '@/components/CargoPanel';
+import CephPanel from '@/components/CephPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1034,8 +1035,13 @@ export default function UsesPage() {
         </div>
 
         {/* cargo release build — compile, link, test, artifact */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CargoPanel />
+        </div>
+
+        {/* ceph cluster — osds, pools, pg, replication */}
+        <div className="mt-6 pb-10">
+          <CephPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
