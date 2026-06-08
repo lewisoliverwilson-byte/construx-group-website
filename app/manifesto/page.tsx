@@ -186,6 +186,7 @@ import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
+import IpAddrPanel from '@/components/IpAddrPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1299,8 +1300,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* influxdb — measurements, tags, fields, retention */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <InfluxDbPanel />
+        </div>
+
+        {/* ip addr — addresses, interfaces, prefixes, scope */}
+        <div className="mt-4 pb-6">
+          <IpAddrPanel />
         </div>
 
         {/* Sign-off */}

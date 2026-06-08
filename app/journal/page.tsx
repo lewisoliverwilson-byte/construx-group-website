@@ -189,6 +189,7 @@ import GrypePanel from '@/components/GrypePanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
+import HttpBenchPanel from '@/components/HttpBenchPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1255,8 +1256,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* htop — processes, cpu, memory, load */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <HtopPanel />
+      </section>
+
+      {/* http bench — requests, rps, latency, errors */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <HttpBenchPanel />
       </section>
 
       {/* Posts */}
