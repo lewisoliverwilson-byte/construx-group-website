@@ -204,6 +204,7 @@ import KeycloakPanel from '@/components/KeycloakPanel';
 import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
+import KubebenchPanel from '@/components/KubebenchPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1522,8 +1523,13 @@ export default function ContactPage() {
       </section>
 
       {/* kube audit — events, rules, verbs, resources */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KubeAuditPanel />
+      </section>
+
+      {/* kubebench — checks, failures, warnings, remediation */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubebenchPanel />
       </section>
     </div>
   );

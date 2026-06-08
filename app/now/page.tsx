@@ -205,6 +205,7 @@ import JournaldPanel from '@/components/JournaldPanel';
 import K3sPanel from '@/components/K3sPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6Panel from '@/components/K6Panel';
+import K6SummaryPanel from '@/components/K6SummaryPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1514,8 +1515,13 @@ export default function NowPage() {
         </div>
 
         {/* k6 — scenarios, checks, thresholds, vus */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K6Panel />
+        </div>
+
+        {/* k6 summary — results, trends, checks, rates */}
+        <div className="mt-6 pb-10">
+          <K6SummaryPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
