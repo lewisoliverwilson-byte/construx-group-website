@@ -210,6 +210,7 @@ import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubescapePanel from '@/components/KubescapePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
+import KyvernoPanel from '@/components/KyvernoPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1443,8 +1444,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kubevirt — vms, vmis, disks, networks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubeVirtPanel />
+        </div>
+
+        {/* kyverno — policies, violations, reports, rules */}
+        <div className="mt-4 pb-6">
+          <KyvernoPanel />
         </div>
 
         {/* Sign-off */}
