@@ -248,6 +248,7 @@ import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
+import PerfStatPanel from '@/components/PerfStatPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1671,8 +1672,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* parca — continuous profiling, flame graphs, cpu, memory */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ParcaPanel />
+        </div>
+
+        {/* perf-stat — hardware counters, instructions, cycles, cache */}
+        <div className="mt-4 pb-6">
+          <PerfStatPanel />
         </div>
 
         {/* Sign-off */}

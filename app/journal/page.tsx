@@ -251,6 +251,7 @@ import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1627,8 +1628,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* openssl — certs, keys, ciphers, tls handshake */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OpensslPanel />
+      </section>
+
+      {/* opentelemetry — sdk, instrumentation, otlp, traces */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OpenTelemetryPanel />
       </section>
 
       {/* Posts */}
