@@ -231,6 +231,7 @@ import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1684,8 +1685,13 @@ export default function ContactPage() {
       </section>
 
       {/* netstat — connections, listening ports, routing, interfaces */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NetstatPanel />
+      </section>
+
+      {/* network-ping — icmp, rtt, packet loss, host reachability */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NetworkPingPanel />
       </section>
     </div>
   );

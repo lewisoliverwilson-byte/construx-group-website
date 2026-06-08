@@ -234,6 +234,7 @@ import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MinIOPanel from '@/components/MinIOPanel';
+import MisePanel from '@/components/MisePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1724,8 +1725,13 @@ export default function StatsPage() {
       </div>
 
       {/* minio — s3-compatible object storage, buckets, objects, policies */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MinIOPanel />
+      </div>
+
+      {/* mise — runtime version manager, tools, env, tasks */}
+      <div className="mt-6 pb-10">
+        <MisePanel />
       </div>
     </div>
   );

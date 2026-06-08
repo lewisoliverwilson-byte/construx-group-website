@@ -232,6 +232,7 @@ import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MimirPanel from '@/components/MimirPanel';
+import MinIOPanel from '@/components/MinIOPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1676,8 +1677,13 @@ export default function NowPage() {
         </div>
 
         {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MimirPanel />
+        </div>
+
+        {/* minio — s3-compatible object storage, buckets, objects, policies */}
+        <div className="mt-6 pb-10">
+          <MinIOPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
