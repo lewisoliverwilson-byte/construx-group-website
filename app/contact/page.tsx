@@ -102,6 +102,7 @@ import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
+import AtlasPanel from '@/components/AtlasPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -910,8 +911,13 @@ export default function ContactPage() {
       </section>
 
       {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ArgoWorkflowsPanel />
+      </section>
+
+      {/* atlas database schema management — migrations, drift, ci */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <AtlasPanel />
       </section>
     </div>
   );

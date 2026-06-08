@@ -103,6 +103,7 @@ import AlertManagerPanel from '@/components/AlertManagerPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ActPanel from '@/components/ActPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
+import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -902,8 +903,13 @@ export default function NowPage() {
         </div>
 
         {/* argo cd — gitops, sync, apps, rollbacks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoCDPanel />
+        </div>
+
+        {/* argo events — event-driven workflows, event sources, sensors, triggers */}
+        <div className="mt-6 pb-10">
+          <ArgoEventsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

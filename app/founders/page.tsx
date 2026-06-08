@@ -103,6 +103,7 @@ import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ActPanel from '@/components/ActPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
+import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1038,8 +1039,13 @@ export default function FoundersPage() {
         </div>
 
         {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AnsiblePlaybookPanel />
+        </div>
+
+        {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
+        <div className="mt-6 pb-10">
+          <ArgoRolloutPanel />
         </div>
 
         {/* CTA */}
