@@ -187,6 +187,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import IpLinkPanel from '@/components/IpLinkPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1305,8 +1306,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ip addr — addresses, interfaces, prefixes, scope */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <IpAddrPanel />
+        </div>
+
+        {/* ip link — interfaces, states, addresses, routes */}
+        <div className="mt-4 pb-6">
+          <IpLinkPanel />
         </div>
 
         {/* Sign-off */}
