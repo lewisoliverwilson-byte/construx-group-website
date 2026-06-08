@@ -237,6 +237,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1720,8 +1721,13 @@ export default function ContactPage() {
       </section>
 
       {/* npm-global — global packages, versions, install, link */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NpmGlobalPanel />
+      </section>
+
+      {/* npm-outdated — stale dependencies, versions, wanted, latest */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NpmOutdatedPanel />
       </section>
     </div>
   );

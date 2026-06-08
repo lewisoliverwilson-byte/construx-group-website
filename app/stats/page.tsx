@@ -240,6 +240,7 @@ import MtrPanel from '@/components/MtrPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1760,8 +1761,13 @@ export default function StatsPage() {
       </div>
 
       {/* neon — serverless postgres, branches, compute, storage */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NeonPanel />
+      </div>
+
+      {/* network-ping — icmp, rtt, packet loss, host reachability */}
+      <div className="mt-6 pb-10">
+        <NetworkPingPanel />
       </div>
     </div>
   );

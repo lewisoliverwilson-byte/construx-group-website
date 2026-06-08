@@ -238,6 +238,7 @@ import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1848,8 +1849,13 @@ export default function FoundersPage() {
         </div>
 
         {/* npm-outdated — stale dependencies, versions, wanted, latest */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NpmOutdatedPanel />
+        </div>
+
+        {/* nvidia-smi — gpu stats, memory, utilization, processes */}
+        <div className="mt-6 pb-10">
+          <NvidiaSmiPanel />
         </div>
 
         {/* CTA */}
