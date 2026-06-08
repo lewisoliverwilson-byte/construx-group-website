@@ -97,6 +97,7 @@ import SystemdServicesPanel from '@/components/SystemdServicesPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
 import ValsPanel from '@/components/ValsPanel';
+import VclusterPanel from '@/components/VclusterPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1002,8 +1003,13 @@ export default function FoundersPage() {
         </div>
 
         {/* vals — secrets templating, vault, aws-sm, gcpsm */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ValsPanel />
+        </div>
+
+        {/* vcluster — virtual kubernetes clusters, isolation, multi-tenancy */}
+        <div className="mt-6 pb-10">
+          <VclusterPanel />
         </div>
 
         {/* CTA */}

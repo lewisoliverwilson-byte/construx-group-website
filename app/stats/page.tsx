@@ -99,6 +99,7 @@ import SyftPanel from '@/components/SyftPanel';
 import TerraformPlanPanel from '@/components/TerraformPlanPanel';
 import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
 import TrivyVulnPanel from '@/components/TrivyVulnPanel';
+import TypesensePanel from '@/components/TypesensePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -914,8 +915,13 @@ export default function StatsPage() {
       </div>
 
       {/* trivy vuln — cve details, severity, fixed-in, cvss */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TrivyVulnPanel />
+      </div>
+
+      {/* typesense — fast search, collections, schema, facets */}
+      <div className="mt-6 pb-10">
+        <TypesensePanel />
       </div>
     </div>
   );

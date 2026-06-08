@@ -96,6 +96,7 @@ import StrimziPanel from '@/components/StrimziPanel';
 import TrivyScanPanel from '@/components/TrivyScanPanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 import TechFreqPanel from '@/components/TechFreqPanel';
+import TerraformPanel from '@/components/TerraformPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -874,8 +875,13 @@ export default function ContactPage() {
       </section>
 
       {/* tech freq — language frequency, lines, commits, contributors */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <TechFreqPanel />
+      </section>
+
+      {/* terraform — providers, resources, state, plan, apply */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TerraformPanel />
       </section>
     </div>
   );

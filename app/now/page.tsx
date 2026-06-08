@@ -97,6 +97,7 @@ import TailnetStatusPanel from '@/components/TailnetStatusPanel';
 import VmstatPanel from '@/components/VmstatPanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
+import VscodeExtensionsPanel from '@/components/VscodeExtensionsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -866,8 +867,13 @@ export default function NowPage() {
         </div>
 
         {/* weaviate — vector db, classes, objects, hybrid search */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <WeaviatePanel />
+        </div>
+
+        {/* vscode extensions — installed, recommended, marketplace */}
+        <div className="mt-6 pb-10">
+          <VscodeExtensionsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
