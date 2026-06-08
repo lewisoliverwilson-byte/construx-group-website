@@ -137,6 +137,7 @@ import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
+import CuePanel from '@/components/CuePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1242,8 +1243,13 @@ export default function FoundersPage() {
         </div>
 
         {/* crunchy postgres — operator, clusters, pgbackrest, monitoring */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CrunchyPostgresPanel />
+        </div>
+
+        {/* cue — schema, validation, export, evaluate */}
+        <div className="mt-6 pb-10">
+          <CuePanel />
         </div>
 
         {/* CTA */}
