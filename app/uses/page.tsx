@@ -148,6 +148,7 @@ import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
+import DbMigrationPanel from '@/components/DbMigrationPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1190,8 +1191,13 @@ export default function UsesPage() {
         </div>
 
         {/* dagger — pipelines, containers, cache, secrets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DaggerPanel />
+        </div>
+
+        {/* db migration — schema, up, down, status */}
+        <div className="mt-6 pb-10">
+          <DbMigrationPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
