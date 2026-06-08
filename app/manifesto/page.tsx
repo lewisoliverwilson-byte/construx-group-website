@@ -253,6 +253,7 @@ import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
 import PineconePanel from '@/components/PineconePanel';
 import PingPanel from '@/components/PingPanel';
+import PinotPanel from '@/components/PinotPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1701,8 +1702,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ping — latency, packet loss, ttl, icmp */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PingPanel />
+        </div>
+
+        {/* pinot — real-time olap, segments, tables, queries */}
+        <div className="mt-4 pb-6">
+          <PinotPanel />
         </div>
 
         {/* Sign-off */}

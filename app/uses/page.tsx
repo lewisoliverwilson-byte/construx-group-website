@@ -251,6 +251,7 @@ import PackerBuildPanel from '@/components/PackerBuildPanel';
 import PatroniPanel from '@/components/PatroniPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
+import PgExplainPanel from '@/components/PgExplainPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1808,8 +1809,13 @@ export default function UsesPage() {
         </div>
 
         {/* pgbouncer — connection pooling, pool modes, clients, servers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PgBouncerPanel />
+        </div>
+
+        {/* pg-explain — query plans, nodes, cost, buffers */}
+        <div className="mt-6 pb-10">
+          <PgExplainPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
