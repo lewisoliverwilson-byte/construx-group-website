@@ -111,6 +111,7 @@ import BeylaPanel from '@/components/BeylaPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
+import BufPanel from '@/components/BufPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -964,8 +965,13 @@ export default function ContactPage() {
       </section>
 
       {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BpftracePanel />
+      </section>
+
+      {/* buf protobuf lint, breaking, generate, push */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BufPanel />
       </section>
     </div>
   );
