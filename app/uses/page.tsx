@@ -181,6 +181,7 @@ import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
+import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1388,8 +1389,13 @@ export default function UsesPage() {
         </div>
 
         {/* grafana oncall — rotations, alerts, escalations, silences */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaOnCallPanel />
+        </div>
+
+        {/* grafana tempo — traces, spans, services, latency */}
+        <div className="mt-6 pb-10">
+          <GrafanaTempoPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

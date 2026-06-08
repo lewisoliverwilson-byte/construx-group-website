@@ -182,6 +182,7 @@ import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
+import GrpcurlPanel from '@/components/GrpcurlPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1621,8 +1622,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* grpc call — methods, payloads, status, latency */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GrpcCallPanel />
+      </section>
+
+      {/* grpcurl — services, methods, requests, responses */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GrpcurlPanel />
       </section>
 
       {/* CTA */}
