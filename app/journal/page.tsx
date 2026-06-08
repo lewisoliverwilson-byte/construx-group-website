@@ -242,6 +242,7 @@ import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1573,8 +1574,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* npm-global — global packages, versions, install, link */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NpmGlobalPanel />
+      </section>
+
+      {/* npm-outdated — stale dependencies, versions, wanted, latest */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NpmOutdatedPanel />
       </section>
 
       {/* Posts */}

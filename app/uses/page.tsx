@@ -237,6 +237,7 @@ import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import NmapScanPanel from '@/components/NmapScanPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1724,8 +1725,13 @@ export default function UsesPage() {
         </div>
 
         {/* nix-flake — flake.nix, inputs, outputs, devShells */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NixFlakePanel />
+        </div>
+
+        {/* nmap-scan — port scanning, service detection, os fingerprint */}
+        <div className="mt-6 pb-10">
+          <NmapScanPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

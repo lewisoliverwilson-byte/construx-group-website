@@ -239,6 +239,7 @@ import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
+import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1617,8 +1618,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nvidia-smi — gpu stats, memory, utilization, processes */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NvidiaSmiPanel />
+        </div>
+
+        {/* oauth-flow — authorization code, pkce, tokens, scopes */}
+        <div className="mt-4 pb-6">
+          <OAuthFlowPanel />
         </div>
 
         {/* Sign-off */}
