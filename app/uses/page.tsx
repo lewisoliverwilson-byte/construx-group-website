@@ -118,6 +118,7 @@ import BpftracePanel from '@/components/BpftracePanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
+import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1010,8 +1011,13 @@ export default function UsesPage() {
         </div>
 
         {/* bun build — bundler, transpile, minify, treeshake */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BunBuildPanel />
+        </div>
+
+        {/* bundle analysis — size, chunks, treeshake, deps */}
+        <div className="mt-6 pb-10">
+          <BundleAnalysisPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

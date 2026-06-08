@@ -123,6 +123,7 @@ import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import CargoPanel from '@/components/CargoPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -859,8 +860,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cargo release build — compile, link, test, artifact */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CargoPanel />
+      </section>
+
+      {/* cassandra query — keyspace, table, cql, latency */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CassandraPanel />
       </section>
 
       {/* Posts */}

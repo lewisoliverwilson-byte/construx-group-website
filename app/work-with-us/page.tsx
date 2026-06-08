@@ -119,6 +119,7 @@ import BpftracePanel from '@/components/BpftracePanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BufPanel from '@/components/BufPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1243,8 +1244,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* bundle analysis — size, chunks, treeshake, deps */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BundleAnalysisPanel />
+      </section>
+
+      {/* caddy access log — requests, status, latency, bytes */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CaddyAccessPanel />
       </section>
 
       {/* CTA */}
