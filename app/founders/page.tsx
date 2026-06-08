@@ -174,6 +174,7 @@ import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1464,8 +1465,13 @@ export default function FoundersPage() {
         </div>
 
         {/* grpcurl — services, methods, describe, invoke */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrpcurlPanel />
+        </div>
+
+        {/* grype — vulnerabilities, packages, severity, cvss */}
+        <div className="mt-6 pb-10">
+          <GrypePanel />
         </div>
 
         {/* CTA */}

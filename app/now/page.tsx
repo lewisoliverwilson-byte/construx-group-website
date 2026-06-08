@@ -174,6 +174,7 @@ import FluxCDPanel from '@/components/FluxCDPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
+import GitBisectPanel from '@/components/GitBisectPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1328,8 +1329,13 @@ export default function NowPage() {
         </div>
 
         {/* gh actions run — jobs, steps, status, duration */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GhActionsRunPanel />
+        </div>
+
+        {/* git bisect — good, bad, skip, reset */}
+        <div className="mt-6 pb-10">
+          <GitBisectPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
