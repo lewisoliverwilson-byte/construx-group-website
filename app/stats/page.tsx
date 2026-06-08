@@ -247,6 +247,7 @@ import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
+import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1802,8 +1803,13 @@ export default function StatsPage() {
       </div>
 
       {/* npm-outdated — stale dependencies, versions, wanted, latest */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NpmOutdatedPanel />
+      </div>
+
+      {/* oauth-flow — authorization code, pkce, tokens, scopes */}
+      <div className="mt-6 pb-10">
+        <OAuthFlowPanel />
       </div>
     </div>
   );

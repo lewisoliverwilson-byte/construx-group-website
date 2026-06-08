@@ -245,6 +245,7 @@ import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
+import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1754,8 +1755,13 @@ export default function NowPage() {
         </div>
 
         {/* nomad — workload orchestration, jobs, tasks, allocations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NomadPanel />
+        </div>
+
+        {/* npm-global — global packages, versions, install, link */}
+        <div className="mt-6 pb-10">
+          <NpmGlobalPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

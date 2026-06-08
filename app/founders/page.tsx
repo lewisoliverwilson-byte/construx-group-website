@@ -245,6 +245,7 @@ import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
+import OpenSearchPanel from '@/components/OpenSearchPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1890,8 +1891,13 @@ export default function FoundersPage() {
         </div>
 
         {/* openobserve — logs, metrics, traces, dashboards */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenObservePanel />
+        </div>
+
+        {/* opensearch — search engine, indices, queries, clusters */}
+        <div className="mt-6 pb-10">
+          <OpenSearchPanel />
         </div>
 
         {/* CTA */}
