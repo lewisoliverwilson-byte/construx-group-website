@@ -105,6 +105,7 @@ import AlertManagerPanel from '@/components/AlertManagerPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
+import BazelPanel from '@/components/BazelPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1050,8 +1051,13 @@ export default function FoundersPage() {
         </div>
 
         {/* aws cli — s3, ec2, iam, lambda commands */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AwsCliPanel />
+        </div>
+
+        {/* bazel hermetic build — remote cache, targets, action cache stats */}
+        <div className="mt-6 pb-10">
+          <BazelPanel />
         </div>
 
         {/* CTA */}
