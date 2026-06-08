@@ -166,6 +166,7 @@ import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
+import FlaggerPanel from '@/components/FlaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1525,8 +1526,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* fio — iops, bw, latency, jobs */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <FioPanel />
+      </section>
+
+      {/* flagger — canaries, rollouts, analysis, webhooks */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <FlaggerPanel />
       </section>
 
       {/* CTA */}
