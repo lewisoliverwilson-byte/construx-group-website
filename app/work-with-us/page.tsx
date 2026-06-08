@@ -104,6 +104,7 @@ import AlertManagerPanel from '@/components/AlertManagerPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
+import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1153,8 +1154,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* argo events — event-driven workflows, event sources, sensors, triggers */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ArgoEventsPanel />
+      </section>
+
+      {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ArgoWorkflowsPanel />
       </section>
 
       {/* CTA */}

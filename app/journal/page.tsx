@@ -108,6 +108,7 @@ import ActPanel from '@/components/ActPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
+import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -769,8 +770,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ArgoRolloutPanel />
+      </section>
+
+      {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ArgoWorkflowsPanel />
       </section>
 
       {/* Posts */}

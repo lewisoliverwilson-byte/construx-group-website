@@ -103,6 +103,7 @@ import AlertManagerPanel from '@/components/AlertManagerPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
+import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -920,8 +921,13 @@ export default function UsesPage() {
         </div>
 
         {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoRolloutPanel />
+        </div>
+
+        {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
+        <div className="mt-6 pb-10">
+          <ArgoWorkflowsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

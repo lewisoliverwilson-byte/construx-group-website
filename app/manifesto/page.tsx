@@ -105,6 +105,7 @@ import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
+import BazelPanel from '@/components/BazelPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -813,8 +814,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* aws cli — s3, ec2, iam, lambda commands */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AwsCliPanel />
+        </div>
+
+        {/* bazel hermetic build — remote cache, targets, action cache stats */}
+        <div className="mt-4 pb-6">
+          <BazelPanel />
         </div>
 
         {/* Sign-off */}
