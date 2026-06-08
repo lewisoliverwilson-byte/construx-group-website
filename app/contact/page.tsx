@@ -194,6 +194,7 @@ import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import JournaldPanel from '@/components/JournaldPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
+import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1462,8 +1463,13 @@ export default function ContactPage() {
       </section>
 
       {/* journal wc — lines, words, bytes, files */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <JournalWcPanel />
+      </section>
+
+      {/* k6 load test — vus, iterations, checks, http */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <K6LoadTestPanel />
       </section>
     </div>
   );

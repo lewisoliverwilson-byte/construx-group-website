@@ -195,6 +195,7 @@ import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
+import InfluxDbPanel from '@/components/InfluxDbPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1454,8 +1455,13 @@ export default function NowPage() {
         </div>
 
         {/* iceberg — tables, snapshots, partitions, manifests */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IcebergPanel />
+        </div>
+
+        {/* influxdb — measurements, tags, fields, retention */}
+        <div className="mt-6 pb-10">
+          <InfluxDbPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
