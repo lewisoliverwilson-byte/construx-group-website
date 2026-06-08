@@ -132,6 +132,7 @@ import ConsulPanel from '@/components/ConsulPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
+import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -975,8 +976,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* crunchy postgres — ha, backups, pgbouncer, pgbadger */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CrunchyPostgresPanel />
+        </div>
+
+        {/* curl headers — request, response, timing, tls */}
+        <div className="mt-4 pb-6">
+          <CurlHeadersPanel />
         </div>
 
         {/* Sign-off */}

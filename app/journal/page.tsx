@@ -135,6 +135,7 @@ import ClickHousePanel from '@/components/ClickHousePanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import CniPanel from '@/components/CniPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -931,8 +932,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cloudnative pg — clusters, backups, replication, switchover */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CloudNativePGPanel />
+      </section>
+
+      {/* cni — plugins, ipam, overlay, policy */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CniPanel />
       </section>
 
       {/* Posts */}
