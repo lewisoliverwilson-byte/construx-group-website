@@ -227,6 +227,7 @@ import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MinIOPanel from '@/components/MinIOPanel';
+import MLflowPanel from '@/components/MLflowPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1664,8 +1665,13 @@ export default function UsesPage() {
         </div>
 
         {/* minio — s3-compatible object storage, buckets, objects, policies */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MinIOPanel />
+        </div>
+
+        {/* mlflow — experiment tracking, runs, metrics, artifacts */}
+        <div className="mt-6 pb-10">
+          <MLflowPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

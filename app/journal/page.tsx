@@ -232,6 +232,7 @@ import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
+import MtrPanel from '@/components/MtrPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1513,8 +1514,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* mlflow — experiment tracking, runs, metrics, artifacts */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <MLflowPanel />
+      </section>
+
+      {/* mtr — network diagnostics, hops, latency, packet loss */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MtrPanel />
       </section>
 
       {/* Posts */}

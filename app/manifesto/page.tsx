@@ -229,6 +229,7 @@ import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
+import NeonPanel from '@/components/NeonPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1557,8 +1558,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* neofetch — system info, distro, kernel, uptime, cpu */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NeofetchPanel />
+        </div>
+
+        {/* neon — serverless postgres, branches, compute, storage */}
+        <div className="mt-4 pb-6">
+          <NeonPanel />
         </div>
 
         {/* Sign-off */}
