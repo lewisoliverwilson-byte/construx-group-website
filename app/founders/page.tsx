@@ -208,6 +208,7 @@ import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
+import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1668,8 +1669,13 @@ export default function FoundersPage() {
         </div>
 
         {/* kubescape — risks, controls, frameworks, scores */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubescapePanel />
+        </div>
+
+        {/* kube state metrics — pods, deployments, nodes, conditions */}
+        <div className="mt-6 pb-10">
+          <KubeStateMetricsPanel />
         </div>
 
         {/* CTA */}

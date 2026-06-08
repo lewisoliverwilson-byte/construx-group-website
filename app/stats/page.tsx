@@ -210,6 +210,7 @@ import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
+import KedaPanel from '@/components/KedaPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1580,8 +1581,13 @@ export default function StatsPage() {
       </div>
 
       {/* kafka streams — topologies, threads, tasks, lag */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KafkaStreamsPanel />
+      </div>
+
+      {/* keda — scalers, triggers, replicas, lag */}
+      <div className="mt-6 pb-10">
+        <KedaPanel />
       </div>
     </div>
   );
