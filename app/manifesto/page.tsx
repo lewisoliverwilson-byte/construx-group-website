@@ -101,6 +101,7 @@ import SensorsPanel from '@/components/SensorsPanel';
 import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
 import SpfDkimPanel from '@/components/SpfDkimPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
+import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -789,8 +790,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* argo cd — gitops, sync, apps, rollbacks */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ArgoCDPanel />
+        </div>
+
+        {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
+        <div className="mt-4 pb-6">
+          <ArgoRolloutPanel />
         </div>
 
         {/* Sign-off */}

@@ -104,6 +104,7 @@ import TankaPanel from '@/components/TankaPanel';
 import TrinoPanel from '@/components/TrinoPanel';
 import TlsHandshakePanel from '@/components/TlsHandshakePanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import ActPanel from '@/components/ActPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -745,8 +746,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* alertmanager — prometheus alerts, groups, silences, receivers */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <AlertManagerPanel />
+      </section>
+
+      {/* act — github actions local runner, jobs, steps, env */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ActPanel />
       </section>
 
       {/* Posts */}

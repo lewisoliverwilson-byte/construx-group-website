@@ -99,6 +99,7 @@ import VaultPanel from '@/components/VaultPanel';
 import VaultPkiPanel from '@/components/VaultPkiPanel';
 import VegetaPanel from '@/components/VegetaPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
+import AlertManagerPanel from '@/components/AlertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -896,8 +897,13 @@ export default function UsesPage() {
         </div>
 
         {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AnsiblePlaybookPanel />
+        </div>
+
+        {/* alertmanager — prometheus alerts, groups, silences, receivers */}
+        <div className="mt-6 pb-10">
+          <AlertManagerPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
