@@ -176,6 +176,7 @@ import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import GiteaPanel from '@/components/GiteaPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1340,8 +1341,13 @@ export default function NowPage() {
         </div>
 
         {/* git config — globals, locals, remotes, aliases */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitConfigPanel />
+        </div>
+
+        {/* gitea — repos, issues, prs, org */}
+        <div className="mt-6 pb-10">
+          <GiteaPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

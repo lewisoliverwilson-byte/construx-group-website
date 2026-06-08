@@ -175,6 +175,7 @@ import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
+import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1348,8 +1349,13 @@ export default function ContactPage() {
       </section>
 
       {/* grafana alloy — pipelines, components, otel, logs */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GrafanaAlloyPanel />
+      </section>
+
+      {/* grafana faro — errors, sessions, vitals, spans */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GrafanaFaroPanel />
       </section>
     </div>
   );

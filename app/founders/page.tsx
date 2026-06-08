@@ -176,6 +176,7 @@ import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GrypePanel from '@/components/GrypePanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
+import HtopPanel from '@/components/HtopPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1476,8 +1477,13 @@ export default function FoundersPage() {
         </div>
 
         {/* helm chart — releases, values, hooks, manifests */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HelmChartPanel />
+        </div>
+
+        {/* htop — processes, cpu, memory, load */}
+        <div className="mt-6 pb-10">
+          <HtopPanel />
         </div>
 
         {/* CTA */}

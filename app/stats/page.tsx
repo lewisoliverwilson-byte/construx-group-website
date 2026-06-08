@@ -178,6 +178,7 @@ import GhCliPanel from '@/components/GhCliPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import GiteaPanel from '@/components/GiteaPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1388,8 +1389,13 @@ export default function StatsPage() {
       </div>
 
       {/* git config — globals, locals, remotes, aliases */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GitConfigPanel />
+      </div>
+
+      {/* gitea — repos, issues, prs, org */}
+      <div className="mt-6 pb-10">
+        <GiteaPanel />
       </div>
     </div>
   );
