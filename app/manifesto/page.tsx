@@ -256,6 +256,7 @@ import PingPanel from '@/components/PingPanel';
 import PinotPanel from '@/components/PinotPanel';
 import PixiePanel from '@/components/PixiePanel';
 import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
+import PostgresReplPanel from '@/components/PostgresReplPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1719,8 +1720,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* pnpm-workspace — monorepo, workspaces, hoisting, filters */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PnpmWorkspacePanel />
+        </div>
+
+        {/* postgres-repl — psql, queries, explain, meta-commands */}
+        <div className="mt-4 pb-6">
+          <PostgresReplPanel />
         </div>
 
         {/* Sign-off */}

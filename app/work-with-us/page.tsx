@@ -255,6 +255,7 @@ import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -2059,8 +2060,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* openssl — certs, keys, ciphers, tls handshake */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <OpensslPanel />
+      </section>
+
+      {/* opentelemetry — sdk, instrumentation, otlp, traces */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <OpenTelemetryPanel />
       </section>
 
       {/* CTA */}

@@ -259,6 +259,7 @@ import PatroniPanel from '@/components/PatroniPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import PineconePanel from '@/components/PineconePanel';
+import PingPanel from '@/components/PingPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1675,8 +1676,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* pinecone — managed vector db, namespaces, upsert, query */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <PineconePanel />
+      </section>
+
+      {/* ping — latency, packet loss, ttl, icmp */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <PingPanel />
       </section>
 
       {/* Posts */}
