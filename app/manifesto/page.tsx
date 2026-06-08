@@ -137,6 +137,7 @@ import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
+import DebeziumPanel from '@/components/DebeziumPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1005,8 +1006,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* dbt — models, tests, sources, lineage */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DbtPanel />
+        </div>
+
+        {/* debezium — cdc, connectors, transforms, offsets */}
+        <div className="mt-4 pb-6">
+          <DebeziumPanel />
         </div>
 
         {/* Sign-off */}

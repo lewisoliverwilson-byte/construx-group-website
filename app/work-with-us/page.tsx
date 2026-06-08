@@ -136,6 +136,7 @@ import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import CortexPanel from '@/components/CortexPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1345,8 +1346,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* containerd — images, containers, namespaces, snapshots */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ContainerdPanel />
+      </section>
+
+      {/* cortex — query engine, ruler, compactor, store-gateway */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CortexPanel />
       </section>
 
       {/* CTA */}

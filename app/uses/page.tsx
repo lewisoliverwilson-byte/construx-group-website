@@ -135,6 +135,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
+import ContainerdPanel from '@/components/ContainerdPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1112,8 +1113,13 @@ export default function UsesPage() {
         </div>
 
         {/* cni — plugins, ipam, overlay, policy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CniPanel />
+        </div>
+
+        {/* containerd — images, containers, namespaces, snapshots */}
+        <div className="mt-6 pb-10">
+          <ContainerdPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
