@@ -222,6 +222,7 @@ import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MimirPanel from '@/components/MimirPanel';
+import MinIOPanel from '@/components/MinIOPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1752,8 +1753,13 @@ export default function FoundersPage() {
         </div>
 
         {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MimirPanel />
+        </div>
+
+        {/* minio — s3-compatible object storage, buckets, objects, policies */}
+        <div className="mt-6 pb-10">
+          <MinIOPanel />
         </div>
 
         {/* CTA */}

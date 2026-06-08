@@ -221,6 +221,7 @@ import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
+import MeilisearchPanel from '@/components/MeilisearchPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1624,8 +1625,13 @@ export default function ContactPage() {
       </section>
 
       {/* materialize — streaming sql, views, sources, sinks */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <MaterializePanel />
+      </section>
+
+      {/* meilisearch — index, search, filters, facets */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <MeilisearchPanel />
       </section>
     </div>
   );

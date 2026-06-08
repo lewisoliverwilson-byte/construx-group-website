@@ -222,6 +222,7 @@ import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LighthousePanel from '@/components/LighthousePanel';
+import LinkerdPanel from '@/components/LinkerdPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1616,8 +1617,13 @@ export default function NowPage() {
         </div>
 
         {/* lighthouse — performance, accessibility, seo, best practices */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LighthousePanel />
+        </div>
+
+        {/* linkerd — service mesh, proxies, traffic, retries */}
+        <div className="mt-6 pb-10">
+          <LinkerdPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
