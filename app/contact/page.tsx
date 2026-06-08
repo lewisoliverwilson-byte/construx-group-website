@@ -93,6 +93,7 @@ import IpLinkPanel from '@/components/IpLinkPanel';
 import SigstorePanel from '@/components/SigstorePanel';
 import SpiceDBPanel from '@/components/SpiceDBPanel';
 import StrimziPanel from '@/components/StrimziPanel';
+import TrivyScanPanel from '@/components/TrivyScanPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -856,8 +857,13 @@ export default function ContactPage() {
       </section>
 
       {/* strimzi — kafka on k8s, topics, brokers, kraft, mtls */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <StrimziPanel />
+      </section>
+
+      {/* trivy scan — container images, os packages, cve severity */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TrivyScanPanel />
       </section>
     </div>
   );

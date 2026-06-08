@@ -94,6 +94,7 @@ import SentryIssuesPanel from '@/components/SentryIssuesPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
 import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 import TailnetStatusPanel from '@/components/TailnetStatusPanel';
+import VmstatPanel from '@/components/VmstatPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -848,8 +849,13 @@ export default function NowPage() {
         </div>
 
         {/* tailnet status — devices, tailscale, acl, routes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TailnetStatusPanel />
+        </div>
+
+        {/* vmstat — memory, swap, io, cpu, system counters */}
+        <div className="mt-6 pb-10">
+          <VmstatPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

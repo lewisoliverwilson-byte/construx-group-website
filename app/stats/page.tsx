@@ -96,6 +96,7 @@ import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 import SitemapIndexPanel from '@/components/SitemapIndexPanel';
 import SshConfigPanel from '@/components/SshConfigPanel';
 import SyftPanel from '@/components/SyftPanel';
+import TerraformPlanPanel from '@/components/TerraformPlanPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -896,8 +897,13 @@ export default function StatsPage() {
       </div>
 
       {/* syft — sbom, packages, cpes, ecosystems, vulnerabilities */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <SyftPanel />
+      </div>
+
+      {/* terraform plan — resource changes, add, change, destroy */}
+      <div className="mt-6 pb-10">
+        <TerraformPlanPanel />
       </div>
     </div>
   );
