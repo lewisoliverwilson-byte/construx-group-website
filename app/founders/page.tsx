@@ -191,6 +191,7 @@ import JournalctlPanel from '@/components/JournalctlPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K3sPanel from '@/components/K3sPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
+import K6Panel from '@/components/K6Panel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1566,8 +1567,13 @@ export default function FoundersPage() {
         </div>
 
         {/* k6 load test — vus, requests, duration, errors */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K6LoadTestPanel />
+        </div>
+
+        {/* k6 — scenarios, checks, thresholds, vus */}
+        <div className="mt-6 pb-10">
+          <K6Panel />
         </div>
 
         {/* CTA */}

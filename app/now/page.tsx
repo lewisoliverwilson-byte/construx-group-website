@@ -191,6 +191,7 @@ import HarborPanel from '@/components/HarborPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
+import HubblePanel from '@/components/HubblePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1430,8 +1431,13 @@ export default function NowPage() {
         </div>
 
         {/* http bench — requests, rps, latency, errors */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HttpBenchPanel />
+        </div>
+
+        {/* hubble — flows, services, endpoints, policies */}
+        <div className="mt-6 pb-10">
+          <HubblePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

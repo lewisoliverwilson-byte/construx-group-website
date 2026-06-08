@@ -193,6 +193,7 @@ import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
+import HttpBenchPanel from '@/components/HttpBenchPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1478,8 +1479,13 @@ export default function StatsPage() {
       </div>
 
       {/* http archive — requests, timings, waterfall, headers */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <HttpArchivePanel />
+      </div>
+
+      {/* http bench — requests, rps, latency, errors */}
+      <div className="mt-6 pb-10">
+        <HttpBenchPanel />
       </div>
     </div>
   );
