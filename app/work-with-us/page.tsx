@@ -198,6 +198,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
+import K3sPanel from '@/components/K3sPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1717,8 +1718,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* journal wc — lines, words, bytes, files */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <JournalWcPanel />
+      </section>
+
+      {/* k3s — clusters, nodes, pods, services */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <K3sPanel />
       </section>
 
       {/* CTA */}

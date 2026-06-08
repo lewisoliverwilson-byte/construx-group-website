@@ -199,6 +199,7 @@ import K8sEventsPanel from '@/components/K8sEventsPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
+import KindPanel from '@/components/KindPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1377,8 +1378,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* karpenter — nodes, provisioners, machines, capacity */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KarpenterPanel />
+        </div>
+
+        {/* kind — clusters, nodes, images, configs */}
+        <div className="mt-4 pb-6">
+          <KindPanel />
         </div>
 
         {/* Sign-off */}

@@ -197,6 +197,7 @@ import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
+import JournaldPanel from '@/components/JournaldPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1484,8 +1485,13 @@ export default function UsesPage() {
         </div>
 
         {/* journalctl — units, logs, priorities, boots */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JournalctlPanel />
+        </div>
+
+        {/* journald — fields, units, boots, priorities */}
+        <div className="mt-6 pb-10">
+          <JournaldPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
