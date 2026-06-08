@@ -228,6 +228,7 @@ import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
+import MimirPanel from '@/components/MimirPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1489,8 +1490,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* methodology diff — before, after, delta, signal */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <MethodologyDiffPanel />
+      </section>
+
+      {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MimirPanel />
       </section>
 
       {/* Posts */}
