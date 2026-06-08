@@ -202,6 +202,7 @@ import K3sPanel from '@/components/K3sPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6Panel from '@/components/K6Panel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
+import K9sPanel from '@/components/K9sPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1741,8 +1742,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* k6 summary — passes, fails, rate, percentiles */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <K6SummaryPanel />
+      </section>
+
+      {/* k9s — pods, namespaces, contexts, resources */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <K9sPanel />
       </section>
 
       {/* CTA */}

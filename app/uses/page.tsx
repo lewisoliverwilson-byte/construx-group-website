@@ -201,6 +201,7 @@ import JournaldPanel from '@/components/JournaldPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K3sPanel from '@/components/K3sPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
+import K6Panel from '@/components/K6Panel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1508,8 +1509,13 @@ export default function UsesPage() {
         </div>
 
         {/* k6 load test — vus, iterations, checks, http */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K6LoadTestPanel />
+        </div>
+
+        {/* k6 — scenarios, checks, thresholds, vus */}
+        <div className="mt-6 pb-10">
+          <K6Panel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

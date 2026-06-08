@@ -203,6 +203,7 @@ import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
+import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1401,8 +1402,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kubectl logs — pods, containers, lines, follow */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubectlLogsPanel />
+        </div>
+
+        {/* kubectl pods — names, status, restarts, age */}
+        <div className="mt-4 pb-6">
+          <KubectlPodsPanel />
         </div>
 
         {/* Sign-off */}
