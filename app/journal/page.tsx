@@ -181,6 +181,7 @@ import GitGraphPanel from '@/components/GitGraphPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
+import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1207,8 +1208,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* goreplay — traffic, filters, replays, middleware */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GoReplayPanel />
+      </section>
+
+      {/* grafana faro — errors, sessions, vitals, spans */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GrafanaFaroPanel />
       </section>
 
       {/* Posts */}

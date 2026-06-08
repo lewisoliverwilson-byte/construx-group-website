@@ -176,6 +176,7 @@ import GiteaPanel from '@/components/GiteaPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
+import GoReplayPanel from '@/components/GoReplayPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1358,8 +1359,13 @@ export default function UsesPage() {
         </div>
 
         {/* goreleaser — releases, artifacts, changelogs, builds */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GoReleaserPanel />
+        </div>
+
+        {/* goreplay — traffic, filters, replays, middleware */}
+        <div className="mt-6 pb-10">
+          <GoReplayPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

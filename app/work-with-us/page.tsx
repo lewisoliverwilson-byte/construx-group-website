@@ -177,6 +177,7 @@ import GitConfigPanel from '@/components/GitConfigPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
+import GitWorktreePanel from '@/components/GitWorktreePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1591,8 +1592,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* git sign — signers, keys, status, fingerprints */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GitSignPanel />
+      </section>
+
+      {/* git worktree — branches, linked, prune, list */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GitWorktreePanel />
       </section>
 
       {/* CTA */}

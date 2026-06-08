@@ -178,6 +178,7 @@ import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
+import HelmChartPanel from '@/components/HelmChartPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1251,8 +1252,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* harbor — registries, repos, scans, policies */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <HarborPanel />
+        </div>
+
+        {/* helm chart — releases, values, hooks, manifests */}
+        <div className="mt-4 pb-6">
+          <HelmChartPanel />
         </div>
 
         {/* Sign-off */}
