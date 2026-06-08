@@ -147,6 +147,7 @@ import CuePanel from '@/components/CuePanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
+import DaggerPanel from '@/components/DaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1184,8 +1185,13 @@ export default function UsesPage() {
         </div>
 
         {/* cyclonedx — sbom, components, licenses, vulnerabilities */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CycloneDxPanel />
+        </div>
+
+        {/* dagger — pipelines, containers, cache, secrets */}
+        <div className="mt-6 pb-10">
+          <DaggerPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

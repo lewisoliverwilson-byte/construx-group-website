@@ -148,6 +148,7 @@ import CurlJwtPanel from '@/components/CurlJwtPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
+import DebeziumPanel from '@/components/DebeziumPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1417,8 +1418,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* dbt — models, tests, sources, lineage */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <DbtPanel />
+      </section>
+
+      {/* debezium — cdc, connectors, transforms, offsets */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <DebeziumPanel />
       </section>
 
       {/* CTA */}
