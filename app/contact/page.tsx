@@ -135,6 +135,7 @@ import CortexPanel from '@/components/CortexPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CuePanel from '@/components/CuePanel';
+import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1108,8 +1109,13 @@ export default function ContactPage() {
       </section>
 
       {/* cue — schema, validation, export, evaluate */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CuePanel />
+      </section>
+
+      {/* curl headers — request, response, timing, tls */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CurlHeadersPanel />
       </section>
     </div>
   );

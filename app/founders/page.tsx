@@ -136,6 +136,7 @@ import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrontabPanel from '@/components/CrontabPanel';
+import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1236,8 +1237,13 @@ export default function FoundersPage() {
         </div>
 
         {/* crontab — schedule, jobs, logs, next-run */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CrontabPanel />
+        </div>
+
+        {/* crunchy postgres — operator, clusters, pgbackrest, monitoring */}
+        <div className="mt-6 pb-10">
+          <CrunchyPostgresPanel />
         </div>
 
         {/* CTA */}

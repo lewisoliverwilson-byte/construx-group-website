@@ -136,6 +136,7 @@ import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1100,8 +1101,13 @@ export default function NowPage() {
         </div>
 
         {/* cloudnative pg — clusters, backups, replication, switchover */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CloudNativePGPanel />
+        </div>
+
+        {/* cluster api — providers, machinedeployments, kubeadm, lifecycle */}
+        <div className="mt-6 pb-10">
+          <ClusterApiPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
