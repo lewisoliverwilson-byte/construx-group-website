@@ -239,6 +239,7 @@ import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
+import NeonPanel from '@/components/NeonPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1754,8 +1755,13 @@ export default function StatsPage() {
       </div>
 
       {/* neofetch — system info, distro, kernel, uptime, cpu */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NeofetchPanel />
+      </div>
+
+      {/* neon — serverless postgres, branches, compute, storage */}
+      <div className="mt-6 pb-10">
+        <NeonPanel />
       </div>
     </div>
   );

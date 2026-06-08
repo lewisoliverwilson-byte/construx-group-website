@@ -237,6 +237,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1842,8 +1843,13 @@ export default function FoundersPage() {
         </div>
 
         {/* nomad — workload orchestration, jobs, tasks, allocations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NomadPanel />
+        </div>
+
+        {/* npm-outdated — stale dependencies, versions, wanted, latest */}
+        <div className="mt-6 pb-10">
+          <NpmOutdatedPanel />
         </div>
 
         {/* CTA */}

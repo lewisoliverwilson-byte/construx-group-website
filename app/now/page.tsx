@@ -237,6 +237,7 @@ import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
+import NetdataPanel from '@/components/NetdataPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1706,8 +1707,13 @@ export default function NowPage() {
         </div>
 
         {/* neon — serverless postgres, branches, compute, storage */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NeonPanel />
+        </div>
+
+        {/* netdata — real-time metrics, agents, dashboards, alerts */}
+        <div className="mt-6 pb-10">
+          <NetdataPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

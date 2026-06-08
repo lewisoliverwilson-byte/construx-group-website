@@ -236,6 +236,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NomadPanel from '@/components/NomadPanel';
+import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1714,8 +1715,13 @@ export default function ContactPage() {
       </section>
 
       {/* nomad — workload orchestration, jobs, tasks, allocations */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NomadPanel />
+      </section>
+
+      {/* npm-global — global packages, versions, install, link */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NpmGlobalPanel />
       </section>
     </div>
   );
