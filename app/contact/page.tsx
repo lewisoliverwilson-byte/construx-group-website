@@ -118,6 +118,7 @@ import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
+import CertManagerPanel from '@/components/CertManagerPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1006,8 +1007,13 @@ export default function ContactPage() {
       </section>
 
       {/* ceph cluster — osds, pools, pg, replication */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CephPanel />
+      </section>
+
+      {/* cert manager — issuers, certificates, renewals, status */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CertManagerPanel />
       </section>
     </div>
   );

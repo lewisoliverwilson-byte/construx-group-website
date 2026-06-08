@@ -119,6 +119,7 @@ import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
+import CephPanel from '@/components/CephPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1134,8 +1135,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cassandra query — keyspace, table, cql, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CassandraPanel />
+        </div>
+
+        {/* ceph cluster — osds, pools, pg, replication */}
+        <div className="mt-6 pb-10">
+          <CephPanel />
         </div>
 
         {/* CTA */}

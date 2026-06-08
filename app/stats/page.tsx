@@ -121,6 +121,7 @@ import BrewListPanel from '@/components/BrewListPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
+import CaddyPanel from '@/components/CaddyPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1046,8 +1047,13 @@ export default function StatsPage() {
       </div>
 
       {/* caddy access log — requests, status, latency, bytes */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CaddyAccessPanel />
+      </div>
+
+      {/* caddy reverse proxy — routes, tls, upstreams, logs */}
+      <div className="mt-6 pb-10">
+        <CaddyPanel />
       </div>
     </div>
   );
