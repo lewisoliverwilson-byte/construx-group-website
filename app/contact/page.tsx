@@ -249,6 +249,7 @@ import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
+import PerfStatPanel from '@/components/PerfStatPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1792,8 +1793,13 @@ export default function ContactPage() {
       </section>
 
       {/* parca — continuous profiling, flame graphs, cpu, memory */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ParcaPanel />
+      </section>
+
+      {/* perf-stat — hardware counters, instructions, cycles, cache */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <PerfStatPanel />
       </section>
     </div>
   );

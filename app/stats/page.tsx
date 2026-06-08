@@ -252,6 +252,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
+import OpensslPanel from '@/components/OpensslPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1832,8 +1833,13 @@ export default function StatsPage() {
       </div>
 
       {/* opensearch — full-text search, indices, queries, aggregations */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpenSearchPanel />
+      </div>
+
+      {/* openssl — certs, keys, ciphers, tls handshake */}
+      <div className="mt-6 pb-10">
+        <OpensslPanel />
       </div>
     </div>
   );

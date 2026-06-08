@@ -250,6 +250,7 @@ import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
+import OpenCostPanel from '@/components/OpenCostPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1784,8 +1785,13 @@ export default function NowPage() {
         </div>
 
         {/* opa — policy engine, rego, bundles, decisions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OPAPanel />
+        </div>
+
+        {/* opencost — cloud costs, namespaces, workloads, efficiency */}
+        <div className="mt-6 pb-10">
+          <OpenCostPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
