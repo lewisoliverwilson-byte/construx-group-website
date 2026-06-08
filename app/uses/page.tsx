@@ -92,6 +92,7 @@ import PrometheusPanel from '@/components/PrometheusPanel';
 import ProwPanel from '@/components/ProwPanel';
 import RedisCLIPanel from '@/components/RedisCLIPanel';
 import RoutingTablePanel from '@/components/RoutingTablePanel';
+import TrivyPanel from '@/components/TrivyPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -854,8 +855,13 @@ export default function UsesPage() {
         </div>
 
         {/* routing table — destinations, gateways, metrics, flags */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <RoutingTablePanel />
+        </div>
+
+        {/* trivy — container scan, cves, sbom, misconfigs */}
+        <div className="mt-6 pb-10">
+          <TrivyPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

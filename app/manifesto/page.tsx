@@ -94,6 +94,7 @@ import PortainerPanel from '@/components/PortainerPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import PsAuxPanel from '@/components/PsAuxPanel';
 import RedisPanel from '@/components/RedisPanel';
+import TerraformCloudPanel from '@/components/TerraformCloudPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -747,8 +748,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* redis — cluster, streams, commands, memory */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <RedisPanel />
+        </div>
+
+        {/* terraform cloud — remote runs, workspaces, drift, state */}
+        <div className="mt-4 pb-6">
+          <TerraformCloudPanel />
         </div>
 
         {/* Sign-off */}

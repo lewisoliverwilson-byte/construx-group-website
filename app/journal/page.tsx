@@ -97,6 +97,7 @@ import PprofPanel from '@/components/PprofPanel';
 import PromtailPanel from '@/components/PromtailPanel';
 import RecentCommitsPanel from '@/components/RecentCommitsPanel';
 import RisingWavePanel from '@/components/RisingWavePanel';
+import UptimePanel from '@/components/UptimePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -703,8 +704,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* risingwave — streaming sql, materialized views, incremental */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <RisingWavePanel />
+      </section>
+
+      {/* uptime — system uptime, load average, users, processes */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <UptimePanel />
       </section>
 
       {/* Posts */}

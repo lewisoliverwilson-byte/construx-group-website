@@ -93,6 +93,7 @@ import PostgresReplPanel from '@/components/PostgresReplPanel';
 import PingPanel from '@/components/PingPanel';
 import PyroscopePanel from '@/components/PyroscopePanel';
 import RedpandaPanel from '@/components/RedpandaPanel';
+import VmstatPanel from '@/components/VmstatPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1087,8 +1088,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* redpanda — kafka-compatible, no jvm, raft, throughput */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <RedpandaPanel />
+      </section>
+
+      {/* vmstat — memory, swap, io, cpu, system counters */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <VmstatPanel />
       </section>
 
       {/* CTA */}
