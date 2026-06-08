@@ -195,6 +195,7 @@ import HelmChartPanel from '@/components/HelmChartPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
+import IcebergPanel from '@/components/IcebergPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1490,8 +1491,13 @@ export default function StatsPage() {
       </div>
 
       {/* hyperfine — benchmarks, commands, runs, statistics */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <HyperfinePanel />
+      </div>
+
+      {/* iceberg — tables, snapshots, partitions, manifests */}
+      <div className="mt-6 pb-10">
+        <IcebergPanel />
       </div>
     </div>
   );
