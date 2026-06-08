@@ -127,6 +127,7 @@ import CertInfoPanel from '@/components/CertInfoPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
+import CitusPanel from '@/components/CitusPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1064,8 +1065,13 @@ export default function UsesPage() {
         </div>
 
         {/* ci pipeline — stages, jobs, artifacts, runners */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CIPipelinePanel />
+        </div>
+
+        {/* citus distributed postgres — shards, workers, routing */}
+        <div className="mt-6 pb-10">
+          <CitusPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
