@@ -137,6 +137,7 @@ import CrontabPanel from '@/components/CrontabPanel';
 import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import CycloneDxPanel from '@/components/CycloneDxPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1120,8 +1121,13 @@ export default function ContactPage() {
       </section>
 
       {/* curl jwt — bearer, decode, expiry, claims */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CurlJwtPanel />
+      </section>
+
+      {/* cyclonedx — bom, components, vulnerabilities, metadata */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CycloneDxPanel />
       </section>
     </div>
   );

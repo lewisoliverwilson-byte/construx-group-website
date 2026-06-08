@@ -140,6 +140,7 @@ import ContainerdPanel from '@/components/ContainerdPanel';
 import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
+import CrontabPanel from '@/components/CrontabPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1160,8 +1161,13 @@ export default function StatsPage() {
       </div>
 
       {/* cpu stats — load, cores, frequency, temperature */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CpuStatsPanel />
+      </div>
+
+      {/* crontab — schedule, jobs, logs, next-run */}
+      <div className="mt-6 pb-10">
+        <CrontabPanel />
       </div>
     </div>
   );

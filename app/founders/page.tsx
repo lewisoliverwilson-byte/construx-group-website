@@ -138,6 +138,7 @@ import CrossplanePanel from '@/components/CrossplanePanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
+import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1248,8 +1249,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cue — schema, validation, export, evaluate */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CuePanel />
+        </div>
+
+        {/* curl headers — request, response, timing, tls */}
+        <div className="mt-6 pb-10">
+          <CurlHeadersPanel />
         </div>
 
         {/* CTA */}

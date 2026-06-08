@@ -138,6 +138,7 @@ import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
+import CockroachDbPanel from '@/components/CockroachDbPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1112,8 +1113,13 @@ export default function NowPage() {
         </div>
 
         {/* cni — plugins, ipam, overlay, policy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CniPanel />
+        </div>
+
+        {/* cockroachdb — distributed sql, replication, zones, backup */}
+        <div className="mt-6 pb-10">
+          <CockroachDbPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
