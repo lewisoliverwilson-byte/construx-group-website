@@ -167,6 +167,7 @@ import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
+import GitBlamePanel from '@/components/GitBlamePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1300,8 +1301,13 @@ export default function ContactPage() {
       </section>
 
       {/* git bisect — good, bad, steps, log */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GitBisectPanel />
+      </section>
+
+      {/* git blame — authors, commits, lines, dates */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GitBlamePanel />
       </section>
     </div>
   );

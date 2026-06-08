@@ -168,6 +168,7 @@ import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
+import GoReplayPanel from '@/components/GoReplayPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1428,8 +1429,13 @@ export default function FoundersPage() {
         </div>
 
         {/* git worktree — branches, paths, pruned, locked */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitWorktreePanel />
+        </div>
+
+        {/* goreplay — traffic, filters, replays, middleware */}
+        <div className="mt-6 pb-10">
+          <GoReplayPanel />
         </div>
 
         {/* CTA */}

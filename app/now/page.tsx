@@ -168,6 +168,7 @@ import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
+import FlamegraphPanel from '@/components/FlamegraphPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1292,8 +1293,13 @@ export default function NowPage() {
         </div>
 
         {/* flagger — canaries, rollouts, analysis, webhooks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FlaggerPanel />
+        </div>
+
+        {/* flamegraph — cpu, memory, wall, flamegraph */}
+        <div className="mt-6 pb-10">
+          <FlamegraphPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

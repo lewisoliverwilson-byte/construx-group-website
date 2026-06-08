@@ -170,6 +170,7 @@ import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
+import FluxCDPanel from '@/components/FluxCDPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1340,8 +1341,13 @@ export default function StatsPage() {
       </div>
 
       {/* fluentbit — pipelines, inputs, outputs, filters */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <FluentBitPanel />
+      </div>
+
+      {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
+      <div className="mt-6 pb-10">
+        <FluxCDPanel />
       </div>
     </div>
   );
