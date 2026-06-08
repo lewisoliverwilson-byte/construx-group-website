@@ -110,6 +110,7 @@ import AtlasPanel from '@/components/AtlasPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
+import AwsCliPanel from '@/components/AwsCliPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -980,8 +981,13 @@ export default function StatsPage() {
       </div>
 
       {/* aws bedrock — foundation models, inference, agents */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <AwsBedrockPanel />
+      </div>
+
+      {/* aws cli — s3, ec2, iam, lambda commands */}
+      <div className="mt-6 pb-10">
+        <AwsCliPanel />
       </div>
     </div>
   );

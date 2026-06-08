@@ -107,6 +107,7 @@ import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import BackstagePanel from '@/components/BackstagePanel';
+import BeylaPanel from '@/components/BeylaPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -940,8 +941,13 @@ export default function ContactPage() {
       </section>
 
       {/* backstage developer portal — catalog, tech radar, plugins */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BackstagePanel />
+      </section>
+
+      {/* beyla ebpf auto-instrumentation — spans, latency, red metrics */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BeylaPanel />
       </section>
     </div>
   );

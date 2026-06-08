@@ -108,6 +108,7 @@ import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
+import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -932,8 +933,13 @@ export default function NowPage() {
         </div>
 
         {/* authentik identity provider — sso, oauth2, saml, audit */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AuthentikPanel />
+        </div>
+
+        {/* aws bedrock — foundation models, inference, agents */}
+        <div className="mt-6 pb-10">
+          <AwsBedrockPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
