@@ -113,6 +113,7 @@ import AwsCliPanel from '@/components/AwsCliPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
+import BgpLookupPanel from '@/components/BgpLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -962,8 +963,13 @@ export default function NowPage() {
         </div>
 
         {/* benthos stream processor — pipelines, bloblang, fanout */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BenthosPanel />
+        </div>
+
+        {/* bgp routing table lookup — asn, prefixes, peers, path */}
+        <div className="mt-6 pb-10">
+          <BgpLookupPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

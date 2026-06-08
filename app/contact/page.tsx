@@ -112,6 +112,7 @@ import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import BufPanel from '@/components/BufPanel';
+import BuildOutputPanel from '@/components/BuildOutputPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -970,8 +971,13 @@ export default function ContactPage() {
       </section>
 
       {/* buf protobuf lint, breaking, generate, push */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BufPanel />
+      </section>
+
+      {/* build output — next.js compilation, chunks, sizes */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BuildOutputPanel />
       </section>
     </div>
   );

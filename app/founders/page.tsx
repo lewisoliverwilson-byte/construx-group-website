@@ -113,6 +113,7 @@ import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import BrewListPanel from '@/components/BrewListPanel';
+import BufPanel from '@/components/BufPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1098,8 +1099,13 @@ export default function FoundersPage() {
         </div>
 
         {/* brew list — installed formulae, casks, versions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BrewListPanel />
+        </div>
+
+        {/* buf protobuf lint, breaking, generate, push */}
+        <div className="mt-6 pb-10">
+          <BufPanel />
         </div>
 
         {/* CTA */}
