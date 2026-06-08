@@ -171,6 +171,7 @@ import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
+import GitBlamePanel from '@/components/GitBlamePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1328,8 +1329,13 @@ export default function UsesPage() {
         </div>
 
         {/* git bisect — good, bad, skip, reset */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitBisectPanel />
+        </div>
+
+        {/* git blame — authors, commits, lines, dates */}
+        <div className="mt-6 pb-10">
+          <GitBlamePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

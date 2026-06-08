@@ -176,6 +176,7 @@ import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import GiteaPanel from '@/components/GiteaPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1177,8 +1178,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* git config — globals, locals, remotes, aliases */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GitConfigPanel />
+      </section>
+
+      {/* gitea — repos, issues, prs, org */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GiteaPanel />
       </section>
 
       {/* Posts */}
