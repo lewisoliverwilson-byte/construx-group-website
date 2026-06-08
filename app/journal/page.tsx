@@ -203,6 +203,7 @@ import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
+import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1339,8 +1340,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* k9s — pods, namespaces, contexts, resources */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <K9sPanel />
+      </section>
+
+      {/* kafka connect — connectors, tasks, status, plugins */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KafkaConnectPanel />
       </section>
 
       {/* Posts */}

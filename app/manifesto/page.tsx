@@ -200,6 +200,7 @@ import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import KindPanel from '@/components/KindPanel';
+import KnativePanel from '@/components/KnativePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1383,8 +1384,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kind — clusters, nodes, images, configs */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KindPanel />
+        </div>
+
+        {/* knative — services, revisions, routes, events */}
+        <div className="mt-4 pb-6">
+          <KnativePanel />
         </div>
 
         {/* Sign-off */}

@@ -199,6 +199,7 @@ import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K3sPanel from '@/components/K3sPanel';
+import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1723,8 +1724,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* k3s — clusters, nodes, pods, services */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <K3sPanel />
+      </section>
+
+      {/* k6 load test — vus, iterations, checks, http */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <K6LoadTestPanel />
       </section>
 
       {/* CTA */}

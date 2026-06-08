@@ -198,6 +198,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import JournaldPanel from '@/components/JournaldPanel';
+import JournalWcPanel from '@/components/JournalWcPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1490,8 +1491,13 @@ export default function UsesPage() {
         </div>
 
         {/* journald — fields, units, boots, priorities */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JournaldPanel />
+        </div>
+
+        {/* journal wc — lines, words, bytes, files */}
+        <div className="mt-6 pb-10">
+          <JournalWcPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
