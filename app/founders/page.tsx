@@ -131,6 +131,7 @@ import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
+import CosignPanel from '@/components/CosignPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1206,8 +1207,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cortex — prometheus, ruler, querier, compactor */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CortexPanel />
+        </div>
+
+        {/* cosign — keyless signing, sbom, attestation, policy */}
+        <div className="mt-6 pb-10">
+          <CosignPanel />
         </div>
 
         {/* CTA */}

@@ -130,6 +130,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
+import ContainerdPanel from '@/components/ContainerdPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1078,8 +1079,13 @@ export default function ContactPage() {
       </section>
 
       {/* cni — plugins, ipam, overlay, policy */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CniPanel />
+      </section>
+
+      {/* containerd — images, containers, namespaces, snapshots */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ContainerdPanel />
       </section>
     </div>
   );
