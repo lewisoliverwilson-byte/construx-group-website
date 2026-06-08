@@ -247,6 +247,7 @@ import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1902,8 +1903,13 @@ export default function FoundersPage() {
         </div>
 
         {/* openssl — certs, keys, ciphers, tls handshake */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpensslPanel />
+        </div>
+
+        {/* opentelemetry — sdk, instrumentation, otlp, traces */}
+        <div className="mt-6 pb-10">
+          <OpenTelemetryPanel />
         </div>
 
         {/* CTA */}

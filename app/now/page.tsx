@@ -247,6 +247,7 @@ import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
+import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1766,8 +1767,13 @@ export default function NowPage() {
         </div>
 
         {/* nvidia-smi — gpu stats, memory, utilization, processes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NvidiaSmiPanel />
+        </div>
+
+        {/* oauth-flow — authorization code, pkce, tokens, scopes */}
+        <div className="mt-6 pb-10">
+          <OAuthFlowPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

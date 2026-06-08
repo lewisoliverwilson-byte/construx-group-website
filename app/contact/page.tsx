@@ -246,6 +246,7 @@ import OpenObservePanel from '@/components/OpenObservePanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
+import OtelTracesPanel from '@/components/OtelTracesPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1774,8 +1775,13 @@ export default function ContactPage() {
       </section>
 
       {/* otel-collector — pipelines, receivers, processors, exporters */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <OtelCollectorPanel />
+      </section>
+
+      {/* otel-traces — spans, traceids, latency, service graph */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <OtelTracesPanel />
       </section>
     </div>
   );
