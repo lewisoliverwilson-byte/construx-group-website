@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 import { getAllPostMeta } from '@/lib/posts';
-import CompanyHero from '@/components/CompanyHero';
+import SolarSystemHero from '@/components/SolarSystemHero';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI-First Ventures',
@@ -38,7 +38,7 @@ export default function HomePage() {
       />
 
       {/* ── Hero ── */}
-      <CompanyHero />
+      <SolarSystemHero />
 
       {/* ── Ventures ── */}
       <section id="ventures" className="py-28 px-6 lg:px-12 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
