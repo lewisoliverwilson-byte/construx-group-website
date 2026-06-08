@@ -250,6 +250,7 @@ import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import PatroniPanel from '@/components/PatroniPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
+import PgBouncerPanel from '@/components/PgBouncerPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1802,8 +1803,13 @@ export default function UsesPage() {
         </div>
 
         {/* perf-stat — hardware counters, instructions, cycles, cache */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PerfStatPanel />
+        </div>
+
+        {/* pgbouncer — connection pooling, pool modes, clients, servers */}
+        <div className="mt-6 pb-10">
+          <PgBouncerPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

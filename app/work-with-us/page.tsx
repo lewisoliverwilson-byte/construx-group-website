@@ -251,6 +251,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
+import OpenFGAPanel from '@/components/OpenFGAPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -2035,8 +2036,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* openfga-audit — audit logs, relationship tuples, checks, models */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <OpenFgaAuditPanel />
+      </section>
+
+      {/* openfga — fine-grained authorization, relationships, checks */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <OpenFGAPanel />
       </section>
 
       {/* CTA */}

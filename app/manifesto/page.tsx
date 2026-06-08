@@ -252,6 +252,7 @@ import PerfStatPanel from '@/components/PerfStatPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
 import PineconePanel from '@/components/PineconePanel';
+import PingPanel from '@/components/PingPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1695,8 +1696,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* pinecone — managed vector db, namespaces, upsert, query */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PineconePanel />
+        </div>
+
+        {/* ping — latency, packet loss, ttl, icmp */}
+        <div className="mt-4 pb-6">
+          <PingPanel />
         </div>
 
         {/* Sign-off */}

@@ -255,6 +255,7 @@ import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
+import PatroniPanel from '@/components/PatroniPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1651,8 +1652,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* parca — continuous profiling, flame graphs, cpu, memory */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ParcaPanel />
+      </section>
+
+      {/* patroni — postgres ha, leader election, failover, dcs */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <PatroniPanel />
       </section>
 
       {/* Posts */}
