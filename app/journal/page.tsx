@@ -177,6 +177,7 @@ import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1183,8 +1184,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* gitea — repos, issues, prs, org */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GiteaPanel />
+      </section>
+
+      {/* git graph — commits, branches, merges, tags */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GitGraphPanel />
       </section>
 
       {/* Posts */}
