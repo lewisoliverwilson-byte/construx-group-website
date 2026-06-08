@@ -240,6 +240,7 @@ import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
+import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1738,8 +1739,13 @@ export default function ContactPage() {
       </section>
 
       {/* opencost — kubernetes cost allocation, namespaces, workloads */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <OpenCostPanel />
+      </section>
+
+      {/* openfga-audit — authorization model, tuples, check, expand */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <OpenFgaAuditPanel />
       </section>
     </div>
   );

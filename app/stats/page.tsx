@@ -243,6 +243,7 @@ import NeonPanel from '@/components/NeonPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import NixShellPanel from '@/components/NixShellPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1778,8 +1779,13 @@ export default function StatsPage() {
       </div>
 
       {/* nix-flake — flake.nix, inputs, outputs, devShells */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NixFlakePanel />
+      </div>
+
+      {/* nix-shell — nix-shell, packages, environment, derivation */}
+      <div className="mt-6 pb-10">
+        <NixShellPanel />
       </div>
     </div>
   );
