@@ -229,6 +229,7 @@ import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
+import LshwPanel from '@/components/LshwPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1694,8 +1695,13 @@ export default function StatsPage() {
       </div>
 
       {/* loki-query — logql, stream selectors, filter expressions, formatters */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LokiQueryPanel />
+      </div>
+
+      {/* lshw — hardware list, cpu, memory, disk, network */}
+      <div className="mt-6 pb-10">
+        <LshwPanel />
       </div>
     </div>
   );

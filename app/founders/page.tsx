@@ -227,6 +227,7 @@ import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
+import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1782,8 +1783,13 @@ export default function FoundersPage() {
         </div>
 
         {/* nats — messaging, subjects, streams, consumers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NATSPanel />
+        </div>
+
+        {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
+        <div className="mt-6 pb-10">
+          <NatsPubSubPanel />
         </div>
 
         {/* CTA */}
