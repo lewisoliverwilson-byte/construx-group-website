@@ -121,6 +121,7 @@ import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
+import CIPipelinePanel from '@/components/CIPipelinePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1146,8 +1147,13 @@ export default function FoundersPage() {
         </div>
 
         {/* tls certificate info — san, validity, issuer, chain */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CertInfoPanel />
+        </div>
+
+        {/* ci pipeline — stages, jobs, artifacts, runners */}
+        <div className="mt-6 pb-10">
+          <CIPipelinePanel />
         </div>
 
         {/* CTA */}

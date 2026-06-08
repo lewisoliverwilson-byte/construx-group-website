@@ -123,6 +123,7 @@ import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
+import CertManagerPanel from '@/components/CertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1058,8 +1059,13 @@ export default function StatsPage() {
       </div>
 
       {/* tls certificate info — san, validity, issuer, chain */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CertInfoPanel />
+      </div>
+
+      {/* cert manager — issuers, certificates, renewals, status */}
+      <div className="mt-6 pb-10">
+        <CertManagerPanel />
       </div>
     </div>
   );

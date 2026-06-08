@@ -121,6 +121,7 @@ import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
+import CaddyPanel from '@/components/CaddyPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1010,8 +1011,13 @@ export default function NowPage() {
         </div>
 
         {/* caddy access log — requests, status, latency, bytes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CaddyAccessPanel />
+        </div>
+
+        {/* caddy reverse proxy — routes, tls, upstreams, logs */}
+        <div className="mt-6 pb-10">
+          <CaddyPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
