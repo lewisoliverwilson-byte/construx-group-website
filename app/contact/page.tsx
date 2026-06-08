@@ -126,6 +126,7 @@ import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
+import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1054,8 +1055,13 @@ export default function ContactPage() {
       </section>
 
       {/* clickhouse query — explain, profiling, system tables */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ClickhouseQueryPanel />
+      </section>
+
+      {/* cloudflare workers — kv, durable objects, queues, pages */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CloudflareWorkersPanel />
       </section>
     </div>
   );

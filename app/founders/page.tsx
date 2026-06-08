@@ -127,6 +127,7 @@ import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
+import CockroachDbPanel from '@/components/CockroachDbPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1182,8 +1183,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cloudflare workers — kv, durable objects, queues, pages */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CloudflareWorkersPanel />
+        </div>
+
+        {/* cockroachdb — distributed sql, regions, ranges, raft */}
+        <div className="mt-6 pb-10">
+          <CockroachDbPanel />
         </div>
 
         {/* CTA */}
