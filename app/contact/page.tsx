@@ -161,6 +161,7 @@ import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
+import FluxCDPanel from '@/components/FluxCDPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1264,8 +1265,13 @@ export default function ContactPage() {
       </section>
 
       {/* flamegraph — cpu, memory, wall, flamegraph */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <FlamegraphPanel />
+      </section>
+
+      {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <FluxCDPanel />
       </section>
     </div>
   );

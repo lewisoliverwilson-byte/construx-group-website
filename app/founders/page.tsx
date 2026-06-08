@@ -162,6 +162,7 @@ import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
+import GatlingPanel from '@/components/GatlingPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1392,8 +1393,13 @@ export default function FoundersPage() {
         </div>
 
         {/* gatekeeper — constraints, violations, audit, policy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GatekeeperPanel />
+        </div>
+
+        {/* gatling — scenarios, users, rps, latency */}
+        <div className="mt-6 pb-10">
+          <GatlingPanel />
         </div>
 
         {/* CTA */}

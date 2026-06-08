@@ -164,6 +164,7 @@ import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
+import EtcdPanel from '@/components/EtcdPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1304,8 +1305,13 @@ export default function StatsPage() {
       </div>
 
       {/* env — variables, secrets, profiles, dotenv */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <EnvPanel />
+      </div>
+
+      {/* etcd — keys, leases, alarms, compaction */}
+      <div className="mt-6 pb-10">
+        <EtcdPanel />
       </div>
     </div>
   );

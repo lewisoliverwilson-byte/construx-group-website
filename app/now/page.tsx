@@ -162,6 +162,7 @@ import DruidPanel from '@/components/DruidPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
+import EnvoyPanel from '@/components/EnvoyPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1256,8 +1257,13 @@ export default function NowPage() {
         </div>
 
         {/* ebpf trace — probes, maps, events, syscalls */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EbpfTracePanel />
+        </div>
+
+        {/* envoy — routes, clusters, listeners, filters */}
+        <div className="mt-6 pb-10">
+          <EnvoyPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
