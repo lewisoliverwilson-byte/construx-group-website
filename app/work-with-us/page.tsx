@@ -143,6 +143,7 @@ import CrontabPanel from '@/components/CrontabPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
+import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1387,8 +1388,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cue — schema, validation, export, evaluate */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CuePanel />
+      </section>
+
+      {/* curl headers — request, response, timing, tls */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CurlHeadersPanel />
       </section>
 
       {/* CTA */}

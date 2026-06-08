@@ -144,6 +144,7 @@ import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
+import DockerComposePanel from '@/components/DockerComposePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1047,8 +1048,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* docker build — layers, cache, multistage, args */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DockerBuildPanel />
+        </div>
+
+        {/* docker compose — services, networks, volumes, env */}
+        <div className="mt-4 pb-6">
+          <DockerComposePanel />
         </div>
 
         {/* Sign-off */}

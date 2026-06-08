@@ -142,6 +142,7 @@ import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
+import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1154,8 +1155,13 @@ export default function UsesPage() {
         </div>
 
         {/* crossplane — providers, compositions, claims, xrds */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CrossplanePanel />
+        </div>
+
+        {/* crunchy postgres — operator, clusters, pgbackrest, monitoring */}
+        <div className="mt-6 pb-10">
+          <CrunchyPostgresPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
