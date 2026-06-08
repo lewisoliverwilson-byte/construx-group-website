@@ -148,6 +148,7 @@ import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
+import DaggerPanel from '@/components/DaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1009,8 +1010,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cyclonedx — bom, components, vulnerabilities, metadata */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CycloneDxPanel />
+      </section>
+
+      {/* dagger — pipelines, containers, cache, secrets */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DaggerPanel />
       </section>
 
       {/* Posts */}

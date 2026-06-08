@@ -143,6 +143,7 @@ import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
+import CuePanel from '@/components/CuePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1160,8 +1161,13 @@ export default function UsesPage() {
         </div>
 
         {/* crunchy postgres — operator, clusters, pgbackrest, monitoring */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CrunchyPostgresPanel />
+        </div>
+
+        {/* cue — schema, validation, export, evaluate */}
+        <div className="mt-6 pb-10">
+          <CuePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
