@@ -189,6 +189,7 @@ import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
+import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1317,8 +1318,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* jaeger trace — traces, spans, services, durations */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <JaegerTracePanel />
+        </div>
+
+        {/* jfrog xray — vulnerabilities, licenses, components, policies */}
+        <div className="mt-4 pb-6">
+          <JfrogXrayPanel />
         </div>
 
         {/* Sign-off */}

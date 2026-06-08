@@ -188,6 +188,7 @@ import HtopPanel from '@/components/HtopPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HubblePanel from '@/components/HubblePanel';
+import HuggingFacePanel from '@/components/HuggingFacePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1657,8 +1658,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* hubble — flows, services, endpoints, policies */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <HubblePanel />
+      </section>
+
+      {/* hugging face — models, datasets, spaces, inference */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <HuggingFacePanel />
       </section>
 
       {/* CTA */}
