@@ -116,6 +116,7 @@ import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
+import CertInfoPanel from '@/components/CertInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -879,8 +880,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ceph rados distributed storage — rbd, cephfs, rgw, crush */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CephPanel />
+        </div>
+
+        {/* tls certificate info — san, validity, issuer, chain */}
+        <div className="mt-4 pb-6">
+          <CertInfoPanel />
         </div>
 
         {/* Sign-off */}

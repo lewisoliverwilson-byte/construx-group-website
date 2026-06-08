@@ -115,6 +115,7 @@ import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
+import BpftracePanel from '@/components/BpftracePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1219,8 +1220,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BoundaryPanel />
+      </section>
+
+      {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BpftracePanel />
       </section>
 
       {/* CTA */}

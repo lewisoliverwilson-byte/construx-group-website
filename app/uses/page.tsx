@@ -114,6 +114,7 @@ import BazelPanel from '@/components/BazelPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
+import BpftracePanel from '@/components/BpftracePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -986,8 +987,13 @@ export default function UsesPage() {
         </div>
 
         {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BoundaryPanel />
+        </div>
+
+        {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
+        <div className="mt-6 pb-10">
+          <BpftracePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
