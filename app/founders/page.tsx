@@ -92,6 +92,7 @@ import RoutingTablePanel from '@/components/RoutingTablePanel';
 import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 import SeaweedFSPanel from '@/components/SeaweedFSPanel';
 import SocketPanel from '@/components/SocketPanel';
+import StepSecurityPanel from '@/components/StepSecurityPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -972,8 +973,13 @@ export default function FoundersPage() {
         </div>
 
         {/* socket.dev — supply chain alerts, packages, cves */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SocketPanel />
+        </div>
+
+        {/* stepsecurity — cicd hardening, scorecard, harden-runner */}
+        <div className="mt-6 pb-10">
+          <StepSecurityPanel />
         </div>
 
         {/* CTA */}

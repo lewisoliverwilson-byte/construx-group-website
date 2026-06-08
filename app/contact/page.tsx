@@ -91,6 +91,7 @@ import RenovatePanel from '@/components/RenovatePanel';
 import SbomPanel from '@/components/SbomPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import SigstorePanel from '@/components/SigstorePanel';
+import SpiceDBPanel from '@/components/SpiceDBPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -844,8 +845,13 @@ export default function ContactPage() {
       </section>
 
       {/* sigstore — keyless signing, cosign, rekor, transparency log */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <SigstorePanel />
+      </section>
+
+      {/* spicedb — zanzibar authz, schema, tuples, checks */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <SpiceDBPanel />
       </section>
     </div>
   );

@@ -92,6 +92,7 @@ import RssFeedPanel from '@/components/RssFeedPanel';
 import ScyllaPanel from '@/components/ScyllaPanel';
 import SentryIssuesPanel from '@/components/SentryIssuesPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
+import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -836,8 +837,13 @@ export default function NowPage() {
         </div>
 
         {/* sonarqube — code quality, coverage, issues, gates */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SonarQubePanel />
+        </div>
+
+        {/* strace summary — syscalls, latency, errors, signals */}
+        <div className="mt-6 pb-10">
+          <StraceSummaryPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

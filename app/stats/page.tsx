@@ -94,6 +94,7 @@ import RiverPanel from '@/components/RiverPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
 import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 import SitemapIndexPanel from '@/components/SitemapIndexPanel';
+import SshConfigPanel from '@/components/SshConfigPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -884,8 +885,13 @@ export default function StatsPage() {
       </div>
 
       {/* sitemap index — urls, lastmod, changefreq, priority */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <SitemapIndexPanel />
+      </div>
+
+      {/* ssh config — hosts, keys, proxies, port forwarding */}
+      <div className="mt-6 pb-10">
+        <SshConfigPanel />
       </div>
     </div>
   );
