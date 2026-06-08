@@ -163,6 +163,7 @@ import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1099,8 +1100,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* env — variables, secrets, profiles, dotenv */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <EnvPanel />
+      </section>
+
+      {/* eslint output — rules, warnings, errors, fixable */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <EslintOutputPanel />
       </section>
 
       {/* Posts */}

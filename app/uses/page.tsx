@@ -158,6 +158,7 @@ import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DruidPanel from '@/components/DruidPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
+import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1250,8 +1251,13 @@ export default function UsesPage() {
         </div>
 
         {/* ebpf trace — probes, maps, events, syscalls */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EbpfTracePanel />
+        </div>
+
+        {/* envoy stats — rq, cx, health, rq_retry */}
+        <div className="mt-6 pb-10">
+          <EnvoyStatsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

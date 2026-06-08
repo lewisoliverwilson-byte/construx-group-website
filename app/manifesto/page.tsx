@@ -160,6 +160,7 @@ import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
+import GatekeeperPanel from '@/components/GatekeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1143,8 +1144,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* freemem — rss, heap, external, arraybuffers */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FreeMemPanel />
+        </div>
+
+        {/* gatekeeper — constraints, violations, audit, policy */}
+        <div className="mt-4 pb-6">
+          <GatekeeperPanel />
         </div>
 
         {/* Sign-off */}
