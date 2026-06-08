@@ -135,6 +135,7 @@ import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
+import ConsulPanel from '@/components/ConsulPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1130,8 +1131,13 @@ export default function StatsPage() {
       </div>
 
       {/* cockroachdb — distributed sql, replication, zones, backup */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CockroachDbPanel />
+      </div>
+
+      {/* consul — service mesh, kv, intentions, health checks */}
+      <div className="mt-6 pb-10">
+        <ConsulPanel />
       </div>
     </div>
   );

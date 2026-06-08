@@ -132,6 +132,7 @@ import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
+import CoverageReportPanel from '@/components/CoverageReportPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1090,8 +1091,13 @@ export default function ContactPage() {
       </section>
 
       {/* cortex — query engine, ruler, compactor, store-gateway */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CortexPanel />
+      </section>
+
+      {/* coverage report — lcov, html, badge, threshold */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CoverageReportPanel />
       </section>
     </div>
   );

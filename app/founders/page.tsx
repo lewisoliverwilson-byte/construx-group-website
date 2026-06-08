@@ -133,6 +133,7 @@ import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
+import CpuStatsPanel from '@/components/CpuStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1218,8 +1219,13 @@ export default function FoundersPage() {
         </div>
 
         {/* coverage report — lcov, html, badge, threshold */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CoverageReportPanel />
+        </div>
+
+        {/* cpu stats — load, cores, frequency, temperature */}
+        <div className="mt-6 pb-10">
+          <CpuStatsPanel />
         </div>
 
         {/* CTA */}

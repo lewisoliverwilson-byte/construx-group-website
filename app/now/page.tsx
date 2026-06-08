@@ -133,6 +133,7 @@ import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
+import ClickHousePanel from '@/components/ClickHousePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1082,8 +1083,13 @@ export default function NowPage() {
         </div>
 
         {/* clickhouse mv — materialized views, populate, refresh, target */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickhouseMvPanel />
+        </div>
+
+        {/* clickhouse — mergetree, partitions, replicas, mutations */}
+        <div className="mt-6 pb-10">
+          <ClickHousePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
