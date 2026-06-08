@@ -150,6 +150,7 @@ import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
+import DigPanel from '@/components/DigPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1202,8 +1203,13 @@ export default function UsesPage() {
         </div>
 
         {/* delta lake — tables, vacuum, history, merge */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DeltaLakePanel />
+        </div>
+
+        {/* dig — dns, records, ttl, nameserver */}
+        <div className="mt-6 pb-10">
+          <DigPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

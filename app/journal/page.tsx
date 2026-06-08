@@ -155,6 +155,7 @@ import DmesgPanel from '@/components/DmesgPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
+import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1051,8 +1052,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* docker stats — containers, cpu, mem, net */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DockerStatsPanel />
+      </section>
+
+      {/* dragonfly dns — zones, records, acl, forwarders */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DragonFlyDnsPanel />
       </section>
 
       {/* Posts */}
