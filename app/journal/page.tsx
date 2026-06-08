@@ -131,6 +131,7 @@ import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
+import ClickHousePanel from '@/components/ClickHousePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -907,8 +908,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* clickhouse mv — materialized views, triggers, refresh */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ClickhouseMvPanel />
+      </section>
+
+      {/* clickhouse query — mergetree, replicas, parts, mutations */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ClickHousePanel />
       </section>
 
       {/* Posts */}

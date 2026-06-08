@@ -126,6 +126,7 @@ import CephPanel from '@/components/CephPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
+import CIPipelinePanel from '@/components/CIPipelinePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1058,8 +1059,13 @@ export default function UsesPage() {
         </div>
 
         {/* chaos mesh — faults, experiments, schedules, pods */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ChaosMeshPanel />
+        </div>
+
+        {/* ci pipeline — stages, jobs, artifacts, runners */}
+        <div className="mt-6 pb-10">
+          <CIPipelinePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -127,6 +127,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
+import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1291,8 +1292,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* clickhouse migration — schema, versions, apply, rollback */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ClickhouseMigrationPanel />
+      </section>
+
+      {/* clickhouse mv — materialized views, triggers, refresh */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ClickhouseMvPanel />
       </section>
 
       {/* CTA */}

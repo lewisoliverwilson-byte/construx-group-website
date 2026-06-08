@@ -128,6 +128,7 @@ import ClickHousePanel from '@/components/ClickHousePanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
+import ConsulPanel from '@/components/ConsulPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -951,8 +952,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cockroachdb — distributed sql, regions, ranges, raft */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CockroachDbPanel />
+        </div>
+
+        {/* consul — service mesh, kv, intentions, health */}
+        <div className="mt-4 pb-6">
+          <ConsulPanel />
         </div>
 
         {/* Sign-off */}
