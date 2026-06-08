@@ -200,6 +200,7 @@ import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
+import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1484,8 +1485,13 @@ export default function NowPage() {
         </div>
 
         {/* jaeger trace — spans, services, operations, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JaegerTracePanel />
+        </div>
+
+        {/* jfrog xray — vulnerabilities, licenses, components, policies */}
+        <div className="mt-6 pb-10">
+          <JfrogXrayPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

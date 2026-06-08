@@ -200,6 +200,7 @@ import KarpenterPanel from '@/components/KarpenterPanel';
 import KedaPanel from '@/components/KedaPanel';
 import KindPanel from '@/components/KindPanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
+import KubebenchPanel from '@/components/KubebenchPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1620,8 +1621,13 @@ export default function FoundersPage() {
         </div>
 
         {/* kube audit — events, rules, verbs, resources */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeAuditPanel />
+        </div>
+
+        {/* kubebench — checks, remediations, scores, versions */}
+        <div className="mt-6 pb-10">
+          <KubebenchPanel />
         </div>
 
         {/* CTA */}

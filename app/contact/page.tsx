@@ -199,6 +199,7 @@ import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
+import KedaPanel from '@/components/KedaPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1492,8 +1493,13 @@ export default function ContactPage() {
       </section>
 
       {/* karpenter — nodes, provisioners, machines, capacity */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KarpenterPanel />
+      </section>
+
+      {/* keda — scalers, triggers, replicas, metrics */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KedaPanel />
       </section>
     </div>
   );
