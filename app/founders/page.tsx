@@ -255,6 +255,7 @@ import ParcaPanel from '@/components/ParcaPanel';
 import PatroniPanel from '@/components/PatroniPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
+import PgvectorPanel from '@/components/PgvectorPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1950,8 +1951,13 @@ export default function FoundersPage() {
         </div>
 
         {/* pg-explain — query plans, nodes, cost, buffers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PgExplainPanel />
+        </div>
+
+        {/* pgvector — vector embeddings, similarity search, indexing */}
+        <div className="mt-6 pb-10">
+          <PgvectorPanel />
         </div>
 
         {/* CTA */}

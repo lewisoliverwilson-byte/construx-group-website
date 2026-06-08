@@ -257,6 +257,7 @@ import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PatroniPanel from '@/components/PatroniPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
+import PgvectorPanel from '@/components/PgvectorPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1862,8 +1863,13 @@ export default function StatsPage() {
       </div>
 
       {/* pg-explain — query plans, nodes, cost, buffers */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PgExplainPanel />
+      </div>
+
+      {/* pgvector — vector embeddings, similarity search, indexing */}
+      <div className="mt-6 pb-10">
+        <PgvectorPanel />
       </div>
     </div>
   );

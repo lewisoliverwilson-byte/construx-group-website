@@ -255,6 +255,7 @@ import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1814,8 +1815,13 @@ export default function NowPage() {
         </div>
 
         {/* openssl — certs, keys, ciphers, tls handshake */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpensslPanel />
+        </div>
+
+        {/* opentelemetry — sdk, instrumentation, otlp, traces */}
+        <div className="mt-6 pb-10">
+          <OpenTelemetryPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

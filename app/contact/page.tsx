@@ -254,6 +254,7 @@ import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgExplainPanel from '@/components/PgExplainPanel';
 import PineconePanel from '@/components/PineconePanel';
 import PingPanel from '@/components/PingPanel';
+import PinotPanel from '@/components/PinotPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1822,8 +1823,13 @@ export default function ContactPage() {
       </section>
 
       {/* ping — latency, packet loss, ttl, icmp */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <PingPanel />
+      </section>
+
+      {/* pinot — real-time olap, segments, tables, queries */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <PinotPanel />
       </section>
     </div>
   );
