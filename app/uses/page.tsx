@@ -123,6 +123,7 @@ import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CephPanel from '@/components/CephPanel';
+import CertInfoPanel from '@/components/CertInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1040,8 +1041,13 @@ export default function UsesPage() {
         </div>
 
         {/* ceph cluster — osds, pools, pg, replication */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CephPanel />
+        </div>
+
+        {/* tls certificate info — san, validity, issuer, chain */}
+        <div className="mt-6 pb-10">
+          <CertInfoPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

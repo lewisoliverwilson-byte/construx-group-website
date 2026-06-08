@@ -128,6 +128,7 @@ import CephPanel from '@/components/CephPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
+import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -889,8 +890,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* citus distributed postgres — shards, workers, routing */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CitusPanel />
+      </section>
+
+      {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ClickHouseKeeperPanel />
       </section>
 
       {/* Posts */}

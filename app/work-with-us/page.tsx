@@ -124,6 +124,7 @@ import CaddyPanel from '@/components/CaddyPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
+import CgroupsPanel from '@/components/CgroupsPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1273,8 +1274,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cert manager — issuers, certificates, renewals, status */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CertManagerPanel />
+      </section>
+
+      {/* cgroups — cpu, memory, blkio, hierarchy */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CgroupsPanel />
       </section>
 
       {/* CTA */}

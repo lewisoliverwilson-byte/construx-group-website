@@ -125,6 +125,7 @@ import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -933,8 +934,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* clickhouse query — mergetree, replicas, parts, mutations */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ClickHousePanel />
+        </div>
+
+        {/* cluster api — providers, machines, controlplane, kubeconfig */}
+        <div className="mt-4 pb-6">
+          <ClusterApiPanel />
         </div>
 
         {/* Sign-off */}
