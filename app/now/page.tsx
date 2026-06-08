@@ -157,6 +157,7 @@ import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
+import DronePanel from '@/components/DronePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1226,8 +1227,13 @@ export default function NowPage() {
         </div>
 
         {/* dragonfly — shards, replication, keyspaces, memory */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DragonflyPanel />
+        </div>
+
+        {/* drone — pipelines, steps, triggers, secrets */}
+        <div className="mt-6 pb-10">
+          <DronePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

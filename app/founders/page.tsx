@@ -157,6 +157,7 @@ import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
+import FioPanel from '@/components/FioPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1362,8 +1363,13 @@ export default function FoundersPage() {
         </div>
 
         {/* external dns — records, providers, sources, sync */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ExternalDnsPanel />
+        </div>
+
+        {/* fio — iops, bw, latency, jobs */}
+        <div className="mt-6 pb-10">
+          <FioPanel />
         </div>
 
         {/* CTA */}

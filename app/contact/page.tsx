@@ -156,6 +156,7 @@ import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvPanel from '@/components/EnvPanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1234,8 +1235,13 @@ export default function ContactPage() {
       </section>
 
       {/* env — variables, secrets, profiles, dotenv */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <EnvPanel />
+      </section>
+
+      {/* eslint output — rules, warnings, errors, fixable */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <EslintOutputPanel />
       </section>
     </div>
   );
