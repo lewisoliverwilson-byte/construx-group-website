@@ -222,6 +222,7 @@ import LighthousePanel from '@/components/LighthousePanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LonghornPanel from '@/components/LonghornPanel';
+import MaterializePanel from '@/components/MaterializePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1634,8 +1635,13 @@ export default function UsesPage() {
         </div>
 
         {/* longhorn — distributed block storage, volumes, snapshots, replicas */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LonghornPanel />
+        </div>
+
+        {/* materialize — streaming sql, views, sources, sinks */}
+        <div className="mt-6 pb-10">
+          <MaterializePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

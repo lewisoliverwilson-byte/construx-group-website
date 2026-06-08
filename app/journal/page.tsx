@@ -227,6 +227,7 @@ import LonghornPanel from '@/components/LonghornPanel';
 import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
+import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1483,8 +1484,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* materialize — streaming sql, views, sources, sinks */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <MaterializePanel />
+      </section>
+
+      {/* methodology diff — before, after, delta, signal */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MethodologyDiffPanel />
       </section>
 
       {/* Posts */}

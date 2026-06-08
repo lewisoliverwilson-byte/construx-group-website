@@ -224,6 +224,7 @@ import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
+import MisePanel from '@/components/MisePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1527,8 +1528,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* minio — s3-compatible object storage, buckets, objects, policies */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <MinIOPanel />
+        </div>
+
+        {/* mise — tool version management, tools, versions, envs */}
+        <div className="mt-4 pb-6">
+          <MisePanel />
         </div>
 
         {/* Sign-off */}
