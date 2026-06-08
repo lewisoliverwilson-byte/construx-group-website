@@ -95,6 +95,7 @@ import ScorecardPanel from '@/components/ScorecardPanel';
 import SealedSecretsPanel from '@/components/SealedSecretsPanel';
 import SitemapIndexPanel from '@/components/SitemapIndexPanel';
 import SshConfigPanel from '@/components/SshConfigPanel';
+import SyftPanel from '@/components/SyftPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -890,8 +891,13 @@ export default function StatsPage() {
       </div>
 
       {/* ssh config — hosts, keys, proxies, port forwarding */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <SshConfigPanel />
+      </div>
+
+      {/* syft — sbom, packages, cpes, ecosystems, vulnerabilities */}
+      <div className="mt-6 pb-10">
+        <SyftPanel />
       </div>
     </div>
   );

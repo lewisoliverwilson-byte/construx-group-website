@@ -93,6 +93,7 @@ import ScyllaPanel from '@/components/ScyllaPanel';
 import SentryIssuesPanel from '@/components/SentryIssuesPanel';
 import SonarQubePanel from '@/components/SonarQubePanel';
 import StraceSummaryPanel from '@/components/StraceSummaryPanel';
+import TailnetStatusPanel from '@/components/TailnetStatusPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -842,8 +843,13 @@ export default function NowPage() {
         </div>
 
         {/* strace summary — syscalls, latency, errors, signals */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <StraceSummaryPanel />
+        </div>
+
+        {/* tailnet status — devices, tailscale, acl, routes */}
+        <div className="mt-6 pb-10">
+          <TailnetStatusPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

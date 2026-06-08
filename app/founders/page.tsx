@@ -93,6 +93,7 @@ import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 import SeaweedFSPanel from '@/components/SeaweedFSPanel';
 import SocketPanel from '@/components/SocketPanel';
 import StepSecurityPanel from '@/components/StepSecurityPanel';
+import SystemdServicesPanel from '@/components/SystemdServicesPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -978,8 +979,13 @@ export default function FoundersPage() {
         </div>
 
         {/* stepsecurity — cicd hardening, scorecard, harden-runner */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <StepSecurityPanel />
+        </div>
+
+        {/* systemd services — units, active, failed, timers */}
+        <div className="mt-6 pb-10">
+          <SystemdServicesPanel />
         </div>
 
         {/* CTA */}
