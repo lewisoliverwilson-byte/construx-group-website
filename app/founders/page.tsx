@@ -143,6 +143,7 @@ import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
+import DebeziumPanel from '@/components/DebeziumPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1278,8 +1279,13 @@ export default function FoundersPage() {
         </div>
 
         {/* delta lake — acid, time travel, schema evolution, partitions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DeltaLakePanel />
+        </div>
+
+        {/* debezium — cdc, connectors, transforms, offsets */}
+        <div className="mt-6 pb-10">
+          <DebeziumPanel />
         </div>
 
         {/* CTA */}

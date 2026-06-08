@@ -145,6 +145,7 @@ import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
+import DaggerPanel from '@/components/DaggerPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1190,8 +1191,13 @@ export default function StatsPage() {
       </div>
 
       {/* curl verbose — trace, redirect, ssl, timing */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CurlVerbosePanel />
+      </div>
+
+      {/* dagger — pipelines, containers, cache, secrets */}
+      <div className="mt-6 pb-10">
+        <DaggerPanel />
       </div>
     </div>
   );

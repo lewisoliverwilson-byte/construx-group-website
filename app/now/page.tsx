@@ -143,6 +143,7 @@ import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
+import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1142,8 +1143,13 @@ export default function NowPage() {
         </div>
 
         {/* crossplane — providers, compositions, claims, xrds */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CrossplanePanel />
+        </div>
+
+        {/* crunchy postgres — operator, clusters, pgbackrest, monitoring */}
+        <div className="mt-6 pb-10">
+          <CrunchyPostgresPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
