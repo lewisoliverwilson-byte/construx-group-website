@@ -110,6 +110,7 @@ import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1080,8 +1081,13 @@ export default function FoundersPage() {
         </div>
 
         {/* biome js toolchain — lint, format, check, ci */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BiomePanel />
+        </div>
+
+        {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
+        <div className="mt-6 pb-10">
+          <BoundaryPanel />
         </div>
 
         {/* CTA */}

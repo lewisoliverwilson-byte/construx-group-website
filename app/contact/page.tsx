@@ -109,6 +109,7 @@ import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BiomePanel from '@/components/BiomePanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -952,8 +953,13 @@ export default function ContactPage() {
       </section>
 
       {/* biome js toolchain — lint, format, check, ci */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BiomePanel />
+      </section>
+
+      {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BoundaryPanel />
       </section>
     </div>
   );
