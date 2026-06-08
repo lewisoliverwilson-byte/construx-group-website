@@ -226,6 +226,7 @@ import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
+import LitestreamPanel from '@/components/LitestreamPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1676,8 +1677,13 @@ export default function StatsPage() {
       </div>
 
       {/* latency map — regions, p50, p95, p99 */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LatencyMapPanel />
+      </div>
+
+      {/* litestream — sqlite replication, wal, s3, snapshots */}
+      <div className="mt-6 pb-10">
+        <LitestreamPanel />
       </div>
     </div>
   );

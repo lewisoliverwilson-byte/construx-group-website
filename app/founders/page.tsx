@@ -224,6 +224,7 @@ import MemInfoPanel from '@/components/MemInfoPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
+import MLflowPanel from '@/components/MLflowPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1764,8 +1765,13 @@ export default function FoundersPage() {
         </div>
 
         {/* mise — tool version management, tools, versions, envs */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MisePanel />
+        </div>
+
+        {/* mlflow — ml experiments, runs, metrics, artifacts */}
+        <div className="mt-6 pb-10">
+          <MLflowPanel />
         </div>
 
         {/* CTA */}
