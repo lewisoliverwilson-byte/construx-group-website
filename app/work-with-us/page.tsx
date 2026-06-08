@@ -237,6 +237,7 @@ import MLflowPanel from '@/components/MLflowPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
+import NeonPanel from '@/components/NeonPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1951,8 +1952,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* neofetch — system info, distro, kernel, uptime, cpu */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NeofetchPanel />
+      </section>
+
+      {/* neon — serverless postgres, branches, compute, storage */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NeonPanel />
       </section>
 
       {/* CTA */}

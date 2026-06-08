@@ -238,6 +238,7 @@ import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1611,8 +1612,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* npm-outdated — stale dependencies, versions, wanted, latest */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NpmOutdatedPanel />
+        </div>
+
+        {/* nvidia-smi — gpu stats, memory, utilization, processes */}
+        <div className="mt-4 pb-6">
+          <NvidiaSmiPanel />
         </div>
 
         {/* Sign-off */}

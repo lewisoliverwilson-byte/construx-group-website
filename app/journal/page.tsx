@@ -241,6 +241,7 @@ import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
+import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1567,8 +1568,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* nomad — workload orchestration, jobs, tasks, allocations */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NomadPanel />
+      </section>
+
+      {/* npm-global — global packages, versions, install, link */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NpmGlobalPanel />
       </section>
 
       {/* Posts */}
