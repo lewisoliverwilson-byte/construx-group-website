@@ -203,6 +203,7 @@ import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
+import KubeAuditPanel from '@/components/KubeAuditPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1516,8 +1517,13 @@ export default function ContactPage() {
       </section>
 
       {/* knative — services, revisions, routes, events */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KnativePanel />
+      </section>
+
+      {/* kube audit — events, rules, verbs, resources */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubeAuditPanel />
       </section>
     </div>
   );
