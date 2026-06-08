@@ -153,6 +153,7 @@ import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DigPanel from '@/components/DigPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
+import DockerComposePanel from '@/components/DockerComposePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1220,8 +1221,13 @@ export default function UsesPage() {
         </div>
 
         {/* dns lookup — query, records, ttl, resolver */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DnsLookupPanel />
+        </div>
+
+        {/* docker compose — services, networks, volumes, health */}
+        <div className="mt-6 pb-10">
+          <DockerComposePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

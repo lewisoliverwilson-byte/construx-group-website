@@ -155,6 +155,7 @@ import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EtcdPanel from '@/components/EtcdPanel';
+import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1113,8 +1114,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* etcd — keys, leases, members, watches */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <EtcdPanel />
+        </div>
+
+        {/* external dns — records, providers, sources, sync */}
+        <div className="mt-4 pb-6">
+          <ExternalDnsPanel />
         </div>
 
         {/* Sign-off */}
