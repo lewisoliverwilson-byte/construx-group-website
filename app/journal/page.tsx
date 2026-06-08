@@ -146,6 +146,7 @@ import CrossplanePanel from '@/components/CrossplanePanel';
 import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -997,8 +998,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* curl jwt — bearer, decode, expiry, claims */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CurlJwtPanel />
+      </section>
+
+      {/* curl verbose — trace, redirect, ssl, timing */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CurlVerbosePanel />
       </section>
 
       {/* Posts */}

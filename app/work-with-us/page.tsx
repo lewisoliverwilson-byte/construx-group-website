@@ -142,6 +142,7 @@ import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
+import CuePanel from '@/components/CuePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1381,8 +1382,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* crunchy postgres — operator, clusters, pgbackrest, monitoring */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CrunchyPostgresPanel />
+      </section>
+
+      {/* cue — schema, validation, export, evaluate */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CuePanel />
       </section>
 
       {/* CTA */}
