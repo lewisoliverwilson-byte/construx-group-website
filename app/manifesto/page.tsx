@@ -99,6 +99,7 @@ import TrufflehogPanel from '@/components/TrufflehogPanel';
 import SarPanel from '@/components/SarPanel';
 import SensorsPanel from '@/components/SensorsPanel';
 import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
+import SpfDkimPanel from '@/components/SpfDkimPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -777,8 +778,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* security headers — hsts, csp, x-frame, referrer, permissions */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <SecurityHeadersPanel />
+        </div>
+
+        {/* spf dkim — email auth, dmarc, dns records, alignment */}
+        <div className="mt-4 pb-6">
+          <SpfDkimPanel />
         </div>
 
         {/* Sign-off */}

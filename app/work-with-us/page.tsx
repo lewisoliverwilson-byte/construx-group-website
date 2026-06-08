@@ -98,6 +98,7 @@ import TektonPanel from '@/components/TektonPanel';
 import TempoPanel from '@/components/TempoPanel';
 import SslCertPanel from '@/components/SslCertPanel';
 import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
+import SysdigPanel from '@/components/SysdigPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1117,8 +1118,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* temporal workflow — durable execution, activities, signals */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <TemporalWorkflowPanel />
+      </section>
+
+      {/* sysdig — container-aware syscall tracing, events, processes */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <SysdigPanel />
       </section>
 
       {/* CTA */}
