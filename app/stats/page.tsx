@@ -201,6 +201,7 @@ import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
+import JournalctlPanel from '@/components/JournalctlPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1526,8 +1527,13 @@ export default function StatsPage() {
       </div>
 
       {/* jfrog xray — vulnerabilities, licenses, components, policies */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <JfrogXrayPanel />
+      </div>
+
+      {/* journalctl — units, logs, priorities, boots */}
+      <div className="mt-6 pb-10">
+        <JournalctlPanel />
       </div>
     </div>
   );

@@ -199,6 +199,7 @@ import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
+import JaegerTracePanel from '@/components/JaegerTracePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1478,8 +1479,13 @@ export default function NowPage() {
         </div>
 
         {/* istio — services, traffic, policies, telemetry */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IstioPanel />
+        </div>
+
+        {/* jaeger trace — spans, services, operations, latency */}
+        <div className="mt-6 pb-10">
+          <JaegerTracePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

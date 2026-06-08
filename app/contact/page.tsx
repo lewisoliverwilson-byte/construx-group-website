@@ -198,6 +198,7 @@ import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
+import KarpenterPanel from '@/components/KarpenterPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1486,8 +1487,13 @@ export default function ContactPage() {
       </section>
 
       {/* k9s — pods, namespaces, contexts, resources */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <K9sPanel />
+      </section>
+
+      {/* karpenter — nodes, provisioners, machines, capacity */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KarpenterPanel />
       </section>
     </div>
   );
