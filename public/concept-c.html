@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Construx Group — Concept C: Particle Flow</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@700,600,500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #000008;
+    --text: rgba(255,255,255,0.92);
+    --muted: rgba(255,255,255,0.35);
+    --border: rgba(255,255,255,0.07);
+    --font-display: 'Clash Display', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    font-family: var(--font-body);
+  }
+
+  #particle-canvas {
+    position: fixed; inset: 0;
+    z-index: 0;
+    display: block;
+  }
+
+  .overlay {
+    position: fixed; inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Nav */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 36px 0;
+    pointer-events: all;
+  }
+  .nav-brand {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .nav-label {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  /* Hero */
+  .hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 52px 24px 0;
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+  }
+  .hero-eyebrow {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(44px, 7.5vw, 96px);
+    line-height: 0.88;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 18px;
+  }
+  .hero-sub {
+    font-family: var(--font-body);
+    font-weight: 300;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* Venture cards grid */
+  .cards-wrap {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 28px 36px;
+    pointer-events: all;
+  }
+  .cards-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+  }
+  .card {
+    width: 178px;
+    background: rgba(0, 0, 12, 0.52);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-top: 2px solid var(--accent);
+    border-radius: 5px;
+    padding: 16px 17px 15px;
+    cursor: pointer;
+    transition: transform 0.32s cubic-bezier(0.22,1,0.36,1),
+                box-shadow 0.32s ease,
+                background 0.32s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, var(--accent), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .card:hover::before { opacity: 0.06; }
+  .card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 40px -8px var(--accent-shadow);
+  }
+  .card .card-cat {
+    font-family: 'Courier New', monospace;
+    font-size: 8.5px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+    display: block;
+  }
+  .card .card-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text);
+    margin-bottom: 5px;
+    display: block;
+  }
+  .card .card-tagline {
+    font-family: var(--font-body);
+    font-weight: 300;
+    font-size: 10.5px;
+    color: rgba(255,255,255,0.32);
+    line-height: 1.45;
+    margin-bottom: 13px;
+    display: block;
+  }
+  .card .card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Courier New', monospace;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 3px;
+  }
+  .card .card-badge.live {
+    color: #4ade80;
+    background: rgba(74,222,128,0.1);
+    border: 1px solid rgba(74,222,128,0.18);
+  }
+  .card .card-badge.dev {
+    color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .card .card-badge::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* Concept switcher */
+  .switcher {
+    position: fixed;
+    bottom: 28px;
+    right: 36px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 30;
+    pointer-events: all;
+  }
+  .switcher-label {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-right: 6px;
+  }
+  .switcher a {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 5px 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 3px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .switcher a:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+  .switcher a.active { color: var(--text); border-color: rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+
+<canvas id="particle-canvas"></canvas>
+
+<div class="overlay">
+  <nav class="nav">
+    <span class="nav-brand">Construx Group</span>
+    <span class="nav-label">Concept C — Particle Flow</span>
+  </nav>
+  <div class="hero">
+    <div class="hero-eyebrow">A group of AI-native ventures</div>
+    <div class="hero-title">CONSTRUX<br>GROUP</div>
+    <div class="hero-sub">We build what only AI makes possible.</div>
+  </div>
+  <div class="cards-wrap">
+    <div class="cards-row" id="cardsRow"></div>
+  </div>
+</div>
+
+<div class="switcher">
+  <span class="switcher-label">Concepts</span>
+  <a href="/concept-a.html">A</a>
+  <a href="/concept-b.html">B</a>
+  <a href="/concept-c.html" class="active">C</a>
+</div>
+
+<script>
+const VENTURES = [
+  { name: 'Scoutr',          tagline: 'Find what others miss.',           accent: '#C8F50C', status: 'live', category: 'Resell Intelligence' },
+  { name: 'The Marqet',      tagline: 'The App Store for Claude AI.',     accent: '#3B82F6', status: 'live', category: 'AI Marketplace'      },
+  { name: 'The Hyve',        tagline: 'Where AI teams actually work.',    accent: '#8B5CF6', status: 'live', category: 'AI Workspace'        },
+  { name: 'Construx Daily',  tagline: 'AI intelligence, delivered daily.',accent: '#F59E0B', status: 'dev',  category: 'AI Newsletter'       },
+  { name: 'Construx Studio', tagline: 'Beautiful software, built fast.',  accent: '#06B6D4', status: 'dev',  category: 'Web Studio'          },
+];
+
+// ─── Build cards ────────────────────────────────────────────────────────────
+const row = document.getElementById('cardsRow');
+const cardEls = VENTURES.map((v, i) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.setProperty('--accent', v.accent);
+  card.style.setProperty('--accent-shadow', hexToRGBA(v.accent, 0.28));
+  card.innerHTML = `
+    <span class="card-cat">${v.category}</span>
+    <span class="card-name">${v.name}</span>
+    <span class="card-tagline">${v.tagline}</span>
+    <span class="card-badge ${v.status}">${v.status === 'live' ? 'Live' : 'In Development'}</span>
+  `;
+  row.appendChild(card);
+  return card;
+});
+
+function hexToRGBA(hex, a) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function hexToVec(hex) {
+  return {
+    r: parseInt(hex.slice(1,3),16)/255,
+    g: parseInt(hex.slice(3,5),16)/255,
+    b: parseInt(hex.slice(5,7),16)/255,
+  };
+}
+
+// ─── Canvas setup ───────────────────────────────────────────────────────────
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── Particle system ────────────────────────────────────────────────────────
+const COUNT = 2800;
+const SPEED_BASE = 0.42;
+const DAMP = 0.975;
+const FLOW_SCALE = 0.0016;
+
+const px = new Float32Array(COUNT);
+const py = new Float32Array(COUNT);
+const pvx = new Float32Array(COUNT);
+const pvy = new Float32Array(COUNT);
+const pphase = new Float32Array(COUNT);
+const pr = new Float32Array(COUNT);  // color red
+const pg = new Float32Array(COUNT);  // color green
+const pb = new Float32Array(COUNT);  // color blue
+const psize = new Float32Array(COUNT);
+const palpha = new Float32Array(COUNT);
+const ptargetR = new Float32Array(COUNT);
+const ptargetG = new Float32Array(COUNT);
+const ptargetB = new Float32Array(COUNT);
+
+// Base white-blue particle color
+const BASE_R = 0.55, BASE_G = 0.58, BASE_B = 0.72;
+
+for (let i = 0; i < COUNT; i++) {
+  px[i] = Math.random() * (window.innerWidth  || 1920);
+  py[i] = Math.random() * (window.innerHeight || 1080);
+  pvx[i] = (Math.random() - 0.5) * 0.5;
+  pvy[i] = (Math.random() - 0.5) * 0.5;
+  pphase[i] = Math.random() * Math.PI * 2;
+  psize[i] = 0.7 + Math.random() * 1.2;
+  palpha[i] = 0.2 + Math.random() * 0.45;
+  pr[i] = BASE_R; pg[i] = BASE_G; pb[i] = BASE_B;
+  ptargetR[i] = BASE_R; ptargetG[i] = BASE_G; ptargetB[i] = BASE_B;
+}
+
+// ─── Flow field ─────────────────────────────────────────────────────────────
+function flowAngle(x, y, t) {
+  const nx = x * FLOW_SCALE;
+  const ny = y * FLOW_SCALE;
+  return (
+    Math.sin(nx * 8 + t * 0.3) * Math.cos(ny * 6 + t * 0.2) +
+    Math.sin(nx * 3 - ny * 4 + t * 0.1) * 0.5
+  ) * Math.PI * 1.5;
+}
+
+// ─── Hover state ─────────────────────────────────────────────────────────────
+let hoveredCardIdx = -1;
+const cardRects = new Array(VENTURES.length).fill(null);
+
+function updateRects() {
+  cardEls.forEach((el, i) => {
+    cardRects[i] = el.getBoundingClientRect();
+  });
+}
+
+cardEls.forEach((el, i) => {
+  el.addEventListener('mouseenter', () => { hoveredCardIdx = i; updateRects(); });
+  el.addEventListener('mouseleave', () => { hoveredCardIdx = -1; });
+});
+
+// Update rects on scroll / resize
+window.addEventListener('resize', updateRects);
+updateRects();
+
+// ─── Render loop ─────────────────────────────────────────────────────────────
+let t = 0;
+const ORBIT_RADIUS = 88;
+const ATTRACT_RANGE = 230;
+
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.008;
+
+  // Soft clear — trails
+  ctx.fillStyle = 'rgba(0, 0, 8, 0.14)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Get hover card center
+  let hCx = -9999, hCy = -9999;
+  let hAccent = null;
+  if (hoveredCardIdx >= 0 && cardRects[hoveredCardIdx]) {
+    const r = cardRects[hoveredCardIdx];
+    hCx = r.left + r.width  * 0.5;
+    hCy = r.top  + r.height * 0.5;
+    hAccent = hexToVec(VENTURES[hoveredCardIdx].accent);
+  }
+
+  for (let i = 0; i < COUNT; i++) {
+    // Flow field force
+    const angle = flowAngle(px[i], py[i], t + pphase[i] * 0.15);
+    pvx[i] += Math.cos(angle) * 0.018;
+    pvy[i] += Math.sin(angle) * 0.018;
+
+    // Attraction to hovered card
+    if (hAccent) {
+      const dx = hCx - px[i];
+      const dy = hCy - py[i];
+      const dist = Math.sqrt(dx * dx + dy * dy) + 0.001;
+
+      if (dist < ATTRACT_RANGE) {
+        const radialForce = (dist - ORBIT_RADIUS) * 0.016;
+        const tangForce   = 0.022;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        pvx[i] += nx * radialForce + (-ny * tangForce);
+        pvy[i] += ny * radialForce + ( nx * tangForce);
+
+        // Color blend toward accent
+        const blend = Math.max(0, 1 - dist / ATTRACT_RANGE);
+        ptargetR[i] = BASE_R + (hAccent.r - BASE_R) * blend;
+        ptargetG[i] = BASE_G + (hAccent.g - BASE_G) * blend;
+        ptargetB[i] = BASE_B + (hAccent.b - BASE_B) * blend;
+      } else {
+        ptargetR[i] = BASE_R;
+        ptargetG[i] = BASE_G;
+        ptargetB[i] = BASE_B;
+      }
+    } else {
+      ptargetR[i] = BASE_R;
+      ptargetG[i] = BASE_G;
+      ptargetB[i] = BASE_B;
+    }
+
+    // Lerp color
+    pr[i] += (ptargetR[i] - pr[i]) * 0.06;
+    pg[i] += (ptargetG[i] - pg[i]) * 0.06;
+    pb[i] += (ptargetB[i] - pb[i]) * 0.06;
+
+    // Speed cap + damping
+    const speed = Math.sqrt(pvx[i]*pvx[i] + pvy[i]*pvy[i]);
+    if (speed > SPEED_BASE * 2.2) {
+      pvx[i] = (pvx[i] / speed) * SPEED_BASE * 2.2;
+      pvy[i] = (pvy[i] / speed) * SPEED_BASE * 2.2;
+    }
+    pvx[i] *= DAMP;
+    pvy[i] *= DAMP;
+
+    px[i] += pvx[i];
+    py[i] += pvy[i];
+
+    // Wrap edges
+    if (px[i] < -4) px[i] = W + 2;
+    if (px[i] > W + 4) px[i] = -2;
+    if (py[i] < -4) py[i] = H + 2;
+    if (py[i] > H + 4) py[i] = -2;
+
+    // Draw
+    const alpha = palpha[i] * (0.78 + 0.22 * Math.sin(t * 1.4 + pphase[i]));
+    ctx.beginPath();
+    ctx.arc(px[i], py[i], psize[i], 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${Math.round(pr[i]*255)},${Math.round(pg[i]*255)},${Math.round(pb[i]*255)},${alpha.toFixed(3)})`;
+    ctx.fill();
+  }
+}
+
+animate();
+</script>
+</body>
+</html>

@@ -1,1842 +1,202 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, CheckCircle, AlertCircle } from 'lucide-react';
-import LatencyMapPanel from '@/components/LatencyMapPanel';
-import TraceroutePanel from '@/components/TraceroutePanel';
-import WhoisPanel from '@/components/WhoisPanel';
-import SslCertPanel from '@/components/SslCertPanel';
-import DnsLookupPanel from '@/components/DnsLookupPanel';
-import HttpBenchPanel from '@/components/HttpBenchPanel';
-import SpfDkimPanel from '@/components/SpfDkimPanel';
-import TlsHandshakePanel from '@/components/TlsHandshakePanel';
-import MtrPanel from '@/components/MtrPanel';
-import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
-import TsharkPacketPanel from '@/components/TsharkPacketPanel';
-import CaddyAccessPanel from '@/components/CaddyAccessPanel';
-import CertInfoPanel from '@/components/CertInfoPanel';
-import GrpcCallPanel from '@/components/GrpcCallPanel';
-import PostgresReplPanel from '@/components/PostgresReplPanel';
-import WasmComponentPanel from '@/components/WasmComponentPanel';
-import BgpLookupPanel from '@/components/BgpLookupPanel';
-import CurlVerbosePanel from '@/components/CurlVerbosePanel';
-import DigPanel from '@/components/DigPanel';
-import StepCliPanel from '@/components/StepCliPanel';
-import CrossplanePanel from '@/components/CrossplanePanel';
-import RedpandaPanel from '@/components/RedpandaPanel';
-import CockroachDbPanel from '@/components/CockroachDbPanel';
-import CitusPanel from '@/components/CitusPanel';
-import EtcdPanel from '@/components/EtcdPanel';
-import TektonPanel from '@/components/TektonPanel';
-import ExternalDnsPanel from '@/components/ExternalDnsPanel';
-import KubescapePanel from '@/components/KubescapePanel';
-import IcebergPanel from '@/components/IcebergPanel';
-import WasmEdgePanel from '@/components/WasmEdgePanel';
-import BazelPanel from '@/components/BazelPanel';
-import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
-import TemporalPanel from '@/components/TemporalPanel';
-import TeleportPanel from '@/components/TeleportPanel';
-import PortainerPanel from '@/components/PortainerPanel';
-import AirbytePanel from '@/components/AirbytePanel';
-import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
-import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
-import GatlingPanel from '@/components/GatlingPanel';
-import K6Panel from '@/components/K6Panel';
-import LitestreamPanel from '@/components/LitestreamPanel';
-import BenthosPanel from '@/components/BenthosPanel';
-import ConsulPanel from '@/components/ConsulPanel';
-import PatroniPanel from '@/components/PatroniPanel';
-import MinIOPanel from '@/components/MinIOPanel';
-import VaultPanel from '@/components/VaultPanel';
-import CaddyPanel from '@/components/CaddyPanel';
-import IstioPanel from '@/components/IstioPanel';
-import OPAPanel from '@/components/OPAPanel';
-import FluentBitPanel from '@/components/FluentBitPanel';
-import AlertManagerPanel from '@/components/AlertManagerPanel';
-import NeonPanel from '@/components/NeonPanel';
-import OllamaPanel from '@/components/OllamaPanel';
-import GrpcurlPanel from '@/components/GrpcurlPanel';
-import NmapScanPanel from '@/components/NmapScanPanel';
-import SpirePanel from '@/components/SpirePanel';
-import DaprPanel from '@/components/DaprPanel';
-import CiliumPanel from '@/components/CiliumPanel';
-import NATSJetStreamPanel from '@/components/NATSJetStreamPanel';
-import AirflowPanel from '@/components/AirflowPanel';
-import FlinkPanel from '@/components/FlinkPanel';
-import GoReleaserPanel from '@/components/GoReleaserPanel';
-import KafkaConnectPanel from '@/components/KafkaConnectPanel';
-import ArgoCDPanel from '@/components/ArgoCDPanel';
-import BrewListPanel from '@/components/BrewListPanel';
-import CosignPanel from '@/components/CosignPanel';
-import DruidPanel from '@/components/DruidPanel';
-import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
-import GitConfigPanel from '@/components/GitConfigPanel';
-import HttpArchivePanel from '@/components/HttpArchivePanel';
-import K3sPanel from '@/components/K3sPanel';
-import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
-import KubectlLogsPanel from '@/components/KubectlLogsPanel';
-import KyvernoPanel from '@/components/KyvernoPanel';
-import LshwPanel from '@/components/LshwPanel';
-import AwsCliPanel from '@/components/AwsCliPanel';
-import ActPanel from '@/components/ActPanel';
-import CpuStatsPanel from '@/components/CpuStatsPanel';
-import GiteaPanel from '@/components/GiteaPanel';
-import NeofetchPanel from '@/components/NeofetchPanel';
-import NixShellPanel from '@/components/NixShellPanel';
-import OAuthFlowPanel from '@/components/OAuthFlowPanel';
-import OpensslPanel from '@/components/OpensslPanel';
-import PgvectorPanel from '@/components/PgvectorPanel';
-import PrometheusMetricsPanel from '@/components/PrometheusMetricsPanel';
-import RenovatePanel from '@/components/RenovatePanel';
-import SbomPanel from '@/components/SbomPanel';
-import IpLinkPanel from '@/components/IpLinkPanel';
-import SigstorePanel from '@/components/SigstorePanel';
-import SpiceDBPanel from '@/components/SpiceDBPanel';
-import StrimziPanel from '@/components/StrimziPanel';
-import TrivyScanPanel from '@/components/TrivyScanPanel';
-import TigerBeetlePanel from '@/components/TigerBeetlePanel';
-import TechFreqPanel from '@/components/TechFreqPanel';
-import TerraformPanel from '@/components/TerraformPanel';
-import UptimePanel from '@/components/UptimePanel';
-import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
-import ArgoEventsPanel from '@/components/ArgoEventsPanel';
-import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
-import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
-import AtlasPanel from '@/components/AtlasPanel';
-import AuditdPanel from '@/components/AuditdPanel';
-import AuthentikPanel from '@/components/AuthentikPanel';
-import AwsBedrockPanel from '@/components/AwsBedrockPanel';
-import BackstagePanel from '@/components/BackstagePanel';
-import BeylaPanel from '@/components/BeylaPanel';
-import BiomePanel from '@/components/BiomePanel';
-import BoundaryPanel from '@/components/BoundaryPanel';
-import BpftracePanel from '@/components/BpftracePanel';
-import BufPanel from '@/components/BufPanel';
-import BuildOutputPanel from '@/components/BuildOutputPanel';
-import BunBuildPanel from '@/components/BunBuildPanel';
-import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
-import CargoPanel from '@/components/CargoPanel';
-import CassandraPanel from '@/components/CassandraPanel';
-import CephPanel from '@/components/CephPanel';
-import CertManagerPanel from '@/components/CertManagerPanel';
-import CgroupsPanel from '@/components/CgroupsPanel';
-import ChaosMeshPanel from '@/components/ChaosMeshPanel';
-import CIPipelinePanel from '@/components/CIPipelinePanel';
-import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
-import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
-import ClickHousePanel from '@/components/ClickHousePanel';
-import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
-import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
-import CloudNativePGPanel from '@/components/CloudNativePGPanel';
-import ClusterApiPanel from '@/components/ClusterApiPanel';
-import CniPanel from '@/components/CniPanel';
-import ContainerdPanel from '@/components/ContainerdPanel';
-import CortexPanel from '@/components/CortexPanel';
-import CoverageReportPanel from '@/components/CoverageReportPanel';
-import CrontabPanel from '@/components/CrontabPanel';
-import CuePanel from '@/components/CuePanel';
-import CurlHeadersPanel from '@/components/CurlHeadersPanel';
-import CurlJwtPanel from '@/components/CurlJwtPanel';
-import CycloneDxPanel from '@/components/CycloneDxPanel';
-import DaggerPanel from '@/components/DaggerPanel';
-import DbMigrationPanel from '@/components/DbMigrationPanel';
-import DbtPanel from '@/components/DbtPanel';
-import DebeziumPanel from '@/components/DebeziumPanel';
-import DeltaLakePanel from '@/components/DeltaLakePanel';
-import DiskUsagePanel from '@/components/DiskUsagePanel';
-import DmesgPanel from '@/components/DmesgPanel';
-import DockerBuildPanel from '@/components/DockerBuildPanel';
-import DockerComposePanel from '@/components/DockerComposePanel';
-import DockerStatsPanel from '@/components/DockerStatsPanel';
-import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
-import DragonflyPanel from '@/components/DragonflyPanel';
-import DronePanel from '@/components/DronePanel';
-import DuckdbPanel from '@/components/DuckdbPanel';
-import EarthlyPanel from '@/components/EarthlyPanel';
-import EbpfTracePanel from '@/components/EbpfTracePanel';
-import EnvoyPanel from '@/components/EnvoyPanel';
-import EnvPanel from '@/components/EnvPanel';
-import EslintOutputPanel from '@/components/EslintOutputPanel';
-import FalcoPanel from '@/components/FalcoPanel';
-import FioPanel from '@/components/FioPanel';
-import FlaggerPanel from '@/components/FlaggerPanel';
-import FlamegraphPanel from '@/components/FlamegraphPanel';
-import FluxCDPanel from '@/components/FluxCDPanel';
-import FreeMemPanel from '@/components/FreeMemPanel';
-import GatekeeperPanel from '@/components/GatekeeperPanel';
-import GhActionsRunPanel from '@/components/GhActionsRunPanel';
-import GhCliPanel from '@/components/GhCliPanel';
-import GitBisectPanel from '@/components/GitBisectPanel';
-import GitBlamePanel from '@/components/GitBlamePanel';
-import GitGraphPanel from '@/components/GitGraphPanel';
-import GitShortlogPanel from '@/components/GitShortlogPanel';
-import GitSignPanel from '@/components/GitSignPanel';
-import GitWorktreePanel from '@/components/GitWorktreePanel';
-import GoReplayPanel from '@/components/GoReplayPanel';
-import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
-import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
-import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
-import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
-import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
-import GrypePanel from '@/components/GrypePanel';
-import GVisorPanel from '@/components/GVisorPanel';
-import HarborPanel from '@/components/HarborPanel';
-import HelmChartPanel from '@/components/HelmChartPanel';
-import HtopPanel from '@/components/HtopPanel';
-import HubblePanel from '@/components/HubblePanel';
-import HuggingFacePanel from '@/components/HuggingFacePanel';
-import HyperfinePanel from '@/components/HyperfinePanel';
-import InfluxDbPanel from '@/components/InfluxDbPanel';
-import IostatPanel from '@/components/IostatPanel';
-import IpAddrPanel from '@/components/IpAddrPanel';
-import JaegerTracePanel from '@/components/JaegerTracePanel';
-import JfrogXrayPanel from '@/components/JfrogXrayPanel';
-import JournalctlPanel from '@/components/JournalctlPanel';
-import JournaldPanel from '@/components/JournaldPanel';
-import JournalWcPanel from '@/components/JournalWcPanel';
-import K6LoadTestPanel from '@/components/K6LoadTestPanel';
-import K6SummaryPanel from '@/components/K6SummaryPanel';
-import K8sEventsPanel from '@/components/K8sEventsPanel';
-import K9sPanel from '@/components/K9sPanel';
-import KarpenterPanel from '@/components/KarpenterPanel';
-import KedaPanel from '@/components/KedaPanel';
-import KeycloakPanel from '@/components/KeycloakPanel';
-import KindPanel from '@/components/KindPanel';
-import KnativePanel from '@/components/KnativePanel';
-import KubeAuditPanel from '@/components/KubeAuditPanel';
-import KubebenchPanel from '@/components/KubebenchPanel';
-import KubectlPodsPanel from '@/components/KubectlPodsPanel';
-import KubeflowPanel from '@/components/KubeflowPanel';
-import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
-import KubePrometheusPanel from '@/components/KubePrometheusPanel';
-import KubeProxyPanel from '@/components/KubeProxyPanel';
-import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
-import KubeVirtPanel from '@/components/KubeVirtPanel';
-import LangfusePanel from '@/components/LangfusePanel';
-import LastLoginPanel from '@/components/LastLoginPanel';
-import LighthousePanel from '@/components/LighthousePanel';
-import LinkerdPanel from '@/components/LinkerdPanel';
-import LokiPanel from '@/components/LokiPanel';
-import LokiQueryPanel from '@/components/LokiQueryPanel';
-import LonghornPanel from '@/components/LonghornPanel';
-import LsofPanel from '@/components/LsofPanel';
-import MaterializePanel from '@/components/MaterializePanel';
-import MeilisearchPanel from '@/components/MeilisearchPanel';
-import MemInfoPanel from '@/components/MemInfoPanel';
-import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
-import MimirPanel from '@/components/MimirPanel';
-import MisePanel from '@/components/MisePanel';
-import MLflowPanel from '@/components/MLflowPanel';
-import NATSPanel from '@/components/NATSPanel';
-import NatsPubSubPanel from '@/components/NatsPubSubPanel';
-import NetdataPanel from '@/components/NetdataPanel';
-import NetstatPanel from '@/components/NetstatPanel';
-import NetworkPingPanel from '@/components/NetworkPingPanel';
-import NftablesPanel from '@/components/NftablesPanel';
-import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
-import NixFlakePanel from '@/components/NixFlakePanel';
-import NomadPanel from '@/components/NomadPanel';
-import NpmGlobalPanel from '@/components/NpmGlobalPanel';
-import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
-import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
-import OpenCostPanel from '@/components/OpenCostPanel';
-import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
-import OpenFGAPanel from '@/components/OpenFGAPanel';
-import OpenObservePanel from '@/components/OpenObservePanel';
-import OpenSearchPanel from '@/components/OpenSearchPanel';
-import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
-import OtelCollectorPanel from '@/components/OtelCollectorPanel';
-import OtelTracesPanel from '@/components/OtelTracesPanel';
-import PackerBuildPanel from '@/components/PackerBuildPanel';
-import ParcaPanel from '@/components/ParcaPanel';
-import PerfStatPanel from '@/components/PerfStatPanel';
-import PgBouncerPanel from '@/components/PgBouncerPanel';
-import PgExplainPanel from '@/components/PgExplainPanel';
-import PineconePanel from '@/components/PineconePanel';
-import PingPanel from '@/components/PingPanel';
-import PinotPanel from '@/components/PinotPanel';
-import PixiePanel from '@/components/PixiePanel';
+import Link from 'next/link';
+import { ArrowRight, ArrowUpRight, Send } from 'lucide-react';
 
-type Status = 'idle' | 'loading' | 'success' | 'error';
-
-const topics = [
-  'Working together',
-  'Partnership / collaboration',
-  'Press enquiry',
-  'Venture feedback',
-  'Something else',
+const SUBJECTS = [
+  'General enquiry',
+  'Construx Studio — project',
+  'Speculative application',
+  'Partnership',
+  'Press',
+  'Other',
 ];
 
 export default function ContactPage() {
-  const [status, setStatus] = useState<Status>('idle');
-  const [form, setForm] = useState({ name: '', email: '', topic: '', message: '' });
-  const [errors, setErrors] = useState<Partial<typeof form>>({});
+  const [subject, setSubject] = useState(SUBJECTS[0]);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
-  const validate = () => {
-    const e: Partial<typeof form> = {};
-    if (!form.name.trim()) e.name = 'Name is required';
-    if (!form.email.trim()) e.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email address';
-    if (!form.message.trim()) e.message = 'Message is required';
-    else if (form.message.trim().length < 20) e.message = 'Message too short (min 20 chars)';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
-    setStatus('loading');
-
+    setStatus('sending');
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ name, email, subject, message }),
       });
-      if (!res.ok) throw new Error('Request failed');
-      setStatus('success');
-      setForm({ name: '', email: '', topic: '', message: '' });
+      setStatus(res.ok ? 'sent' : 'error');
     } catch {
       setStatus('error');
     }
-  };
+  }
 
-  const field = (
-    id: keyof typeof form,
-    label: string,
-    type: string = 'text',
-    placeholder: string = '',
-  ) => (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim">
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={form[id]}
-        onChange={(e) => setForm((p) => ({ ...p, [id]: e.target.value }))}
-        placeholder={placeholder}
-        autoComplete={id === 'email' ? 'email' : id === 'name' ? 'name' : 'off'}
-        className="w-full px-4 py-3 text-sm text-text-base placeholder:text-text-dim transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)]"
-        style={{
-          background: 'rgba(5,5,18,0.8)',
-          border: errors[id] ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.08)',
-          borderRadius: '2px',
-        }}
-      />
-      {errors[id] && (
-        <p className="text-xs text-red-400 flex items-center gap-1">
-          <AlertCircle size={11} /> {errors[id]}
-        </p>
-      )}
-    </div>
-  );
+  const inputClass =
+    'w-full bg-white/[0.04] border border-white/08 rounded-md px-4 py-3 text-[14px] text-white/82 font-light placeholder:text-white/22 focus:outline-none focus:border-white/20 transition-colors';
 
   return (
-    <div className="min-h-screen">
-      {/* Hero */}
-      <section className="relative pt-36 pb-16 px-5 grid-bg overflow-hidden">
-        <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
-        <div className="relative mx-auto max-w-3xl text-center">
-          <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4 animate-fade-in">
-            // GET IN TOUCH
-          </p>
-          <h1 className="text-display text-text-base mb-5 leading-none animate-fade-up"
-            style={{ animationDelay: '90ms' }}>
-            <span className="text-gradient-orange">Contact</span>
+    <div className="min-h-screen pt-28 pb-24">
+      <div className="mx-auto max-w-5xl px-5 lg:px-8">
+
+        {/* Header */}
+        <div className="mb-16">
+          <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-white/28 mb-4">Contact</p>
+          <h1
+            className="text-display text-white/90 mb-5"
+            style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700 }}
+          >
+            Get in touch.
           </h1>
-          <p className="text-text-muted text-base leading-relaxed max-w-md mx-auto animate-fade-up"
-            style={{ animationDelay: '220ms' }}>
-            We respond to every message. Usually same day.
+          <p className="text-[15px] text-white/40 font-light max-w-md leading-relaxed">
+            Direct line: <a href="mailto:lewis.oliver.wilson@googlemail.com" className="text-white/65 hover:text-white/88 transition-colors">lewis.oliver.wilson@googlemail.com</a>
           </p>
         </div>
-      </section>
 
-      <section className="px-5 py-20 mx-auto max-w-2xl">
-        {status === 'success' ? (
-          <div
-            className="overflow-hidden text-center"
-            style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '3px', boxShadow: '0 0 32px rgba(16,185,129,0.06)' }}
-          >
-            {/* Title bar */}
-            <div
-              className="flex items-center gap-3 px-4 py-2.5 border-b select-none"
-              style={{ borderColor: 'rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.03)' }}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
-              </div>
-              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
-                construx.contact — transmission.ok
-              </span>
-            </div>
-            {/* Shell prompt */}
-            <div
-              className="px-4 py-1.5 select-none"
-              style={{ borderBottom: '1px solid rgba(16,185,129,0.12)', background: 'rgba(16,185,129,0.02)' }}
-            >
-              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.5)' }}>
-                construx@sys:~$
-              </span>
-              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>
-                construx contact --status
-              </span>
-            </div>
-            <div className="px-8 py-12">
-              <CheckCircle className="mx-auto mb-5 text-emerald-400" size={32} />
-              <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-emerald-400 mb-3">TRANSMISSION.OK</p>
-              <h2 className="text-lg font-bold text-text-base mb-3">Message sent.</h2>
-              <p className="text-sm text-text-muted leading-relaxed">
-                We've received your message. We respond to every message — usually same day, always within 24 hours.
-              </p>
-              <button
-                onClick={() => setStatus('idle')}
-                className="mt-6 font-mono text-[10px] uppercase tracking-widest text-construx hover:text-orange-400 transition-colors"
-              >
-                Send another ›
-              </button>
-            </div>
-          </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            noValidate
-            className="overflow-hidden"
-            style={{ background: 'rgba(3,3,14,0.9)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '3px' }}
-          >
-            {/* Title bar */}
-            <div
-              className="flex items-center gap-3 px-4 py-2.5 border-b border-border select-none"
-              style={{ background: 'rgba(255,255,255,0.02)' }}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
-              </div>
-              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-text-dim flex-1 text-center">
-                construx.contact — compose
-              </span>
-              <span
-                className="font-mono text-[8px] uppercase tracking-widest"
-                style={{ color: form.name && form.email && form.message.length >= 20 ? 'rgba(40,200,64,0.6)' : 'rgba(255,255,255,0.15)' }}
-              >
-                {form.name && form.email && form.message.length >= 20 ? 'READY' : 'DRAFT'}
-              </span>
-            </div>
-            {/* Shell prompt */}
-            <div
-              className="px-4 py-1.5 border-b border-border select-none"
-              style={{ background: 'rgba(255,255,255,0.01)' }}
-            >
-              <span className="font-mono text-[9px]" style={{ color: 'rgba(74,222,128,0.4)' }}>
-                construx@sys:~$
-              </span>
-              <span className="font-mono text-[9px] ml-1.5" style={{ color: 'rgba(240,239,255,0.22)' }}>
-                construx contact --compose
-              </span>
-            </div>
-            <div className="p-8 flex flex-col gap-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {field('name', 'Your name', 'text', 'Your name')}
-                {field('email', 'Email address', 'email', 'you@company.com')}
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
 
-              {/* Topic dropdown */}
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="topic"
-                  className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim"
-                >
-                  Topic <span className="normal-case tracking-normal opacity-60">(optional)</span>
-                </label>
-                <select
-                  id="topic"
-                  value={form.topic}
-                  onChange={(e) => setForm((p) => ({ ...p, topic: e.target.value }))}
-                  className="w-full px-4 py-3 text-sm transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)] appearance-none"
-                  style={{
-                    background: 'rgba(5,5,18,0.8)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '2px',
-                    color: form.topic ? '#F0EFFF' : 'rgba(240,239,255,0.35)',
-                  }}
-                >
-                  <option value="" disabled>
-                    Select a topic…
-                  </option>
-                  {topics.map((t) => (
-                    <option key={t} value={t} style={{ background: '#05050F', color: '#F0EFFF' }}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Message */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <label
-                    htmlFor="message"
-                    className="font-mono text-[9px] font-medium uppercase tracking-[0.2em] text-text-dim"
-                  >
-                    Message
-                  </label>
-                  <span
-                    className="font-mono text-[9px] tabular-nums uppercase tracking-widest"
-                    style={{ color: form.message.length < 20 ? 'rgba(240,239,255,0.2)' : 'rgba(249,115,22,0.5)' }}
-                  >
-                    {String(form.message.length).padStart(4, '0')} CHR
-                  </span>
+          {/* Form */}
+          <div className="lg:col-span-3">
+            {status === 'sent' ? (
+              <div className="glass rounded-xl p-10 text-center border-t-2 border-emerald-400/40">
+                <div className="w-10 h-10 rounded-full bg-emerald-400/10 flex items-center justify-center mx-auto mb-5">
+                  <span className="text-emerald-400 text-lg">✓</span>
                 </div>
-                <textarea
-                  id="message"
-                  rows={6}
-                  value={form.message}
-                  onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
-                  placeholder="Tell us what you're working on or want to build…"
-                  className="w-full px-4 py-3 text-sm text-text-base placeholder:text-text-dim resize-none transition-all outline-none focus:border-construx/50 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.1)]"
-                  style={{
-                    background: 'rgba(5,5,18,0.8)',
-                    border: errors.message ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '2px',
-                  }}
-                />
-                {errors.message && (
-                  <p className="text-xs text-red-400 flex items-center gap-1">
-                    <AlertCircle size={11} /> {errors.message}
+                <h3
+                  className="text-[20px] text-white/88 mb-2"
+                  style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700 }}
+                >
+                  Message received.
+                </h3>
+                <p className="text-[13px] text-white/38 font-light">We'll get back to you within a few days.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      placeholder="Your name"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Subject</label>
+                  <select
+                    value={subject}
+                    onChange={e => setSubject(e.target.value)}
+                    className={inputClass}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {SUBJECTS.map(s => (
+                      <option key={s} value={s} style={{ background: '#000014' }}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Message</label>
+                  <textarea
+                    required
+                    rows={6}
+                    value={message}
+                    onChange={e => setMessage(e.target.value)}
+                    placeholder="What's on your mind?"
+                    className={inputClass}
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+                {status === 'error' && (
+                  <p className="font-mono text-[10px] text-red-400/70">
+                    Something went wrong. Email directly: lewis.oliver.wilson@googlemail.com
                   </p>
                 )}
-              </div>
-
-              {status === 'error' && (
-                <div
-                  className="flex items-start gap-2 px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-red-400"
-                  style={{ borderRadius: '2px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
+                <button
+                  type="submit"
+                  disabled={status === 'sending'}
+                  className="flex items-center gap-2.5 px-7 py-3.5 glass rounded-md text-[13px] text-white/75 hover:text-white border border-white/08 hover:border-white/18 transition-all font-light tracking-wide disabled:opacity-40"
                 >
-                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                  <span>
-                    Something went wrong. Try again or{' '}
-                    <a
-                      href="mailto:lewis.oliver.wilson@googlemail.com"
-                      className="underline underline-offset-2 hover:text-red-300 transition-colors normal-case"
-                    >
-                      email us directly
-                    </a>
-                    .
-                  </span>
-                </div>
-              )}
-            </div>
+                  <Send size={13} />
+                  {status === 'sending' ? 'Sending…' : 'Send message'}
+                </button>
+              </form>
+            )}
+          </div>
 
-            {/* Footer bar */}
-            <div
-              className="px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-border"
-              style={{ background: 'rgba(0,0,8,0.4)' }}
-            >
-              <p className="font-mono text-[10px] text-text-dim">
-                <span className="text-construx">// </span>
-                <a
-                  href="mailto:lewis.oliver.wilson@googlemail.com"
-                  className="text-text-muted hover:text-construx transition-colors"
-                >
-                  lewis.oliver.wilson@googlemail.com
-                </a>
-              </p>
-              <button
-                type="submit"
-                disabled={status === 'loading'}
-                className="flex items-center gap-2 px-6 py-2.5 font-mono text-xs font-semibold text-black bg-construx hover:bg-orange-400 transition-all shadow-[0_0_16px_rgba(249,115,22,0.3)] hover:shadow-[0_0_24px_rgba(249,115,22,0.5)] disabled:opacity-60 disabled:pointer-events-none uppercase tracking-wider"
-                style={{ borderRadius: '3px' }}
+          {/* Right column */}
+          <div className="lg:col-span-2 space-y-5">
+            <div className="glass rounded-lg p-5 border-t-2 border-white/06">
+              <p
+                className="text-[15px] text-white/72 mb-2"
+                style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 600 }}
               >
-                {status === 'loading' ? (
-                  <>
-                    <span className="h-3.5 w-3.5 rounded-full border-2 border-black/30 border-t-black animate-spin" />
-                    Sending…
-                  </>
-                ) : (
-                  <>
-                    Send message <Send size={13} />
-                  </>
-                )}
-              </button>
+                Direct line
+              </p>
+              <a
+                href="mailto:lewis.oliver.wilson@googlemail.com"
+                className="font-mono text-[11px] text-white/38 hover:text-white/65 transition-colors flex items-center gap-1.5"
+              >
+                lewis.oliver.wilson@googlemail.com
+                <ArrowUpRight size={10} />
+              </a>
             </div>
-          </form>
-        )}
-      </section>
-
-      {/* Latency map */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <LatencyMapPanel />
-      </section>
-
-      {/* Traceroute */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <TraceroutePanel />
-      </section>
-
-      {/* WHOIS domain info */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <WhoisPanel />
-      </section>
-
-      {/* SSL certificate info */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <SslCertPanel />
-      </section>
-
-      {/* DNS lookup */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <DnsLookupPanel />
-      </section>
-
-      {/* HTTP benchmark */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <HttpBenchPanel />
-      </section>
-
-      {/* Email auth records */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <SpfDkimPanel />
-      </section>
-
-      {/* TLS handshake */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <TlsHandshakePanel />
-      </section>
-
-      {/* MTR route analysis */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <MtrPanel />
-      </section>
-
-      {/* Security headers audit */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <SecurityHeadersPanel />
-      </section>
-
-      {/* Packet capture */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <TsharkPacketPanel />
-      </section>
-
-      {/* Caddy access log */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CaddyAccessPanel />
-      </section>
-
-      {/* TLS certificate info */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CertInfoPanel />
-      </section>
-
-      {/* gRPC service reflection + call */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <GrpcCallPanel />
-      </section>
-
-      {/* PostgreSQL streaming replication */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <PostgresReplPanel />
-      </section>
-
-      {/* WASM component model */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <WasmComponentPanel />
-      </section>
-
-      {/* BGP routing table */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <BgpLookupPanel />
-      </section>
-
-      {/* curl -v TLS handshake + response timing */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CurlVerbosePanel />
-      </section>
-
-      {/* dig DNS record lookup */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <DigPanel />
-      </section>
-
-      {/* step certificate issuance and rotation */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <StepCliPanel />
-      </section>
-
-      {/* crossplane cloud infrastructure as Kubernetes CRDs */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CrossplanePanel />
-      </section>
-
-      {/* redpanda kafka-compatible streaming — no JVM, raft built in */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <RedpandaPanel />
-      </section>
-
-      {/* cockroachdb distributed sql — raft replication, serializable isolation */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CockroachDbPanel />
-      </section>
-
-      {/* citus distributed postgresql — sharding, co-location, scatter-gather */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CitusPanel />
-      </section>
-
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <EtcdPanel />
-      </section>
-
-      {/* tekton cloud-native ci/cd — tasks, pipelines, chains, cosign attestation */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <TektonPanel />
-      </section>
-
-      {/* external-dns kubernetes-driven dns — route53, ingress, service, txt-ownership */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <ExternalDnsPanel />
-      </section>
-
-      {/* kubescape kspm — nsa/mitre/cis compliance, control checks, risk score */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <KubescapePanel />
-      </section>
-
-      {/* apache iceberg open table format — snapshots, schema evolution, manifests */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <IcebergPanel />
-      </section>
-
-      {/* wasmedge wasi runtime — wasm modules, wasi proposals, edge compute */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <WasmEdgePanel />
-      </section>
-
-      {/* bazel hermetic build — remote cache, targets, action cache stats */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <BazelPanel />
-      </section>
-
-      {/* clickhouse columnar olap — mergetree tables, insert rate, query results */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <ClickhouseMigrationPanel />
-      </section>
-
-      {/* temporal durable workflow engine — workflows, activities, task queues */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <TemporalPanel />
-      </section>
-
-      {/* teleport zero-trust infra access — nodes, audit log, mTLS */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <TeleportPanel />
-      </section>
-
-      {/* portainer container management — environments, docker/k8s, live stats */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <PortainerPanel />
-      </section>
-
-      {/* airbyte open-source elt — connectors, syncs, records moved */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <AirbytePanel />
-      </section>
-
-      {/* kubernetes gateway api — httproutes, listeners, backends */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <KubernetesGatewayPanel />
-      </section>
-
-      {/* crunchy postgres operator — ha clusters, pgbackrest, replication */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CrunchyPostgresPanel />
-      </section>
-
-      {/* gatling load testing — simulations, rps, percentiles */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <GatlingPanel />
-      </section>
-
-      {/* k6 performance testing — scenarios, thresholds, executors */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <K6Panel />
-      </section>
-
-      {/* litestream sqlite replication — wal, s3, snapshots */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <LitestreamPanel />
-      </section>
-
-      {/* benthos stream processor — pipelines, bloblang, fanout */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <BenthosPanel />
-      </section>
-
-      {/* consul service mesh — discovery, intentions, health */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <ConsulPanel />
-      </section>
-
-      {/* patroni ha postgresql — leader, replicas, failover */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <PatroniPanel />
-      </section>
-
-      {/* minio s3-compatible object store — buckets, objects, ops */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <MinIOPanel />
-      </section>
-
-      {/* vault secrets management — engines, policies, audit */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <VaultPanel />
-      </section>
-
-      {/* caddy web server — routes, automatic-tls, reverse-proxy */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <CaddyPanel />
-      </section>
-
-      {/* istio service mesh — virtual services, destination rules, mtls */}
-      <section className="px-5 pb-6 mx-auto max-w-2xl">
-        <IstioPanel />
-      </section>
-
-      {/* opa open policy agent — rego, bundles, decisions */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OPAPanel />
-      </section>
-
-      {/* fluent bit log processor — inputs, filters, outputs */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FluentBitPanel />
-      </section>
-
-      {/* alertmanager prometheus alerts — groups, silences, receivers */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AlertManagerPanel />
-      </section>
-
-      {/* neon serverless postgres — branches, connections, compute */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NeonPanel />
-      </section>
-
-      {/* ollama local llm — models, sessions, inference */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OllamaPanel />
-      </section>
-
-      {/* grpcurl grpc client — services, methods, responses */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GrpcurlPanel />
-      </section>
-
-      {/* nmap network scan — hosts, ports, services */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NmapScanPanel />
-      </section>
-
-      {/* spire workload identity — agents, entries, svids */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <SpirePanel />
-      </section>
-
-      {/* dapr distributed application runtime — actors, pub/sub, state */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DaprPanel />
-      </section>
-
-      {/* cilium ebpf networking — endpoints, policy, hubble flows */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CiliumPanel />
-      </section>
-
-      {/* nats jetstream — streams, consumers, messages, acks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NATSJetStreamPanel />
-      </section>
-
-      {/* airflow dag orchestration — celery, sensors, xcom, dynamic tasks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AirflowPanel />
-      </section>
-
-      {/* flink stateful stream processing — exactly-once, windows, checkpoints */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FlinkPanel />
-      </section>
-
-      {/* goreleaser — release automation, binaries, docker, changelog */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GoReleaserPanel />
-      </section>
-
-      {/* kafka connect — connectors, tasks, offsets, sink source */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KafkaConnectPanel />
-      </section>
-
-      {/* argo cd — gitops, sync, apps, rollbacks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ArgoCDPanel />
-      </section>
-
-      {/* brew list — installed formulae, casks, versions */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BrewListPanel />
-      </section>
-
-      {/* cosign — container signing, verification, keyless */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CosignPanel />
-      </section>
-
-      {/* druid — real-time analytics, datasources, segments */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DruidPanel />
-      </section>
-
-      {/* envoy stats — downstream, upstream, listener metrics */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <EnvoyStatsPanel />
-      </section>
-
-      {/* git config — user, remote, branch, protocol settings */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GitConfigPanel />
-      </section>
-
-      {/* http archive — requests, timings, headers, responses */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <HttpArchivePanel />
-      </section>
-
-      {/* k3s — lightweight kubernetes, agents, storage, networking */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <K3sPanel />
-      </section>
-
-      {/* kafka streams — topologies, tasks, state stores, lag */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KafkaStreamsPanel />
-      </section>
-
-      {/* kubectl logs — pod logs, follow, timestamps, containers */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubectlLogsPanel />
-      </section>
-
-      {/* kyverno — policy engine, mutations, validations, generates */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KyvernoPanel />
-      </section>
-
-      {/* lshw — hardware list, buses, memory, cpus, disks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LshwPanel />
-      </section>
-
-      {/* aws cli — s3, ec2, iam, lambda commands */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AwsCliPanel />
-      </section>
-
-      {/* act — github actions local runner, jobs, steps, env */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ActPanel />
-      </section>
-
-      {/* cpu stats — cores, freq, load, iowait, steal */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CpuStatsPanel />
-      </section>
-
-      {/* gitea — repos, issues, prs, stars */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GiteaPanel />
-      </section>
-
-      {/* neofetch — os, kernel, cpu, mem, uptime */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NeofetchPanel />
-      </section>
-
-      {/* nix shell — packages, derivations, env, flake */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NixShellPanel />
-      </section>
-
-      {/* oauth flow — authorize, token, introspect, revoke */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OAuthFlowPanel />
-      </section>
-
-      {/* openssl — cert, key, csr, chain, verify */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OpensslPanel />
-      </section>
-
-      {/* pgvector — embeddings, index, similarity, dimensions */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PgvectorPanel />
-      </section>
-
-      {/* prometheus metrics — labels, samples, cardinality, scrape */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PrometheusMetricsPanel />
-      </section>
-
-      {/* renovate — deps, updates, prs, merge confidence */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <RenovatePanel />
-      </section>
-
-      {/* sbom — components, licenses, vulnerabilities, cpe */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <SbomPanel />
-      </section>
-
-      {/* ip link — interfaces, mtu, state, mac, flags */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <IpLinkPanel />
-      </section>
-
-      {/* sigstore — keyless signing, cosign, rekor, transparency log */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <SigstorePanel />
-      </section>
-
-      {/* spicedb — zanzibar authz, schema, tuples, checks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <SpiceDBPanel />
-      </section>
-
-      {/* strimzi — kafka on k8s, topics, brokers, kraft, mtls */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <StrimziPanel />
-      </section>
-
-      {/* trivy scan — container images, os packages, cve severity */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <TrivyScanPanel />
-      </section>
-
-      {/* tigerbeetle — financial ledger, double-entry, fault-tolerant */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <TigerBeetlePanel />
-      </section>
-
-      {/* tech freq — language frequency, lines, commits, contributors */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <TechFreqPanel />
-      </section>
-
-      {/* terraform — providers, resources, state, plan, apply */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <TerraformPanel />
-      </section>
-
-      {/* uptime — system uptime, load average, users, processes */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <UptimePanel />
-      </section>
-
-      {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AnsiblePlaybookPanel />
-      </section>
-
-      {/* argo events — event-driven workflows, event sources, sensors, triggers */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ArgoEventsPanel />
-      </section>
-
-      {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ArgoRolloutPanel />
-      </section>
-
-      {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ArgoWorkflowsPanel />
-      </section>
-
-      {/* atlas database schema management — migrations, drift, ci */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AtlasPanel />
-      </section>
-
-      {/* auditd linux audit framework — syscalls, events, rules, trails */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AuditdPanel />
-      </section>
-
-      {/* authentik identity provider — sso, oauth2, saml, audit */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AuthentikPanel />
-      </section>
-
-      {/* aws bedrock — foundation models, inference, agents */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <AwsBedrockPanel />
-      </section>
-
-      {/* backstage developer portal — catalog, tech radar, plugins */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BackstagePanel />
-      </section>
-
-      {/* beyla ebpf auto-instrumentation — spans, latency, red metrics */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BeylaPanel />
-      </section>
-
-      {/* biome js toolchain — lint, format, check, ci */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BiomePanel />
-      </section>
-
-      {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BoundaryPanel />
-      </section>
-
-      {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BpftracePanel />
-      </section>
-
-      {/* buf protobuf lint, breaking, generate, push */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BufPanel />
-      </section>
-
-      {/* build output — next.js compilation, chunks, sizes */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BuildOutputPanel />
-      </section>
-
-      {/* bun build — bundler, transpile, minify, treeshake */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BunBuildPanel />
-      </section>
-
-      {/* bundle analysis — chunks, modules, size, tree */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <BundleAnalysisPanel />
-      </section>
-
-      {/* cargo release build — compile, link, test, artifact */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CargoPanel />
-      </section>
-
-      {/* cassandra query — keyspace, table, cql, latency */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CassandraPanel />
-      </section>
-
-      {/* ceph cluster — osds, pools, pg, replication */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CephPanel />
-      </section>
-
-      {/* cert manager — issuers, certificates, renewals, status */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CertManagerPanel />
-      </section>
-
-      {/* cgroups — cpu, memory, blkio, hierarchy */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CgroupsPanel />
-      </section>
-
-      {/* chaos mesh — faults, experiments, schedules, pods */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ChaosMeshPanel />
-      </section>
-
-      {/* ci pipeline — stages, jobs, artifacts, runners */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CIPipelinePanel />
-      </section>
-
-      {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ClickHouseKeeperPanel />
-      </section>
-
-      {/* clickhouse mv — materialized views, triggers, refresh */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ClickhouseMvPanel />
-      </section>
-
-      {/* clickhouse query — mergetree, replicas, parts, mutations */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ClickHousePanel />
-      </section>
-
-      {/* clickhouse query — explain, profiling, system tables */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ClickhouseQueryPanel />
-      </section>
-
-      {/* cloudflare workers — kv, durable objects, queues, pages */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CloudflareWorkersPanel />
-      </section>
-
-      {/* cloudnative pg — clusters, backups, replication, switchover */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CloudNativePGPanel />
-      </section>
-
-      {/* cluster api — providers, machines, controlplane, kubeconfig */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ClusterApiPanel />
-      </section>
-
-      {/* cni — plugins, ipam, overlay, policy */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CniPanel />
-      </section>
-
-      {/* containerd — images, containers, namespaces, snapshots */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ContainerdPanel />
-      </section>
-
-      {/* cortex — query engine, ruler, compactor, store-gateway */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CortexPanel />
-      </section>
-
-      {/* coverage report — lcov, html, badge, threshold */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CoverageReportPanel />
-      </section>
-
-      {/* crontab — schedule, jobs, logs, next-run */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CrontabPanel />
-      </section>
-
-      {/* cue — schema, validation, export, evaluate */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CuePanel />
-      </section>
-
-      {/* curl headers — request, response, timing, tls */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CurlHeadersPanel />
-      </section>
-
-      {/* curl jwt — bearer, decode, expiry, claims */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CurlJwtPanel />
-      </section>
-
-      {/* cyclonedx — bom, components, vulnerabilities, metadata */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <CycloneDxPanel />
-      </section>
-
-      {/* dagger — pipelines, containers, cache, secrets */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DaggerPanel />
-      </section>
-
-      {/* db migration — flyway, liquibase, versions, checksums */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DbMigrationPanel />
-      </section>
-
-      {/* dbt — models, tests, sources, lineage */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DbtPanel />
-      </section>
-
-      {/* debezium — cdc, connectors, transforms, offsets */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DebeziumPanel />
-      </section>
-
-      {/* delta lake — acid, time travel, schema evolution, partitions */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DeltaLakePanel />
-      </section>
-
-      {/* disk usage — df, partitions, inodes, mounts */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DiskUsagePanel />
-      </section>
-
-      {/* dmesg — kernel, boot, drivers, errors */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DmesgPanel />
-      </section>
-
-      {/* docker build — layers, cache, args, output */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DockerBuildPanel />
-      </section>
-
-      {/* docker compose — services, networks, volumes, health */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DockerComposePanel />
-      </section>
-
-      {/* docker stats — containers, cpu, mem, net */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DockerStatsPanel />
-      </section>
-
-      {/* dragonfly dns — zones, records, acl, forwarders */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DragonFlyDnsPanel />
-      </section>
-
-      {/* dragonfly — shards, replication, keyspaces, memory */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DragonflyPanel />
-      </section>
-
-      {/* drone — pipelines, steps, triggers, secrets */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DronePanel />
-      </section>
-
-      {/* duckdb — queries, parquet, extensions, attach */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <DuckdbPanel />
-      </section>
-
-      {/* earthly — targets, artifacts, cache, secrets */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <EarthlyPanel />
-      </section>
-
-      {/* ebpf trace — syscalls, latency, stack, probes */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <EbpfTracePanel />
-      </section>
-
-      {/* envoy — routes, clusters, listeners, filters */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <EnvoyPanel />
-      </section>
-
-      {/* env — variables, secrets, profiles, dotenv */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <EnvPanel />
-      </section>
-
-      {/* eslint output — rules, warnings, errors, fixable */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <EslintOutputPanel />
-      </section>
-
-      {/* falco — syscalls, rules, alerts, k8s */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FalcoPanel />
-      </section>
-
-      {/* fio — iops, bw, latency, jobs */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FioPanel />
-      </section>
-
-      {/* flagger — canaries, rollouts, analysis, webhooks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FlaggerPanel />
-      </section>
-
-      {/* flamegraph — cpu, memory, wall, flamegraph */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FlamegraphPanel />
-      </section>
-
-      {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FluxCDPanel />
-      </section>
-
-      {/* freemem — rss, heap, external, arraybuffers */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <FreeMemPanel />
-      </section>
-
-      {/* gatekeeper — constraints, violations, audit, policy */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GatekeeperPanel />
-      </section>
-
-      {/* gh actions run — jobs, steps, status, duration */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GhActionsRunPanel />
-      </section>
-
-      {/* gh cli — repos, prs, issues, auth */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GhCliPanel />
-      </section>
-
-      {/* git bisect — good, bad, steps, log */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GitBisectPanel />
-      </section>
-
-      {/* git blame — authors, commits, lines, dates */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GitBlamePanel />
-      </section>
-
-      {/* git graph — commits, branches, merges, tags */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GitGraphPanel />
-      </section>
-
-      {/* git shortlog — authors, commits, files, insertions */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GitShortlogPanel />
-      </section>
-
-      {/* git sign — signers, keys, status, fingerprints */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GitSignPanel />
-      </section>
-
-      {/* git worktree — branches, linked, prune, list */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GitWorktreePanel />
-      </section>
-
-      {/* goreplay — traffic, filters, replays, middleware */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GoReplayPanel />
-      </section>
-
-      {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GpgFingerprintPanel />
-      </section>
-
-      {/* grafana alloy — pipelines, components, otel, logs */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GrafanaAlloyPanel />
-      </section>
-
-      {/* grafana faro — errors, sessions, vitals, spans */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GrafanaFaroPanel />
-      </section>
-
-      {/* grafana oncall — rotations, alerts, escalations, silences */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GrafanaOnCallPanel />
-      </section>
-
-      {/* grafana tempo — traces, spans, services, latency */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GrafanaTempoPanel />
-      </section>
-
-      {/* grype — vulnerabilities, packages, severity, cvss */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GrypePanel />
-      </section>
-
-      {/* gvisor — syscalls, sandbox, containers, security */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <GVisorPanel />
-      </section>
-
-      {/* harbor — registries, artifacts, scans, replication */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <HarborPanel />
-      </section>
-
-      {/* helm chart — releases, values, templates, hooks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <HelmChartPanel />
-      </section>
-
-      {/* htop — processes, cpu, memory, load */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <HtopPanel />
-      </section>
-
-      {/* hubble — flows, services, endpoints, policies */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <HubblePanel />
-      </section>
-
-      {/* hugging face — models, datasets, spaces, inference */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <HuggingFacePanel />
-      </section>
-
-      {/* hyperfine — benchmarks, commands, runs, statistics */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <HyperfinePanel />
-      </section>
-
-      {/* influxdb — measurements, tags, fields, retention */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <InfluxDbPanel />
-      </section>
-
-      {/* iostat — disks, throughput, iops, utilization */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <IostatPanel />
-      </section>
-
-      {/* ip addr — addresses, interfaces, prefixes, scope */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <IpAddrPanel />
-      </section>
-
-      {/* jaeger trace — traces, spans, services, durations */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <JaegerTracePanel />
-      </section>
-
-      {/* jfrog xray — vulnerabilities, licenses, components, policies */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <JfrogXrayPanel />
-      </section>
-
-      {/* journalctl — units, logs, priorities, boots */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <JournalctlPanel />
-      </section>
-
-      {/* journald — fields, units, boots, priorities */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <JournaldPanel />
-      </section>
-
-      {/* journal wc — lines, words, bytes, files */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <JournalWcPanel />
-      </section>
-
-      {/* k6 load test — vus, iterations, checks, http */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <K6LoadTestPanel />
-      </section>
-
-      {/* k6 summary — passes, fails, rate, percentiles */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <K6SummaryPanel />
-      </section>
-
-      {/* k8s events — reasons, objects, counts, timestamps */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <K8sEventsPanel />
-      </section>
-
-      {/* k9s — pods, namespaces, contexts, resources */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <K9sPanel />
-      </section>
-
-      {/* karpenter — nodes, provisioners, machines, capacity */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KarpenterPanel />
-      </section>
-
-      {/* keda — scalers, triggers, replicas, metrics */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KedaPanel />
-      </section>
-
-      {/* keycloak — realms, clients, users, tokens */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KeycloakPanel />
-      </section>
-
-      {/* kind — clusters, nodes, images, configs */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KindPanel />
-      </section>
-
-      {/* knative — services, revisions, routes, events */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KnativePanel />
-      </section>
-
-      {/* kube audit — events, rules, verbs, resources */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubeAuditPanel />
-      </section>
-
-      {/* kubebench — checks, failures, warnings, remediation */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubebenchPanel />
-      </section>
-
-      {/* kubectl pods — name, ready, status, restarts, age */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubectlPodsPanel />
-      </section>
-
-      {/* kubeflow — pipelines, runs, experiments, artifacts */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubeflowPanel />
-      </section>
-
-      {/* kubeflow pipelines — dag, steps, inputs, outputs */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubeflowPipelinesPanel />
-      </section>
-
-      {/* kube prometheus — metrics, alerts, targets, rules */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubePrometheusPanel />
-      </section>
-
-      {/* kube proxy — iptables, ipvs, endpoints, nodeports */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubeProxyPanel />
-      </section>
-
-      {/* kube state metrics — pods, deployments, nodes, conditions */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubeStateMetricsPanel />
-      </section>
-
-      {/* kubevirt — vms, vmis, disks, networks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <KubeVirtPanel />
-      </section>
-
-      {/* langfuse — traces, spans, scores, generations */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LangfusePanel />
-      </section>
-
-      {/* last login — user, ip, device, timestamp */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LastLoginPanel />
-      </section>
-
-      {/* lighthouse — performance, accessibility, seo, best practices */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LighthousePanel />
-      </section>
-
-      {/* linkerd — service mesh, mtls, traffic shaping, stats */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LinkerdPanel />
-      </section>
-
-      {/* loki — log aggregation, streams, labels, queries */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LokiPanel />
-      </section>
-
-      {/* loki query — logql, streams, labels, filters */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LokiQueryPanel />
-      </section>
-
-      {/* longhorn — distributed block storage, volumes, snapshots, replicas */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LonghornPanel />
-      </section>
-
-      {/* lsof — open files, sockets, pids, fds */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <LsofPanel />
-      </section>
-
-      {/* materialize — streaming sql, views, sources, sinks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <MaterializePanel />
-      </section>
-
-      {/* meilisearch — index, search, filters, facets */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <MeilisearchPanel />
-      </section>
-
-      {/* meminfo — ram, swap, buffers, cached, available */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <MemInfoPanel />
-      </section>
-
-      {/* methodology diff — before, after, delta, signal */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <MethodologyDiffPanel />
-      </section>
-
-      {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <MimirPanel />
-      </section>
-
-      {/* mise — runtime version manager, tools, env, tasks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <MisePanel />
-      </section>
-
-      {/* mlflow — experiment tracking, runs, metrics, artifacts */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <MLflowPanel />
-      </section>
-
-      {/* nats — messaging, subjects, streams, consumers */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NATSPanel />
-      </section>
-
-      {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NatsPubSubPanel />
-      </section>
-
-      {/* netdata — real-time metrics, agents, dashboards, alerts */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NetdataPanel />
-      </section>
-
-      {/* netstat — connections, listening ports, routing, interfaces */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NetstatPanel />
-      </section>
-
-      {/* network-ping — icmp, rtt, packet loss, host reachability */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NetworkPingPanel />
-      </section>
-
-      {/* nftables — firewall rules, chains, sets, expressions */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NftablesPanel />
-      </section>
-
-      {/* nginx-access-log — requests, status codes, methods, ips */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NginxAccessLogPanel />
-      </section>
-
-      {/* nix-flake — flake.nix, inputs, outputs, devShells */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NixFlakePanel />
-      </section>
-
-      {/* nomad — workload orchestration, jobs, tasks, allocations */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NomadPanel />
-      </section>
-
-      {/* npm-global — global packages, versions, install, link */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NpmGlobalPanel />
-      </section>
-
-      {/* npm-outdated — stale dependencies, versions, wanted, latest */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NpmOutdatedPanel />
-      </section>
-
-      {/* nvidia-smi — gpu stats, memory, utilization, processes */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <NvidiaSmiPanel />
-      </section>
-
-      {/* opencost — kubernetes cost allocation, namespaces, workloads */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OpenCostPanel />
-      </section>
-
-      {/* openfga-audit — authorization model, tuples, check, expand */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OpenFgaAuditPanel />
-      </section>
-
-      {/* openfga — fine-grained authorization, relationships, checks */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OpenFGAPanel />
-      </section>
-
-      {/* openobserve — logs, metrics, traces, dashboards */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OpenObservePanel />
-      </section>
-
-      {/* opensearch — search engine, indices, queries, clusters */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OpenSearchPanel />
-      </section>
-
-      {/* opentelemetry — sdk, instrumentation, otlp, traces */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OpenTelemetryPanel />
-      </section>
-
-      {/* otel-collector — pipelines, receivers, processors, exporters */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OtelCollectorPanel />
-      </section>
-
-      {/* otel-traces — spans, traceids, latency, service graph */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <OtelTracesPanel />
-      </section>
-
-      {/* packer-build — image templates, builders, provisioners, post-processors */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PackerBuildPanel />
-      </section>
-
-      {/* parca — continuous profiling, flame graphs, cpu, memory */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <ParcaPanel />
-      </section>
-
-      {/* perf-stat — hardware counters, instructions, cycles, cache */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PerfStatPanel />
-      </section>
-
-      {/* pgbouncer — connection pooling, pool modes, clients, servers */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PgBouncerPanel />
-      </section>
-
-      {/* pg-explain — query plans, nodes, cost, buffers */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PgExplainPanel />
-      </section>
-
-      {/* pinecone — managed vector db, namespaces, upsert, query */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PineconePanel />
-      </section>
-
-      {/* ping — latency, packet loss, ttl, icmp */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PingPanel />
-      </section>
-
-      {/* pinot — real-time olap, segments, tables, queries */}
-      <section className="px-5 pb-14 mx-auto max-w-2xl">
-        <PinotPanel />
-      </section>
-
-      {/* pixie — ebpf auto-instrumentation, http traces, cpu flamegraphs */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
-        <PixiePanel />
-      </section>
+            <div className="glass rounded-lg p-5 border-t-2 border-white/06">
+              <p
+                className="text-[15px] text-white/72 mb-2"
+                style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 600 }}
+              >
+                Construx Studio
+              </p>
+              <p className="text-[12px] text-white/32 font-light mb-3">
+                For project enquiries, use the subject line "Construx Studio — project enquiry" or contact directly.
+              </p>
+              <a
+                href="mailto:lewis.oliver.wilson@googlemail.com?subject=Construx Studio — Project Enquiry"
+                className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/28 hover:text-white/55 transition-colors"
+              >
+                Project enquiry <ArrowUpRight size={10} />
+              </a>
+            </div>
+            <div className="glass rounded-lg p-5 border-t-2 border-white/06">
+              <p
+                className="text-[15px] text-white/72 mb-2"
+                style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 600 }}
+              >
+                Response time
+              </p>
+              <p className="text-[12px] text-white/32 font-light">
+                We reply to all messages within a few days. For urgent matters, email directly.
+              </p>
+            </div>
+            <div className="pt-4 flex flex-col gap-2">
+              <Link href="/work-with-us" className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/22 hover:text-white/50 transition-colors flex items-center gap-1.5">
+                Work with us <ArrowRight size={9} />
+              </Link>
+              <Link href="/ventures" className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/22 hover:text-white/50 transition-colors flex items-center gap-1.5">
+                Our ventures <ArrowRight size={9} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

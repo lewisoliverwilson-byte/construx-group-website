@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import Nav from '@/components/nav/Nav';
 import Footer from '@/components/footer/Footer';
@@ -7,19 +7,18 @@ import PostHogProvider from '@/components/PostHogProvider';
 import ConsoleGreeting from '@/components/ConsoleGreeting';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import CommandPalette from '@/components/CommandPalette';
-import SysBeacon from '@/components/SysBeacon';
 import { getAllPostMeta } from '@/lib/posts';
 
-const spaceGrotesk = Space_Grotesk({
+const inter = Inter({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-space-grotesk',
+  weight: ['300', '400', '500'],
+  variable: '--font-inter',
   display: 'swap',
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
+  weight: ['400', '500'],
   variable: '--font-jetbrains-mono',
   display: 'swap',
 });
@@ -56,7 +55,7 @@ export const metadata: Metadata = {
   },
   alternates: {
     types: {
-      'application/rss+xml': [{ url: '/feed.xml', title: 'Construx Group — Dispatch' }],
+      'application/rss+xml': [{ url: '/feed.xml', title: 'Construx Group — Journal' }],
     },
   },
 };
@@ -72,11 +71,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const allPosts = getAllPostMeta();
   const postCount = allPosts.length;
   return (
-    <html lang="en" className={`noise scanlines ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`noise ${inter.variable} ${jetbrainsMono.variable}`}>
+      <head>
+        <link rel="preconnect" href="https://api.fontshare.com" />
+        <link
+          href="https://api.fontshare.com/v2/css?f[]=clash-display@700,600,500&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body>
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:font-semibold focus:text-black focus:bg-construx focus:uppercase focus:tracking-wider"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:font-semibold focus:text-black focus:bg-white focus:uppercase focus:tracking-wider"
           style={{ borderRadius: '3px' }}
         >
           Skip to content
@@ -86,7 +92,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <KeyboardShortcuts />
           <CommandPalette posts={allPosts} />
           <Nav postCount={postCount} />
-          <SysBeacon />
           <main id="main-content">{children}</main>
           <Footer />
         </PostHogProvider>

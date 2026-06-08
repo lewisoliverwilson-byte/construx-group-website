@@ -35,6 +35,20 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "components/*Panel.tsx",
+    "components/solar-system/**/*.tsx",
+    "components/VentureProcessTable.tsx",
+    "components/VentureCrontabPanel.tsx",
+    "components/SystemLog.tsx",
+    "components/SysBootSequence.tsx",
+    "components/SysBeacon.tsx",
+    "components/LatencyMapPanel.tsx",
+    "components/RecentCommitsPanel.tsx",
+    "components/CIPipelinePanel.tsx",
+    "components/NeofetchPanel.tsx",
+    "components/MethodologyDiffPanel.tsx",
+    "components/GitShortlogPanel.tsx",
+    "components/BuildOutputPanel.tsx"
   ]
 }

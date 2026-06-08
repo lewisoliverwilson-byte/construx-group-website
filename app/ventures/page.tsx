@@ -1,20 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowUpRight, ChevronRight } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
-import StatusBadge from '@/components/ui/StatusBadge';
-import CountUp from '@/components/ui/CountUp';
-import VentureProcessTable from '@/components/VentureProcessTable';
-import VentureCrontabPanel from '@/components/VentureCrontabPanel';
-import VentureHtopPanel from '@/components/VentureHtopPanel';
 
 export const metadata: Metadata = {
   title: 'Ventures',
   description:
-    'The full portfolio of Construx Group ventures — live products, coming-soon launches, and ventures in incubation.',
+    'The full portfolio of Construx Group ventures — live products and ventures in development.',
 };
 
-const venturesListSchema = {
+const schema = {
   '@context': 'https://schema.org',
   '@type': 'ItemList',
   name: 'Construx Group Ventures',
@@ -24,436 +19,141 @@ const venturesListSchema = {
     position: i + 1,
     name: v.name,
     description: v.tagline,
-    url: `https://construxgroup.io/ventures/${v.slug}`,
+    url: v.url ?? `https://construxgroup.io/ventures/${v.slug}`,
   })),
 };
 
 export default function VenturesPage() {
-  const live = ventures.filter((v) => v.status === 'live');
-  const other = ventures.filter((v) => v.status !== 'live');
+  const live = ventures.filter(v => v.status === 'live');
+  const dev = ventures.filter(v => v.status === 'dev');
 
   return (
-    <div className="relative min-h-screen grid-bg overflow-hidden">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(venturesListSchema) }}
-      />
-      <div className="absolute inset-0 bg-radial-orange pointer-events-none" />
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
 
-      {/* Hero */}
-      <section className="relative pt-36 pb-20 px-5 text-center">
-        <p className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-construx mb-4 animate-fade-in">
-          // THE PORTFOLIO
-        </p>
-        <h1 className="text-display text-text-base mb-5 animate-fade-up"
-          style={{ animationDelay: '90ms' }}>
-          Our <span className="text-gradient-orange">Ventures</span>
-        </h1>
-        <p className="text-text-muted max-w-lg mx-auto leading-relaxed text-base animate-fade-up"
-          style={{ animationDelay: '220ms' }}>
-          Each venture is an independent product, built AI-first, owned by Construx Group.
-          Navigate the solar system from the homepage, or read the full manifest below.
-        </p>
-      </section>
+      <div className="min-h-screen pt-28 pb-24">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
 
-      {/* Stats bar */}
-      <section className="relative border-y border-border px-5" style={{ background: 'rgba(3,3,14,0.7)' }}>
-        <div className="mx-auto max-w-6xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '3px', margin: '0 auto' }}>
-          {/* Terminal title bar */}
-          <div
-            className="flex items-center gap-3 px-4 py-2 select-none"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,8,0.5)' }}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
-              <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
-              <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
-            </div>
-            <span className="font-mono text-[8px] uppercase tracking-[0.22em] text-text-dim/40 flex-1">
-              construx.portfolio — metrics.overview
-            </span>
-            <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(74,222,128,0.45)' }}>
-              ● LIVE
-            </span>
-          </div>
-          {/* Shell prompt */}
-          <div className="px-4 py-1.5 select-none" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
-            <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
-            <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>construx portfolio --metrics --format=table</span>
-          </div>
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4">
-            {[
-              { node: <CountUp to={live.length} pad={3} />, label: 'Live ventures', key: 'ventures' },
-              { node: <CountUp to={167} suffix="+" />, label: 'Marketplace listings', key: 'listings' },
-              { node: <span>{'<5s'}</span>, label: 'Avg. scan time', key: 'scan' },
-              { node: <CountUp to={4} />, label: 'Tools replaced', key: 'tools' },
-            ].map(({ node, label, key }, i) => (
-              <div
-                key={key}
-                className="text-center py-7 px-4"
-                style={{
-                  borderRight: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                }}
-              >
-                <p className="font-mono text-heading-xl font-bold text-gradient-orange mb-1">{node}</p>
-                <p className="font-mono text-[10px] text-text-dim uppercase tracking-[0.2em]">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Process table */}
-      <section className="relative px-5 pt-10 pb-4 mx-auto max-w-6xl">
-        <VentureProcessTable />
-      </section>
-
-      {/* Crontab scheduler */}
-      <section className="relative px-5 pb-6 mx-auto max-w-6xl">
-        <VentureCrontabPanel />
-      </section>
-
-      {/* htop resource monitor */}
-      <section className="relative px-5 pb-6 mx-auto max-w-6xl">
-        <VentureHtopPanel />
-      </section>
-
-      {/* Live ventures */}
-      <section className="relative px-5 pt-6 pb-8 mx-auto max-w-6xl">
-        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
-          // LIVE
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {live.map((v) => (
-            <article
-              key={v.id}
-              className="group relative overflow-hidden flex flex-col transition-all duration-300 hover:scale-[1.015]"
-              style={{
-                background: 'rgba(5,5,18,0.88)',
-                border: `1px solid ${v.accent}20`,
-                boxShadow: `0 0 40px ${v.accent}08`,
-                borderRadius: '3px',
-              }}
+          {/* Header */}
+          <div className="mb-16">
+            <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-white/28 mb-4">Portfolio</p>
+            <h1
+              className="text-display text-white/90 mb-5"
+              style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700 }}
             >
-              {/* Terminal title bar */}
-              <div
-                className="flex items-center gap-2 px-3 py-2 flex-shrink-0 select-none"
-                style={{ background: `${v.accent}0a`, borderBottom: `1px solid ${v.accent}18` }}
-              >
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full" style={{ background: '#FF5F57' }} />
-                  <span className="w-2 h-2 rounded-full" style={{ background: '#FFBD2E' }} />
-                  <span className="w-2 h-2 rounded-full" style={{ background: '#28C840' }} />
-                </div>
-                <span className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: `${v.accent}55` }}>
-                  construx.{v.slug} — {v.category.toLowerCase()}
-                </span>
-              </div>
-              {/* Shell prompt */}
-              <div className="px-3 py-1.5 select-none" style={{ borderBottom: `1px solid ${v.accent}08`, background: 'rgba(255,255,255,0.01)' }}>
-                <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
-                <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`construx ventures --open ${v.slug} --status=live`}</span>
-              </div>
-
-              <div className="flex flex-col flex-1 p-7">
-                {/* Planet + name */}
-                <div className="flex items-center gap-4 mb-4">
-                  <div
-                    className="h-14 w-14 rounded-full flex-shrink-0 transition-all duration-300 group-hover:scale-110"
-                    style={{
-                      background: `radial-gradient(circle at 35% 35%, ${v.accent}cc, ${v.accent}44)`,
-                      boxShadow: `0 0 28px ${v.accent}44, 0 0 56px ${v.accent}18`,
-                    }}
-                  />
-                  <div>
-                    <h3 className="text-lg font-bold text-text-base leading-tight">{v.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <StatusBadge status={v.status} />
-                      <span
-                        className="font-mono text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5"
-                        style={{ color: v.accent, background: `${v.accent}14`, border: `1px solid ${v.accent}20`, borderRadius: '2px' }}
-                      >
-                        {v.category}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-sm font-semibold mb-3" style={{ color: v.accent }}>
-                  {v.tagline}
-                </p>
-                <p className="text-sm text-text-muted leading-relaxed flex-1 mb-5 line-clamp-4">
-                  {v.pitch}
-                </p>
-
-                {/* Mini stats */}
-                <div className="grid grid-cols-2 gap-2 mb-5">
-                  {v.stats.slice(0, 4).map((s) => (
-                    <div
-                      key={s.label}
-                      className="px-2.5 py-2"
-                      style={{
-                        background: `${v.accent}08`,
-                        border: `1px solid ${v.accent}18`,
-                        borderRadius: '2px',
-                      }}
-                    >
-                      <p className="font-mono text-xs font-semibold tabular-nums" style={{ color: v.accent }}>{s.value}</p>
-                      <p className="font-mono text-[9px] text-text-dim uppercase tracking-wider">{s.label}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Latency sparkline */}
-                <div className="flex items-end gap-0.5 mb-3">
-                  {v.latencyBars.split('').map((bar, i) => (
-                    <span
-                      key={i}
-                      className="font-mono text-[10px] leading-none"
-                      style={{ color: `${v.accent}${i % 3 === 0 ? 'bb' : '44'}` }}
-                    >
-                      {bar}
-                    </span>
-                  ))}
-                  <span className="font-mono text-[8px] ml-1.5 self-center" style={{ color: `${v.accent}55` }}>p50</span>
-                </div>
-
-                {/* Tech stack chips */}
-                <div className="flex flex-wrap gap-1 mb-4">
-                  {v.techStack.slice(0, 4).map((tech) => (
-                    <span
-                      key={tech}
-                      className="font-mono text-[8px] px-1.5 py-0.5 uppercase tracking-wider"
-                      style={{
-                        background: `${v.accent}0d`,
-                        border: `1px solid ${v.accent}1a`,
-                        color: `${v.accent}88`,
-                        borderRadius: '2px',
-                      }}
-                    >
-                      {tech}
-                    </span>
-                  ))}
-                </div>
-
-                {/* CTAs */}
-                <div className="flex items-center gap-3">
-                  {v.url && (
-                    <a
-                      href={v.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-4 py-2 font-mono text-xs font-semibold text-black transition-all hover:scale-[1.03] uppercase tracking-wider"
-                      style={{
-                        backgroundColor: v.accent,
-                        boxShadow: `0 0 16px ${v.accent}44`,
-                        borderRadius: '3px',
-                      }}
-                    >
-                      Visit Site <ArrowUpRight size={13} />
-                    </a>
-                  )}
-                  <Link
-                    href={`/ventures/${v.slug}`}
-                    className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-text-dim hover:text-text-muted transition-colors"
-                  >
-                    Full details <ChevronRight size={12} />
-                  </Link>
-                </div>
-              </div>
-              {/* Status footer */}
-              <div
-                className="flex items-center justify-between px-3 py-1.5 select-none"
-                style={{ borderTop: `1px solid ${v.accent}14`, background: 'rgba(0,0,0,0.28)' }}
-              >
-                <span className="font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'rgba(74,222,128,0.55)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#4ade80', boxShadow: '0 0 3px rgba(74,222,128,0.5)' }} />
-                  LIVE
-                </span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[8px] tabular-nums" style={{ color: `${v.accent}40` }}>p50 &lt;80ms</span>
-                  <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.1)' }}>exit: 0</span>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* Other / coming soon */}
-      {other.length > 0 && (
-        <section className="relative px-5 py-8 mx-auto max-w-6xl">
-          <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
-            // COMING SOON
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {other.map((v) => (
-              <Link
-                key={v.id}
-                href={`/ventures/${v.slug}`}
-                className="group relative overflow-hidden transition-all duration-200"
-                style={{
-                  background: 'rgba(5,5,18,0.5)',
-                  border: `1px solid ${v.accent}18`,
-                  borderRadius: '3px',
-                }}
-              >
-                {/* Terminal title bar */}
-                <div
-                  className="flex items-center gap-2 px-3 py-2 select-none"
-                  style={{ background: `${v.accent}06`, borderBottom: `1px solid ${v.accent}12` }}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FF5F57' }} />
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#FFBD2E' }} />
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#28C840' }} />
-                  </div>
-                  <span
-                    className="font-mono text-[8px] uppercase tracking-[0.2em] flex-1 text-center truncate"
-                    style={{ color: `${v.accent}45` }}
-                  >
-                    construx.{v.slug} — {v.status}
-                  </span>
-                  <span className="font-mono text-[7px] uppercase tracking-widest flex-shrink-0" style={{ color: `${v.accent}50` }}>
-                    ◈ SOON
-                  </span>
-                </div>
-                {/* Shell prompt */}
-                <div className="px-3 py-1.5 select-none" style={{ borderBottom: `1px solid ${v.accent}06`, background: 'rgba(255,255,255,0.01)' }}>
-                  <span className="font-mono text-[8px]" style={{ color: 'rgba(74,222,128,0.4)' }}>construx@sys:~$</span>
-                  <span className="font-mono text-[8px] ml-1" style={{ color: 'rgba(240,239,255,0.2)' }}>{`construx ventures --open ${v.slug} --status=pending`}</span>
-                </div>
-                <div className="p-6 flex items-center gap-4">
-                  <div
-                    className="h-10 w-10 rounded-full flex-shrink-0 opacity-50 group-hover:opacity-80 transition-opacity"
-                    style={{
-                      background: `radial-gradient(circle at 35% 35%, ${v.accent}aa, ${v.accent}33)`,
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-text-muted group-hover:text-text-base transition-colors">
-                      {v.name}
-                    </p>
-                    <StatusBadge status={v.status} className="mt-1" />
-                  </div>
-                  <ChevronRight size={15} className="text-text-dim group-hover:text-text-muted transition-colors" />
-                </div>
-                {/* Status footer */}
-                <div
-                  className="flex items-center justify-between px-3 py-1.5 select-none"
-                  style={{ borderTop: `1px solid ${v.accent}10`, background: 'rgba(0,0,0,0.22)' }}
-                >
-                  <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: `${v.accent}45` }}>
-                    ◈ {v.status.toUpperCase()}
-                  </span>
-                  <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.08)' }}>pending</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Incubation teaser — classified intel terminal */}
-      <section className="relative px-5 pb-28 mx-auto max-w-6xl">
-        <h2 className="font-mono text-[10px] font-medium tracking-[0.2em] uppercase text-text-dim mb-6">
-          // IN INCUBATION
-        </h2>
-        <div
-          className="overflow-hidden"
-          style={{
-            background: 'rgba(2,2,12,0.97)',
-            border: '1px solid rgba(168,85,247,0.2)',
-            borderRadius: '4px',
-            boxShadow: '0 0 40px rgba(168,85,247,0.05)',
-          }}
-        >
-          {/* Title bar */}
-          <div
-            className="flex items-center gap-3 px-4 py-2.5 select-none"
-            style={{ borderBottom: '1px solid rgba(168,85,247,0.12)', background: 'rgba(168,85,247,0.04)' }}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57' }} />
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E' }} />
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840' }} />
-            </div>
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] flex-1 text-center" style={{ color: 'rgba(168,85,247,0.55)' }}>
-              construx.classified — venture.registry — clearance: INTERNAL
-            </span>
-            <span className="font-mono text-[8px] uppercase tracking-widest" style={{ color: 'rgba(168,85,247,0.4)' }}>
-              ◈ RESTRICTED
-            </span>
+              Ventures
+            </h1>
+            <p className="text-[15px] text-white/40 font-light max-w-lg leading-relaxed">
+              Five AI-native products. Each one exists because AI makes it possible.
+            </p>
           </div>
 
-          {/* Terminal body */}
-          <div className="font-mono p-6" style={{ fontSize: '11px', lineHeight: '1.9', color: 'rgba(240,239,255,0.5)' }}>
-            {/* Shell prompt */}
-            <div style={{ marginBottom: '14px' }}>
-              <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@internal</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$ </span>
-              <span style={{ color: 'rgba(240,239,255,0.3)' }}>cat /var/construx/ventures/incubation.json | jq .</span>
-            </div>
-
-            {/* Access notice */}
-            <div className="mb-5 px-4 py-3" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.14)', borderRadius: '2px' }}>
-              <p style={{ color: 'rgba(168,85,247,0.8)' }}>{'// ACCESS LEVEL: CONSTRUX-INTERNAL'}</p>
-              <p style={{ color: 'rgba(240,239,255,0.22)' }}>{'// VENTURE DATA REDACTED PENDING ORBITAL INSERTION'}</p>
-              <p style={{ color: 'rgba(240,239,255,0.22)' }}>{'// CLEARANCE REQUIRED FOR UNREDACTED VIEW'}</p>
-            </div>
-
-            {/* Redacted venture entries */}
-            {[
-              { codename: 'LATTICE', category: 'Social', orbit: '∿ DEMAND.TESTING', phase: 'D+30', color: '#a78bfa' },
-              { codename: '[REDACTED]', category: '██████', orbit: '∿ ARCHITECTURE', phase: 'D+??', color: 'rgba(168,85,247,0.3)' },
-              { codename: '[REDACTED]', category: '██████', orbit: '∿ CONCEPT', phase: 'D+??', color: 'rgba(168,85,247,0.2)' },
-              { codename: '[REDACTED]', category: '██████', orbit: '∿ STEALTH', phase: 'D+??', color: 'rgba(168,85,247,0.15)' },
-            ].map((entry, i) => (
-              <div key={i} className="flex items-center gap-5 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: entry.color }} />
-                <span className="w-28 flex-shrink-0" style={{ color: entry.color, fontWeight: 600 }}>{entry.codename}</span>
-                <span className="w-20 flex-shrink-0" style={{ color: 'rgba(240,239,255,0.2)' }}>{entry.category}</span>
-                <span className="flex-1" style={{ color: 'rgba(240,239,255,0.3)' }}>{entry.orbit}</span>
-                <span style={{ color: 'rgba(168,85,247,0.5)', letterSpacing: '0.1em' }}>{entry.phase}</span>
-              </div>
-            ))}
-
-            {/* Footer prompt */}
-            <div style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-              <p style={{ color: 'rgba(240,239,255,0.15)', marginBottom: '8px' }}>{'// 4 VENTURES IN ASTEROID BELT — ORBITING INTO VIEW WHEN READY'}</p>
-              <p>
-                <span style={{ color: '#4ade80', fontWeight: 600 }}>construx@internal</span>
-                <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$ </span>
-                <Link
-                  href="/journal"
-                  style={{ color: 'rgba(168,85,247,0.6)' }}
-                  className="hover:text-purple-400 transition-colors"
-                >
-                  {'→ WATCH THE JOURNAL FOR LAUNCH SIGNALS'}
-                </Link>
-              </p>
-            </div>
-          </div>
-
-          {/* Status bar */}
-          <div
-            className="flex items-center justify-between px-4 py-1.5"
-            style={{ borderTop: '1px solid rgba(168,85,247,0.1)', background: 'rgba(0,0,0,0.3)' }}
-          >
-            <div className="flex items-center gap-4">
-              <span className="font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'rgba(168,85,247,0.6)' }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(168,85,247,0.8)' }} />
-                INCUBATION.ACTIVE
+          {/* Live ventures */}
+          <section className="mb-16">
+            <div className="flex items-center gap-3 mb-6">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/28">Live</p>
+              <span
+                className="inline-flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.14em] px-2 py-0.5 rounded-sm"
+                style={{ color: '#4ade80', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)' }}
+              >
+                <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                {live.length} active
               </span>
-              <span className="font-mono text-[8px]" style={{ color: 'rgba(255,255,255,0.15)' }}>4 VENTURES</span>
             </div>
-            <span className="font-mono text-[8px]" style={{ color: 'rgba(168,85,247,0.3)' }}>
-              construx.classified
-            </span>
-          </div>
+            <div className="space-y-4">
+              {live.map((v) => (
+                <a
+                  key={v.id}
+                  href={v.url ?? `/ventures/${v.slug}`}
+                  target={v.url ? '_blank' : undefined}
+                  rel={v.url ? 'noopener noreferrer' : undefined}
+                  className="group glass rounded-lg p-7 flex flex-col md:flex-row md:items-start gap-6 hover:-translate-y-0.5 transition-all duration-200 block"
+                  style={{ borderTop: `2px solid ${v.accent}` }}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-3">
+                      <p className="font-mono text-[8px] uppercase tracking-[0.2em]" style={{ color: v.accent }}>
+                        {v.category}
+                      </p>
+                      {v.url && (
+                        <ArrowUpRight size={14} className="text-white/22 group-hover:text-white/55 transition-colors flex-shrink-0" />
+                      )}
+                    </div>
+                    <h2
+                      className="text-[28px] text-white/88 mb-2 leading-[0.96]"
+                      style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700, letterSpacing: '-0.02em' }}
+                    >
+                      {v.name}
+                    </h2>
+                    <p className="text-[14px] text-white/42 font-light leading-relaxed mb-4">{v.tagline}</p>
+                    <p className="text-[13px] text-white/32 font-light leading-relaxed max-w-xl">{v.pitch}</p>
+                  </div>
+                  <div className="flex-shrink-0 w-full md:w-48">
+                    <div className="grid grid-cols-2 gap-2">
+                      {v.stats.map((s) => (
+                        <div key={s.label} className="bg-white/[0.03] rounded px-3 py-2.5 border border-white/[0.05]">
+                          <p className="font-mono text-[7.5px] text-white/22 uppercase tracking-wider mb-1">{s.label}</p>
+                          <p
+                            className="text-[15px] font-semibold"
+                            style={{ fontFamily: 'Clash Display, system-ui, sans-serif', color: v.accent }}
+                          >
+                            {s.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {v.techStack.slice(0, 4).map((t) => (
+                        <span
+                          key={t}
+                          className="font-mono text-[8px] px-2 py-1 rounded-sm"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.3)' }}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          {/* Dev ventures */}
+          <section>
+            <div className="flex items-center gap-3 mb-6">
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/28">In Development</p>
+              <span
+                className="font-mono text-[8px] uppercase tracking-[0.14em] px-2 py-0.5 rounded-sm"
+                style={{ color: 'rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                {dev.length} building
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dev.map((v) => (
+                <div
+                  key={v.id}
+                  className="glass rounded-lg p-7"
+                  style={{ borderTop: `2px solid ${v.accent}`, opacity: 0.75 }}
+                >
+                  <p className="font-mono text-[8px] uppercase tracking-[0.2em] mb-3" style={{ color: v.accent }}>
+                    {v.category}
+                  </p>
+                  <h2
+                    className="text-[24px] text-white/75 mb-2"
+                    style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700, letterSpacing: '-0.02em' }}
+                  >
+                    {v.name}
+                  </h2>
+                  <p className="text-[13px] text-white/38 font-light leading-relaxed mb-4">{v.tagline}</p>
+                  <p className="text-[12.5px] text-white/28 font-light leading-relaxed">{v.pitch}</p>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
-      </section>
-    </div>
+      </div>
+    </>
   );
 }

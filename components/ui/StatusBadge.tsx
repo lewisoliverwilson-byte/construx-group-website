@@ -7,15 +7,10 @@ const config: Record<VentureStatus, { label: string; class: string; dot: string 
     class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     dot: 'bg-emerald-400',
   },
-  'coming-soon': {
-    label: 'Coming Soon',
-    class: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    dot: 'bg-amber-400',
-  },
-  incubation: {
-    label: 'In Incubation',
-    class: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    dot: 'bg-purple-400',
+  dev: {
+    label: 'In Development',
+    class: 'bg-white/5 text-white/35 border-white/10',
+    dot: 'bg-white/30',
   },
 };
 

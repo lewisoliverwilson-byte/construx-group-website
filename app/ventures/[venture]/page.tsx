@@ -393,7 +393,7 @@ export default async function VenturePage({ params }: Props) {
               </div>
               <div className="p-4">
                 <div className="flex items-end gap-0.5 mb-2">
-                  {venture.latencyBars.split('').map((bar, i) => (
+                  {(venture.latencyBars ?? '▂▃▄▃▂▃▄▃▂▃').split('').map((bar, i) => (
                     <span
                       key={i}
                       className="font-mono text-[11px] leading-none tabular-nums"
