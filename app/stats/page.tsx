@@ -254,6 +254,7 @@ import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
+import PatroniPanel from '@/components/PatroniPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1844,8 +1845,13 @@ export default function StatsPage() {
       </div>
 
       {/* otel-traces — spans, traceids, latency, service graph */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OtelTracesPanel />
+      </div>
+
+      {/* patroni — postgres ha, leader election, failover, dcs */}
+      <div className="mt-6 pb-10">
+        <PatroniPanel />
       </div>
     </div>
   );

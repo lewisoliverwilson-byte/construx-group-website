@@ -251,6 +251,7 @@ import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
+import PgExplainPanel from '@/components/PgExplainPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1804,8 +1805,13 @@ export default function ContactPage() {
       </section>
 
       {/* pgbouncer — connection pooling, pool modes, clients, servers */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <PgBouncerPanel />
+      </section>
+
+      {/* pg-explain — query plans, nodes, cost, buffers */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <PgExplainPanel />
       </section>
     </div>
   );

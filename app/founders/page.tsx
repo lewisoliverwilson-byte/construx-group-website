@@ -252,6 +252,7 @@ import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
+import PatroniPanel from '@/components/PatroniPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1932,8 +1933,13 @@ export default function FoundersPage() {
         </div>
 
         {/* parca — continuous profiling, flame graphs, cpu, memory */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ParcaPanel />
+        </div>
+
+        {/* patroni — postgres ha, leader election, failover, dcs */}
+        <div className="mt-6 pb-10">
+          <PatroniPanel />
         </div>
 
         {/* CTA */}

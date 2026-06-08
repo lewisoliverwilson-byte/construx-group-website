@@ -252,6 +252,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
+import OpenFGAPanel from '@/components/OpenFGAPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1796,8 +1797,13 @@ export default function NowPage() {
         </div>
 
         {/* openfga-audit — audit logs, relationship tuples, checks, models */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenFgaAuditPanel />
+        </div>
+
+        {/* openfga — fine-grained authorization, relationships, checks */}
+        <div className="mt-6 pb-10">
+          <OpenFGAPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
