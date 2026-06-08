@@ -213,6 +213,7 @@ import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
+import LighthousePanel from '@/components/LighthousePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1698,8 +1699,13 @@ export default function FoundersPage() {
         </div>
 
         {/* latency map — regions, p50, p95, p99 */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LatencyMapPanel />
+        </div>
+
+        {/* lighthouse — performance, accessibility, seo, best practices */}
+        <div className="mt-6 pb-10">
+          <LighthousePanel />
         </div>
 
         {/* CTA */}

@@ -213,6 +213,7 @@ import KarpenterPanel from '@/components/KarpenterPanel';
 import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
+import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1562,8 +1563,13 @@ export default function NowPage() {
         </div>
 
         {/* kubectl logs — container, pod, namespace, timestamps */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubectlLogsPanel />
+        </div>
+
+        {/* kubectl pods — name, ready, status, restarts, age */}
+        <div className="mt-6 pb-10">
+          <KubectlPodsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
