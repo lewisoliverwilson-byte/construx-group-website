@@ -210,6 +210,7 @@ import K8sEventsPanel from '@/components/K8sEventsPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
+import KindPanel from '@/components/KindPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1544,8 +1545,13 @@ export default function NowPage() {
         </div>
 
         {/* karpenter — nodes, provisioners, machines, capacity */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KarpenterPanel />
+        </div>
+
+        {/* kind — clusters, nodes, images, status */}
+        <div className="mt-6 pb-10">
+          <KindPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

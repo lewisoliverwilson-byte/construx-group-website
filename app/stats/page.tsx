@@ -212,6 +212,7 @@ import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
+import KnativePanel from '@/components/KnativePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1592,8 +1593,13 @@ export default function StatsPage() {
       </div>
 
       {/* keycloak — realms, clients, users, tokens */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KeycloakPanel />
+      </div>
+
+      {/* knative — services, revisions, routes, events */}
+      <div className="mt-6 pb-10">
+        <KnativePanel />
       </div>
     </div>
   );

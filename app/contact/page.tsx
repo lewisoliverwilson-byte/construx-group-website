@@ -209,6 +209,7 @@ import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
+import KubeProxyPanel from '@/components/KubeProxyPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1552,8 +1553,13 @@ export default function ContactPage() {
       </section>
 
       {/* kube prometheus — metrics, alerts, targets, rules */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KubePrometheusPanel />
+      </section>
+
+      {/* kube proxy — iptables, ipvs, endpoints, nodeports */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubeProxyPanel />
       </section>
     </div>
   );
