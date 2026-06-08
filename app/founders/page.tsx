@@ -167,6 +167,7 @@ import GhCliPanel from '@/components/GhCliPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
+import GitWorktreePanel from '@/components/GitWorktreePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1422,8 +1423,13 @@ export default function FoundersPage() {
         </div>
 
         {/* gitea — repos, issues, prs, org */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GiteaPanel />
+        </div>
+
+        {/* git worktree — branches, paths, pruned, locked */}
+        <div className="mt-6 pb-10">
+          <GitWorktreePanel />
         </div>
 
         {/* CTA */}

@@ -169,6 +169,7 @@ import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
+import FluentBitPanel from '@/components/FluentBitPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1334,8 +1335,13 @@ export default function StatsPage() {
       </div>
 
       {/* flagger — canaries, rollouts, analysis, webhooks */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <FlaggerPanel />
+      </div>
+
+      {/* fluentbit — pipelines, inputs, outputs, filters */}
+      <div className="mt-6 pb-10">
+        <FluentBitPanel />
       </div>
     </div>
   );

@@ -167,6 +167,7 @@ import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
+import FlaggerPanel from '@/components/FlaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1286,8 +1287,13 @@ export default function NowPage() {
         </div>
 
         {/* external dns — records, providers, sources, sync */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ExternalDnsPanel />
+        </div>
+
+        {/* flagger — canaries, rollouts, analysis, webhooks */}
+        <div className="mt-6 pb-10">
+          <FlaggerPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
