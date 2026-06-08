@@ -136,6 +136,7 @@ import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
+import DbtPanel from '@/components/DbtPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -999,8 +1000,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* db migration — flyway, liquibase, versions, checksums */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DbMigrationPanel />
+        </div>
+
+        {/* dbt — models, tests, sources, lineage */}
+        <div className="mt-4 pb-6">
+          <DbtPanel />
         </div>
 
         {/* Sign-off */}

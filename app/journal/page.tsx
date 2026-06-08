@@ -139,6 +139,7 @@ import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import CortexPanel from '@/components/CortexPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -955,8 +956,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* containerd — images, containers, namespaces, snapshots */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <ContainerdPanel />
+      </section>
+
+      {/* cortex — query engine, ruler, compactor, store-gateway */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CortexPanel />
       </section>
 
       {/* Posts */}
