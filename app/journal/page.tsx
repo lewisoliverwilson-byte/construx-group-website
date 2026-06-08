@@ -215,6 +215,7 @@ import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
+import KubeProxyPanel from '@/components/KubeProxyPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1411,8 +1412,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kube prometheus — metrics, alerts, targets, rules */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KubePrometheusPanel />
+      </section>
+
+      {/* kube proxy — iptables, ipvs, endpoints, nodeports */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KubeProxyPanel />
       </section>
 
       {/* Posts */}

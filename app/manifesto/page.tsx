@@ -212,6 +212,7 @@ import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
+import LastLoginPanel from '@/components/LastLoginPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1455,8 +1456,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* langfuse — traces, spans, scores, generations */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LangfusePanel />
+        </div>
+
+        {/* last login — user, ip, device, timestamp */}
+        <div className="mt-4 pb-6">
+          <LastLoginPanel />
         </div>
 
         {/* Sign-off */}

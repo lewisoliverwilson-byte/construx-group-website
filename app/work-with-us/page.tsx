@@ -211,6 +211,7 @@ import KeycloakPanel from '@/components/KeycloakPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
+import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1795,8 +1796,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* kubeflow — pipelines, runs, experiments, artifacts */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KubeflowPanel />
+      </section>
+
+      {/* kubeflow pipelines — dag, steps, inputs, outputs */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KubeflowPipelinesPanel />
       </section>
 
       {/* CTA */}
