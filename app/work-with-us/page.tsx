@@ -195,6 +195,7 @@ import IostatPanel from '@/components/IostatPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
+import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1699,8 +1700,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* jaeger trace — spans, services, operations, latency */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <JaegerTracePanel />
+      </section>
+
+      {/* jfrog xray — vulnerabilities, licenses, components, policies */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <JfrogXrayPanel />
       </section>
 
       {/* CTA */}

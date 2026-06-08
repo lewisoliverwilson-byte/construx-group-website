@@ -194,6 +194,7 @@ import IcebergPanel from '@/components/IcebergPanel';
 import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IstioPanel from '@/components/IstioPanel';
+import JaegerTracePanel from '@/components/JaegerTracePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1466,8 +1467,13 @@ export default function UsesPage() {
         </div>
 
         {/* istio — services, traffic, policies, telemetry */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IstioPanel />
+        </div>
+
+        {/* jaeger trace — spans, services, operations, latency */}
+        <div className="mt-6 pb-10">
+          <JaegerTracePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
