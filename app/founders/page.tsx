@@ -248,6 +248,7 @@ import OpenObservePanel from '@/components/OpenObservePanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
+import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1908,8 +1909,13 @@ export default function FoundersPage() {
         </div>
 
         {/* opentelemetry — sdk, instrumentation, otlp, traces */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenTelemetryPanel />
+        </div>
+
+        {/* otel-collector — pipelines, receivers, processors, exporters */}
+        <div className="mt-6 pb-10">
+          <OtelCollectorPanel />
         </div>
 
         {/* CTA */}

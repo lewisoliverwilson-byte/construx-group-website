@@ -250,6 +250,7 @@ import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
+import OpenFGAPanel from '@/components/OpenFGAPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1820,8 +1821,13 @@ export default function StatsPage() {
       </div>
 
       {/* opa — policy engine, rego, bundles, decisions */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OPAPanel />
+      </div>
+
+      {/* openfga — fine-grained authorization, relationships, checks */}
+      <div className="mt-6 pb-10">
+        <OpenFGAPanel />
       </div>
     </div>
   );

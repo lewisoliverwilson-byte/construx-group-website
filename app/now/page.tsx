@@ -248,6 +248,7 @@ import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
+import OllamaPanel from '@/components/OllamaPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1772,8 +1773,13 @@ export default function NowPage() {
         </div>
 
         {/* oauth-flow — authorization code, pkce, tokens, scopes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OAuthFlowPanel />
+        </div>
+
+        {/* ollama — local llm inference, models, pull, run */}
+        <div className="mt-6 pb-10">
+          <OllamaPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
