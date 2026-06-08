@@ -134,6 +134,7 @@ import CrontabPanel from '@/components/CrontabPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
+import CycloneDxPanel from '@/components/CycloneDxPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -987,8 +988,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* curl verbose — trace, redirect, ssl, timing */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CurlVerbosePanel />
+        </div>
+
+        {/* cyclonedx — bom, components, vulnerabilities, metadata */}
+        <div className="mt-4 pb-6">
+          <CycloneDxPanel />
         </div>
 
         {/* Sign-off */}

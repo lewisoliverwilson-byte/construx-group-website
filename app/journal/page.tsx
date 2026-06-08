@@ -137,6 +137,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
+import ConsulPanel from '@/components/ConsulPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -943,8 +944,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cockroachdb — distributed sql, replication, zones, backup */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CockroachDbPanel />
+      </section>
+
+      {/* consul — service mesh, kv, intentions, health checks */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ConsulPanel />
       </section>
 
       {/* Posts */}
