@@ -171,6 +171,7 @@ import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import GhCliPanel from '@/components/GhCliPanel';
+import GitBisectPanel from '@/components/GitBisectPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1555,8 +1556,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* gh cli — repos, prs, issues, releases */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GhCliPanel />
+      </section>
+
+      {/* git bisect — good, bad, skip, reset */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GitBisectPanel />
       </section>
 
       {/* CTA */}

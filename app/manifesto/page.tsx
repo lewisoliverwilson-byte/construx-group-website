@@ -172,6 +172,7 @@ import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
+import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1215,8 +1216,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* grafana alloy — pipelines, components, otel, logs */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GrafanaAlloyPanel />
+        </div>
+
+        {/* grafana faro — errors, sessions, vitals, spans */}
+        <div className="mt-4 pb-6">
+          <GrafanaFaroPanel />
         </div>
 
         {/* Sign-off */}
