@@ -161,6 +161,7 @@ import DronePanel from '@/components/DronePanel';
 import DruidPanel from '@/components/DruidPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
+import EbpfTracePanel from '@/components/EbpfTracePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1250,8 +1251,13 @@ export default function NowPage() {
         </div>
 
         {/* earthly — targets, artifacts, cache, secrets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EarthlyPanel />
+        </div>
+
+        {/* ebpf trace — probes, maps, events, syscalls */}
+        <div className="mt-6 pb-10">
+          <EbpfTracePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

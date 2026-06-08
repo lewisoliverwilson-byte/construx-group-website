@@ -160,6 +160,7 @@ import EslintOutputPanel from '@/components/EslintOutputPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
+import FlamegraphPanel from '@/components/FlamegraphPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1258,8 +1259,13 @@ export default function ContactPage() {
       </section>
 
       {/* flagger — canaries, rollouts, analysis, webhooks */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <FlaggerPanel />
+      </section>
+
+      {/* flamegraph — cpu, memory, wall, flamegraph */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <FlamegraphPanel />
       </section>
     </div>
   );

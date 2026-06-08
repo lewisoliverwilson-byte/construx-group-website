@@ -161,6 +161,7 @@ import FioPanel from '@/components/FioPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
+import GatekeeperPanel from '@/components/GatekeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1386,8 +1387,13 @@ export default function FoundersPage() {
         </div>
 
         {/* freemem — rss, heap, external, arraybuffers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FreeMemPanel />
+        </div>
+
+        {/* gatekeeper — constraints, violations, audit, policy */}
+        <div className="mt-6 pb-10">
+          <GatekeeperPanel />
         </div>
 
         {/* CTA */}
