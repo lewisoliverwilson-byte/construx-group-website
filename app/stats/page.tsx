@@ -255,6 +255,7 @@ import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PatroniPanel from '@/components/PatroniPanel';
+import PgBouncerPanel from '@/components/PgBouncerPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1850,8 +1851,13 @@ export default function StatsPage() {
       </div>
 
       {/* patroni — postgres ha, leader election, failover, dcs */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <PatroniPanel />
+      </div>
+
+      {/* pgbouncer — connection pooling, pool modes, clients, servers */}
+      <div className="mt-6 pb-10">
+        <PgBouncerPanel />
       </div>
     </div>
   );

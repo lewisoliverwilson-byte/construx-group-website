@@ -253,6 +253,7 @@ import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import PatroniPanel from '@/components/PatroniPanel';
+import PerfStatPanel from '@/components/PerfStatPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1938,8 +1939,13 @@ export default function FoundersPage() {
         </div>
 
         {/* patroni — postgres ha, leader election, failover, dcs */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <PatroniPanel />
+        </div>
+
+        {/* perf-stat — hardware counters, instructions, cycles, cache */}
+        <div className="mt-6 pb-10">
+          <PerfStatPanel />
         </div>
 
         {/* CTA */}
