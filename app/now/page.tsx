@@ -246,6 +246,7 @@ import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1760,8 +1761,13 @@ export default function NowPage() {
         </div>
 
         {/* npm-global — global packages, versions, install, link */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NpmGlobalPanel />
+        </div>
+
+        {/* nvidia-smi — gpu stats, memory, utilization, processes */}
+        <div className="mt-6 pb-10">
+          <NvidiaSmiPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

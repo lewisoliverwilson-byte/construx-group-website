@@ -248,6 +248,7 @@ import NmapScanPanel from '@/components/NmapScanPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
+import OllamaPanel from '@/components/OllamaPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1808,8 +1809,13 @@ export default function StatsPage() {
       </div>
 
       {/* oauth-flow — authorization code, pkce, tokens, scopes */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OAuthFlowPanel />
+      </div>
+
+      {/* ollama — local llm inference, models, pull, run */}
+      <div className="mt-6 pb-10">
+        <OllamaPanel />
       </div>
     </div>
   );
