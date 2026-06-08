@@ -194,6 +194,7 @@ import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
+import HyperfinePanel from '@/components/HyperfinePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1484,8 +1485,13 @@ export default function StatsPage() {
       </div>
 
       {/* http bench — requests, rps, latency, errors */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <HttpBenchPanel />
+      </div>
+
+      {/* hyperfine — benchmarks, commands, runs, statistics */}
+      <div className="mt-6 pb-10">
+        <HyperfinePanel />
       </div>
     </div>
   );

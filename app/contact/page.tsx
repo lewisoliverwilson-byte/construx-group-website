@@ -191,6 +191,7 @@ import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
+import JournalctlPanel from '@/components/JournalctlPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1444,8 +1445,13 @@ export default function ContactPage() {
       </section>
 
       {/* jfrog xray — vulnerabilities, licenses, components, policies */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <JfrogXrayPanel />
+      </section>
+
+      {/* journalctl — units, logs, priorities, boots */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <JournalctlPanel />
       </section>
     </div>
   );
