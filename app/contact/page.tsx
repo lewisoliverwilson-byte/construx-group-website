@@ -125,6 +125,7 @@ import CIPipelinePanel from '@/components/CIPipelinePanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
+import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1048,8 +1049,13 @@ export default function ContactPage() {
       </section>
 
       {/* clickhouse query — mergetree, replicas, parts, mutations */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ClickHousePanel />
+      </section>
+
+      {/* clickhouse query — explain, profiling, system tables */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ClickhouseQueryPanel />
       </section>
     </div>
   );

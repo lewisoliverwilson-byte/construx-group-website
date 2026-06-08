@@ -126,6 +126,7 @@ import CitusPanel from '@/components/CitusPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
+import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1176,8 +1177,13 @@ export default function FoundersPage() {
         </div>
 
         {/* clickhouse query — explain, profiling, system tables */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickhouseQueryPanel />
+        </div>
+
+        {/* cloudflare workers — kv, durable objects, queues, pages */}
+        <div className="mt-6 pb-10">
+          <CloudflareWorkersPanel />
         </div>
 
         {/* CTA */}
