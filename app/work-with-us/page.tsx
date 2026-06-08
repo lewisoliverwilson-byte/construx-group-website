@@ -114,6 +114,7 @@ import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1213,8 +1214,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* biome js toolchain — lint, format, check, ci */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BiomePanel />
+      </section>
+
+      {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BoundaryPanel />
       </section>
 
       {/* CTA */}

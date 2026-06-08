@@ -113,6 +113,7 @@ import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -980,8 +981,13 @@ export default function UsesPage() {
         </div>
 
         {/* bgp routing table lookup — asn, prefixes, peers, path */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BgpLookupPanel />
+        </div>
+
+        {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
+        <div className="mt-6 pb-10">
+          <BoundaryPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

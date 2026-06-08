@@ -115,6 +115,7 @@ import BunBuildPanel from '@/components/BunBuildPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
+import CephPanel from '@/components/CephPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -873,8 +874,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cassandra distributed db — ring, keyspaces, replication factor */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CassandraPanel />
+        </div>
+
+        {/* ceph rados distributed storage — rbd, cephfs, rgw, crush */}
+        <div className="mt-4 pb-6">
+          <CephPanel />
         </div>
 
         {/* Sign-off */}
