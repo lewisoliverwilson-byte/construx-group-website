@@ -162,6 +162,7 @@ import FioPanel from '@/components/FioPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
+import FreeMemPanel from '@/components/FreeMemPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1270,8 +1271,13 @@ export default function ContactPage() {
       </section>
 
       {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <FluxCDPanel />
+      </section>
+
+      {/* freemem — rss, heap, external, arraybuffers */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <FreeMemPanel />
       </section>
     </div>
   );

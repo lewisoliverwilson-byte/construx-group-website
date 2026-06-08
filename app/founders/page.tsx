@@ -163,6 +163,7 @@ import FluentBitPanel from '@/components/FluentBitPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GatlingPanel from '@/components/GatlingPanel';
+import GhCliPanel from '@/components/GhCliPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1398,8 +1399,13 @@ export default function FoundersPage() {
         </div>
 
         {/* gatling — scenarios, users, rps, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GatlingPanel />
+        </div>
+
+        {/* gh cli — repos, prs, issues, auth */}
+        <div className="mt-6 pb-10">
+          <GhCliPanel />
         </div>
 
         {/* CTA */}
