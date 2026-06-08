@@ -125,6 +125,7 @@ import CaddyPanel from '@/components/CaddyPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
+import CertInfoPanel from '@/components/CertInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1034,8 +1035,13 @@ export default function NowPage() {
         </div>
 
         {/* ceph cluster — osds, pools, pg, replication */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CephPanel />
+        </div>
+
+        {/* tls certificate info — san, validity, issuer, chain */}
+        <div className="mt-6 pb-10">
+          <CertInfoPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

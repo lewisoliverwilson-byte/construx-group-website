@@ -127,6 +127,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CitusPanel from '@/components/CitusPanel';
+import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1082,8 +1083,13 @@ export default function StatsPage() {
       </div>
 
       {/* citus distributed postgres — shards, workers, routing */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CitusPanel />
+      </div>
+
+      {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
+      <div className="mt-6 pb-10">
+        <ClickHouseKeeperPanel />
       </div>
     </div>
   );
