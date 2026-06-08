@@ -111,6 +111,7 @@ import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
+import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -787,8 +788,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* authentik identity provider — sso, oauth2, saml, audit */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <AuthentikPanel />
+      </section>
+
+      {/* aws bedrock — foundation models, inference, agents */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <AwsBedrockPanel />
       </section>
 
       {/* Posts */}

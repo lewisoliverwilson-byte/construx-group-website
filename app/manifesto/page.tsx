@@ -108,6 +108,7 @@ import AwsCliPanel from '@/components/AwsCliPanel';
 import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
+import BiomePanel from '@/components/BiomePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -831,8 +832,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* beyla ebpf auto-instrumentation — spans, latency, red metrics */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BeylaPanel />
+        </div>
+
+        {/* biome js toolchain — lint, format, check, ci */}
+        <div className="mt-4 pb-6">
+          <BiomePanel />
         </div>
 
         {/* Sign-off */}

@@ -107,6 +107,7 @@ import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import AuditdPanel from '@/components/AuditdPanel';
+import AwsCliPanel from '@/components/AwsCliPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1171,8 +1172,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* auditd linux audit framework — syscalls, events, rules, trails */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <AuditdPanel />
+      </section>
+
+      {/* aws cli — s3, ec2, iam, lambda commands */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <AwsCliPanel />
       </section>
 
       {/* CTA */}
