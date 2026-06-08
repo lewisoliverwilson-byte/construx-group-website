@@ -221,6 +221,7 @@ import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
+import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1646,8 +1647,13 @@ export default function StatsPage() {
       </div>
 
       {/* kubescape — kspm, nsa, mitre, cis, risk scores */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KubescapePanel />
+      </div>
+
+      {/* kube state metrics — pods, deployments, nodes, conditions */}
+      <div className="mt-6 pb-10">
+        <KubeStateMetricsPanel />
       </div>
     </div>
   );

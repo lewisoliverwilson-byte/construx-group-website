@@ -218,6 +218,7 @@ import LighthousePanel from '@/components/LighthousePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
+import LonghornPanel from '@/components/LonghornPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1606,8 +1607,13 @@ export default function ContactPage() {
       </section>
 
       {/* loki query — logql, streams, labels, filters */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <LokiQueryPanel />
+      </section>
+
+      {/* longhorn — distributed block storage, volumes, snapshots, replicas */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LonghornPanel />
       </section>
     </div>
   );

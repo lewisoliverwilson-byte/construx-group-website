@@ -219,6 +219,7 @@ import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
+import LastLoginPanel from '@/components/LastLoginPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1598,8 +1599,13 @@ export default function NowPage() {
         </div>
 
         {/* langfuse — llm observability, traces, scores, generations */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LangfusePanel />
+        </div>
+
+        {/* last login — auth log, last session, ip, terminal */}
+        <div className="mt-6 pb-10">
+          <LastLoginPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
