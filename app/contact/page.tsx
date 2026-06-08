@@ -147,6 +147,7 @@ import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
+import DockerStatsPanel from '@/components/DockerStatsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1180,8 +1181,13 @@ export default function ContactPage() {
       </section>
 
       {/* docker compose — services, networks, volumes, health */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DockerComposePanel />
+      </section>
+
+      {/* docker stats — containers, cpu, mem, net */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DockerStatsPanel />
       </section>
     </div>
   );

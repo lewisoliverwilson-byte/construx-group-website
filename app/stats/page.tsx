@@ -150,6 +150,7 @@ import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DigPanel from '@/components/DigPanel';
+import DiskUsagePanel from '@/components/DiskUsagePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1220,8 +1221,13 @@ export default function StatsPage() {
       </div>
 
       {/* dig — dns, records, ttl, nameserver */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DigPanel />
+      </div>
+
+      {/* disk usage — df, partitions, inodes, mounts */}
+      <div className="mt-6 pb-10">
+        <DiskUsagePanel />
       </div>
     </div>
   );

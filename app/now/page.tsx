@@ -148,6 +148,7 @@ import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
+import CycloneDxPanel from '@/components/CycloneDxPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1172,8 +1173,13 @@ export default function NowPage() {
         </div>
 
         {/* curl verbose — headers, timings, tls, redirect */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CurlVerbosePanel />
+        </div>
+
+        {/* cyclonedx — sbom, components, licenses, vulnerabilities */}
+        <div className="mt-6 pb-10">
+          <CycloneDxPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
