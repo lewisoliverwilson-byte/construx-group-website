@@ -175,6 +175,7 @@ import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GrypePanel from '@/components/GrypePanel';
+import HelmChartPanel from '@/components/HelmChartPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1470,8 +1471,13 @@ export default function FoundersPage() {
         </div>
 
         {/* grype — vulnerabilities, packages, severity, cvss */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrypePanel />
+        </div>
+
+        {/* helm chart — releases, values, hooks, manifests */}
+        <div className="mt-6 pb-10">
+          <HelmChartPanel />
         </div>
 
         {/* CTA */}

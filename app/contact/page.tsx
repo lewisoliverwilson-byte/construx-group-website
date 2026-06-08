@@ -174,6 +174,7 @@ import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
+import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1342,8 +1343,13 @@ export default function ContactPage() {
       </section>
 
       {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GpgFingerprintPanel />
+      </section>
+
+      {/* grafana alloy — pipelines, components, otel, logs */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GrafanaAlloyPanel />
       </section>
     </div>
   );

@@ -177,6 +177,7 @@ import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
+import GitConfigPanel from '@/components/GitConfigPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1382,8 +1383,13 @@ export default function StatsPage() {
       </div>
 
       {/* git blame — authors, commits, lines, dates */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GitBlamePanel />
+      </div>
+
+      {/* git config — globals, locals, remotes, aliases */}
+      <div className="mt-6 pb-10">
+        <GitConfigPanel />
       </div>
     </div>
   );

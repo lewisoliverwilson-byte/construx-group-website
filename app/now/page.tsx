@@ -175,6 +175,7 @@ import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
+import GitConfigPanel from '@/components/GitConfigPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1334,8 +1335,13 @@ export default function NowPage() {
         </div>
 
         {/* git bisect — good, bad, skip, reset */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitBisectPanel />
+        </div>
+
+        {/* git config — globals, locals, remotes, aliases */}
+        <div className="mt-6 pb-10">
+          <GitConfigPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
