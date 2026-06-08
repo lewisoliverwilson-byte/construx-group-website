@@ -108,6 +108,7 @@ import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
+import BackstagePanel from '@/components/BackstagePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1177,8 +1178,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* aws cli — s3, ec2, iam, lambda commands */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <AwsCliPanel />
+      </section>
+
+      {/* backstage developer portal — catalog, tech radar, plugins */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BackstagePanel />
       </section>
 
       {/* CTA */}

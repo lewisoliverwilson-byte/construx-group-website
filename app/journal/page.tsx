@@ -112,6 +112,7 @@ import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
+import BackstagePanel from '@/components/BackstagePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -793,8 +794,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* aws bedrock — foundation models, inference, agents */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <AwsBedrockPanel />
+      </section>
+
+      {/* backstage developer portal — catalog, tech radar, plugins */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <BackstagePanel />
       </section>
 
       {/* Posts */}

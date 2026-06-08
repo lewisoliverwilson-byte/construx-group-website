@@ -109,6 +109,7 @@ import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BiomePanel from '@/components/BiomePanel';
+import BrewListPanel from '@/components/BrewListPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -837,8 +838,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* biome js toolchain — lint, format, check, ci */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BiomePanel />
+        </div>
+
+        {/* brew list — installed formulae, casks, versions */}
+        <div className="mt-4 pb-6">
+          <BrewListPanel />
         </div>
 
         {/* Sign-off */}
