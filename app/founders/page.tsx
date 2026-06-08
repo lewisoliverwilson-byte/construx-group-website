@@ -181,6 +181,7 @@ import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
+import IcebergPanel from '@/components/IcebergPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1506,8 +1507,13 @@ export default function FoundersPage() {
         </div>
 
         {/* hugging face — models, datasets, spaces, inference */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HuggingFacePanel />
+        </div>
+
+        {/* iceberg — tables, snapshots, partitions, manifests */}
+        <div className="mt-6 pb-10">
+          <IcebergPanel />
         </div>
 
         {/* CTA */}

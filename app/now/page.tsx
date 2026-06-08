@@ -181,6 +181,7 @@ import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
+import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1370,8 +1371,13 @@ export default function NowPage() {
         </div>
 
         {/* goreplay — traffic, filters, replays, middleware */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GoReplayPanel />
+        </div>
+
+        {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
+        <div className="mt-6 pb-10">
+          <GpgFingerprintPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

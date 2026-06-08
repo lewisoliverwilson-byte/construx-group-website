@@ -180,6 +180,7 @@ import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrypePanel from '@/components/GrypePanel';
 import GVisorPanel from '@/components/GVisorPanel';
+import HarborPanel from '@/components/HarborPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1378,8 +1379,13 @@ export default function ContactPage() {
       </section>
 
       {/* gvisor — syscalls, sandbox, containers, security */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GVisorPanel />
+      </section>
+
+      {/* harbor — registries, artifacts, scans, replication */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HarborPanel />
       </section>
     </div>
   );

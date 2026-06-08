@@ -183,6 +183,7 @@ import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
+import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1418,8 +1419,13 @@ export default function StatsPage() {
       </div>
 
       {/* git worktree — trees, branches, checkouts, paths */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GitWorktreePanel />
+      </div>
+
+      {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
+      <div className="mt-6 pb-10">
+        <GpgFingerprintPanel />
       </div>
     </div>
   );
