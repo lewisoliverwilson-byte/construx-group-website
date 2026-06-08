@@ -107,6 +107,7 @@ import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
+import AuthentikPanel from '@/components/AuthentikPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -926,8 +927,13 @@ export default function NowPage() {
         </div>
 
         {/* auditd linux audit framework — syscalls, events, rules, trails */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AuditdPanel />
+        </div>
+
+        {/* authentik identity provider — sso, oauth2, saml, audit */}
+        <div className="mt-6 pb-10">
+          <AuthentikPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

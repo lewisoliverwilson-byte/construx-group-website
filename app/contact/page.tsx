@@ -106,6 +106,7 @@ import AtlasPanel from '@/components/AtlasPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
+import BackstagePanel from '@/components/BackstagePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -934,8 +935,13 @@ export default function ContactPage() {
       </section>
 
       {/* aws bedrock — foundation models, inference, agents */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <AwsBedrockPanel />
+      </section>
+
+      {/* backstage developer portal — catalog, tech radar, plugins */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BackstagePanel />
       </section>
     </div>
   );
