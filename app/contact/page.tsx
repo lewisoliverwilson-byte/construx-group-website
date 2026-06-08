@@ -206,6 +206,7 @@ import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
+import KubeflowPanel from '@/components/KubeflowPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1534,8 +1535,13 @@ export default function ContactPage() {
       </section>
 
       {/* kubectl pods — name, ready, status, restarts, age */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KubectlPodsPanel />
+      </section>
+
+      {/* kubeflow — pipelines, runs, experiments, artifacts */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubeflowPanel />
       </section>
     </div>
   );
