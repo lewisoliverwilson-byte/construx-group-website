@@ -116,6 +116,7 @@ import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import BufPanel from '@/components/BufPanel';
+import BuildOutputPanel from '@/components/BuildOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -998,8 +999,13 @@ export default function UsesPage() {
         </div>
 
         {/* buf protobuf lint, breaking, generate, push */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BufPanel />
+        </div>
+
+        {/* build output — compile steps, warnings, errors, timing */}
+        <div className="mt-6 pb-10">
+          <BuildOutputPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

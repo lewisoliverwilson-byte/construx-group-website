@@ -121,6 +121,7 @@ import BpftracePanel from '@/components/BpftracePanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
+import CaddyPanel from '@/components/CaddyPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -847,8 +848,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* build output — compile steps, warnings, errors, timing */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <BuildOutputPanel />
+      </section>
+
+      {/* caddy reverse proxy — routes, tls, upstreams, logs */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CaddyPanel />
       </section>
 
       {/* Posts */}
