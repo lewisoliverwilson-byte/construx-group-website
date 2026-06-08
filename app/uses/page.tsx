@@ -111,6 +111,7 @@ import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
+import BeylaPanel from '@/components/BeylaPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -968,8 +969,13 @@ export default function UsesPage() {
         </div>
 
         {/* bazel hermetic build — remote cache, targets, action cache stats */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BazelPanel />
+        </div>
+
+        {/* beyla ebpf auto-instrumentation — spans, latency, red metrics */}
+        <div className="mt-6 pb-10">
+          <BeylaPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

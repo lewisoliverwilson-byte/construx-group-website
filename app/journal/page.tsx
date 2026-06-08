@@ -116,6 +116,7 @@ import BackstagePanel from '@/components/BackstagePanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -817,8 +818,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* biome js toolchain — lint, format, check, ci */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <BiomePanel />
+      </section>
+
+      {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <BoundaryPanel />
       </section>
 
       {/* Posts */}

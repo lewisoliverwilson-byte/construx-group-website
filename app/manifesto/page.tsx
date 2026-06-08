@@ -113,6 +113,7 @@ import BrewListPanel from '@/components/BrewListPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
+import CargoPanel from '@/components/CargoPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -861,8 +862,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* caddy access log — requests, status, latency, bytes */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CaddyAccessPanel />
+        </div>
+
+        {/* cargo release build — compile, link, test, artifact */}
+        <div className="mt-4 pb-6">
+          <CargoPanel />
         </div>
 
         {/* Sign-off */}

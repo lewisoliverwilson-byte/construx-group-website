@@ -112,6 +112,7 @@ import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
+import BgpLookupPanel from '@/components/BgpLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1201,8 +1202,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* beyla ebpf auto-instrumentation — spans, latency, red metrics */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BeylaPanel />
+      </section>
+
+      {/* bgp routing table lookup — asn, prefixes, peers, path */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BgpLookupPanel />
       </section>
 
       {/* CTA */}
