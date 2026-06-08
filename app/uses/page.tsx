@@ -154,6 +154,7 @@ import DigPanel from '@/components/DigPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
+import DockerStatsPanel from '@/components/DockerStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1226,8 +1227,13 @@ export default function UsesPage() {
         </div>
 
         {/* docker compose — services, networks, volumes, health */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DockerComposePanel />
+        </div>
+
+        {/* docker stats — containers, cpu, mem, net */}
+        <div className="mt-6 pb-10">
+          <DockerStatsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

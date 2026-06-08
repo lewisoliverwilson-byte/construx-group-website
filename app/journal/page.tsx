@@ -159,6 +159,7 @@ import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
+import EbpfTracePanel from '@/components/EbpfTracePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1075,8 +1076,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* earthly — targets, artifacts, cache, secrets */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <EarthlyPanel />
+      </section>
+
+      {/* ebpf trace — syscalls, latency, stack, probes */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <EbpfTracePanel />
       </section>
 
       {/* Posts */}
