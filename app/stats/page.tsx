@@ -219,6 +219,7 @@ import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
+import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1634,8 +1635,13 @@ export default function StatsPage() {
       </div>
 
       {/* kube proxy — iptables, ipvs, endpoints, nodeports */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KubeProxyPanel />
+      </div>
+
+      {/* kubernetes gateway — routes, backends, listeners, policies */}
+      <div className="mt-6 pb-10">
+        <KubernetesGatewayPanel />
       </div>
     </div>
   );
