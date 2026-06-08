@@ -193,6 +193,7 @@ import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournaldPanel from '@/components/JournaldPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K3sPanel from '@/components/K3sPanel';
+import K6Panel from '@/components/K6Panel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1341,8 +1342,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* k3s — clusters, nodes, pods, services */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <K3sPanel />
+        </div>
+
+        {/* k6 — scenarios, checks, thresholds, vus */}
+        <div className="mt-4 pb-6">
+          <K6Panel />
         </div>
 
         {/* Sign-off */}

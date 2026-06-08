@@ -196,6 +196,7 @@ import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
+import IstioPanel from '@/components/IstioPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1297,8 +1298,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* ip link — interfaces, states, addresses, routes */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <IpLinkPanel />
+      </section>
+
+      {/* istio — services, traffic, policies, telemetry */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <IstioPanel />
       </section>
 
       {/* Posts */}
