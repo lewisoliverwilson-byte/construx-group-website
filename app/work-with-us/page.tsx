@@ -163,6 +163,7 @@ import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
+import EtcdPanel from '@/components/EtcdPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1507,8 +1508,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* eslint output — rules, warnings, errors, fixable */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <EslintOutputPanel />
+      </section>
+
+      {/* etcd — keys, leases, alarms, compaction */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <EtcdPanel />
       </section>
 
       {/* CTA */}

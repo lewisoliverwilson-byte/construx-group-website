@@ -162,6 +162,7 @@ import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
+import FioPanel from '@/components/FioPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1274,8 +1275,13 @@ export default function UsesPage() {
         </div>
 
         {/* falco — syscalls, rules, alerts, k8s */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FalcoPanel />
+        </div>
+
+        {/* fio — iops, bw, latency, jobs */}
+        <div className="mt-6 pb-10">
+          <FioPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

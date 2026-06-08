@@ -167,6 +167,7 @@ import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
+import FioPanel from '@/components/FioPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1123,8 +1124,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* falco — syscalls, rules, alerts, k8s */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <FalcoPanel />
+      </section>
+
+      {/* fio — iops, bw, latency, jobs */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <FioPanel />
       </section>
 
       {/* Posts */}
