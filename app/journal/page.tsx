@@ -210,6 +210,7 @@ import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KindPanel from '@/components/KindPanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
+import KubebenchPanel from '@/components/KubebenchPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1381,8 +1382,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kube audit — events, rules, verbs, resources */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KubeAuditPanel />
+      </section>
+
+      {/* kubebench — checks, failures, warnings, remediation */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KubebenchPanel />
       </section>
 
       {/* Posts */}
