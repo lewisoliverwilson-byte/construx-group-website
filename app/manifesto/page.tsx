@@ -96,6 +96,7 @@ import PsAuxPanel from '@/components/PsAuxPanel';
 import RedisPanel from '@/components/RedisPanel';
 import TerraformCloudPanel from '@/components/TerraformCloudPanel';
 import TrufflehogPanel from '@/components/TrufflehogPanel';
+import SarPanel from '@/components/SarPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -759,8 +760,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* trufflehog — secret scanning, verified credentials, git history */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <TrufflehogPanel />
+        </div>
+
+        {/* sar — cpu, mem, io activity over time, historical */}
+        <div className="mt-4 pb-6">
+          <SarPanel />
         </div>
 
         {/* Sign-off */}

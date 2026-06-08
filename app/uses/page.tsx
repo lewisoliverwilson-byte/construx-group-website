@@ -94,6 +94,7 @@ import RedisCLIPanel from '@/components/RedisCLIPanel';
 import RoutingTablePanel from '@/components/RoutingTablePanel';
 import TrivyPanel from '@/components/TrivyPanel';
 import TailscalePanel from '@/components/TailscalePanel';
+import UlimitPanel from '@/components/UlimitPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -866,8 +867,13 @@ export default function UsesPage() {
         </div>
 
         {/* tailscale — zero-config vpn, wireguard mesh, devices, acl */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TailscalePanel />
+        </div>
+
+        {/* ulimit — resource limits, nofile, nproc, stack, memlock */}
+        <div className="mt-6 pb-10">
+          <UlimitPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

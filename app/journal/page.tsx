@@ -99,6 +99,7 @@ import RecentCommitsPanel from '@/components/RecentCommitsPanel';
 import RisingWavePanel from '@/components/RisingWavePanel';
 import UptimePanel from '@/components/UptimePanel';
 import TiDbPanel from '@/components/TiDbPanel';
+import TraefikPanel from '@/components/TraefikPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -715,8 +716,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* tidb htap — tikv row storage, tiflash columnar, raft */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <TiDbPanel />
+      </section>
+
+      {/* traefik — reverse proxy, routers, services, tls */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <TraefikPanel />
       </section>
 
       {/* Posts */}
