@@ -202,6 +202,7 @@ import KarpenterPanel from '@/components/KarpenterPanel';
 import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
+import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1395,8 +1396,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kube audit — events, rules, verbs, resources */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubeAuditPanel />
+        </div>
+
+        {/* kubectl logs — pods, containers, lines, follow */}
+        <div className="mt-4 pb-6">
+          <KubectlLogsPanel />
         </div>
 
         {/* Sign-off */}
