@@ -145,6 +145,7 @@ import DebeziumPanel from '@/components/DebeziumPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import DockerBuildPanel from '@/components/DockerBuildPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1168,8 +1169,13 @@ export default function ContactPage() {
       </section>
 
       {/* dmesg — kernel, boot, drivers, errors */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DmesgPanel />
+      </section>
+
+      {/* docker build — layers, cache, args, output */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DockerBuildPanel />
       </section>
     </div>
   );

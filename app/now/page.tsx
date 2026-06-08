@@ -146,6 +146,7 @@ import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
+import CurlJwtPanel from '@/components/CurlJwtPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1160,8 +1161,13 @@ export default function NowPage() {
         </div>
 
         {/* curl headers — request, response, timing, tls */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CurlHeadersPanel />
+        </div>
+
+        {/* curl jwt — bearer, decode, expiry, claims */}
+        <div className="mt-6 pb-10">
+          <CurlJwtPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

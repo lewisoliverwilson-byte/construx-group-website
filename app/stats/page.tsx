@@ -148,6 +148,7 @@ import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
+import DeltaLakePanel from '@/components/DeltaLakePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1208,8 +1209,13 @@ export default function StatsPage() {
       </div>
 
       {/* debezium — cdc, connectors, transforms, offsets */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DebeziumPanel />
+      </div>
+
+      {/* delta lake — tables, vacuum, history, merge */}
+      <div className="mt-6 pb-10">
+        <DeltaLakePanel />
       </div>
     </div>
   );
