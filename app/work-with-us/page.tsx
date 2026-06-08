@@ -196,6 +196,7 @@ import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
+import JournalctlPanel from '@/components/JournalctlPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1705,8 +1706,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* jfrog xray — vulnerabilities, licenses, components, policies */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <JfrogXrayPanel />
+      </section>
+
+      {/* journalctl — units, logs, priorities, boots */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <JournalctlPanel />
       </section>
 
       {/* CTA */}

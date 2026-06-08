@@ -195,6 +195,7 @@ import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
+import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1472,8 +1473,13 @@ export default function UsesPage() {
         </div>
 
         {/* jaeger trace — spans, services, operations, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JaegerTracePanel />
+        </div>
+
+        {/* jfrog xray — vulnerabilities, licenses, components, policies */}
+        <div className="mt-6 pb-10">
+          <JfrogXrayPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

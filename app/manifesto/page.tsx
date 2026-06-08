@@ -197,6 +197,7 @@ import K6Panel from '@/components/K6Panel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
+import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1365,8 +1366,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kafka connect — connectors, tasks, status, plugins */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KafkaConnectPanel />
+        </div>
+
+        {/* kafka streams — topologies, tasks, threads, stores */}
+        <div className="mt-4 pb-6">
+          <KafkaStreamsPanel />
         </div>
 
         {/* Sign-off */}
