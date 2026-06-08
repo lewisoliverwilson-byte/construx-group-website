@@ -165,6 +165,7 @@ import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
+import GitConfigPanel from '@/components/GitConfigPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1173,8 +1174,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* git blame — authors, commits, lines, dates */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GitBlamePanel />
+        </div>
+
+        {/* git config — globals, locals, remotes, aliases */}
+        <div className="mt-4 pb-6">
+          <GitConfigPanel />
         </div>
 
         {/* Sign-off */}

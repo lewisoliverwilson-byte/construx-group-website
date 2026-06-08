@@ -164,6 +164,7 @@ import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
+import FalcoPanel from '@/components/FalcoPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1513,8 +1514,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* etcd — keys, leases, alarms, compaction */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <EtcdPanel />
+      </section>
+
+      {/* falco — syscalls, rules, alerts, k8s */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <FalcoPanel />
       </section>
 
       {/* CTA */}

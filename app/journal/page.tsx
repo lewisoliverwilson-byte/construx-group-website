@@ -168,6 +168,7 @@ import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
+import FlamegraphPanel from '@/components/FlamegraphPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1129,8 +1130,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* fio — iops, bw, latency, jobs */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <FioPanel />
+      </section>
+
+      {/* flamegraph — cpu, memory, wall, flamegraph */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <FlamegraphPanel />
       </section>
 
       {/* Posts */}

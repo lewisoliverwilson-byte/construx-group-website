@@ -163,6 +163,7 @@ import EslintOutputPanel from '@/components/EslintOutputPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
+import FlaggerPanel from '@/components/FlaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1280,8 +1281,13 @@ export default function UsesPage() {
         </div>
 
         {/* fio — iops, bw, latency, jobs */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FioPanel />
+        </div>
+
+        {/* flagger — canaries, rollouts, analysis, webhooks */}
+        <div className="mt-6 pb-10">
+          <FlaggerPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
