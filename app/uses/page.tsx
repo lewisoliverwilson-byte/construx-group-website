@@ -95,6 +95,7 @@ import RoutingTablePanel from '@/components/RoutingTablePanel';
 import TrivyPanel from '@/components/TrivyPanel';
 import TailscalePanel from '@/components/TailscalePanel';
 import UlimitPanel from '@/components/UlimitPanel';
+import VaultPanel from '@/components/VaultPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -872,8 +873,13 @@ export default function UsesPage() {
         </div>
 
         {/* ulimit — resource limits, nofile, nproc, stack, memlock */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <UlimitPanel />
+        </div>
+
+        {/* vault — secrets engine, kv, pki, aws, policies */}
+        <div className="mt-6 pb-10">
+          <VaultPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
