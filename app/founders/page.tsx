@@ -102,6 +102,7 @@ import ZarfPanel from '@/components/ZarfPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ActPanel from '@/components/ActPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1032,8 +1033,13 @@ export default function FoundersPage() {
         </div>
 
         {/* alertmanager — prometheus alerts, groups, silences, receivers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AlertManagerPanel />
+        </div>
+
+        {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
+        <div className="mt-6 pb-10">
+          <AnsiblePlaybookPanel />
         </div>
 
         {/* CTA */}

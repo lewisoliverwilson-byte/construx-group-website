@@ -101,6 +101,7 @@ import UptimePanel from '@/components/UptimePanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
+import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -904,8 +905,13 @@ export default function ContactPage() {
       </section>
 
       {/* argo rollout — progressive delivery, canary, bluegreen, analysis */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ArgoRolloutPanel />
+      </section>
+
+      {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ArgoWorkflowsPanel />
       </section>
     </div>
   );

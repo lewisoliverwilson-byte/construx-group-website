@@ -102,6 +102,7 @@ import ZitadelPanel from '@/components/ZitadelPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ActPanel from '@/components/ActPanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -896,8 +897,13 @@ export default function NowPage() {
         </div>
 
         {/* act — github actions local runner, jobs, steps, env */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ActPanel />
+        </div>
+
+        {/* argo cd — gitops, sync, apps, rollbacks */}
+        <div className="mt-6 pb-10">
+          <ArgoCDPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
