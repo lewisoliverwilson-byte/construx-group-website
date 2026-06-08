@@ -180,6 +180,7 @@ import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
+import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1609,8 +1610,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GpgFingerprintPanel />
+      </section>
+
+      {/* grafana alloy — pipelines, components, otel, logs */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GrafanaAlloyPanel />
       </section>
 
       {/* CTA */}

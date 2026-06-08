@@ -181,6 +181,7 @@ import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
+import HubblePanel from '@/components/HubblePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1269,8 +1270,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* http archive — requests, timings, waterfall, headers */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <HttpArchivePanel />
+        </div>
+
+        {/* hubble — flows, services, endpoints, policies */}
+        <div className="mt-4 pb-6">
+          <HubblePanel />
         </div>
 
         {/* Sign-off */}
