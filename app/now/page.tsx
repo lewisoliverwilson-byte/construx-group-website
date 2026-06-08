@@ -172,6 +172,7 @@ import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
+import GatlingPanel from '@/components/GatlingPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1316,8 +1317,13 @@ export default function NowPage() {
         </div>
 
         {/* gatekeeper — constraints, violations, audit, policy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GatekeeperPanel />
+        </div>
+
+        {/* gatling — scenarios, users, rps, latency */}
+        <div className="mt-6 pb-10">
+          <GatlingPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

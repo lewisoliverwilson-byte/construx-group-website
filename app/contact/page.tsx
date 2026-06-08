@@ -171,6 +171,7 @@ import GitBlamePanel from '@/components/GitBlamePanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
+import GitWorktreePanel from '@/components/GitWorktreePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1324,8 +1325,13 @@ export default function ContactPage() {
       </section>
 
       {/* git sign — signers, keys, status, fingerprints */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GitSignPanel />
+      </section>
+
+      {/* git worktree — branches, linked, prune, list */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GitWorktreePanel />
       </section>
     </div>
   );

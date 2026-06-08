@@ -174,6 +174,7 @@ import FluxCDPanel from '@/components/FluxCDPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
+import GhCliPanel from '@/components/GhCliPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1364,8 +1365,13 @@ export default function StatsPage() {
       </div>
 
       {/* gh actions run — jobs, steps, status, duration */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GhActionsRunPanel />
+      </div>
+
+      {/* gh cli — repos, prs, issues, releases */}
+      <div className="mt-6 pb-10">
+        <GhCliPanel />
       </div>
     </div>
   );

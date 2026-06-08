@@ -172,6 +172,7 @@ import GoReplayPanel from '@/components/GoReplayPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
+import GrpcCallPanel from '@/components/GrpcCallPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1452,8 +1453,13 @@ export default function FoundersPage() {
         </div>
 
         {/* grafana tempo — traces, spans, services, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaTempoPanel />
+        </div>
+
+        {/* grpc call — method, metadata, request, response */}
+        <div className="mt-6 pb-10">
+          <GrpcCallPanel />
         </div>
 
         {/* CTA */}
