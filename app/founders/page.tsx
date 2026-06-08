@@ -160,6 +160,7 @@ import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FioPanel from '@/components/FioPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
+import FreeMemPanel from '@/components/FreeMemPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1380,8 +1381,13 @@ export default function FoundersPage() {
         </div>
 
         {/* fluentbit — pipelines, inputs, outputs, filters */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FluentBitPanel />
+        </div>
+
+        {/* freemem — rss, heap, external, arraybuffers */}
+        <div className="mt-6 pb-10">
+          <FreeMemPanel />
         </div>
 
         {/* CTA */}
