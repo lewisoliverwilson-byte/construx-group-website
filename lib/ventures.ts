@@ -132,15 +132,15 @@ export const ventures: Venture[] = [
     what:
       'Not curated by a human. Not summarised by a chatbot. Built by a multi-agent pipeline that reads everything, selects what matters, and writes with a specific voice — concise, precise, and never padded. If it happened in AI today and it matters, Construx Daily has it.',
     accent: '#F59E0B',
-    status: 'dev',
-    url: null,
+    status: 'live',
+    url: 'https://d2r34fj0wnx2ua.amplifyapp.com',
     category: 'AI Newsletter',
     geometryIndex: 3,
     stats: [
       { label: 'Cadence', value: 'Daily' },
       { label: 'Pipeline', value: 'Multi-agent' },
       { label: 'Model', value: 'Claude' },
-      { label: 'Status', value: 'In dev' },
+      { label: 'Scope', value: 'Full AI surface' },
     ],
     features: [
       'Fully AI-generated — no human editorial bottleneck',
@@ -162,7 +162,7 @@ export const ventures: Venture[] = [
     what:
       'Construx Studio is the commercial arm of the group. We take on a small number of design and engineering engagements each quarter, building the same quality of product we ship internally. If you\'re building something real and want a team that treats your project like it\'s theirs, this is where you start.',
     accent: '#06B6D4',
-    status: 'dev',
+    status: 'live',
     url: null,
     category: 'Web Studio',
     geometryIndex: 4,
@@ -170,7 +170,7 @@ export const ventures: Venture[] = [
       { label: 'Engagements', value: 'Limited' },
       { label: 'Stack', value: 'Next.js + AI' },
       { label: 'Timeline', value: '2–8 wks' },
-      { label: 'Status', value: 'In dev' },
+      { label: 'Approach', value: 'Fixed scope' },
     ],
     features: [
       'Full-stack design + engineering, no handoff required',
