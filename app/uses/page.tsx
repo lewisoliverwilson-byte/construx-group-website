@@ -240,6 +240,7 @@ import NixFlakePanel from '@/components/NixFlakePanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OllamaPanel from '@/components/OllamaPanel';
+import OPAPanel from '@/components/OPAPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1742,8 +1743,13 @@ export default function UsesPage() {
         </div>
 
         {/* ollama — local llm inference, models, pull, run */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OllamaPanel />
+        </div>
+
+        {/* opa — policy engine, rego, bundles, decisions */}
+        <div className="mt-6 pb-10">
+          <OPAPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -241,6 +241,7 @@ import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1975,8 +1976,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* nftables — firewall rules, chains, sets, counters */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NftablesPanel />
+      </section>
+
+      {/* nginx-access-log — requests, status codes, methods, ips */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NginxAccessLogPanel />
       </section>
 
       {/* CTA */}
