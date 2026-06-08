@@ -106,6 +106,7 @@ import TlsHandshakePanel from '@/components/TlsHandshakePanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import ActPanel from '@/components/ActPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
+import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -757,8 +758,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <AnsiblePlaybookPanel />
+      </section>
+
+      {/* argo events — event-driven workflows, event sources, sensors, triggers */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ArgoEventsPanel />
       </section>
 
       {/* Posts */}

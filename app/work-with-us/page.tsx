@@ -102,6 +102,7 @@ import SysdigPanel from '@/components/SysdigPanel';
 import ActPanel from '@/components/ActPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1141,8 +1142,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <AnsiblePlaybookPanel />
+      </section>
+
+      {/* argo cd — gitops, sync, apps, rollbacks */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ArgoCDPanel />
       </section>
 
       {/* CTA */}

@@ -103,6 +103,7 @@ import SpfDkimPanel from '@/components/SpfDkimPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
+import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -801,8 +802,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* authentik — identity provider, sso, oauth2, audit */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <AuthentikPanel />
+        </div>
+
+        {/* aws bedrock — foundation models, inference, agents */}
+        <div className="mt-4 pb-6">
+          <AwsBedrockPanel />
         </div>
 
         {/* Sign-off */}
