@@ -229,6 +229,7 @@ import LonghornPanel from '@/components/LonghornPanel';
 import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
+import MeilisearchPanel from '@/components/MeilisearchPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1658,8 +1659,13 @@ export default function NowPage() {
         </div>
 
         {/* materialize — streaming sql, sources, views, sinks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MaterializePanel />
+        </div>
+
+        {/* meilisearch — fast search, indexes, documents, facets */}
+        <div className="mt-6 pb-10">
+          <MeilisearchPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

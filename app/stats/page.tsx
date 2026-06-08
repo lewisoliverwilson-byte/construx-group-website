@@ -231,6 +231,7 @@ import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LshwPanel from '@/components/LshwPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
+import MemInfoPanel from '@/components/MemInfoPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1706,8 +1707,13 @@ export default function StatsPage() {
       </div>
 
       {/* meilisearch — fast search, indexes, documents, facets */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MeilisearchPanel />
+      </div>
+
+      {/* meminfo — ram, swap, buffers, cached, available */}
+      <div className="mt-6 pb-10">
+        <MemInfoPanel />
       </div>
     </div>
   );
