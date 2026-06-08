@@ -228,6 +228,7 @@ import LokiPanel from '@/components/LokiPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
+import MaterializePanel from '@/components/MaterializePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1652,8 +1653,13 @@ export default function NowPage() {
         </div>
 
         {/* lsof — open files, file descriptors, sockets, processes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LsofPanel />
+        </div>
+
+        {/* materialize — streaming sql, sources, views, sinks */}
+        <div className="mt-6 pb-10">
+          <MaterializePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

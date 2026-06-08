@@ -227,6 +227,7 @@ import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
+import NATSPanel from '@/components/NATSPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1660,8 +1661,13 @@ export default function ContactPage() {
       </section>
 
       {/* mlflow — experiment tracking, runs, metrics, artifacts */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <MLflowPanel />
+      </section>
+
+      {/* nats — messaging, subjects, streams, consumers */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NATSPanel />
       </section>
     </div>
   );

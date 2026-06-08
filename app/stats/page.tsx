@@ -230,6 +230,7 @@ import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LshwPanel from '@/components/LshwPanel';
+import MeilisearchPanel from '@/components/MeilisearchPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1700,8 +1701,13 @@ export default function StatsPage() {
       </div>
 
       {/* lshw — hardware list, cpu, memory, disk, network */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LshwPanel />
+      </div>
+
+      {/* meilisearch — fast search, indexes, documents, facets */}
+      <div className="mt-6 pb-10">
+        <MeilisearchPanel />
       </div>
     </div>
   );
