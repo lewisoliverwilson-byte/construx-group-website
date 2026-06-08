@@ -126,6 +126,7 @@ import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
+import CniPanel from '@/components/CniPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -939,8 +940,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cluster api — providers, machines, controlplane, kubeconfig */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ClusterApiPanel />
+        </div>
+
+        {/* cni — plugins, ipam, overlay, policy */}
+        <div className="mt-4 pb-6">
+          <CniPanel />
         </div>
 
         {/* Sign-off */}
