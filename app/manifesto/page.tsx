@@ -95,6 +95,7 @@ import NetworkPingPanel from '@/components/NetworkPingPanel';
 import PsAuxPanel from '@/components/PsAuxPanel';
 import RedisPanel from '@/components/RedisPanel';
 import TerraformCloudPanel from '@/components/TerraformCloudPanel';
+import TrufflehogPanel from '@/components/TrufflehogPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -753,8 +754,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* terraform cloud — remote runs, workspaces, drift, state */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <TerraformCloudPanel />
+        </div>
+
+        {/* trufflehog — secret scanning, verified credentials, git history */}
+        <div className="mt-4 pb-6">
+          <TrufflehogPanel />
         </div>
 
         {/* Sign-off */}

@@ -93,6 +93,7 @@ import ProwPanel from '@/components/ProwPanel';
 import RedisCLIPanel from '@/components/RedisCLIPanel';
 import RoutingTablePanel from '@/components/RoutingTablePanel';
 import TrivyPanel from '@/components/TrivyPanel';
+import TailscalePanel from '@/components/TailscalePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -860,8 +861,13 @@ export default function UsesPage() {
         </div>
 
         {/* trivy — container scan, cves, sbom, misconfigs */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TrivyPanel />
+        </div>
+
+        {/* tailscale — zero-config vpn, wireguard mesh, devices, acl */}
+        <div className="mt-6 pb-10">
+          <TailscalePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

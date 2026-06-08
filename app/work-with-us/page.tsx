@@ -94,6 +94,7 @@ import PingPanel from '@/components/PingPanel';
 import PyroscopePanel from '@/components/PyroscopePanel';
 import RedpandaPanel from '@/components/RedpandaPanel';
 import VmstatPanel from '@/components/VmstatPanel';
+import TektonPanel from '@/components/TektonPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1093,8 +1094,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* vmstat — memory, swap, io, cpu, system counters */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <VmstatPanel />
+      </section>
+
+      {/* tekton — k8s-native ci, tasks, pipelines, chains, cosign */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <TektonPanel />
       </section>
 
       {/* CTA */}
