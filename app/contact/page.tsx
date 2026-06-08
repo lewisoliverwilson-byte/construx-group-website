@@ -248,6 +248,7 @@ import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
+import ParcaPanel from '@/components/ParcaPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1786,8 +1787,13 @@ export default function ContactPage() {
       </section>
 
       {/* packer-build — image templates, builders, provisioners, post-processors */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <PackerBuildPanel />
+      </section>
+
+      {/* parca — continuous profiling, flame graphs, cpu, memory */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ParcaPanel />
       </section>
     </div>
   );

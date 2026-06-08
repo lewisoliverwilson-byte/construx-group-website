@@ -249,6 +249,7 @@ import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
+import OtelTracesPanel from '@/components/OtelTracesPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1914,8 +1915,13 @@ export default function FoundersPage() {
         </div>
 
         {/* otel-collector — pipelines, receivers, processors, exporters */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OtelCollectorPanel />
+        </div>
+
+        {/* otel-traces — spans, traceids, latency, service graph */}
+        <div className="mt-6 pb-10">
+          <OtelTracesPanel />
         </div>
 
         {/* CTA */}

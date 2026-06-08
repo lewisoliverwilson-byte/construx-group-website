@@ -251,6 +251,7 @@ import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
+import OpenSearchPanel from '@/components/OpenSearchPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1826,8 +1827,13 @@ export default function StatsPage() {
       </div>
 
       {/* openfga — fine-grained authorization, relationships, checks */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <OpenFGAPanel />
+      </div>
+
+      {/* opensearch — full-text search, indices, queries, aggregations */}
+      <div className="mt-6 pb-10">
+        <OpenSearchPanel />
       </div>
     </div>
   );

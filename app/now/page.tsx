@@ -249,6 +249,7 @@ import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
+import OPAPanel from '@/components/OPAPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1778,8 +1779,13 @@ export default function NowPage() {
         </div>
 
         {/* ollama — local llm inference, models, pull, run */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OllamaPanel />
+        </div>
+
+        {/* opa — policy engine, rego, bundles, decisions */}
+        <div className="mt-6 pb-10">
+          <OPAPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
