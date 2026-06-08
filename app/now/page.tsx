@@ -120,6 +120,7 @@ import BrewListPanel from '@/components/BrewListPanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1004,8 +1005,13 @@ export default function NowPage() {
         </div>
 
         {/* bun build — bundler, transpile, minify, treeshake */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BunBuildPanel />
+        </div>
+
+        {/* caddy access log — requests, status, latency, bytes */}
+        <div className="mt-6 pb-10">
+          <CaddyAccessPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

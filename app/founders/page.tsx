@@ -120,6 +120,7 @@ import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
+import CertInfoPanel from '@/components/CertInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1140,8 +1141,13 @@ export default function FoundersPage() {
         </div>
 
         {/* ceph cluster — osds, pools, pg, replication */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CephPanel />
+        </div>
+
+        {/* tls certificate info — san, validity, issuer, chain */}
+        <div className="mt-6 pb-10">
+          <CertInfoPanel />
         </div>
 
         {/* CTA */}

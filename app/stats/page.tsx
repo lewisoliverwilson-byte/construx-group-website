@@ -122,6 +122,7 @@ import BunBuildPanel from '@/components/BunBuildPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
+import CertInfoPanel from '@/components/CertInfoPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1052,8 +1053,13 @@ export default function StatsPage() {
       </div>
 
       {/* caddy reverse proxy — routes, tls, upstreams, logs */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CaddyPanel />
+      </div>
+
+      {/* tls certificate info — san, validity, issuer, chain */}
+      <div className="mt-6 pb-10">
+        <CertInfoPanel />
       </div>
     </div>
   );

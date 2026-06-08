@@ -119,6 +119,7 @@ import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
+import CgroupsPanel from '@/components/CgroupsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1012,8 +1013,13 @@ export default function ContactPage() {
       </section>
 
       {/* cert manager — issuers, certificates, renewals, status */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CertManagerPanel />
+      </section>
+
+      {/* cgroups — cpu, memory, blkio, hierarchy */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CgroupsPanel />
       </section>
     </div>
   );
