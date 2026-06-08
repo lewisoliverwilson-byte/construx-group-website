@@ -106,6 +106,7 @@ import AlertManagerPanel from '@/components/AlertManagerPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
+import AtlasPanel from '@/components/AtlasPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -956,8 +957,13 @@ export default function StatsPage() {
       </div>
 
       {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ArgoWorkflowsPanel />
+      </div>
+
+      {/* atlas database schema management — migrations, drift, ci */}
+      <div className="mt-6 pb-10">
+        <AtlasPanel />
       </div>
     </div>
   );
