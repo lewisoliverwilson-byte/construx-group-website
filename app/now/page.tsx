@@ -180,6 +180,7 @@ import GiteaPanel from '@/components/GiteaPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
+import GoReplayPanel from '@/components/GoReplayPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1364,8 +1365,13 @@ export default function NowPage() {
         </div>
 
         {/* git sign — signers, keys, status, fingerprints */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitSignPanel />
+        </div>
+
+        {/* goreplay — traffic, filters, replays, middleware */}
+        <div className="mt-6 pb-10">
+          <GoReplayPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

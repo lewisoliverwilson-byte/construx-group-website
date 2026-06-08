@@ -182,6 +182,7 @@ import GiteaPanel from '@/components/GiteaPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
+import GitWorktreePanel from '@/components/GitWorktreePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1412,8 +1413,13 @@ export default function StatsPage() {
       </div>
 
       {/* git sign — signers, keys, status, fingerprints */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GitSignPanel />
+      </div>
+
+      {/* git worktree — trees, branches, checkouts, paths */}
+      <div className="mt-6 pb-10">
+        <GitWorktreePanel />
       </div>
     </div>
   );

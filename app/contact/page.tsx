@@ -179,6 +179,7 @@ import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrypePanel from '@/components/GrypePanel';
+import GVisorPanel from '@/components/GVisorPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1372,8 +1373,13 @@ export default function ContactPage() {
       </section>
 
       {/* grype — vulnerabilities, packages, severity, cvss */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GrypePanel />
+      </section>
+
+      {/* gvisor — syscalls, sandbox, containers, security */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GVisorPanel />
       </section>
     </div>
   );
