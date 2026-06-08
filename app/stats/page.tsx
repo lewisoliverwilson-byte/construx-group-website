@@ -245,6 +245,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
+import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1790,8 +1791,13 @@ export default function StatsPage() {
       </div>
 
       {/* nmap-scan — port scanning, service detection, os fingerprint */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NmapScanPanel />
+      </div>
+
+      {/* npm-global — global packages, versions, install, link */}
+      <div className="mt-6 pb-10">
+        <NpmGlobalPanel />
       </div>
     </div>
   );

@@ -243,6 +243,7 @@ import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
+import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1878,8 +1879,13 @@ export default function FoundersPage() {
         </div>
 
         {/* opencost — kubernetes cost allocation, namespaces, workloads */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenCostPanel />
+        </div>
+
+        {/* openfga-audit — authorization model, tuples, check, expand */}
+        <div className="mt-6 pb-10">
+          <OpenFgaAuditPanel />
         </div>
 
         {/* CTA */}
