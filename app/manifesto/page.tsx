@@ -106,6 +106,7 @@ import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BazelPanel from '@/components/BazelPanel';
+import BenthosPanel from '@/components/BenthosPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -819,8 +820,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* bazel hermetic build — remote cache, targets, action cache stats */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BazelPanel />
+        </div>
+
+        {/* benthos stream processor — pipelines, bloblang, fanout */}
+        <div className="mt-4 pb-6">
+          <BenthosPanel />
         </div>
 
         {/* Sign-off */}

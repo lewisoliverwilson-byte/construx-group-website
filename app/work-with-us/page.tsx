@@ -105,6 +105,7 @@ import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
+import AtlasPanel from '@/components/AtlasPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1159,8 +1160,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ArgoWorkflowsPanel />
+      </section>
+
+      {/* atlas database schema management — migrations, drift, ci */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <AtlasPanel />
       </section>
 
       {/* CTA */}

@@ -104,6 +104,7 @@ import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
+import AtlasPanel from '@/components/AtlasPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -926,8 +927,13 @@ export default function UsesPage() {
         </div>
 
         {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoWorkflowsPanel />
+        </div>
+
+        {/* atlas database schema management — migrations, drift, ci */}
+        <div className="mt-6 pb-10">
+          <AtlasPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
