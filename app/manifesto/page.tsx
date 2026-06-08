@@ -249,6 +249,7 @@ import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
+import PgBouncerPanel from '@/components/PgBouncerPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1677,8 +1678,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* perf-stat — hardware counters, instructions, cycles, cache */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PerfStatPanel />
+        </div>
+
+        {/* pgbouncer — connection pooling, pool modes, clients, servers */}
+        <div className="mt-4 pb-6">
+          <PgBouncerPanel />
         </div>
 
         {/* Sign-off */}

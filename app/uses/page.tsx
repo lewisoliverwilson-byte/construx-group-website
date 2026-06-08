@@ -247,6 +247,7 @@ import OpensslPanel from '@/components/OpensslPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
+import PackerBuildPanel from '@/components/PackerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1784,8 +1785,13 @@ export default function UsesPage() {
         </div>
 
         {/* otel-traces — spans, traceids, latency, service graph */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OtelTracesPanel />
+        </div>
+
+        {/* packer-build — image templates, builders, provisioners, post-processors */}
+        <div className="mt-6 pb-10">
+          <PackerBuildPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
