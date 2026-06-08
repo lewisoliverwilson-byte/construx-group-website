@@ -188,6 +188,7 @@ import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
+import JournalWcPanel from '@/components/JournalWcPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1548,8 +1549,13 @@ export default function FoundersPage() {
         </div>
 
         {/* journalctl — units, logs, priorities, boots */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JournalctlPanel />
+        </div>
+
+        {/* journal wc — words, lines, bytes, messages */}
+        <div className="mt-6 pb-10">
+          <JournalWcPanel />
         </div>
 
         {/* CTA */}

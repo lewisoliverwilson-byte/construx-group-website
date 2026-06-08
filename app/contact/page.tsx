@@ -187,6 +187,7 @@ import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
+import IostatPanel from '@/components/IostatPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1420,8 +1421,13 @@ export default function ContactPage() {
       </section>
 
       {/* influxdb — measurements, tags, fields, retention */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <InfluxDbPanel />
+      </section>
+
+      {/* iostat — disks, throughput, iops, utilization */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <IostatPanel />
       </section>
     </div>
   );

@@ -188,6 +188,7 @@ import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
+import HtopPanel from '@/components/HtopPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1412,8 +1413,13 @@ export default function NowPage() {
         </div>
 
         {/* harbor — registries, artifacts, scans, replication */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HarborPanel />
+        </div>
+
+        {/* htop — processes, cpu, memory, load */}
+        <div className="mt-6 pb-10">
+          <HtopPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
