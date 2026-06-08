@@ -239,6 +239,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
+import OllamaPanel from '@/components/OllamaPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1736,8 +1737,13 @@ export default function UsesPage() {
         </div>
 
         {/* nvidia-smi — gpu stats, memory, utilization, processes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NvidiaSmiPanel />
+        </div>
+
+        {/* ollama — local llm inference, models, pull, run */}
+        <div className="mt-6 pb-10">
+          <OllamaPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

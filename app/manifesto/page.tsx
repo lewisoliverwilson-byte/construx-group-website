@@ -241,6 +241,7 @@ import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OPAPanel from '@/components/OPAPanel';
+import OpenCostPanel from '@/components/OpenCostPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1629,8 +1630,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* opa — policy engine, rego, bundles, decisions */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OPAPanel />
+        </div>
+
+        {/* opencost — kubernetes cost allocation, namespaces, workloads */}
+        <div className="mt-4 pb-6">
+          <OpenCostPanel />
         </div>
 
         {/* Sign-off */}
