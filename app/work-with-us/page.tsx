@@ -140,6 +140,7 @@ import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CrontabPanel from '@/components/CrontabPanel';
+import CrossplanePanel from '@/components/CrossplanePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1369,8 +1370,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* crontab — schedule, jobs, logs, next-run */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CrontabPanel />
+      </section>
+
+      {/* crossplane — providers, compositions, claims, xrds */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CrossplanePanel />
       </section>
 
       {/* CTA */}
