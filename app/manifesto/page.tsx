@@ -166,6 +166,7 @@ import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import GiteaPanel from '@/components/GiteaPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1179,8 +1180,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* git config — globals, locals, remotes, aliases */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GitConfigPanel />
+        </div>
+
+        {/* gitea — repos, issues, prs, org */}
+        <div className="mt-4 pb-6">
+          <GiteaPanel />
         </div>
 
         {/* Sign-off */}

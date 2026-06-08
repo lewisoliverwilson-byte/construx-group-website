@@ -169,6 +169,7 @@ import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
+import FluxCDPanel from '@/components/FluxCDPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1135,8 +1136,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* flamegraph — cpu, memory, wall, flamegraph */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <FlamegraphPanel />
+      </section>
+
+      {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <FluxCDPanel />
       </section>
 
       {/* Posts */}
