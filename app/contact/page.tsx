@@ -188,6 +188,7 @@ import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IostatPanel from '@/components/IostatPanel';
+import IpAddrPanel from '@/components/IpAddrPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1426,8 +1427,13 @@ export default function ContactPage() {
       </section>
 
       {/* iostat — disks, throughput, iops, utilization */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <IostatPanel />
+      </section>
+
+      {/* ip addr — addresses, interfaces, prefixes, scope */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <IpAddrPanel />
       </section>
     </div>
   );

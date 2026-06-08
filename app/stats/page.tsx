@@ -191,6 +191,7 @@ import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GrypePanel from '@/components/GrypePanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
+import HelmChartPanel from '@/components/HelmChartPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1466,8 +1467,13 @@ export default function StatsPage() {
       </div>
 
       {/* harbor — registries, artifacts, scans, replication */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <HarborPanel />
+      </div>
+
+      {/* helm chart — releases, values, templates, hooks */}
+      <div className="mt-6 pb-10">
+        <HelmChartPanel />
       </div>
     </div>
   );
