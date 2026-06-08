@@ -133,6 +133,7 @@ import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -981,8 +982,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* curl headers — request, response, timing, tls */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CurlHeadersPanel />
+        </div>
+
+        {/* curl verbose — trace, redirect, ssl, timing */}
+        <div className="mt-4 pb-6">
+          <CurlVerbosePanel />
         </div>
 
         {/* Sign-off */}

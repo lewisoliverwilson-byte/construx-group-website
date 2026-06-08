@@ -136,6 +136,7 @@ import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import CniPanel from '@/components/CniPanel';
+import CockroachDbPanel from '@/components/CockroachDbPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -937,8 +938,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* cni — plugins, ipam, overlay, policy */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <CniPanel />
+      </section>
+
+      {/* cockroachdb — distributed sql, replication, zones, backup */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <CockroachDbPanel />
       </section>
 
       {/* Posts */}

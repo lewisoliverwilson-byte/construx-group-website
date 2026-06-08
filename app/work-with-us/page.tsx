@@ -132,6 +132,7 @@ import ClickHousePanel from '@/components/ClickHousePanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1321,8 +1322,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cloudnative pg — clusters, backups, replication, switchover */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CloudNativePGPanel />
+      </section>
+
+      {/* cluster api — providers, machinedeployments, kubeadm, lifecycle */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ClusterApiPanel />
       </section>
 
       {/* CTA */}
