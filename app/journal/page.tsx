@@ -191,6 +191,7 @@ import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HubblePanel from '@/components/HubblePanel';
+import HyperfinePanel from '@/components/HyperfinePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1267,8 +1268,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* hubble — flows, services, endpoints, policies */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <HubblePanel />
+      </section>
+
+      {/* hyperfine — benchmarks, commands, runs, statistics */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <HyperfinePanel />
       </section>
 
       {/* Posts */}

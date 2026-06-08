@@ -187,6 +187,7 @@ import GVisorPanel from '@/components/GVisorPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
+import HubblePanel from '@/components/HubblePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1651,8 +1652,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* http bench — requests, rps, latency, errors */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <HttpBenchPanel />
+      </section>
+
+      {/* hubble — flows, services, endpoints, policies */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <HubblePanel />
       </section>
 
       {/* CTA */}

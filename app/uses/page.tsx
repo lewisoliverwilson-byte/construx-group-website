@@ -186,6 +186,7 @@ import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrypePanel from '@/components/GrypePanel';
 import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
+import HttpArchivePanel from '@/components/HttpArchivePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1418,8 +1419,13 @@ export default function UsesPage() {
         </div>
 
         {/* helm chart — releases, values, templates, hooks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HelmChartPanel />
+        </div>
+
+        {/* http archive — requests, timings, waterfall, headers */}
+        <div className="mt-6 pb-10">
+          <HttpArchivePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
