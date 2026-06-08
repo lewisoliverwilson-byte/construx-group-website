@@ -184,6 +184,7 @@ import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
+import GrpcCallPanel from '@/components/GrpcCallPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1388,8 +1389,13 @@ export default function NowPage() {
         </div>
 
         {/* grafana faro — errors, sessions, vitals, frontend */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaFaroPanel />
+        </div>
+
+        {/* grpc call — methods, payloads, status, latency */}
+        <div className="mt-6 pb-10">
+          <GrpcCallPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

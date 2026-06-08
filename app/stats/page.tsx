@@ -186,6 +186,7 @@ import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
+import GrpcCallPanel from '@/components/GrpcCallPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1436,8 +1437,13 @@ export default function StatsPage() {
       </div>
 
       {/* grafana oncall — rotations, alerts, escalations, silences */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GrafanaOnCallPanel />
+      </div>
+
+      {/* grpc call — methods, payloads, status, latency */}
+      <div className="mt-6 pb-10">
+        <GrpcCallPanel />
       </div>
     </div>
   );

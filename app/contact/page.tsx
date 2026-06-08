@@ -183,6 +183,7 @@ import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
+import HubblePanel from '@/components/HubblePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1396,8 +1397,13 @@ export default function ContactPage() {
       </section>
 
       {/* htop — processes, cpu, memory, load */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <HtopPanel />
+      </section>
+
+      {/* hubble — flows, services, endpoints, policies */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HubblePanel />
       </section>
     </div>
   );
