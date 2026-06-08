@@ -179,6 +179,7 @@ import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1394,8 +1395,13 @@ export default function StatsPage() {
       </div>
 
       {/* gitea — repos, issues, prs, org */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GiteaPanel />
+      </div>
+
+      {/* git graph — commits, branches, merges, tags */}
+      <div className="mt-6 pb-10">
+        <GitGraphPanel />
       </div>
     </div>
   );

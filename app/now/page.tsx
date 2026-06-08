@@ -177,6 +177,7 @@ import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1346,8 +1347,13 @@ export default function NowPage() {
         </div>
 
         {/* gitea — repos, issues, prs, org */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GiteaPanel />
+        </div>
+
+        {/* git graph — commits, branches, merges, tags */}
+        <div className="mt-6 pb-10">
+          <GitGraphPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
