@@ -230,6 +230,7 @@ import MinIOPanel from '@/components/MinIOPanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
+import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1682,8 +1683,13 @@ export default function UsesPage() {
         </div>
 
         {/* nats — messaging, subjects, streams, consumers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NATSPanel />
+        </div>
+
+        {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
+        <div className="mt-6 pb-10">
+          <NatsPubSubPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

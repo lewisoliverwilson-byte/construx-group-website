@@ -231,6 +231,7 @@ import LsofPanel from '@/components/LsofPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
+import MimirPanel from '@/components/MimirPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1915,8 +1916,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* methodology-diff — approach comparison, old vs new, decision log */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <MethodologyDiffPanel />
+      </section>
+
+      {/* mimir — thanos-compatible, blocks, compactor, store-gateway */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <MimirPanel />
       </section>
 
       {/* CTA */}

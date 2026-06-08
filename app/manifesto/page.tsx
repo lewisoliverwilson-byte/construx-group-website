@@ -232,6 +232,7 @@ import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
+import NftablesPanel from '@/components/NftablesPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1575,8 +1576,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* netstat — connections, listening ports, routing, interfaces */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NetstatPanel />
+        </div>
+
+        {/* nftables — firewall rules, chains, sets, expressions */}
+        <div className="mt-4 pb-6">
+          <NftablesPanel />
         </div>
 
         {/* Sign-off */}

@@ -235,6 +235,7 @@ import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NetstatPanel from '@/components/NetstatPanel';
+import NetworkPingPanel from '@/components/NetworkPingPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1531,8 +1532,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* netstat — connections, listening ports, routing, interfaces */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NetstatPanel />
+      </section>
+
+      {/* network-ping — icmp, rtt, packet loss, host reachability */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NetworkPingPanel />
       </section>
 
       {/* Posts */}
