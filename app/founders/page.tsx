@@ -117,6 +117,7 @@ import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
+import CargoPanel from '@/components/CargoPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1122,8 +1123,13 @@ export default function FoundersPage() {
         </div>
 
         {/* caddy access log — requests, status, latency, bytes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CaddyAccessPanel />
+        </div>
+
+        {/* cargo release build — compile, link, test, artifact */}
+        <div className="mt-6 pb-10">
+          <CargoPanel />
         </div>
 
         {/* CTA */}

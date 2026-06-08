@@ -116,6 +116,7 @@ import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CargoPanel from '@/components/CargoPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -994,8 +995,13 @@ export default function ContactPage() {
       </section>
 
       {/* cargo release build — compile, link, test, artifact */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CargoPanel />
+      </section>
+
+      {/* cassandra query — keyspace, table, cql, latency */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CassandraPanel />
       </section>
     </div>
   );

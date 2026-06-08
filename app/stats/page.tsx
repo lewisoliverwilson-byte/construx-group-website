@@ -119,6 +119,7 @@ import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
+import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1034,8 +1035,13 @@ export default function StatsPage() {
       </div>
 
       {/* bun build — bundler, transpile, minify, treeshake */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BunBuildPanel />
+      </div>
+
+      {/* bundle analysis — size, chunks, treeshake, deps */}
+      <div className="mt-6 pb-10">
+        <BundleAnalysisPanel />
       </div>
     </div>
   );
