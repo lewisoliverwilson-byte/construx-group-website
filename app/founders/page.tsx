@@ -223,6 +223,7 @@ import MaterializePanel from '@/components/MaterializePanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
+import MisePanel from '@/components/MisePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1758,8 +1759,13 @@ export default function FoundersPage() {
         </div>
 
         {/* minio — s3-compatible object storage, buckets, objects, policies */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MinIOPanel />
+        </div>
+
+        {/* mise — tool version management, tools, versions, envs */}
+        <div className="mt-6 pb-10">
+          <MisePanel />
         </div>
 
         {/* CTA */}

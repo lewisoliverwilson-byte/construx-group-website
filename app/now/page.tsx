@@ -223,6 +223,7 @@ import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
+import LitestreamPanel from '@/components/LitestreamPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1622,8 +1623,13 @@ export default function NowPage() {
         </div>
 
         {/* linkerd — service mesh, proxies, traffic, retries */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LinkerdPanel />
+        </div>
+
+        {/* litestream — sqlite replication, wal, s3, snapshots */}
+        <div className="mt-6 pb-10">
+          <LitestreamPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

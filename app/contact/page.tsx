@@ -222,6 +222,7 @@ import LonghornPanel from '@/components/LonghornPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
+import MemInfoPanel from '@/components/MemInfoPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1630,8 +1631,13 @@ export default function ContactPage() {
       </section>
 
       {/* meilisearch — index, search, filters, facets */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <MeilisearchPanel />
+      </section>
+
+      {/* meminfo — ram, swap, buffers, cached, available */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <MemInfoPanel />
       </section>
     </div>
   );
