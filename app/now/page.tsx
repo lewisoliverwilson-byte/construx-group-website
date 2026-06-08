@@ -132,6 +132,7 @@ import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
+import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1076,8 +1077,13 @@ export default function NowPage() {
         </div>
 
         {/* clickhouse migration — schema, versions, apply, rollback */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickhouseMigrationPanel />
+        </div>
+
+        {/* clickhouse mv — materialized views, populate, refresh, target */}
+        <div className="mt-6 pb-10">
+          <ClickhouseMvPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

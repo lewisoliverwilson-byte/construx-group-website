@@ -134,6 +134,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
+import CockroachDbPanel from '@/components/CockroachDbPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1124,8 +1125,13 @@ export default function StatsPage() {
       </div>
 
       {/* cni — plugins, ipam, overlay, policy */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CniPanel />
+      </div>
+
+      {/* cockroachdb — distributed sql, replication, zones, backup */}
+      <div className="mt-6 pb-10">
+        <CockroachDbPanel />
       </div>
     </div>
   );

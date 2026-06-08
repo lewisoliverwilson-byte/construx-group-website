@@ -131,6 +131,7 @@ import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import CortexPanel from '@/components/CortexPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1084,8 +1085,13 @@ export default function ContactPage() {
       </section>
 
       {/* containerd — images, containers, namespaces, snapshots */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ContainerdPanel />
+      </section>
+
+      {/* cortex — query engine, ruler, compactor, store-gateway */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CortexPanel />
       </section>
     </div>
   );
