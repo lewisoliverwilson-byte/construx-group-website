@@ -206,6 +206,7 @@ import K3sPanel from '@/components/K3sPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6Panel from '@/components/K6Panel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
+import K8sEventsPanel from '@/components/K8sEventsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1520,8 +1521,13 @@ export default function NowPage() {
         </div>
 
         {/* k6 summary — results, trends, checks, rates */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K6SummaryPanel />
+        </div>
+
+        {/* k8s events — reasons, objects, counts, timestamps */}
+        <div className="mt-6 pb-10">
+          <K8sEventsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

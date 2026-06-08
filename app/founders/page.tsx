@@ -206,6 +206,7 @@ import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
+import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1656,8 +1657,13 @@ export default function FoundersPage() {
         </div>
 
         {/* kube proxy — iptables, ipvs, endpoints, nodeports */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeProxyPanel />
+        </div>
+
+        {/* kubernetes gateway — routes, backends, listeners, status */}
+        <div className="mt-6 pb-10">
+          <KubernetesGatewayPanel />
         </div>
 
         {/* CTA */}

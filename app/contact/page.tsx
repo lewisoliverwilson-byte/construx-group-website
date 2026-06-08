@@ -205,6 +205,7 @@ import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
+import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1528,8 +1529,13 @@ export default function ContactPage() {
       </section>
 
       {/* kubebench — checks, failures, warnings, remediation */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KubebenchPanel />
+      </section>
+
+      {/* kubectl pods — name, ready, status, restarts, age */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubectlPodsPanel />
       </section>
     </div>
   );

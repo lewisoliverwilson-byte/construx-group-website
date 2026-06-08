@@ -208,6 +208,7 @@ import K3sPanel from '@/components/K3sPanel';
 import K6Panel from '@/components/K6Panel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
+import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1568,8 +1569,13 @@ export default function StatsPage() {
       </div>
 
       {/* k9s — namespaces, pods, deployments, services */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <K9sPanel />
+      </div>
+
+      {/* kafka connect — connectors, tasks, status, plugins */}
+      <div className="mt-6 pb-10">
+        <KafkaConnectPanel />
       </div>
     </div>
   );
