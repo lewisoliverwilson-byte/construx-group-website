@@ -115,6 +115,7 @@ import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
+import BoundaryPanel from '@/components/BoundaryPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -974,8 +975,13 @@ export default function NowPage() {
         </div>
 
         {/* biome js toolchain — lint, format, check, ci */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BiomePanel />
+        </div>
+
+        {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
+        <div className="mt-6 pb-10">
+          <BoundaryPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -114,6 +114,7 @@ import BpftracePanel from '@/components/BpftracePanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
+import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -982,8 +983,13 @@ export default function ContactPage() {
       </section>
 
       {/* bun build — bundler, transpile, minify, treeshake */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BunBuildPanel />
+      </section>
+
+      {/* bundle analysis — chunks, modules, size, tree */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BundleAnalysisPanel />
       </section>
     </div>
   );

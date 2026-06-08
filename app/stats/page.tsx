@@ -117,6 +117,7 @@ import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BpftracePanel from '@/components/BpftracePanel';
+import BrewListPanel from '@/components/BrewListPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1022,8 +1023,13 @@ export default function StatsPage() {
       </div>
 
       {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BpftracePanel />
+      </div>
+
+      {/* brew list — installed formulae, casks, versions */}
+      <div className="mt-6 pb-10">
+        <BrewListPanel />
       </div>
     </div>
   );

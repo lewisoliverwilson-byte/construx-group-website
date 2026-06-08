@@ -115,6 +115,7 @@ import BpftracePanel from '@/components/BpftracePanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
+import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1110,8 +1111,13 @@ export default function FoundersPage() {
         </div>
 
         {/* build output — next.js compilation, chunks, sizes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BuildOutputPanel />
+        </div>
+
+        {/* bundle analysis — chunks, modules, size, tree */}
+        <div className="mt-6 pb-10">
+          <BundleAnalysisPanel />
         </div>
 
         {/* CTA */}
