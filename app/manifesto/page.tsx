@@ -194,6 +194,7 @@ import JournaldPanel from '@/components/JournaldPanel';
 import JournalWcPanel from '@/components/JournalWcPanel';
 import K3sPanel from '@/components/K3sPanel';
 import K6Panel from '@/components/K6Panel';
+import K6SummaryPanel from '@/components/K6SummaryPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1347,8 +1348,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* k6 — scenarios, checks, thresholds, vus */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <K6Panel />
+        </div>
+
+        {/* k6 summary — passes, fails, rate, percentiles */}
+        <div className="mt-4 pb-6">
+          <K6SummaryPanel />
         </div>
 
         {/* Sign-off */}

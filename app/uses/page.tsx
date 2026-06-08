@@ -192,6 +192,7 @@ import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import IostatPanel from '@/components/IostatPanel';
+import IpAddrPanel from '@/components/IpAddrPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1454,8 +1455,13 @@ export default function UsesPage() {
         </div>
 
         {/* iostat — disks, throughput, iops, utilization */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IostatPanel />
+        </div>
+
+        {/* ip addr — interfaces, addresses, states, flags */}
+        <div className="mt-6 pb-10">
+          <IpAddrPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
