@@ -168,6 +168,7 @@ import FluentBitPanel from '@/components/FluentBitPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatlingPanel from '@/components/GatlingPanel';
+import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1310,8 +1311,13 @@ export default function UsesPage() {
         </div>
 
         {/* gatling — scenarios, users, rps, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GatlingPanel />
+        </div>
+
+        {/* gh actions run — jobs, steps, status, duration */}
+        <div className="mt-6 pb-10">
+          <GhActionsRunPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

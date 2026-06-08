@@ -169,6 +169,7 @@ import FioPanel from '@/components/FioPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
+import FluxCDPanel from '@/components/FluxCDPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1543,8 +1544,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* fluentbit — pipelines, inputs, outputs, filters */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <FluentBitPanel />
+      </section>
+
+      {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <FluxCDPanel />
       </section>
 
       {/* CTA */}

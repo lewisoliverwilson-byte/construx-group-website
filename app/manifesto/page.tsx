@@ -170,6 +170,7 @@ import GiteaPanel from '@/components/GiteaPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
+import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1203,8 +1204,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* git worktree — branches, linked, prune, list */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GitWorktreePanel />
+        </div>
+
+        {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
+        <div className="mt-4 pb-6">
+          <GpgFingerprintPanel />
         </div>
 
         {/* Sign-off */}

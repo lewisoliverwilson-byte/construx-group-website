@@ -173,6 +173,7 @@ import FluxCDPanel from '@/components/FluxCDPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GatlingPanel from '@/components/GatlingPanel';
+import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1159,8 +1160,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* gatling — scenarios, users, rps, latency */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GatlingPanel />
+      </section>
+
+      {/* gh actions run — jobs, steps, status, duration */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GhActionsRunPanel />
       </section>
 
       {/* Posts */}
