@@ -155,6 +155,7 @@ import DuckdbPanel from '@/components/DuckdbPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
+import EtcdPanel from '@/components/EtcdPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1350,8 +1351,13 @@ export default function FoundersPage() {
         </div>
 
         {/* eslint output — rules, warnings, errors, fixable */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EslintOutputPanel />
+        </div>
+
+        {/* etcd — keys, leases, members, watches */}
+        <div className="mt-6 pb-10">
+          <EtcdPanel />
         </div>
 
         {/* CTA */}

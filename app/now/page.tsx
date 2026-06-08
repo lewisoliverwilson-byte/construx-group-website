@@ -155,6 +155,7 @@ import DigPanel from '@/components/DigPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
+import DockerComposePanel from '@/components/DockerComposePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1214,8 +1215,13 @@ export default function NowPage() {
         </div>
 
         {/* docker build — layers, cache, args, output */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DockerBuildPanel />
+        </div>
+
+        {/* docker compose — services, networks, volumes, health */}
+        <div className="mt-6 pb-10">
+          <DockerComposePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
