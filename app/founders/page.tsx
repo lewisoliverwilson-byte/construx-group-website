@@ -233,6 +233,7 @@ import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1818,8 +1819,13 @@ export default function FoundersPage() {
         </div>
 
         {/* nftables — firewall rules, chains, sets, expressions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NftablesPanel />
+        </div>
+
+        {/* nginx-access-log — requests, status codes, methods, ips */}
+        <div className="mt-6 pb-10">
+          <NginxAccessLogPanel />
         </div>
 
         {/* CTA */}

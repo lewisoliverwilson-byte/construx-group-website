@@ -233,6 +233,7 @@ import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
+import MtrPanel from '@/components/MtrPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1682,8 +1683,13 @@ export default function NowPage() {
         </div>
 
         {/* minio — s3-compatible object storage, buckets, objects, policies */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MinIOPanel />
+        </div>
+
+        {/* mtr — network diagnostics, hops, latency, packet loss */}
+        <div className="mt-6 pb-10">
+          <MtrPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -232,6 +232,7 @@ import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
+import NftablesPanel from '@/components/NftablesPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1690,8 +1691,13 @@ export default function ContactPage() {
       </section>
 
       {/* network-ping — icmp, rtt, packet loss, host reachability */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NetworkPingPanel />
+      </section>
+
+      {/* nftables — firewall rules, chains, sets, expressions */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NftablesPanel />
       </section>
     </div>
   );

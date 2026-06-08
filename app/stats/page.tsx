@@ -235,6 +235,7 @@ import MemInfoPanel from '@/components/MemInfoPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
+import MLflowPanel from '@/components/MLflowPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1730,8 +1731,13 @@ export default function StatsPage() {
       </div>
 
       {/* mise — runtime version manager, tools, env, tasks */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MisePanel />
+      </div>
+
+      {/* mlflow — experiment tracking, runs, metrics, artifacts */}
+      <div className="mt-6 pb-10">
+        <MLflowPanel />
       </div>
     </div>
   );
