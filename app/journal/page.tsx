@@ -157,6 +157,7 @@ import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
+import DronePanel from '@/components/DronePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1063,8 +1064,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* dragonfly — shards, replication, keyspaces, memory */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DragonflyPanel />
+      </section>
+
+      {/* drone — pipelines, steps, triggers, secrets */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DronePanel />
       </section>
 
       {/* Posts */}

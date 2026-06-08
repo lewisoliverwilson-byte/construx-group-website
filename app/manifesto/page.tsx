@@ -154,6 +154,7 @@ import EarthlyPanel from '@/components/EarthlyPanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
+import EtcdPanel from '@/components/EtcdPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1107,8 +1108,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* env — variables, secrets, profiles, dotenv */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <EnvPanel />
+        </div>
+
+        {/* etcd — keys, leases, members, watches */}
+        <div className="mt-4 pb-6">
+          <EtcdPanel />
         </div>
 
         {/* Sign-off */}
