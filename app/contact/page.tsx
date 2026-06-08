@@ -168,6 +168,7 @@ import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1306,8 +1307,13 @@ export default function ContactPage() {
       </section>
 
       {/* git blame — authors, commits, lines, dates */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GitBlamePanel />
+      </section>
+
+      {/* git graph — commits, branches, merges, tags */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GitGraphPanel />
       </section>
     </div>
   );
