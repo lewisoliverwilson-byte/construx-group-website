@@ -202,6 +202,7 @@ import IstioPanel from '@/components/IstioPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournaldPanel from '@/components/JournaldPanel';
+import K3sPanel from '@/components/K3sPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1496,8 +1497,13 @@ export default function NowPage() {
         </div>
 
         {/* journald — fields, units, boots, priorities */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <JournaldPanel />
+        </div>
+
+        {/* k3s — clusters, nodes, pods, services */}
+        <div className="mt-6 pb-10">
+          <K3sPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
