@@ -150,6 +150,7 @@ import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbtPanel from '@/components/DbtPanel';
+import DeltaLakePanel from '@/components/DeltaLakePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1021,8 +1022,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* dbt — models, tests, sources, lineage */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <DbtPanel />
+      </section>
+
+      {/* delta lake — tables, vacuum, history, merge */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <DeltaLakePanel />
       </section>
 
       {/* Posts */}

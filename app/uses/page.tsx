@@ -145,6 +145,7 @@ import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1172,8 +1173,13 @@ export default function UsesPage() {
         </div>
 
         {/* curl jwt — bearer, decode, expiry, claims */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CurlJwtPanel />
+        </div>
+
+        {/* curl verbose — headers, timings, tls, redirect */}
+        <div className="mt-6 pb-10">
+          <CurlVerbosePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
