@@ -144,6 +144,7 @@ import CrontabPanel from '@/components/CrontabPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
+import CurlJwtPanel from '@/components/CurlJwtPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1166,8 +1167,13 @@ export default function UsesPage() {
         </div>
 
         {/* cue — schema, validation, export, evaluate */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CuePanel />
+        </div>
+
+        {/* curl jwt — bearer, decode, expiry, claims */}
+        <div className="mt-6 pb-10">
+          <CurlJwtPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

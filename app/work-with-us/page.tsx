@@ -145,6 +145,7 @@ import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import DaggerPanel from '@/components/DaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1399,8 +1400,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* curl jwt — bearer, decode, expiry, claims */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CurlJwtPanel />
+      </section>
+
+      {/* dagger — pipelines, containers, cache, secrets */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <DaggerPanel />
       </section>
 
       {/* CTA */}
