@@ -118,6 +118,7 @@ import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CargoPanel from '@/components/CargoPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1128,8 +1129,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cargo release build — compile, link, test, artifact */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CargoPanel />
+        </div>
+
+        {/* cassandra query — keyspace, table, cql, latency */}
+        <div className="mt-6 pb-10">
+          <CassandraPanel />
         </div>
 
         {/* CTA */}

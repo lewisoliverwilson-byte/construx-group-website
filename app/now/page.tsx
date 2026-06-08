@@ -118,6 +118,7 @@ import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BufPanel from '@/components/BufPanel';
+import BuildOutputPanel from '@/components/BuildOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -992,8 +993,13 @@ export default function NowPage() {
         </div>
 
         {/* buf protobuf lint, breaking, generate, push */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BufPanel />
+        </div>
+
+        {/* build output — compile steps, warnings, errors, timing */}
+        <div className="mt-6 pb-10">
+          <BuildOutputPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

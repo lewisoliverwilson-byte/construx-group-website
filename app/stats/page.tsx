@@ -120,6 +120,7 @@ import BpftracePanel from '@/components/BpftracePanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1040,8 +1041,13 @@ export default function StatsPage() {
       </div>
 
       {/* bundle analysis — size, chunks, treeshake, deps */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BundleAnalysisPanel />
+      </div>
+
+      {/* caddy access log — requests, status, latency, bytes */}
+      <div className="mt-6 pb-10">
+        <CaddyAccessPanel />
       </div>
     </div>
   );
