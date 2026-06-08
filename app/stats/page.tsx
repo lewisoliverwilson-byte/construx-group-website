@@ -152,6 +152,7 @@ import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DigPanel from '@/components/DigPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import DnsLookupPanel from '@/components/DnsLookupPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1232,8 +1233,13 @@ export default function StatsPage() {
       </div>
 
       {/* dmesg — kernel, boot, drivers, errors */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DmesgPanel />
+      </div>
+
+      {/* dns lookup — query, records, ttl, resolver */}
+      <div className="mt-6 pb-10">
+        <DnsLookupPanel />
       </div>
     </div>
   );

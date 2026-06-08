@@ -150,6 +150,7 @@ import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
+import DbtPanel from '@/components/DbtPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1184,8 +1185,13 @@ export default function NowPage() {
         </div>
 
         {/* db migration — schema, up, down, status */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DbMigrationPanel />
+        </div>
+
+        {/* dbt — models, tests, sources, lineage */}
+        <div className="mt-6 pb-10">
+          <DbtPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -149,6 +149,7 @@ import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
+import DragonflyPanel from '@/components/DragonflyPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1192,8 +1193,13 @@ export default function ContactPage() {
       </section>
 
       {/* dragonfly dns — zones, records, acl, forwarders */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DragonFlyDnsPanel />
+      </section>
+
+      {/* dragonfly — shards, replication, keyspaces, memory */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DragonflyPanel />
       </section>
     </div>
   );
