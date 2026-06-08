@@ -166,6 +166,7 @@ import GatlingPanel from '@/components/GatlingPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import GiteaPanel from '@/components/GiteaPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1416,8 +1417,13 @@ export default function FoundersPage() {
         </div>
 
         {/* git config — globals, locals, remotes, aliases */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitConfigPanel />
+        </div>
+
+        {/* gitea — repos, issues, prs, org */}
+        <div className="mt-6 pb-10">
+          <GiteaPanel />
         </div>
 
         {/* CTA */}

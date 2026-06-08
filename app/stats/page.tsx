@@ -168,6 +168,7 @@ import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
 import FioPanel from '@/components/FioPanel';
+import FlaggerPanel from '@/components/FlaggerPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1328,8 +1329,13 @@ export default function StatsPage() {
       </div>
 
       {/* fio — iops, bw, latency, jobs */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <FioPanel />
+      </div>
+
+      {/* flagger — canaries, rollouts, analysis, webhooks */}
+      <div className="mt-6 pb-10">
+        <FlaggerPanel />
       </div>
     </div>
   );

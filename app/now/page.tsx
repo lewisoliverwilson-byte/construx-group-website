@@ -166,6 +166,7 @@ import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
+import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1280,8 +1281,13 @@ export default function NowPage() {
         </div>
 
         {/* etcd — keys, leases, alarms, compaction */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EtcdPanel />
+        </div>
+
+        {/* external dns — records, providers, sources, sync */}
+        <div className="mt-6 pb-10">
+          <ExternalDnsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

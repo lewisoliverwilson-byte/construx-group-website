@@ -165,6 +165,7 @@ import FluxCDPanel from '@/components/FluxCDPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
+import GhCliPanel from '@/components/GhCliPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1288,8 +1289,13 @@ export default function ContactPage() {
       </section>
 
       {/* gh actions run — jobs, steps, status, duration */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GhActionsRunPanel />
+      </section>
+
+      {/* gh cli — repos, prs, issues, auth */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GhCliPanel />
       </section>
     </div>
   );
