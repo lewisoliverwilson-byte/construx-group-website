@@ -218,6 +218,7 @@ import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
+import LangfusePanel from '@/components/LangfusePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1837,8 +1838,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* kyverno — policy engine, mutations, validations, generates */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KyvernoPanel />
+      </section>
+
+      {/* langfuse — llm observability, traces, scores, generations */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <LangfusePanel />
       </section>
 
       {/* CTA */}

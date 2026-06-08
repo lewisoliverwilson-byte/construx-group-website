@@ -219,6 +219,7 @@ import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
 import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
+import MaterializePanel from '@/components/MaterializePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1497,8 +1498,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* lsof — open files, sockets, pids, fds */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LsofPanel />
+        </div>
+
+        {/* materialize — streaming sql, views, sources, sinks */}
+        <div className="mt-4 pb-6">
+          <MaterializePanel />
         </div>
 
         {/* Sign-off */}

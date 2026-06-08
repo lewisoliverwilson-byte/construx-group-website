@@ -222,6 +222,7 @@ import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
+import LokiQueryPanel from '@/components/LokiQueryPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1453,8 +1454,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* litestream — sqlite replication, wal, s3, snapshots */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <LitestreamPanel />
+      </section>
+
+      {/* loki query — logql, streams, labels, filters */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <LokiQueryPanel />
       </section>
 
       {/* Posts */}
