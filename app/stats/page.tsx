@@ -116,6 +116,7 @@ import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
+import BpftracePanel from '@/components/BpftracePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1016,8 +1017,13 @@ export default function StatsPage() {
       </div>
 
       {/* bgp routing table lookup — asn, prefixes, peers, path */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BgpLookupPanel />
+      </div>
+
+      {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
+      <div className="mt-6 pb-10">
+        <BpftracePanel />
       </div>
     </div>
   );

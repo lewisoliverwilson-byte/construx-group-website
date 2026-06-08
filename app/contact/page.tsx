@@ -113,6 +113,7 @@ import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
+import BunBuildPanel from '@/components/BunBuildPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -976,8 +977,13 @@ export default function ContactPage() {
       </section>
 
       {/* build output — next.js compilation, chunks, sizes */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <BuildOutputPanel />
+      </section>
+
+      {/* bun build — bundler, transpile, minify, treeshake */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <BunBuildPanel />
       </section>
     </div>
   );

@@ -114,6 +114,7 @@ import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
+import BiomePanel from '@/components/BiomePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -968,8 +969,13 @@ export default function NowPage() {
         </div>
 
         {/* bgp routing table lookup — asn, prefixes, peers, path */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BgpLookupPanel />
+        </div>
+
+        {/* biome js toolchain — lint, format, check, ci */}
+        <div className="mt-6 pb-10">
+          <BiomePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
