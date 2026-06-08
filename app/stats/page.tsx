@@ -166,6 +166,7 @@ import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
+import FalcoPanel from '@/components/FalcoPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1316,8 +1317,13 @@ export default function StatsPage() {
       </div>
 
       {/* external dns — records, providers, sources, sync */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ExternalDnsPanel />
+      </div>
+
+      {/* falco — syscalls, rules, alerts, k8s */}
+      <div className="mt-6 pb-10">
+        <FalcoPanel />
       </div>
     </div>
   );

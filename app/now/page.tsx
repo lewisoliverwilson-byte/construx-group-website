@@ -164,6 +164,7 @@ import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1268,8 +1269,13 @@ export default function NowPage() {
         </div>
 
         {/* envoy stats — rq, cx, health, rq_retry */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EnvoyStatsPanel />
+        </div>
+
+        {/* eslint output — rules, warnings, errors, fixable */}
+        <div className="mt-6 pb-10">
+          <EslintOutputPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
