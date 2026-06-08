@@ -128,6 +128,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
+import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1070,8 +1071,13 @@ export default function UsesPage() {
         </div>
 
         {/* citus distributed postgres — shards, workers, routing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CitusPanel />
+        </div>
+
+        {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
+        <div className="mt-6 pb-10">
+          <ClickHouseKeeperPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

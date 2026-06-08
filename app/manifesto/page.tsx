@@ -130,6 +130,7 @@ import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
+import CrontabPanel from '@/components/CrontabPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -963,8 +964,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cpu stats — usage, load, cores, steal, iowait */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CpuStatsPanel />
+        </div>
+
+        {/* crontab — schedule, expression, jobs, last run */}
+        <div className="mt-4 pb-6">
+          <CrontabPanel />
         </div>
 
         {/* Sign-off */}
