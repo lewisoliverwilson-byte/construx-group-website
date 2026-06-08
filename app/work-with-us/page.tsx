@@ -229,6 +229,7 @@ import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
+import MemInfoPanel from '@/components/MemInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1903,8 +1904,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* meilisearch — fast search, indexes, documents, facets */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <MeilisearchPanel />
+      </section>
+
+      {/* meminfo — ram, swap, buffers, cached, available */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <MemInfoPanel />
       </section>
 
       {/* CTA */}
