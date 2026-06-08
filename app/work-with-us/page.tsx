@@ -152,6 +152,7 @@ import DebeziumPanel from '@/components/DebeziumPanel';
 import DigPanel from '@/components/DigPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import DnsLookupPanel from '@/components/DnsLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1441,8 +1442,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* dmesg — kernel, boot, drivers, errors */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <DmesgPanel />
+      </section>
+
+      {/* dns lookup — query, records, ttl, resolver */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <DnsLookupPanel />
       </section>
 
       {/* CTA */}

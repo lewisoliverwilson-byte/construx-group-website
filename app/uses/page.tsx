@@ -151,6 +151,7 @@ import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DigPanel from '@/components/DigPanel';
+import DiskUsagePanel from '@/components/DiskUsagePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1208,8 +1209,13 @@ export default function UsesPage() {
         </div>
 
         {/* dig — dns, records, ttl, nameserver */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DigPanel />
+        </div>
+
+        {/* disk usage — df, partitions, inodes, mounts */}
+        <div className="mt-6 pb-10">
+          <DiskUsagePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
