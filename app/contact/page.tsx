@@ -229,6 +229,7 @@ import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
+import NetdataPanel from '@/components/NetdataPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1672,8 +1673,13 @@ export default function ContactPage() {
       </section>
 
       {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NatsPubSubPanel />
+      </section>
+
+      {/* netdata — real-time metrics, agents, dashboards, alerts */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NetdataPanel />
       </section>
     </div>
   );

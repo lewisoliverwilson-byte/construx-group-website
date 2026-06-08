@@ -232,6 +232,7 @@ import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LshwPanel from '@/components/LshwPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
+import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1712,8 +1713,13 @@ export default function StatsPage() {
       </div>
 
       {/* meminfo — ram, swap, buffers, cached, available */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MemInfoPanel />
+      </div>
+
+      {/* methodology-diff — approach comparison, old vs new, decision log */}
+      <div className="mt-6 pb-10">
+        <MethodologyDiffPanel />
       </div>
     </div>
   );
