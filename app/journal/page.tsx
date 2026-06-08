@@ -214,6 +214,7 @@ import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
+import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1405,8 +1406,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kubeflow pipelines — dag, steps, inputs, outputs */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KubeflowPipelinesPanel />
+      </section>
+
+      {/* kube prometheus — metrics, alerts, targets, rules */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KubePrometheusPanel />
       </section>
 
       {/* Posts */}

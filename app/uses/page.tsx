@@ -209,6 +209,7 @@ import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
+import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1556,8 +1557,13 @@ export default function UsesPage() {
         </div>
 
         {/* kubectl logs — container, pod, namespace, timestamps */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubectlLogsPanel />
+        </div>
+
+        {/* kubectl pods — name, ready, status, restarts, age */}
+        <div className="mt-6 pb-10">
+          <KubectlPodsPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

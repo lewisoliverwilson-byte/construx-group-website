@@ -211,6 +211,7 @@ import KubescapePanel from '@/components/KubescapePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
+import LangfusePanel from '@/components/LangfusePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1449,8 +1450,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kyverno — policies, violations, reports, rules */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KyvernoPanel />
+        </div>
+
+        {/* langfuse — traces, spans, scores, generations */}
+        <div className="mt-4 pb-6">
+          <LangfusePanel />
         </div>
 
         {/* Sign-off */}
