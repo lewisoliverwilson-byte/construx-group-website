@@ -194,6 +194,7 @@ import HubblePanel from '@/components/HubblePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IostatPanel from '@/components/IostatPanel';
+import IpAddrPanel from '@/components/IpAddrPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1285,8 +1286,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* iostat — disks, throughput, iops, utilization */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <IostatPanel />
+      </section>
+
+      {/* ip addr — addresses, interfaces, prefixes, scope */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <IpAddrPanel />
       </section>
 
       {/* Posts */}
