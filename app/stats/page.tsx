@@ -158,6 +158,7 @@ import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DronePanel from '@/components/DronePanel';
+import DruidPanel from '@/components/DruidPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1268,8 +1269,13 @@ export default function StatsPage() {
       </div>
 
       {/* drone — pipelines, steps, triggers, secrets */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DronePanel />
+      </div>
+
+      {/* druid — datasources, tasks, segments, compaction */}
+      <div className="mt-6 pb-10">
+        <DruidPanel />
       </div>
     </div>
   );

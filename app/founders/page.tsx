@@ -156,6 +156,7 @@ import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import EtcdPanel from '@/components/EtcdPanel';
+import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1356,8 +1357,13 @@ export default function FoundersPage() {
         </div>
 
         {/* etcd — keys, leases, members, watches */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EtcdPanel />
+        </div>
+
+        {/* external dns — records, providers, sources, sync */}
+        <div className="mt-6 pb-10">
+          <ExternalDnsPanel />
         </div>
 
         {/* CTA */}
