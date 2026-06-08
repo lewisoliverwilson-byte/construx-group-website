@@ -249,6 +249,7 @@ import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
+import OpenCostPanel from '@/components/OpenCostPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -2023,8 +2024,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* opa — policy engine, rego, bundles, decisions */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <OPAPanel />
+      </section>
+
+      {/* opencost — cloud costs, namespaces, workloads, efficiency */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <OpenCostPanel />
       </section>
 
       {/* CTA */}

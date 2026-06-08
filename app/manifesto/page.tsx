@@ -250,6 +250,7 @@ import PackerBuildPanel from '@/components/PackerBuildPanel';
 import ParcaPanel from '@/components/ParcaPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
+import PgvectorPanel from '@/components/PgvectorPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1683,8 +1684,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* pgbouncer — connection pooling, pool modes, clients, servers */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PgBouncerPanel />
+        </div>
+
+        {/* pgvector — vector embeddings, similarity search, indexing */}
+        <div className="mt-4 pb-6">
+          <PgvectorPanel />
         </div>
 
         {/* Sign-off */}
