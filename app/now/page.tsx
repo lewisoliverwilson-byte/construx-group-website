@@ -151,6 +151,7 @@ import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
+import DigPanel from '@/components/DigPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1190,8 +1191,13 @@ export default function NowPage() {
         </div>
 
         {/* dbt — models, tests, sources, lineage */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DbtPanel />
+        </div>
+
+        {/* dig — dns, records, ttl, nameserver */}
+        <div className="mt-6 pb-10">
+          <DigPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

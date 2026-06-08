@@ -150,6 +150,7 @@ import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
+import DronePanel from '@/components/DronePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1198,8 +1199,13 @@ export default function ContactPage() {
       </section>
 
       {/* dragonfly — shards, replication, keyspaces, memory */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DragonflyPanel />
+      </section>
+
+      {/* drone — pipelines, steps, triggers, secrets */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DronePanel />
       </section>
     </div>
   );

@@ -151,6 +151,7 @@ import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DruidPanel from '@/components/DruidPanel';
+import DuckdbPanel from '@/components/DuckdbPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1326,8 +1327,13 @@ export default function FoundersPage() {
         </div>
 
         {/* druid — datasources, tasks, segments, compaction */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DruidPanel />
+        </div>
+
+        {/* duckdb — queries, parquet, extensions, attach */}
+        <div className="mt-6 pb-10">
+          <DuckdbPanel />
         </div>
 
         {/* CTA */}
