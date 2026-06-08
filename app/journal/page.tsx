@@ -174,6 +174,7 @@ import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
+import GitBisectPanel from '@/components/GitBisectPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1165,8 +1166,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* gh actions run — jobs, steps, status, duration */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GhActionsRunPanel />
+      </section>
+
+      {/* git bisect — good, bad, skip, reset */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GitBisectPanel />
       </section>
 
       {/* Posts */}
