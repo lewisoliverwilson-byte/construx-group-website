@@ -153,6 +153,7 @@ import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
 import DigPanel from '@/components/DigPanel';
 import DmesgPanel from '@/components/DmesgPanel';
+import DnsLookupPanel from '@/components/DnsLookupPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1202,8 +1203,13 @@ export default function NowPage() {
         </div>
 
         {/* dmesg — kernel, boot, drivers, errors */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DmesgPanel />
+        </div>
+
+        {/* dns lookup — query, records, ttl, resolver */}
+        <div className="mt-6 pb-10">
+          <DnsLookupPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

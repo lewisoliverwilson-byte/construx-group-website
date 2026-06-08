@@ -155,6 +155,7 @@ import DmesgPanel from '@/components/DmesgPanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
+import DockerStatsPanel from '@/components/DockerStatsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1250,8 +1251,13 @@ export default function StatsPage() {
       </div>
 
       {/* docker compose — services, networks, volumes, health */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DockerComposePanel />
+      </div>
+
+      {/* docker stats — containers, cpu, mem, net */}
+      <div className="mt-6 pb-10">
+        <DockerStatsPanel />
       </div>
     </div>
   );

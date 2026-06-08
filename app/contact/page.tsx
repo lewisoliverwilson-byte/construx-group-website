@@ -152,6 +152,7 @@ import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
+import EarthlyPanel from '@/components/EarthlyPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1210,8 +1211,13 @@ export default function ContactPage() {
       </section>
 
       {/* duckdb — queries, parquet, extensions, attach */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DuckdbPanel />
+      </section>
+
+      {/* earthly — targets, artifacts, cache, secrets */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <EarthlyPanel />
       </section>
     </div>
   );
