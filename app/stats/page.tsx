@@ -242,6 +242,7 @@ import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import NixFlakePanel from '@/components/NixFlakePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1772,8 +1773,13 @@ export default function StatsPage() {
       </div>
 
       {/* nftables — firewall rules, chains, sets, counters */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NftablesPanel />
+      </div>
+
+      {/* nix-flake — flake.nix, inputs, outputs, devShells */}
+      <div className="mt-6 pb-10">
+        <NixFlakePanel />
       </div>
     </div>
   );

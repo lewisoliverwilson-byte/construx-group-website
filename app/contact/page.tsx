@@ -239,6 +239,7 @@ import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
+import OpenCostPanel from '@/components/OpenCostPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1732,8 +1733,13 @@ export default function ContactPage() {
       </section>
 
       {/* nvidia-smi — gpu stats, memory, utilization, processes */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NvidiaSmiPanel />
+      </section>
+
+      {/* opencost — kubernetes cost allocation, namespaces, workloads */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <OpenCostPanel />
       </section>
     </div>
   );

@@ -240,6 +240,7 @@ import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1724,8 +1725,13 @@ export default function NowPage() {
         </div>
 
         {/* network-ping — icmp, rtt, packet loss, host reachability */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NetworkPingPanel />
+        </div>
+
+        {/* nginx-access-log — requests, status codes, methods, ips */}
+        <div className="mt-6 pb-10">
+          <NginxAccessLogPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
