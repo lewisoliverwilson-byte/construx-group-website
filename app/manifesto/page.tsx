@@ -110,6 +110,7 @@ import BenthosPanel from '@/components/BenthosPanel';
 import BeylaPanel from '@/components/BeylaPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BrewListPanel from '@/components/BrewListPanel';
+import BuildOutputPanel from '@/components/BuildOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -843,8 +844,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* brew list — installed formulae, casks, versions */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BrewListPanel />
+        </div>
+
+        {/* build output — next.js compilation, chunks, sizes */}
+        <div className="mt-4 pb-6">
+          <BuildOutputPanel />
         </div>
 
         {/* Sign-off */}

@@ -109,6 +109,7 @@ import AtlasPanel from '@/components/AtlasPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BackstagePanel from '@/components/BackstagePanel';
+import BazelPanel from '@/components/BazelPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1183,8 +1184,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* backstage developer portal — catalog, tech radar, plugins */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BackstagePanel />
+      </section>
+
+      {/* bazel hermetic build — remote cache, targets, action cache stats */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BazelPanel />
       </section>
 
       {/* CTA */}
