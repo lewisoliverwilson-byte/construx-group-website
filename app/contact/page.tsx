@@ -200,6 +200,7 @@ import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import KedaPanel from '@/components/KedaPanel';
+import KeycloakPanel from '@/components/KeycloakPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1498,8 +1499,13 @@ export default function ContactPage() {
       </section>
 
       {/* keda — scalers, triggers, replicas, metrics */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KedaPanel />
+      </section>
+
+      {/* keycloak — realms, clients, users, tokens */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KeycloakPanel />
       </section>
     </div>
   );

@@ -203,6 +203,7 @@ import IstioPanel from '@/components/IstioPanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import JournaldPanel from '@/components/JournaldPanel';
+import JournalWcPanel from '@/components/JournalWcPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1538,8 +1539,13 @@ export default function StatsPage() {
       </div>
 
       {/* journald — fields, units, boots, priorities */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <JournaldPanel />
+      </div>
+
+      {/* journal wc — lines, words, bytes, files */}
+      <div className="mt-6 pb-10">
+        <JournalWcPanel />
       </div>
     </div>
   );
