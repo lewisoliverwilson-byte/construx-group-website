@@ -92,6 +92,7 @@ import PerfStatPanel from '@/components/PerfStatPanel';
 import PostgresReplPanel from '@/components/PostgresReplPanel';
 import PingPanel from '@/components/PingPanel';
 import PyroscopePanel from '@/components/PyroscopePanel';
+import RedpandaPanel from '@/components/RedpandaPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1081,8 +1082,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* pyroscope — continuous profiling, pprof, flamegraph, ebpf */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <PyroscopePanel />
+      </section>
+
+      {/* redpanda — kafka-compatible, no jvm, raft, throughput */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <RedpandaPanel />
       </section>
 
       {/* CTA */}

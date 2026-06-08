@@ -93,6 +93,7 @@ import PatroniPanel from '@/components/PatroniPanel';
 import PortainerPanel from '@/components/PortainerPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import PsAuxPanel from '@/components/PsAuxPanel';
+import RedisPanel from '@/components/RedisPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -741,8 +742,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* ps aux — processes, cpu, mem, state, command */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PsAuxPanel />
+        </div>
+
+        {/* redis — cluster, streams, commands, memory */}
+        <div className="mt-4 pb-6">
+          <RedisPanel />
         </div>
 
         {/* Sign-off */}
