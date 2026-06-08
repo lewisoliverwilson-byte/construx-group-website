@@ -128,6 +128,7 @@ import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
+import ConsulPanel from '@/components/ConsulPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1188,8 +1189,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cockroachdb — distributed sql, regions, ranges, raft */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CockroachDbPanel />
+        </div>
+
+        {/* consul — service mesh, kv, intentions, health */}
+        <div className="mt-6 pb-10">
+          <ConsulPanel />
         </div>
 
         {/* CTA */}

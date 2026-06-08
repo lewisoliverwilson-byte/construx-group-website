@@ -130,6 +130,7 @@ import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
+import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1100,8 +1101,13 @@ export default function StatsPage() {
       </div>
 
       {/* clickhouse query — mergetree, replicas, parts, mutations */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ClickHousePanel />
+      </div>
+
+      {/* cloudflare workers — kv, durable objects, queues, pages */}
+      <div className="mt-6 pb-10">
+        <CloudflareWorkersPanel />
       </div>
     </div>
   );
