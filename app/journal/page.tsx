@@ -101,6 +101,7 @@ import UptimePanel from '@/components/UptimePanel';
 import TiDbPanel from '@/components/TiDbPanel';
 import TraefikPanel from '@/components/TraefikPanel';
 import TankaPanel from '@/components/TankaPanel';
+import TrinoPanel from '@/components/TrinoPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -727,8 +728,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* tanka jsonnet k8s config — environments, drift diff, applied objects */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <TankaPanel />
+      </section>
+
+      {/* trino distributed sql — federated queries, iceberg, postgres, kafka */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <TrinoPanel />
       </section>
 
       {/* Posts */}

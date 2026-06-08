@@ -98,6 +98,7 @@ import TerraformCloudPanel from '@/components/TerraformCloudPanel';
 import TrufflehogPanel from '@/components/TrufflehogPanel';
 import SarPanel from '@/components/SarPanel';
 import SensorsPanel from '@/components/SensorsPanel';
+import SecurityHeadersPanel from '@/components/SecurityHeadersPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -771,8 +772,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* sensors — hardware temp, fan, voltage, thermal zones */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <SensorsPanel />
+        </div>
+
+        {/* security headers — hsts, csp, x-frame, referrer, permissions */}
+        <div className="mt-4 pb-6">
+          <SecurityHeadersPanel />
         </div>
 
         {/* Sign-off */}

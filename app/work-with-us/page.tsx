@@ -97,6 +97,7 @@ import VmstatPanel from '@/components/VmstatPanel';
 import TektonPanel from '@/components/TektonPanel';
 import TempoPanel from '@/components/TempoPanel';
 import SslCertPanel from '@/components/SslCertPanel';
+import TemporalWorkflowPanel from '@/components/TemporalWorkflowPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1111,8 +1112,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* ssl cert — x509, issuer, san, expiry, chain */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <SslCertPanel />
+      </section>
+
+      {/* temporal workflow — durable execution, activities, signals */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <TemporalWorkflowPanel />
       </section>
 
       {/* CTA */}

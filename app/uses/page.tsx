@@ -96,6 +96,7 @@ import TrivyPanel from '@/components/TrivyPanel';
 import TailscalePanel from '@/components/TailscalePanel';
 import UlimitPanel from '@/components/UlimitPanel';
 import VaultPanel from '@/components/VaultPanel';
+import VaultPkiPanel from '@/components/VaultPkiPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -878,8 +879,13 @@ export default function UsesPage() {
         </div>
 
         {/* vault — secrets engine, kv, pki, aws, policies */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VaultPanel />
+        </div>
+
+        {/* vault pki — internal ca, intermediate, issue, rotate, k8s-auth */}
+        <div className="mt-6 pb-10">
+          <VaultPkiPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
