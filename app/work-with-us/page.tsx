@@ -157,6 +157,7 @@ import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
+import DruidPanel from '@/components/DruidPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1471,8 +1472,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* drone — pipelines, steps, triggers, secrets */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <DronePanel />
+      </section>
+
+      {/* druid — datasources, tasks, segments, compaction */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <DruidPanel />
       </section>
 
       {/* CTA */}

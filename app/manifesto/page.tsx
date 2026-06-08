@@ -158,6 +158,7 @@ import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
+import FluentBitPanel from '@/components/FluentBitPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1131,8 +1132,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* flamegraph — cpu, memory, wall, flamegraph */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FlamegraphPanel />
+        </div>
+
+        {/* fluentbit — pipelines, inputs, outputs, filters */}
+        <div className="mt-4 pb-6">
+          <FluentBitPanel />
         </div>
 
         {/* Sign-off */}

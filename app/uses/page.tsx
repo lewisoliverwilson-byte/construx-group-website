@@ -156,6 +156,7 @@ import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DruidPanel from '@/components/DruidPanel';
+import EarthlyPanel from '@/components/EarthlyPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1238,8 +1239,13 @@ export default function UsesPage() {
         </div>
 
         {/* druid — datasources, tasks, segments, compaction */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DruidPanel />
+        </div>
+
+        {/* earthly — targets, artifacts, cache, secrets */}
+        <div className="mt-6 pb-10">
+          <EarthlyPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
