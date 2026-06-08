@@ -141,6 +141,7 @@ import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
 import DbtPanel from '@/components/DbtPanel';
+import DebeziumPanel from '@/components/DebeziumPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1144,8 +1145,13 @@ export default function ContactPage() {
       </section>
 
       {/* dbt — models, tests, sources, lineage */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DbtPanel />
+      </section>
+
+      {/* debezium — cdc, connectors, transforms, offsets */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DebeziumPanel />
       </section>
     </div>
   );

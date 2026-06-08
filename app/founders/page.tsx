@@ -142,6 +142,7 @@ import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
+import DeltaLakePanel from '@/components/DeltaLakePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1272,8 +1273,13 @@ export default function FoundersPage() {
         </div>
 
         {/* dagger — pipelines, containers, cache, secrets */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DaggerPanel />
+        </div>
+
+        {/* delta lake — acid, time travel, schema evolution, partitions */}
+        <div className="mt-6 pb-10">
+          <DeltaLakePanel />
         </div>
 
         {/* CTA */}

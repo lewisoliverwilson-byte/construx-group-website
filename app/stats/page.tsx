@@ -144,6 +144,7 @@ import CrontabPanel from '@/components/CrontabPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1184,8 +1185,13 @@ export default function StatsPage() {
       </div>
 
       {/* curl jwt — bearer, decode, expiry, claims */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CurlJwtPanel />
+      </div>
+
+      {/* curl verbose — trace, redirect, ssl, timing */}
+      <div className="mt-6 pb-10">
+        <CurlVerbosePanel />
       </div>
     </div>
   );
