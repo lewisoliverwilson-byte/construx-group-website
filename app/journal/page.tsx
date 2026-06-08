@@ -178,6 +178,7 @@ import GitBisectPanel from '@/components/GitBisectPanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
+import GitSignPanel from '@/components/GitSignPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1189,8 +1190,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* git graph — commits, branches, merges, tags */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GitGraphPanel />
+      </section>
+
+      {/* git sign — signers, keys, status, fingerprints */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GitSignPanel />
       </section>
 
       {/* Posts */}

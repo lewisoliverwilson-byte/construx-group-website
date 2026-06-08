@@ -175,6 +175,7 @@ import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
+import GrpcurlPanel from '@/components/GrpcurlPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1233,8 +1234,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* grpc call — method, metadata, request, response */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GrpcCallPanel />
+        </div>
+
+        {/* grpcurl — services, methods, describe, invoke */}
+        <div className="mt-4 pb-6">
+          <GrpcurlPanel />
         </div>
 
         {/* Sign-off */}

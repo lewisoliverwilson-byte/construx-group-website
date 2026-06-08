@@ -173,6 +173,7 @@ import GhCliPanel from '@/components/GhCliPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GiteaPanel from '@/components/GiteaPanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1340,8 +1341,13 @@ export default function UsesPage() {
         </div>
 
         {/* gitea — repos, issues, prs, org */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GiteaPanel />
+        </div>
+
+        {/* git graph — commits, branches, merges, tags */}
+        <div className="mt-6 pb-10">
+          <GitGraphPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

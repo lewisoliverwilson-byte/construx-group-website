@@ -174,6 +174,7 @@ import GhCliPanel from '@/components/GhCliPanel';
 import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
+import GitGraphPanel from '@/components/GitGraphPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1573,8 +1574,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* git config — globals, locals, remotes, aliases */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GitConfigPanel />
+      </section>
+
+      {/* git graph — commits, branches, merges, tags */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GitGraphPanel />
       </section>
 
       {/* CTA */}
