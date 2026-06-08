@@ -244,6 +244,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
+import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1993,8 +1994,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* nix-shell — nix-shell, packages, environment, derivation */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NixShellPanel />
+      </section>
+
+      {/* npm-global — global packages, versions, install, link */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NpmGlobalPanel />
       </section>
 
       {/* CTA */}

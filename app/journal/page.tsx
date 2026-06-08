@@ -248,6 +248,7 @@ import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
+import OpenFGAPanel from '@/components/OpenFGAPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1609,8 +1610,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* openfga-audit — authorization model, tuples, check, expand */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OpenFgaAuditPanel />
+      </section>
+
+      {/* openfga — fine-grained authorization, relationships, checks */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OpenFGAPanel />
       </section>
 
       {/* Posts */}

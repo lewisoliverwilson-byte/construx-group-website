@@ -243,6 +243,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
+import OpensslPanel from '@/components/OpensslPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1760,8 +1761,13 @@ export default function UsesPage() {
         </div>
 
         {/* openobserve — logs, metrics, traces, dashboards */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenObservePanel />
+        </div>
+
+        {/* openssl — certs, keys, ciphers, tls handshake */}
+        <div className="mt-6 pb-10">
+          <OpensslPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
