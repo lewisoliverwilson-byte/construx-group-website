@@ -135,6 +135,7 @@ import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
+import DbMigrationPanel from '@/components/DbMigrationPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -993,8 +994,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cyclonedx — bom, components, vulnerabilities, metadata */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CycloneDxPanel />
+        </div>
+
+        {/* db migration — flyway, liquibase, versions, checksums */}
+        <div className="mt-4 pb-6">
+          <DbMigrationPanel />
         </div>
 
         {/* Sign-off */}

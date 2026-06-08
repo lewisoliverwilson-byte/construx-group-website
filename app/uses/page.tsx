@@ -133,6 +133,7 @@ import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1100,8 +1101,13 @@ export default function UsesPage() {
         </div>
 
         {/* cloudnative pg — clusters, backups, replication, switchover */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CloudNativePGPanel />
+        </div>
+
+        {/* cluster api — providers, machinedeployments, kubeadm, lifecycle */}
+        <div className="mt-6 pb-10">
+          <ClusterApiPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

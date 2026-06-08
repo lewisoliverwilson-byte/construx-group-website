@@ -134,6 +134,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
+import ConsulPanel from '@/components/ConsulPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1333,8 +1334,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cockroachdb — distributed sql, replication, zones, backup */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CockroachDbPanel />
+      </section>
+
+      {/* consul — service mesh, kv, intentions, health checks */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <ConsulPanel />
       </section>
 
       {/* CTA */}
