@@ -157,6 +157,7 @@ import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
+import FalcoPanel from '@/components/FalcoPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1240,8 +1241,13 @@ export default function ContactPage() {
       </section>
 
       {/* eslint output — rules, warnings, errors, fixable */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <EslintOutputPanel />
+      </section>
+
+      {/* falco — syscalls, rules, alerts, k8s */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <FalcoPanel />
       </section>
     </div>
   );

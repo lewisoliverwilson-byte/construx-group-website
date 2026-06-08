@@ -160,6 +160,7 @@ import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DronePanel from '@/components/DronePanel';
 import DruidPanel from '@/components/DruidPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
+import EbpfTracePanel from '@/components/EbpfTracePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1280,8 +1281,13 @@ export default function StatsPage() {
       </div>
 
       {/* earthly — targets, artifacts, cache, secrets */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <EarthlyPanel />
+      </div>
+
+      {/* ebpf trace — probes, maps, events, syscalls */}
+      <div className="mt-6 pb-10">
+        <EbpfTracePanel />
       </div>
     </div>
   );
