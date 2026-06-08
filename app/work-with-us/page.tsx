@@ -158,6 +158,7 @@ import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
 import DruidPanel from '@/components/DruidPanel';
+import DuckdbPanel from '@/components/DuckdbPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1477,8 +1478,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* druid — datasources, tasks, segments, compaction */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <DruidPanel />
+      </section>
+
+      {/* duckdb — tables, views, queries, extensions */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <DuckdbPanel />
       </section>
 
       {/* CTA */}

@@ -162,6 +162,7 @@ import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
+import EnvPanel from '@/components/EnvPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1093,8 +1094,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* envoy stats — rq, cx, health, rq_retry */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <EnvoyStatsPanel />
+      </section>
+
+      {/* env — variables, secrets, profiles, dotenv */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <EnvPanel />
       </section>
 
       {/* Posts */}

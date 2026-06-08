@@ -159,6 +159,7 @@ import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
+import FreeMemPanel from '@/components/FreeMemPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1137,8 +1138,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* fluentbit — pipelines, inputs, outputs, filters */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <FluentBitPanel />
+        </div>
+
+        {/* freemem — rss, heap, external, arraybuffers */}
+        <div className="mt-4 pb-6">
+          <FreeMemPanel />
         </div>
 
         {/* Sign-off */}
