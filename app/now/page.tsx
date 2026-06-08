@@ -123,6 +123,7 @@ import BunBuildPanel from '@/components/BunBuildPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import CargoPanel from '@/components/CargoPanel';
+import CassandraPanel from '@/components/CassandraPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1022,8 +1023,13 @@ export default function NowPage() {
         </div>
 
         {/* cargo release build — compile, link, test, artifact */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CargoPanel />
+        </div>
+
+        {/* cassandra query — keyspace, table, cql, latency */}
+        <div className="mt-6 pb-10">
+          <CassandraPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -125,6 +125,7 @@ import CaddyPanel from '@/components/CaddyPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
+import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1070,8 +1071,13 @@ export default function StatsPage() {
       </div>
 
       {/* cgroups — cpu, memory, blkio, hierarchy */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CgroupsPanel />
+      </div>
+
+      {/* chaos mesh — faults, experiments, schedules, pods */}
+      <div className="mt-6 pb-10">
+        <ChaosMeshPanel />
       </div>
     </div>
   );

@@ -122,6 +122,7 @@ import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
+import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1030,8 +1031,13 @@ export default function ContactPage() {
       </section>
 
       {/* ci pipeline — stages, jobs, artifacts, runners */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CIPipelinePanel />
+      </section>
+
+      {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ClickHouseKeeperPanel />
       </section>
     </div>
   );
