@@ -250,6 +250,7 @@ import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
+import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -2029,8 +2030,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* opencost — cloud costs, namespaces, workloads, efficiency */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <OpenCostPanel />
+      </section>
+
+      {/* openfga-audit — audit logs, relationship tuples, checks, models */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <OpenFgaAuditPanel />
       </section>
 
       {/* CTA */}

@@ -251,6 +251,7 @@ import ParcaPanel from '@/components/ParcaPanel';
 import PerfStatPanel from '@/components/PerfStatPanel';
 import PgBouncerPanel from '@/components/PgBouncerPanel';
 import PgvectorPanel from '@/components/PgvectorPanel';
+import PineconePanel from '@/components/PineconePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1689,8 +1690,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* pgvector — vector embeddings, similarity search, indexing */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PgvectorPanel />
+        </div>
+
+        {/* pinecone — managed vector db, namespaces, upsert, query */}
+        <div className="mt-4 pb-6">
+          <PineconePanel />
         </div>
 
         {/* Sign-off */}

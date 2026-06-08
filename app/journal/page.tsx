@@ -254,6 +254,7 @@ import OpensslPanel from '@/components/OpensslPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
+import ParcaPanel from '@/components/ParcaPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1645,8 +1646,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* packer-build — image templates, builders, provisioners, post-processors */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <PackerBuildPanel />
+      </section>
+
+      {/* parca — continuous profiling, flame graphs, cpu, memory */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <ParcaPanel />
       </section>
 
       {/* Posts */}
