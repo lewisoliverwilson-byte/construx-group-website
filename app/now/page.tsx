@@ -154,6 +154,7 @@ import DbtPanel from '@/components/DbtPanel';
 import DigPanel from '@/components/DigPanel';
 import DmesgPanel from '@/components/DmesgPanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
+import DockerBuildPanel from '@/components/DockerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1208,8 +1209,13 @@ export default function NowPage() {
         </div>
 
         {/* dns lookup — query, records, ttl, resolver */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DnsLookupPanel />
+        </div>
+
+        {/* docker build — layers, cache, args, output */}
+        <div className="mt-6 pb-10">
+          <DockerBuildPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

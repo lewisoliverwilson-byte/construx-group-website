@@ -153,6 +153,7 @@ import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
+import EbpfTracePanel from '@/components/EbpfTracePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1216,8 +1217,13 @@ export default function ContactPage() {
       </section>
 
       {/* earthly — targets, artifacts, cache, secrets */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <EarthlyPanel />
+      </section>
+
+      {/* ebpf trace — syscalls, latency, stack, probes */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <EbpfTracePanel />
       </section>
     </div>
   );

@@ -154,6 +154,7 @@ import DruidPanel from '@/components/DruidPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1344,8 +1345,13 @@ export default function FoundersPage() {
         </div>
 
         {/* env — variables, secrets, profiles, dotenv */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EnvPanel />
+        </div>
+
+        {/* eslint output — rules, warnings, errors, fixable */}
+        <div className="mt-6 pb-10">
+          <EslintOutputPanel />
         </div>
 
         {/* CTA */}

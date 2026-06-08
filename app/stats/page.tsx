@@ -156,6 +156,7 @@ import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerBuildPanel from '@/components/DockerBuildPanel';
 import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
+import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1256,8 +1257,13 @@ export default function StatsPage() {
       </div>
 
       {/* docker stats — containers, cpu, mem, net */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DockerStatsPanel />
+      </div>
+
+      {/* dragonfly dns — zones, records, acl, forwarders */}
+      <div className="mt-6 pb-10">
+        <DragonFlyDnsPanel />
       </div>
     </div>
   );
