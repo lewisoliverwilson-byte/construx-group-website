@@ -194,6 +194,7 @@ import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6Panel from '@/components/K6Panel';
 import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K9sPanel from '@/components/K9sPanel';
+import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1584,8 +1585,13 @@ export default function FoundersPage() {
         </div>
 
         {/* k9s — pods, namespaces, contexts, resources */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K9sPanel />
+        </div>
+
+        {/* kafka connect — connectors, tasks, status, plugins */}
+        <div className="mt-6 pb-10">
+          <KafkaConnectPanel />
         </div>
 
         {/* CTA */}

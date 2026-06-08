@@ -194,6 +194,7 @@ import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
+import IcebergPanel from '@/components/IcebergPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1448,8 +1449,13 @@ export default function NowPage() {
         </div>
 
         {/* hyperfine — benchmarks, commands, runs, statistics */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <HyperfinePanel />
+        </div>
+
+        {/* iceberg — tables, snapshots, partitions, manifests */}
+        <div className="mt-6 pb-10">
+          <IcebergPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

@@ -193,6 +193,7 @@ import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
 import JournaldPanel from '@/components/JournaldPanel';
+import JournalWcPanel from '@/components/JournalWcPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1456,8 +1457,13 @@ export default function ContactPage() {
       </section>
 
       {/* journald — fields, units, boots, priorities */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <JournaldPanel />
+      </section>
+
+      {/* journal wc — lines, words, bytes, files */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <JournalWcPanel />
       </section>
     </div>
   );

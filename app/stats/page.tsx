@@ -196,6 +196,7 @@ import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
+import IostatPanel from '@/components/IostatPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1496,8 +1497,13 @@ export default function StatsPage() {
       </div>
 
       {/* iceberg — tables, snapshots, partitions, manifests */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <IcebergPanel />
+      </div>
+
+      {/* iostat — disks, throughput, iops, utilization */}
+      <div className="mt-6 pb-10">
+        <IostatPanel />
       </div>
     </div>
   );
