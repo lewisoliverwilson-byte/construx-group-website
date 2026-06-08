@@ -103,6 +103,7 @@ import TypesensePanel from '@/components/TypesensePanel';
 import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
 import ActPanel from '@/components/ActPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import ArgoCDPanel from '@/components/ArgoCDPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -938,8 +939,13 @@ export default function StatsPage() {
       </div>
 
       {/* alertmanager — prometheus alerts, groups, silences, receivers */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <AlertManagerPanel />
+      </div>
+
+      {/* argo cd — gitops, sync, apps, rollbacks */}
+      <div className="mt-6 pb-10">
+        <ArgoCDPanel />
       </div>
     </div>
   );

@@ -101,6 +101,7 @@ import VclusterPanel from '@/components/VclusterPanel';
 import ZarfPanel from '@/components/ZarfPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ActPanel from '@/components/ActPanel';
+import AlertManagerPanel from '@/components/AlertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1026,8 +1027,13 @@ export default function FoundersPage() {
         </div>
 
         {/* act — github actions local runner, jobs, steps, env */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ActPanel />
+        </div>
+
+        {/* alertmanager — prometheus alerts, groups, silences, receivers */}
+        <div className="mt-6 pb-10">
+          <AlertManagerPanel />
         </div>
 
         {/* CTA */}
