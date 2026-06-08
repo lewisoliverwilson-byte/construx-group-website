@@ -174,6 +174,7 @@ import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
+import GitShortlogPanel from '@/components/GitShortlogPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1346,8 +1347,13 @@ export default function UsesPage() {
         </div>
 
         {/* git graph — commits, branches, merges, tags */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitGraphPanel />
+        </div>
+
+        {/* git shortlog — authors, commits, files, insertions */}
+        <div className="mt-6 pb-10">
+          <GitShortlogPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

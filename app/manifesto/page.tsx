@@ -176,6 +176,7 @@ import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
+import GVisorPanel from '@/components/GVisorPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1239,8 +1240,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* grpcurl — services, methods, describe, invoke */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GrpcurlPanel />
+        </div>
+
+        {/* gvisor — sandboxing, syscalls, containers, isolation */}
+        <div className="mt-4 pb-6">
+          <GVisorPanel />
         </div>
 
         {/* Sign-off */}

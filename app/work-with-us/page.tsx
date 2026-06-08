@@ -175,6 +175,7 @@ import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
+import GitShortlogPanel from '@/components/GitShortlogPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1579,8 +1580,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* git graph — commits, branches, merges, tags */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GitGraphPanel />
+      </section>
+
+      {/* git shortlog — authors, commits, files, insertions */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GitShortlogPanel />
       </section>
 
       {/* CTA */}
