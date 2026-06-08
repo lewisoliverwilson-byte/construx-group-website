@@ -183,6 +183,7 @@ import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
+import GVisorPanel from '@/components/GVisorPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1627,8 +1628,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* grpcurl — services, methods, requests, responses */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <GrpcurlPanel />
+      </section>
+
+      {/* gvisor — syscalls, sandbox, containers, security */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <GVisorPanel />
       </section>
 
       {/* CTA */}

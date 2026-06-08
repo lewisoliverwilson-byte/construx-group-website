@@ -184,6 +184,7 @@ import HttpArchivePanel from '@/components/HttpArchivePanel';
 import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import HyperfinePanel from '@/components/HyperfinePanel';
+import IcebergPanel from '@/components/IcebergPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1287,8 +1288,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* hyperfine — benchmarks, commands, runs, statistics */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <HyperfinePanel />
+        </div>
+
+        {/* iceberg — tables, snapshots, partitions, manifests */}
+        <div className="mt-4 pb-6">
+          <IcebergPanel />
         </div>
 
         {/* Sign-off */}
