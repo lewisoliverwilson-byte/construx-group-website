@@ -90,6 +90,7 @@ import ParcaPanel from '@/components/ParcaPanel';
 import PnpmWorkspacePanel from '@/components/PnpmWorkspacePanel';
 import PrometheusPanel from '@/components/PrometheusPanel';
 import ProwPanel from '@/components/ProwPanel';
+import RedisCLIPanel from '@/components/RedisCLIPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -842,8 +843,13 @@ export default function UsesPage() {
         </div>
 
         {/* prow — kubernetes ci, jobs, tide, pass rates */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ProwPanel />
+        </div>
+
+        {/* redis cli — commands, keys, ttl, memory, cluster */}
+        <div className="mt-6 pb-10">
+          <RedisCLIPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

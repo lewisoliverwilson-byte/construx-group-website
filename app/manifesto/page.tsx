@@ -92,6 +92,7 @@ import OpenObservePanel from '@/components/OpenObservePanel';
 import PatroniPanel from '@/components/PatroniPanel';
 import PortainerPanel from '@/components/PortainerPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
+import PsAuxPanel from '@/components/PsAuxPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -735,8 +736,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* network ping — hosts, rtt, loss, jitter */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NetworkPingPanel />
+        </div>
+
+        {/* ps aux — processes, cpu, mem, state, command */}
+        <div className="mt-4 pb-6">
+          <PsAuxPanel />
         </div>
 
         {/* Sign-off */}
