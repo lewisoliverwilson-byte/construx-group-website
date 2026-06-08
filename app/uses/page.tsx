@@ -245,6 +245,7 @@ import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpensslPanel from '@/components/OpensslPanel';
 import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
+import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1772,8 +1773,13 @@ export default function UsesPage() {
         </div>
 
         {/* opentelemetry — sdk, instrumentation, otlp, traces */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpenTelemetryPanel />
+        </div>
+
+        {/* otel-collector — pipelines, receivers, processors, exporters */}
+        <div className="mt-6 pb-10">
+          <OtelCollectorPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

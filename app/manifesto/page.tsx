@@ -247,6 +247,7 @@ import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
 import PackerBuildPanel from '@/components/PackerBuildPanel';
+import ParcaPanel from '@/components/ParcaPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1665,8 +1666,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* packer-build — image templates, builders, provisioners, post-processors */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <PackerBuildPanel />
+        </div>
+
+        {/* parca — continuous profiling, flame graphs, cpu, memory */}
+        <div className="mt-4 pb-6">
+          <ParcaPanel />
         </div>
 
         {/* Sign-off */}

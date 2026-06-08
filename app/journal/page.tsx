@@ -250,6 +250,7 @@ import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
+import OpensslPanel from '@/components/OpensslPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1621,8 +1622,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* openobserve — logs, metrics, traces, dashboards */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OpenObservePanel />
+      </section>
+
+      {/* openssl — certs, keys, ciphers, tls handshake */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OpensslPanel />
       </section>
 
       {/* Posts */}
