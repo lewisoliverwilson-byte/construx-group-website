@@ -96,6 +96,7 @@ import StepSecurityPanel from '@/components/StepSecurityPanel';
 import SystemdServicesPanel from '@/components/SystemdServicesPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
+import ValsPanel from '@/components/ValsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -996,8 +997,13 @@ export default function FoundersPage() {
         </div>
 
         {/* turborepo — monorepo build, cache, pipelines, tasks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TurboRepoPanel />
+        </div>
+
+        {/* vals — secrets templating, vault, aws-sm, gcpsm */}
+        <div className="mt-6 pb-10">
+          <ValsPanel />
         </div>
 
         {/* CTA */}

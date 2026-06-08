@@ -96,6 +96,7 @@ import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 import TailnetStatusPanel from '@/components/TailnetStatusPanel';
 import VmstatPanel from '@/components/VmstatPanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
+import WeaviatePanel from '@/components/WeaviatePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -860,8 +861,13 @@ export default function NowPage() {
         </div>
 
         {/* web vitals — lcp, fid, cls, ttfb, inp performance */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <WebVitalsPanel />
+        </div>
+
+        {/* weaviate — vector db, classes, objects, hybrid search */}
+        <div className="mt-6 pb-10">
+          <WeaviatePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

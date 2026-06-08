@@ -95,6 +95,7 @@ import SpiceDBPanel from '@/components/SpiceDBPanel';
 import StrimziPanel from '@/components/StrimziPanel';
 import TrivyScanPanel from '@/components/TrivyScanPanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
+import TechFreqPanel from '@/components/TechFreqPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -868,8 +869,13 @@ export default function ContactPage() {
       </section>
 
       {/* tigerbeetle — financial ledger, double-entry, fault-tolerant */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <TigerBeetlePanel />
+      </section>
+
+      {/* tech freq — language frequency, lines, commits, contributors */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TechFreqPanel />
       </section>
     </div>
   );
