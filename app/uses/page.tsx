@@ -226,6 +226,7 @@ import MaterializePanel from '@/components/MaterializePanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
 import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
+import MinIOPanel from '@/components/MinIOPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1658,8 +1659,13 @@ export default function UsesPage() {
         </div>
 
         {/* methodology-diff — approach comparison, old vs new, decision log */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MethodologyDiffPanel />
+        </div>
+
+        {/* minio — s3-compatible object storage, buckets, objects, policies */}
+        <div className="mt-6 pb-10">
+          <MinIOPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

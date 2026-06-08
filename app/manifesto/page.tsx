@@ -228,6 +228,7 @@ import MisePanel from '@/components/MisePanel';
 import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
+import NeofetchPanel from '@/components/NeofetchPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1551,8 +1552,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <NatsPubSubPanel />
+        </div>
+
+        {/* neofetch — system info, distro, kernel, uptime, cpu */}
+        <div className="mt-4 pb-6">
+          <NeofetchPanel />
         </div>
 
         {/* Sign-off */}

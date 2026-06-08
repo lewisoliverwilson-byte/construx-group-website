@@ -227,6 +227,7 @@ import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LshwPanel from '@/components/LshwPanel';
+import LsofPanel from '@/components/LsofPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1891,8 +1892,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* lshw — hardware list, cpu, memory, disk, network */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <LshwPanel />
+      </section>
+
+      {/* lsof — open files, file descriptors, sockets, processes */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <LsofPanel />
       </section>
 
       {/* CTA */}

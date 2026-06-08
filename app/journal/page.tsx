@@ -231,6 +231,7 @@ import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MimirPanel from '@/components/MimirPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
+import MLflowPanel from '@/components/MLflowPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1507,8 +1508,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* mise — runtime version manager, tools, env, tasks */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <MisePanel />
+      </section>
+
+      {/* mlflow — experiment tracking, runs, metrics, artifacts */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <MLflowPanel />
       </section>
 
       {/* Posts */}
