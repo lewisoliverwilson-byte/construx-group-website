@@ -177,6 +177,7 @@ import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GVisorPanel from '@/components/GVisorPanel';
+import HarborPanel from '@/components/HarborPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1245,8 +1246,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* gvisor — sandboxing, syscalls, containers, isolation */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GVisorPanel />
+        </div>
+
+        {/* harbor — registries, repos, scans, policies */}
+        <div className="mt-4 pb-6">
+          <HarborPanel />
         </div>
 
         {/* Sign-off */}

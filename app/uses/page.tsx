@@ -175,6 +175,7 @@ import GitBlamePanel from '@/components/GitBlamePanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
+import GoReleaserPanel from '@/components/GoReleaserPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1352,8 +1353,13 @@ export default function UsesPage() {
         </div>
 
         {/* git shortlog — authors, commits, files, insertions */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitShortlogPanel />
+        </div>
+
+        {/* goreleaser — releases, artifacts, changelogs, builds */}
+        <div className="mt-6 pb-10">
+          <GoReleaserPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
