@@ -116,6 +116,7 @@ import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
+import BrewListPanel from '@/components/BrewListPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1225,8 +1226,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BpftracePanel />
+      </section>
+
+      {/* brew list — installed formulae, casks, versions */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BrewListPanel />
       </section>
 
       {/* CTA */}

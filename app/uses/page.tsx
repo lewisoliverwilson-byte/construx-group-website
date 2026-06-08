@@ -115,6 +115,7 @@ import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
+import BufPanel from '@/components/BufPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -992,8 +993,13 @@ export default function UsesPage() {
         </div>
 
         {/* bpftrace kernel tracing — probes, maps, scripts, hist */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BpftracePanel />
+        </div>
+
+        {/* buf protobuf lint, breaking, generate, push */}
+        <div className="mt-6 pb-10">
+          <BufPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

@@ -117,6 +117,7 @@ import CargoPanel from '@/components/CargoPanel';
 import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
+import CertManagerPanel from '@/components/CertManagerPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -885,8 +886,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* tls certificate info — san, validity, issuer, chain */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CertInfoPanel />
+        </div>
+
+        {/* cert manager — issuers, certificates, renewals, status */}
+        <div className="mt-4 pb-6">
+          <CertManagerPanel />
         </div>
 
         {/* Sign-off */}
