@@ -152,6 +152,7 @@ import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DruidPanel from '@/components/DruidPanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
+import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1332,8 +1333,13 @@ export default function FoundersPage() {
         </div>
 
         {/* duckdb — queries, parquet, extensions, attach */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DuckdbPanel />
+        </div>
+
+        {/* envoy stats — clusters, upstreams, rq, cx */}
+        <div className="mt-6 pb-10">
+          <EnvoyStatsPanel />
         </div>
 
         {/* CTA */}

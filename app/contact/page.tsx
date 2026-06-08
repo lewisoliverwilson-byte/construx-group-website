@@ -151,6 +151,7 @@ import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
+import DuckdbPanel from '@/components/DuckdbPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1204,8 +1205,13 @@ export default function ContactPage() {
       </section>
 
       {/* drone — pipelines, steps, triggers, secrets */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DronePanel />
+      </section>
+
+      {/* duckdb — queries, parquet, extensions, attach */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DuckdbPanel />
       </section>
     </div>
   );
