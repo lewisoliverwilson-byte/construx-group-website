@@ -112,6 +112,7 @@ import BiomePanel from '@/components/BiomePanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BunBuildPanel from '@/components/BunBuildPanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -855,8 +856,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* bun build — bundler, transpile, minify, treeshake */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BunBuildPanel />
+        </div>
+
+        {/* caddy access log — requests, status, latency, bytes */}
+        <div className="mt-4 pb-6">
+          <CaddyAccessPanel />
         </div>
 
         {/* Sign-off */}

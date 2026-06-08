@@ -115,6 +115,7 @@ import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import BenthosPanel from '@/components/BenthosPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
+import BiomePanel from '@/components/BiomePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -811,8 +812,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* bgp routing table lookup — asn, prefixes, peers, path */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <BgpLookupPanel />
+      </section>
+
+      {/* biome js toolchain — lint, format, check, ci */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <BiomePanel />
       </section>
 
       {/* Posts */}

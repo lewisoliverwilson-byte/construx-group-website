@@ -110,6 +110,7 @@ import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BackstagePanel from '@/components/BackstagePanel';
+import BazelPanel from '@/components/BazelPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -962,8 +963,13 @@ export default function UsesPage() {
         </div>
 
         {/* backstage developer portal — catalog, tech radar, plugins */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BackstagePanel />
+        </div>
+
+        {/* bazel hermetic build — remote cache, targets, action cache stats */}
+        <div className="mt-6 pb-10">
+          <BazelPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
