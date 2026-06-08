@@ -149,6 +149,7 @@ import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
+import DeltaLakePanel from '@/components/DeltaLakePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1196,8 +1197,13 @@ export default function UsesPage() {
         </div>
 
         {/* db migration — schema, up, down, status */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DbMigrationPanel />
+        </div>
+
+        {/* delta lake — tables, vacuum, history, merge */}
+        <div className="mt-6 pb-10">
+          <DeltaLakePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

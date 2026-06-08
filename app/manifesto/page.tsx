@@ -151,6 +151,7 @@ import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
 import DuckdbPanel from '@/components/DuckdbPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
+import EnvoyPanel from '@/components/EnvoyPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1089,8 +1090,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* earthly — targets, artifacts, cache, secrets */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <EarthlyPanel />
+        </div>
+
+        {/* envoy — routes, clusters, listeners, filters */}
+        <div className="mt-4 pb-6">
+          <EnvoyPanel />
         </div>
 
         {/* Sign-off */}
