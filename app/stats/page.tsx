@@ -143,6 +143,7 @@ import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrontabPanel from '@/components/CrontabPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
+import CurlJwtPanel from '@/components/CurlJwtPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1178,8 +1179,13 @@ export default function StatsPage() {
       </div>
 
       {/* crunchy postgres — operator, clusters, pgbackrest, monitoring */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CrunchyPostgresPanel />
+      </div>
+
+      {/* curl jwt — bearer, decode, expiry, claims */}
+      <div className="mt-6 pb-10">
+        <CurlJwtPanel />
       </div>
     </div>
   );

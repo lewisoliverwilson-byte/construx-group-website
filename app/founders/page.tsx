@@ -141,6 +141,7 @@ import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
+import DaggerPanel from '@/components/DaggerPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1266,8 +1267,13 @@ export default function FoundersPage() {
         </div>
 
         {/* cyclonedx — bom, components, vulnerabilities, metadata */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CycloneDxPanel />
+        </div>
+
+        {/* dagger — pipelines, containers, cache, secrets */}
+        <div className="mt-6 pb-10">
+          <DaggerPanel />
         </div>
 
         {/* CTA */}

@@ -140,6 +140,7 @@ import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CycloneDxPanel from '@/components/CycloneDxPanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
+import DbtPanel from '@/components/DbtPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1138,8 +1139,13 @@ export default function ContactPage() {
       </section>
 
       {/* db migration — flyway, liquibase, versions, checksums */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DbMigrationPanel />
+      </section>
+
+      {/* dbt — models, tests, sources, lineage */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DbtPanel />
       </section>
     </div>
   );

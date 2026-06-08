@@ -141,6 +141,7 @@ import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CosignPanel from '@/components/CosignPanel';
+import CpuStatsPanel from '@/components/CpuStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1130,8 +1131,13 @@ export default function NowPage() {
         </div>
 
         {/* cosign — keyless signing, sbom, attestation, policy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CosignPanel />
+        </div>
+
+        {/* cpu stats — load, cores, frequency, temperature */}
+        <div className="mt-6 pb-10">
+          <CpuStatsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
