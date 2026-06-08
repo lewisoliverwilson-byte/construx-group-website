@@ -181,6 +181,7 @@ import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrypePanel from '@/components/GrypePanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
+import HelmChartPanel from '@/components/HelmChartPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1384,8 +1385,13 @@ export default function ContactPage() {
       </section>
 
       {/* harbor — registries, artifacts, scans, replication */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <HarborPanel />
+      </section>
+
+      {/* helm chart — releases, values, templates, hooks */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HelmChartPanel />
       </section>
     </div>
   );

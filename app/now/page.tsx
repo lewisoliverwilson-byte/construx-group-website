@@ -182,6 +182,7 @@ import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
+import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1376,8 +1377,13 @@ export default function NowPage() {
         </div>
 
         {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GpgFingerprintPanel />
+        </div>
+
+        {/* grafana alloy — pipelines, components, otel, logs */}
+        <div className="mt-6 pb-10">
+          <GrafanaAlloyPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

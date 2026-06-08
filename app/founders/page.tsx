@@ -182,6 +182,7 @@ import HttpBenchPanel from '@/components/HttpBenchPanel';
 import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import IcebergPanel from '@/components/IcebergPanel';
+import InfluxDbPanel from '@/components/InfluxDbPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1512,8 +1513,13 @@ export default function FoundersPage() {
         </div>
 
         {/* iceberg — tables, snapshots, partitions, manifests */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IcebergPanel />
+        </div>
+
+        {/* influxdb — measurements, tags, fields, retention */}
+        <div className="mt-6 pb-10">
+          <InfluxDbPanel />
         </div>
 
         {/* CTA */}

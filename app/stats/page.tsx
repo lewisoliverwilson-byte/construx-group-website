@@ -184,6 +184,7 @@ import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
+import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1424,8 +1425,13 @@ export default function StatsPage() {
       </div>
 
       {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GpgFingerprintPanel />
+      </div>
+
+      {/* grafana faro — errors, sessions, vitals, frontend */}
+      <div className="mt-6 pb-10">
+        <GrafanaFaroPanel />
       </div>
     </div>
   );
