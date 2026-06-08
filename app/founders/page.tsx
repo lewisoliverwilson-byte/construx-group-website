@@ -211,6 +211,7 @@ import KubescapePanel from '@/components/KubescapePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
+import LangfusePanel from '@/components/LangfusePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1686,8 +1687,13 @@ export default function FoundersPage() {
         </div>
 
         {/* kyverno — policies, violations, reports, rules */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KyvernoPanel />
+        </div>
+
+        {/* langfuse — traces, spans, scores, generations */}
+        <div className="mt-6 pb-10">
+          <LangfusePanel />
         </div>
 
         {/* CTA */}
