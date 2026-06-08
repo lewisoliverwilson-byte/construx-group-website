@@ -243,6 +243,7 @@ import NetstatPanel from '@/components/NetstatPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import NixShellPanel from '@/components/NixShellPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1987,8 +1988,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* nix-flake — flake.nix, inputs, outputs, devShells */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NixFlakePanel />
+      </section>
+
+      {/* nix-shell — nix-shell, packages, environment, derivation */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NixShellPanel />
       </section>
 
       {/* CTA */}

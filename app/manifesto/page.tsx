@@ -244,6 +244,7 @@ import OPAPanel from '@/components/OPAPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
+import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1647,8 +1648,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* opensearch — search engine, indices, queries, clusters */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OpenSearchPanel />
+        </div>
+
+        {/* otel-collector — pipelines, receivers, processors, exporters */}
+        <div className="mt-4 pb-6">
+          <OtelCollectorPanel />
         </div>
 
         {/* Sign-off */}

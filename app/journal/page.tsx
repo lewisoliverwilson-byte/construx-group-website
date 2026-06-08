@@ -247,6 +247,7 @@ import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
 import OllamaPanel from '@/components/OllamaPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
+import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1603,8 +1604,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* opencost — kubernetes cost allocation, namespaces, workloads */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OpenCostPanel />
+      </section>
+
+      {/* openfga-audit — authorization model, tuples, check, expand */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OpenFgaAuditPanel />
       </section>
 
       {/* Posts */}
