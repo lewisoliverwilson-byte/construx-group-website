@@ -162,6 +162,7 @@ import DuckdbPanel from '@/components/DuckdbPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvPanel from '@/components/EnvPanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1501,8 +1502,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* env — variables, secrets, profiles, dotenv */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <EnvPanel />
+      </section>
+
+      {/* eslint output — rules, warnings, errors, fixable */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <EslintOutputPanel />
       </section>
 
       {/* CTA */}
