@@ -129,6 +129,7 @@ import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
+import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1076,8 +1077,13 @@ export default function UsesPage() {
         </div>
 
         {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickHouseKeeperPanel />
+        </div>
+
+        {/* clickhouse mv — materialized views, triggers, refresh */}
+        <div className="mt-6 pb-10">
+          <ClickhouseMvPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

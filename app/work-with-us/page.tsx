@@ -130,6 +130,7 @@ import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
+import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1309,8 +1310,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* clickhouse query — explain, profiling, system tables */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <ClickhouseQueryPanel />
+      </section>
+
+      {/* cloudflare workers — kv, durable objects, queues, pages */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CloudflareWorkersPanel />
       </section>
 
       {/* CTA */}

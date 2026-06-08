@@ -131,6 +131,7 @@ import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrontabPanel from '@/components/CrontabPanel';
+import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -969,8 +970,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* crontab — schedule, expression, jobs, last run */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CrontabPanel />
+        </div>
+
+        {/* crunchy postgres — ha, backups, pgbouncer, pgbadger */}
+        <div className="mt-4 pb-6">
+          <CrunchyPostgresPanel />
         </div>
 
         {/* Sign-off */}
