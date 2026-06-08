@@ -218,6 +218,7 @@ import LinkerdPanel from '@/components/LinkerdPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LshwPanel from '@/components/LshwPanel';
+import LsofPanel from '@/components/LsofPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1728,8 +1729,13 @@ export default function FoundersPage() {
         </div>
 
         {/* lshw — hardware list, buses, memory, cpus, disks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LshwPanel />
+        </div>
+
+        {/* lsof — open files, sockets, pids, fds */}
+        <div className="mt-6 pb-10">
+          <LsofPanel />
         </div>
 
         {/* CTA */}

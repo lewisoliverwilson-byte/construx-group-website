@@ -217,6 +217,7 @@ import LastLoginPanel from '@/components/LastLoginPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
 import LokiPanel from '@/components/LokiPanel';
+import LokiQueryPanel from '@/components/LokiQueryPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1600,8 +1601,13 @@ export default function ContactPage() {
       </section>
 
       {/* loki — log aggregation, streams, labels, queries */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <LokiPanel />
+      </section>
+
+      {/* loki query — logql, streams, labels, filters */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LokiQueryPanel />
       </section>
     </div>
   );
