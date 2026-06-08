@@ -148,6 +148,7 @@ import DockerComposePanel from '@/components/DockerComposePanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
+import DronePanel from '@/components/DronePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1071,8 +1072,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* dragonfly — shards, replication, keyspaces, memory */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <DragonflyPanel />
+        </div>
+
+        {/* drone — pipelines, steps, triggers, secrets */}
+        <div className="mt-4 pb-6">
+          <DronePanel />
         </div>
 
         {/* Sign-off */}
