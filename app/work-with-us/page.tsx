@@ -239,6 +239,7 @@ import NatsPubSubPanel from '@/components/NatsPubSubPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
 import NeonPanel from '@/components/NeonPanel';
 import NetdataPanel from '@/components/NetdataPanel';
+import NetstatPanel from '@/components/NetstatPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1963,8 +1964,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* netdata — real-time metrics, agents, dashboards, alerts */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NetdataPanel />
+      </section>
+
+      {/* netstat — connections, listening ports, routing, interfaces */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NetstatPanel />
       </section>
 
       {/* CTA */}

@@ -240,6 +240,7 @@ import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 import OAuthFlowPanel from '@/components/OAuthFlowPanel';
+import OPAPanel from '@/components/OPAPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1623,8 +1624,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* oauth-flow — authorization code, pkce, tokens, scopes */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OAuthFlowPanel />
+        </div>
+
+        {/* opa — policy engine, rego, bundles, decisions */}
+        <div className="mt-4 pb-6">
+          <OPAPanel />
         </div>
 
         {/* Sign-off */}

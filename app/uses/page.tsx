@@ -238,6 +238,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1730,8 +1731,13 @@ export default function UsesPage() {
         </div>
 
         {/* nmap-scan — port scanning, service detection, os fingerprint */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NmapScanPanel />
+        </div>
+
+        {/* nvidia-smi — gpu stats, memory, utilization, processes */}
+        <div className="mt-6 pb-10">
+          <NvidiaSmiPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

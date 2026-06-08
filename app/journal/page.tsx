@@ -243,6 +243,7 @@ import NmapScanPanel from '@/components/NmapScanPanel';
 import NomadPanel from '@/components/NomadPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
 import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
+import NvidiaSmiPanel from '@/components/NvidiaSmiPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1579,8 +1580,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* npm-outdated — stale dependencies, versions, wanted, latest */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NpmOutdatedPanel />
+      </section>
+
+      {/* nvidia-smi — gpu stats, memory, utilization, processes */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NvidiaSmiPanel />
       </section>
 
       {/* Posts */}
