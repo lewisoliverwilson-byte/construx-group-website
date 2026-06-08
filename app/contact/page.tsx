@@ -97,6 +97,7 @@ import TrivyScanPanel from '@/components/TrivyScanPanel';
 import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 import TechFreqPanel from '@/components/TechFreqPanel';
 import TerraformPanel from '@/components/TerraformPanel';
+import UptimePanel from '@/components/UptimePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -880,8 +881,13 @@ export default function ContactPage() {
       </section>
 
       {/* terraform — providers, resources, state, plan, apply */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <TerraformPanel />
+      </section>
+
+      {/* uptime — system uptime, load average, users, processes */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <UptimePanel />
       </section>
     </div>
   );

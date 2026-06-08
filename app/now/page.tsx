@@ -98,6 +98,7 @@ import VmstatPanel from '@/components/VmstatPanel';
 import WebVitalsPanel from '@/components/WebVitalsPanel';
 import WeaviatePanel from '@/components/WeaviatePanel';
 import VscodeExtensionsPanel from '@/components/VscodeExtensionsPanel';
+import ZitadelPanel from '@/components/ZitadelPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -872,8 +873,13 @@ export default function NowPage() {
         </div>
 
         {/* vscode extensions — installed, recommended, marketplace */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VscodeExtensionsPanel />
+        </div>
+
+        {/* zitadel — iam, oidc, saml, organizations, audit */}
+        <div className="mt-6 pb-10">
+          <ZitadelPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

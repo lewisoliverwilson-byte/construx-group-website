@@ -100,6 +100,7 @@ import TerraformPlanPanel from '@/components/TerraformPlanPanel';
 import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
 import TrivyVulnPanel from '@/components/TrivyVulnPanel';
 import TypesensePanel from '@/components/TypesensePanel';
+import WrkBenchmarkPanel from '@/components/WrkBenchmarkPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -920,8 +921,13 @@ export default function StatsPage() {
       </div>
 
       {/* typesense — fast search, collections, schema, facets */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TypesensePanel />
+      </div>
+
+      {/* wrk benchmark — rps, latency, throughput, threads */}
+      <div className="mt-6 pb-10">
+        <WrkBenchmarkPanel />
       </div>
     </div>
   );

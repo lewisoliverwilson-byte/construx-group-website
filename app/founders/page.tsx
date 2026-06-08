@@ -98,6 +98,7 @@ import TypeCheckPanel from '@/components/TypeCheckPanel';
 import TurboRepoPanel from '@/components/TurboRepoPanel';
 import ValsPanel from '@/components/ValsPanel';
 import VclusterPanel from '@/components/VclusterPanel';
+import ZarfPanel from '@/components/ZarfPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1008,8 +1009,13 @@ export default function FoundersPage() {
         </div>
 
         {/* vcluster — virtual kubernetes clusters, isolation, multi-tenancy */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VclusterPanel />
+        </div>
+
+        {/* zarf — airgap k8s packages, declarative deployment, oci */}
+        <div className="mt-6 pb-10">
+          <ZarfPanel />
         </div>
 
         {/* CTA */}
