@@ -147,6 +147,7 @@ import DebeziumPanel from '@/components/DebeziumPanel';
 import DigPanel from '@/components/DigPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
+import DockerStatsPanel from '@/components/DockerStatsPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1302,8 +1303,13 @@ export default function FoundersPage() {
         </div>
 
         {/* dns lookup — query, records, ttl, resolver */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DnsLookupPanel />
+        </div>
+
+        {/* docker stats — containers, cpu, mem, net */}
+        <div className="mt-6 pb-10">
+          <DockerStatsPanel />
         </div>
 
         {/* CTA */}

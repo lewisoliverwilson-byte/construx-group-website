@@ -147,6 +147,7 @@ import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
 import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 import CurlJwtPanel from '@/components/CurlJwtPanel';
+import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1166,8 +1167,13 @@ export default function NowPage() {
         </div>
 
         {/* curl jwt — bearer, decode, expiry, claims */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CurlJwtPanel />
+        </div>
+
+        {/* curl verbose — headers, timings, tls, redirect */}
+        <div className="mt-6 pb-10">
+          <CurlVerbosePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
