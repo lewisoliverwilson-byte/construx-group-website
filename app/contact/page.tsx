@@ -158,6 +158,7 @@ import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
 import FalcoPanel from '@/components/FalcoPanel';
+import FioPanel from '@/components/FioPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1246,8 +1247,13 @@ export default function ContactPage() {
       </section>
 
       {/* falco — syscalls, rules, alerts, k8s */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <FalcoPanel />
+      </section>
+
+      {/* fio — iops, bw, latency, jobs */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <FioPanel />
       </section>
     </div>
   );

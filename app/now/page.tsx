@@ -159,6 +159,7 @@ import DockerComposePanel from '@/components/DockerComposePanel';
 import DragonflyPanel from '@/components/DragonflyPanel';
 import DronePanel from '@/components/DronePanel';
 import DruidPanel from '@/components/DruidPanel';
+import DuckdbPanel from '@/components/DuckdbPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1238,8 +1239,13 @@ export default function NowPage() {
         </div>
 
         {/* druid — datasources, tasks, segments, compaction */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DruidPanel />
+        </div>
+
+        {/* duckdb — tables, views, queries, extensions */}
+        <div className="mt-6 pb-10">
+          <DuckdbPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

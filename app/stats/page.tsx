@@ -161,6 +161,7 @@ import DronePanel from '@/components/DronePanel';
 import DruidPanel from '@/components/DruidPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
+import EnvoyPanel from '@/components/EnvoyPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1286,8 +1287,13 @@ export default function StatsPage() {
       </div>
 
       {/* ebpf trace — probes, maps, events, syscalls */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <EbpfTracePanel />
+      </div>
+
+      {/* envoy — routes, clusters, listeners, filters */}
+      <div className="mt-6 pb-10">
+        <EnvoyPanel />
       </div>
     </div>
   );

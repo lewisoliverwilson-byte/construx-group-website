@@ -159,6 +159,7 @@ import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FioPanel from '@/components/FioPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
+import FluentBitPanel from '@/components/FluentBitPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1374,8 +1375,13 @@ export default function FoundersPage() {
         </div>
 
         {/* flamegraph — cpu, memory, wall, flamegraph */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FlamegraphPanel />
+        </div>
+
+        {/* fluentbit — pipelines, inputs, outputs, filters */}
+        <div className="mt-6 pb-10">
+          <FluentBitPanel />
         </div>
 
         {/* CTA */}
