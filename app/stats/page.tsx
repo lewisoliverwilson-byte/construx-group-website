@@ -188,6 +188,7 @@ import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1448,8 +1449,13 @@ export default function StatsPage() {
       </div>
 
       {/* grpcurl — services, methods, requests, responses */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GrpcurlPanel />
+      </div>
+
+      {/* grype — vulnerabilities, packages, severity, cvss */}
+      <div className="mt-6 pb-10">
+        <GrypePanel />
       </div>
     </div>
   );

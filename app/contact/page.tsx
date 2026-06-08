@@ -185,6 +185,7 @@ import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
+import HyperfinePanel from '@/components/HyperfinePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1408,8 +1409,13 @@ export default function ContactPage() {
       </section>
 
       {/* hugging face — models, datasets, spaces, inference */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <HuggingFacePanel />
+      </section>
+
+      {/* hyperfine — benchmarks, commands, runs, statistics */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HyperfinePanel />
       </section>
     </div>
   );

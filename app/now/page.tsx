@@ -186,6 +186,7 @@ import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
 import GrpcurlPanel from '@/components/GrpcurlPanel';
+import GVisorPanel from '@/components/GVisorPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1400,8 +1401,13 @@ export default function NowPage() {
         </div>
 
         {/* grpcurl — services, methods, requests, responses */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrpcurlPanel />
+        </div>
+
+        {/* gvisor — syscalls, sandbox, containers, security */}
+        <div className="mt-6 pb-10">
+          <GVisorPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
