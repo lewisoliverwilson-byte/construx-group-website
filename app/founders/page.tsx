@@ -171,6 +171,7 @@ import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
+import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1446,8 +1447,13 @@ export default function FoundersPage() {
         </div>
 
         {/* grafana oncall — rotations, alerts, escalations, silences */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrafanaOnCallPanel />
+        </div>
+
+        {/* grafana tempo — traces, spans, services, latency */}
+        <div className="mt-6 pb-10">
+          <GrafanaTempoPanel />
         </div>
 
         {/* CTA */}

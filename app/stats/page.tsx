@@ -173,6 +173,7 @@ import FluentBitPanel from '@/components/FluentBitPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatlingPanel from '@/components/GatlingPanel';
+import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1358,8 +1359,13 @@ export default function StatsPage() {
       </div>
 
       {/* gatling — scenarios, users, rps, latency */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GatlingPanel />
+      </div>
+
+      {/* gh actions run — jobs, steps, status, duration */}
+      <div className="mt-6 pb-10">
+        <GhActionsRunPanel />
       </div>
     </div>
   );

@@ -171,6 +171,7 @@ import FlaggerPanel from '@/components/FlaggerPanel';
 import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
+import GatekeeperPanel from '@/components/GatekeeperPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1310,8 +1311,13 @@ export default function NowPage() {
         </div>
 
         {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FluxCDPanel />
+        </div>
+
+        {/* gatekeeper — constraints, violations, audit, policy */}
+        <div className="mt-6 pb-10">
+          <GatekeeperPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

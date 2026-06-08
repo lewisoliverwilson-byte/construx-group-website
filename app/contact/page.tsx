@@ -170,6 +170,7 @@ import GitBisectPanel from '@/components/GitBisectPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
 import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
+import GitSignPanel from '@/components/GitSignPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1318,8 +1319,13 @@ export default function ContactPage() {
       </section>
 
       {/* git shortlog — authors, commits, files, insertions */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GitShortlogPanel />
+      </section>
+
+      {/* git sign — signers, keys, status, fingerprints */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GitSignPanel />
       </section>
     </div>
   );
