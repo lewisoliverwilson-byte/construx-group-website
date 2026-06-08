@@ -214,6 +214,7 @@ import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
+import KubebenchPanel from '@/components/KubebenchPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1604,8 +1605,13 @@ export default function StatsPage() {
       </div>
 
       {/* kube audit — events, rules, verbs, resources */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KubeAuditPanel />
+      </div>
+
+      {/* kubebench — checks, failures, warnings, remediation */}
+      <div className="mt-6 pb-10">
+        <KubebenchPanel />
       </div>
     </div>
   );

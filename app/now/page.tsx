@@ -212,6 +212,7 @@ import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import KindPanel from '@/components/KindPanel';
 import KnativePanel from '@/components/KnativePanel';
+import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1556,8 +1557,13 @@ export default function NowPage() {
         </div>
 
         {/* knative — services, revisions, routes, events */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KnativePanel />
+        </div>
+
+        {/* kubectl logs — container, pod, namespace, timestamps */}
+        <div className="mt-6 pb-10">
+          <KubectlLogsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

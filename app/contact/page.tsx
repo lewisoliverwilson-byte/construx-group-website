@@ -211,6 +211,7 @@ import KubeflowPipelinesPanel from '@/components/KubeflowPipelinesPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
+import KubeVirtPanel from '@/components/KubeVirtPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1564,8 +1565,13 @@ export default function ContactPage() {
       </section>
 
       {/* kube state metrics — pods, deployments, nodes, conditions */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <KubeStateMetricsPanel />
+      </section>
+
+      {/* kubevirt — vms, vmis, disks, networks */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <KubeVirtPanel />
       </section>
     </div>
   );
