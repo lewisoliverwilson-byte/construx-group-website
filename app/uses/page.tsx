@@ -204,6 +204,7 @@ import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6Panel from '@/components/K6Panel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import K9sPanel from '@/components/K9sPanel';
+import KeycloakPanel from '@/components/KeycloakPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1526,8 +1527,13 @@ export default function UsesPage() {
         </div>
 
         {/* k9s — namespaces, pods, deployments, services */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K9sPanel />
+        </div>
+
+        {/* keycloak — realms, clients, users, tokens */}
+        <div className="mt-6 pb-10">
+          <KeycloakPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

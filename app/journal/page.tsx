@@ -209,6 +209,7 @@ import KarpenterPanel from '@/components/KarpenterPanel';
 import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KindPanel from '@/components/KindPanel';
+import KubeAuditPanel from '@/components/KubeAuditPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1375,8 +1376,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kind — clusters, nodes, images, status */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KindPanel />
+      </section>
+
+      {/* kube audit — events, rules, verbs, resources */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KubeAuditPanel />
       </section>
 
       {/* Posts */}

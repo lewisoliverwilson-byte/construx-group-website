@@ -205,6 +205,7 @@ import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K9sPanel from '@/components/K9sPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
+import KarpenterPanel from '@/components/KarpenterPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1759,8 +1760,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* kafka streams — topologies, threads, tasks, lag */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KafkaStreamsPanel />
+      </section>
+
+      {/* karpenter — nodes, provisioners, machines, capacity */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KarpenterPanel />
       </section>
 
       {/* CTA */}
