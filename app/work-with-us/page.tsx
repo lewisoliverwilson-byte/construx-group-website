@@ -122,6 +122,7 @@ import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
 import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 import CaddyPanel from '@/components/CaddyPanel';
 import CassandraPanel from '@/components/CassandraPanel';
+import CertInfoPanel from '@/components/CertInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1261,8 +1262,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* cassandra query — keyspace, table, cql, latency */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <CassandraPanel />
+      </section>
+
+      {/* tls certificate info — san, validity, issuer, chain */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <CertInfoPanel />
       </section>
 
       {/* CTA */}

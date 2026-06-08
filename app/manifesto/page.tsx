@@ -123,6 +123,7 @@ import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
 import CitusPanel from '@/components/CitusPanel';
 import ClickHouseKeeperPanel from '@/components/ClickHouseKeeperPanel';
+import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -921,8 +922,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* clickhouse keeper — raft, snapshots, quorum, znodes */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <ClickHouseKeeperPanel />
+        </div>
+
+        {/* clickhouse migration — schema, versions, apply, rollback */}
+        <div className="mt-4 pb-6">
+          <ClickhouseMigrationPanel />
         </div>
 
         {/* Sign-off */}
