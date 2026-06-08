@@ -94,6 +94,7 @@ import SigstorePanel from '@/components/SigstorePanel';
 import SpiceDBPanel from '@/components/SpiceDBPanel';
 import StrimziPanel from '@/components/StrimziPanel';
 import TrivyScanPanel from '@/components/TrivyScanPanel';
+import TigerBeetlePanel from '@/components/TigerBeetlePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -862,8 +863,13 @@ export default function ContactPage() {
       </section>
 
       {/* trivy scan — container images, os packages, cve severity */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <TrivyScanPanel />
+      </section>
+
+      {/* tigerbeetle — financial ledger, double-entry, fault-tolerant */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <TigerBeetlePanel />
       </section>
     </div>
   );

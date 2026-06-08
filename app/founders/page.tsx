@@ -95,6 +95,7 @@ import SocketPanel from '@/components/SocketPanel';
 import StepSecurityPanel from '@/components/StepSecurityPanel';
 import SystemdServicesPanel from '@/components/SystemdServicesPanel';
 import TypeCheckPanel from '@/components/TypeCheckPanel';
+import TurboRepoPanel from '@/components/TurboRepoPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -990,8 +991,13 @@ export default function FoundersPage() {
         </div>
 
         {/* type check — tsc strict, errors, types, inference */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <TypeCheckPanel />
+        </div>
+
+        {/* turborepo — monorepo build, cache, pipelines, tasks */}
+        <div className="mt-6 pb-10">
+          <TurboRepoPanel />
         </div>
 
         {/* CTA */}

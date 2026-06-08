@@ -95,6 +95,7 @@ import SonarQubePanel from '@/components/SonarQubePanel';
 import StraceSummaryPanel from '@/components/StraceSummaryPanel';
 import TailnetStatusPanel from '@/components/TailnetStatusPanel';
 import VmstatPanel from '@/components/VmstatPanel';
+import WebVitalsPanel from '@/components/WebVitalsPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -854,8 +855,13 @@ export default function NowPage() {
         </div>
 
         {/* vmstat — memory, swap, io, cpu, system counters */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <VmstatPanel />
+        </div>
+
+        {/* web vitals — lcp, fid, cls, ttfb, inp performance */}
+        <div className="mt-6 pb-10">
+          <WebVitalsPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

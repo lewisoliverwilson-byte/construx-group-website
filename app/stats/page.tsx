@@ -97,6 +97,7 @@ import SitemapIndexPanel from '@/components/SitemapIndexPanel';
 import SshConfigPanel from '@/components/SshConfigPanel';
 import SyftPanel from '@/components/SyftPanel';
 import TerraformPlanPanel from '@/components/TerraformPlanPanel';
+import TmuxSessionsPanel from '@/components/TmuxSessionsPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -902,8 +903,13 @@ export default function StatsPage() {
       </div>
 
       {/* terraform plan — resource changes, add, change, destroy */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <TerraformPlanPanel />
+      </div>
+
+      {/* tmux sessions — windows, panes, session list, keybinds */}
+      <div className="mt-6 pb-10">
+        <TmuxSessionsPanel />
       </div>
     </div>
   );
