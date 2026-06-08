@@ -238,6 +238,7 @@ import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NatsPubSubPanel from '@/components/NatsPubSubPanel';
+import NeofetchPanel from '@/components/NeofetchPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1748,8 +1749,13 @@ export default function StatsPage() {
       </div>
 
       {/* nats-pubsub — publish, subscribe, subjects, wildcards */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <NatsPubSubPanel />
+      </div>
+
+      {/* neofetch — system info, distro, kernel, uptime, cpu */}
+      <div className="mt-6 pb-10">
+        <NeofetchPanel />
       </div>
     </div>
   );

@@ -236,6 +236,7 @@ import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NmapScanPanel from '@/components/NmapScanPanel';
+import NomadPanel from '@/components/NomadPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1836,8 +1837,13 @@ export default function FoundersPage() {
         </div>
 
         {/* nmap-scan — port scanner, os detection, services, scripts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NmapScanPanel />
+        </div>
+
+        {/* nomad — workload orchestration, jobs, tasks, allocations */}
+        <div className="mt-6 pb-10">
+          <NomadPanel />
         </div>
 
         {/* CTA */}

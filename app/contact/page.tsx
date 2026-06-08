@@ -235,6 +235,7 @@ import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
+import NomadPanel from '@/components/NomadPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1708,8 +1709,13 @@ export default function ContactPage() {
       </section>
 
       {/* nix-flake — flake.nix, inputs, outputs, devShells */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NixFlakePanel />
+      </section>
+
+      {/* nomad — workload orchestration, jobs, tasks, allocations */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NomadPanel />
       </section>
     </div>
   );

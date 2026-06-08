@@ -236,6 +236,7 @@ import MinIOPanel from '@/components/MinIOPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NATSPanel from '@/components/NATSPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
+import NeonPanel from '@/components/NeonPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1700,8 +1701,13 @@ export default function NowPage() {
         </div>
 
         {/* neofetch — system info, distro, kernel, uptime, cpu */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NeofetchPanel />
+        </div>
+
+        {/* neon — serverless postgres, branches, compute, storage */}
+        <div className="mt-6 pb-10">
+          <NeonPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
