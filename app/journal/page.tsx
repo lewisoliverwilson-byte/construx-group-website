@@ -234,6 +234,7 @@ import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
 import NeofetchPanel from '@/components/NeofetchPanel';
+import NetstatPanel from '@/components/NetstatPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1525,8 +1526,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* neofetch — system info, distro, kernel, uptime, cpu */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <NeofetchPanel />
+      </section>
+
+      {/* netstat — connections, listening ports, routing, interfaces */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <NetstatPanel />
       </section>
 
       {/* Posts */}

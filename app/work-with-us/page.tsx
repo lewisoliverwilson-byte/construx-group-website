@@ -230,6 +230,7 @@ import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MeilisearchPanel from '@/components/MeilisearchPanel';
 import MemInfoPanel from '@/components/MemInfoPanel';
+import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1909,8 +1910,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* meminfo — ram, swap, buffers, cached, available */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <MemInfoPanel />
+      </section>
+
+      {/* methodology-diff — approach comparison, old vs new, decision log */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <MethodologyDiffPanel />
       </section>
 
       {/* CTA */}

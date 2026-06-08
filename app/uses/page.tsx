@@ -229,6 +229,7 @@ import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
+import NATSPanel from '@/components/NATSPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1676,8 +1677,13 @@ export default function UsesPage() {
         </div>
 
         {/* mtr — network diagnostics, hops, latency, packet loss */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MtrPanel />
+        </div>
+
+        {/* nats — messaging, subjects, streams, consumers */}
+        <div className="mt-6 pb-10">
+          <NATSPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
