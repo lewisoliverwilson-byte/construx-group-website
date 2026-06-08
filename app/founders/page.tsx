@@ -165,6 +165,7 @@ import GatekeeperPanel from '@/components/GatekeeperPanel';
 import GatlingPanel from '@/components/GatlingPanel';
 import GhCliPanel from '@/components/GhCliPanel';
 import GitBlamePanel from '@/components/GitBlamePanel';
+import GitConfigPanel from '@/components/GitConfigPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1410,8 +1411,13 @@ export default function FoundersPage() {
         </div>
 
         {/* git blame — authors, commits, lines, dates */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GitBlamePanel />
+        </div>
+
+        {/* git config — globals, locals, remotes, aliases */}
+        <div className="mt-6 pb-10">
+          <GitConfigPanel />
         </div>
 
         {/* CTA */}

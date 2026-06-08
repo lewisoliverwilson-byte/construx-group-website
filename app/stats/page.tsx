@@ -167,6 +167,7 @@ import EnvPanel from '@/components/EnvPanel';
 import EtcdPanel from '@/components/EtcdPanel';
 import ExternalDnsPanel from '@/components/ExternalDnsPanel';
 import FalcoPanel from '@/components/FalcoPanel';
+import FioPanel from '@/components/FioPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1322,8 +1323,13 @@ export default function StatsPage() {
       </div>
 
       {/* falco — syscalls, rules, alerts, k8s */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <FalcoPanel />
+      </div>
+
+      {/* fio — iops, bw, latency, jobs */}
+      <div className="mt-6 pb-10">
+        <FioPanel />
       </div>
     </div>
   );
