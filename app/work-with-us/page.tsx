@@ -207,6 +207,7 @@ import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import KedaPanel from '@/components/KedaPanel';
+import KeycloakPanel from '@/components/KeycloakPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1771,8 +1772,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* keda — scalers, triggers, replicas, lag */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KedaPanel />
+      </section>
+
+      {/* keycloak — realms, clients, users, tokens */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KeycloakPanel />
       </section>
 
       {/* CTA */}

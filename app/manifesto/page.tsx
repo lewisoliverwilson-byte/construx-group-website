@@ -208,6 +208,7 @@ import KubeflowPanel from '@/components/KubeflowPanel';
 import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubescapePanel from '@/components/KubescapePanel';
+import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1431,8 +1432,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kubescape — risks, controls, frameworks, scores */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubescapePanel />
+        </div>
+
+        {/* kube state metrics — pods, deployments, nodes, conditions */}
+        <div className="mt-4 pb-6">
+          <KubeStateMetricsPanel />
         </div>
 
         {/* Sign-off */}
