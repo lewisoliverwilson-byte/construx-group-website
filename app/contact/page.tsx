@@ -233,6 +233,7 @@ import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NetworkPingPanel from '@/components/NetworkPingPanel';
 import NftablesPanel from '@/components/NftablesPanel';
+import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1696,8 +1697,13 @@ export default function ContactPage() {
       </section>
 
       {/* nftables — firewall rules, chains, sets, expressions */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <NftablesPanel />
+      </section>
+
+      {/* nginx-access-log — requests, status codes, methods, ips */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <NginxAccessLogPanel />
       </section>
     </div>
   );

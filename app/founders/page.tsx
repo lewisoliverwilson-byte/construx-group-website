@@ -234,6 +234,7 @@ import NetdataPanel from '@/components/NetdataPanel';
 import NetstatPanel from '@/components/NetstatPanel';
 import NftablesPanel from '@/components/NftablesPanel';
 import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
+import NixShellPanel from '@/components/NixShellPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1824,8 +1825,13 @@ export default function FoundersPage() {
         </div>
 
         {/* nginx-access-log — requests, status codes, methods, ips */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <NginxAccessLogPanel />
+        </div>
+
+        {/* nix-shell — reproducible dev envs, packages, shells */}
+        <div className="mt-6 pb-10">
+          <NixShellPanel />
         </div>
 
         {/* CTA */}

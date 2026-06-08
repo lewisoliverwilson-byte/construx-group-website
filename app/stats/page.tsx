@@ -236,6 +236,7 @@ import MethodologyDiffPanel from '@/components/MethodologyDiffPanel';
 import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
+import MtrPanel from '@/components/MtrPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1736,8 +1737,13 @@ export default function StatsPage() {
       </div>
 
       {/* mlflow — experiment tracking, runs, metrics, artifacts */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <MLflowPanel />
+      </div>
+
+      {/* mtr — network diagnostics, hops, latency, packet loss */}
+      <div className="mt-6 pb-10">
+        <MtrPanel />
       </div>
     </div>
   );
