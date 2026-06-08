@@ -211,6 +211,7 @@ import K9sPanel from '@/components/K9sPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KedaPanel from '@/components/KedaPanel';
+import KeycloakPanel from '@/components/KeycloakPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1586,8 +1587,13 @@ export default function StatsPage() {
       </div>
 
       {/* keda — scalers, triggers, replicas, lag */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KedaPanel />
+      </div>
+
+      {/* keycloak — realms, clients, users, tokens */}
+      <div className="mt-6 pb-10">
+        <KeycloakPanel />
       </div>
     </div>
   );

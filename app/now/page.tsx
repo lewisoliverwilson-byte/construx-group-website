@@ -209,6 +209,7 @@ import K6SummaryPanel from '@/components/K6SummaryPanel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
 import KafkaConnectPanel from '@/components/KafkaConnectPanel';
 import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
+import KarpenterPanel from '@/components/KarpenterPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1538,8 +1539,13 @@ export default function NowPage() {
         </div>
 
         {/* kafka streams — topologies, threads, tasks, lag */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KafkaStreamsPanel />
+        </div>
+
+        {/* karpenter — nodes, provisioners, machines, capacity */}
+        <div className="mt-6 pb-10">
+          <KarpenterPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
