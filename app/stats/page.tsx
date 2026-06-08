@@ -175,6 +175,7 @@ import FreeMemPanel from '@/components/FreeMemPanel';
 import GatlingPanel from '@/components/GatlingPanel';
 import GhActionsRunPanel from '@/components/GhActionsRunPanel';
 import GhCliPanel from '@/components/GhCliPanel';
+import GitBisectPanel from '@/components/GitBisectPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1370,8 +1371,13 @@ export default function StatsPage() {
       </div>
 
       {/* gh cli — repos, prs, issues, releases */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GhCliPanel />
+      </div>
+
+      {/* git bisect — good, bad, skip, reset */}
+      <div className="mt-6 pb-10">
+        <GitBisectPanel />
       </div>
     </div>
   );

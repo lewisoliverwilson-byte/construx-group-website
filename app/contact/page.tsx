@@ -172,6 +172,7 @@ import GitGraphPanel from '@/components/GitGraphPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GitSignPanel from '@/components/GitSignPanel';
 import GitWorktreePanel from '@/components/GitWorktreePanel';
+import GoReplayPanel from '@/components/GoReplayPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1330,8 +1331,13 @@ export default function ContactPage() {
       </section>
 
       {/* git worktree — branches, linked, prune, list */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <GitWorktreePanel />
+      </section>
+
+      {/* goreplay — traffic, filters, replays, middleware */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <GoReplayPanel />
       </section>
     </div>
   );
