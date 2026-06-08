@@ -214,6 +214,7 @@ import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
+import LokiPanel from '@/components/LokiPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1467,8 +1468,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* latency map — regions, p50, p95, p99 */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LatencyMapPanel />
+        </div>
+
+        {/* loki — streams, labels, queries, lines */}
+        <div className="mt-4 pb-6">
+          <LokiPanel />
         </div>
 
         {/* Sign-off */}
