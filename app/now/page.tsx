@@ -198,6 +198,7 @@ import IcebergPanel from '@/components/IcebergPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
+import IstioPanel from '@/components/IstioPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1472,8 +1473,13 @@ export default function NowPage() {
         </div>
 
         {/* ip link — interfaces, states, addresses, routes */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IpLinkPanel />
+        </div>
+
+        {/* istio — services, traffic, policies, telemetry */}
+        <div className="mt-6 pb-10">
+          <IstioPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

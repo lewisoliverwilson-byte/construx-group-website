@@ -200,6 +200,7 @@ import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
+import JfrogXrayPanel from '@/components/JfrogXrayPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1520,8 +1521,13 @@ export default function StatsPage() {
       </div>
 
       {/* istio — services, traffic, policies, telemetry */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <IstioPanel />
+      </div>
+
+      {/* jfrog xray — vulnerabilities, licenses, components, policies */}
+      <div className="mt-6 pb-10">
+        <JfrogXrayPanel />
       </div>
     </div>
   );
