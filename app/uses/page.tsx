@@ -105,6 +105,7 @@ import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AtlasPanel from '@/components/AtlasPanel';
+import AuditdPanel from '@/components/AuditdPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -932,8 +933,13 @@ export default function UsesPage() {
         </div>
 
         {/* atlas database schema management — migrations, drift, ci */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AtlasPanel />
+        </div>
+
+        {/* auditd linux audit framework — syscalls, events, rules, trails */}
+        <div className="mt-6 pb-10">
+          <AuditdPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

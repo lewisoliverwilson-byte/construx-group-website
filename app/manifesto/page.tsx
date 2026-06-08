@@ -107,6 +107,7 @@ import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BazelPanel from '@/components/BazelPanel';
 import BenthosPanel from '@/components/BenthosPanel';
+import BeylaPanel from '@/components/BeylaPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -825,8 +826,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* benthos stream processor — pipelines, bloblang, fanout */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BenthosPanel />
+        </div>
+
+        {/* beyla ebpf auto-instrumentation — spans, latency, red metrics */}
+        <div className="mt-4 pb-6">
+          <BeylaPanel />
         </div>
 
         {/* Sign-off */}

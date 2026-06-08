@@ -110,6 +110,7 @@ import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
+import AuthentikPanel from '@/components/AuthentikPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -781,8 +782,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* auditd linux audit framework — syscalls, events, rules, trails */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <AuditdPanel />
+      </section>
+
+      {/* authentik identity provider — sso, oauth2, saml, audit */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <AuthentikPanel />
       </section>
 
       {/* Posts */}
