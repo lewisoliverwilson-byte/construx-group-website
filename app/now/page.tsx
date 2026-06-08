@@ -185,6 +185,7 @@ import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
+import GrpcurlPanel from '@/components/GrpcurlPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1394,8 +1395,13 @@ export default function NowPage() {
         </div>
 
         {/* grpc call — methods, payloads, status, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrpcCallPanel />
+        </div>
+
+        {/* grpcurl — services, methods, requests, responses */}
+        <div className="mt-6 pb-10">
+          <GrpcurlPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

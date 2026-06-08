@@ -187,6 +187,7 @@ import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
+import GrpcurlPanel from '@/components/GrpcurlPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1442,8 +1443,13 @@ export default function StatsPage() {
       </div>
 
       {/* grpc call — methods, payloads, status, latency */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <GrpcCallPanel />
+      </div>
+
+      {/* grpcurl — services, methods, requests, responses */}
+      <div className="mt-6 pb-10">
+        <GrpcurlPanel />
       </div>
     </div>
   );

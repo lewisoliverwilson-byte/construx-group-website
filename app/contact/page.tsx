@@ -184,6 +184,7 @@ import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
 import HubblePanel from '@/components/HubblePanel';
+import HuggingFacePanel from '@/components/HuggingFacePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1402,8 +1403,13 @@ export default function ContactPage() {
       </section>
 
       {/* hubble — flows, services, endpoints, policies */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <HubblePanel />
+      </section>
+
+      {/* hugging face — models, datasets, spaces, inference */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HuggingFacePanel />
       </section>
     </div>
   );
