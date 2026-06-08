@@ -106,6 +106,7 @@ import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BazelPanel from '@/components/BazelPanel';
+import BenthosPanel from '@/components/BenthosPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1056,8 +1057,13 @@ export default function FoundersPage() {
         </div>
 
         {/* bazel hermetic build — remote cache, targets, action cache stats */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BazelPanel />
+        </div>
+
+        {/* benthos stream processor — pipelines, bloblang, fanout */}
+        <div className="mt-6 pb-10">
+          <BenthosPanel />
         </div>
 
         {/* CTA */}

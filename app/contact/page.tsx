@@ -105,6 +105,7 @@ import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AtlasPanel from '@/components/AtlasPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
+import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -928,8 +929,13 @@ export default function ContactPage() {
       </section>
 
       {/* authentik identity provider — sso, oauth2, saml, audit */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <AuthentikPanel />
+      </section>
+
+      {/* aws bedrock — foundation models, inference, agents */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <AwsBedrockPanel />
       </section>
     </div>
   );

@@ -106,6 +106,7 @@ import ArgoCDPanel from '@/components/ArgoCDPanel';
 import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 import ArgoRolloutPanel from '@/components/ArgoRolloutPanel';
 import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
+import AuditdPanel from '@/components/AuditdPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -920,8 +921,13 @@ export default function NowPage() {
         </div>
 
         {/* argo workflows — dag pipelines, ml training, artifacts, parallel steps */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoWorkflowsPanel />
+        </div>
+
+        {/* auditd linux audit framework — syscalls, events, rules, trails */}
+        <div className="mt-6 pb-10">
+          <AuditdPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
