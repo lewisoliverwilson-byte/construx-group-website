@@ -119,6 +119,7 @@ import CephPanel from '@/components/CephPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
+import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -897,8 +898,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cgroups — cpu, memory, blkio, hierarchy */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CgroupsPanel />
+        </div>
+
+        {/* chaos mesh — faults, experiments, schedules, pods */}
+        <div className="mt-4 pb-6">
+          <ChaosMeshPanel />
         </div>
 
         {/* Sign-off */}

@@ -117,6 +117,7 @@ import BoundaryPanel from '@/components/BoundaryPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
+import BunBuildPanel from '@/components/BunBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1004,8 +1005,13 @@ export default function UsesPage() {
         </div>
 
         {/* build output — compile steps, warnings, errors, timing */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BuildOutputPanel />
+        </div>
+
+        {/* bun build — bundler, transpile, minify, treeshake */}
+        <div className="mt-6 pb-10">
+          <BunBuildPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
