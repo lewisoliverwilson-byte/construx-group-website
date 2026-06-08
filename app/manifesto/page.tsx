@@ -190,6 +190,7 @@ import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import JaegerTracePanel from '@/components/JaegerTracePanel';
 import JfrogXrayPanel from '@/components/JfrogXrayPanel';
+import JournaldPanel from '@/components/JournaldPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1323,8 +1324,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* jfrog xray — vulnerabilities, licenses, components, policies */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <JfrogXrayPanel />
+        </div>
+
+        {/* journald — units, messages, priorities, fields */}
+        <div className="mt-4 pb-6">
+          <JournaldPanel />
         </div>
 
         {/* Sign-off */}
