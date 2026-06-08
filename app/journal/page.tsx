@@ -164,6 +164,7 @@ import EnvoyPanel from '@/components/EnvoyPanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
 import EnvPanel from '@/components/EnvPanel';
 import EslintOutputPanel from '@/components/EslintOutputPanel';
+import EtcdPanel from '@/components/EtcdPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1105,8 +1106,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* eslint output — rules, warnings, errors, fixable */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <EslintOutputPanel />
+      </section>
+
+      {/* etcd — keys, leases, alarms, compaction */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <EtcdPanel />
       </section>
 
       {/* Posts */}

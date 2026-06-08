@@ -161,6 +161,7 @@ import FlamegraphPanel from '@/components/FlamegraphPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FreeMemPanel from '@/components/FreeMemPanel';
 import GatekeeperPanel from '@/components/GatekeeperPanel';
+import GatlingPanel from '@/components/GatlingPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1149,8 +1150,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* gatekeeper — constraints, violations, audit, policy */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GatekeeperPanel />
+        </div>
+
+        {/* gatling — scenarios, users, rps, latency */}
+        <div className="mt-4 pb-6">
+          <GatlingPanel />
         </div>
 
         {/* Sign-off */}

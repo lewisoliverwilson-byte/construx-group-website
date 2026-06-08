@@ -159,6 +159,7 @@ import DruidPanel from '@/components/DruidPanel';
 import EarthlyPanel from '@/components/EarthlyPanel';
 import EbpfTracePanel from '@/components/EbpfTracePanel';
 import EnvoyStatsPanel from '@/components/EnvoyStatsPanel';
+import EslintOutputPanel from '@/components/EslintOutputPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1256,8 +1257,13 @@ export default function UsesPage() {
         </div>
 
         {/* envoy stats — rq, cx, health, rq_retry */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <EnvoyStatsPanel />
+        </div>
+
+        {/* eslint output — rules, warnings, errors, fixable */}
+        <div className="mt-6 pb-10">
+          <EslintOutputPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
