@@ -212,6 +212,7 @@ import KindPanel from '@/components/KindPanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubebenchPanel from '@/components/KubebenchPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
+import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1393,8 +1394,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kubectl logs — container, pod, namespace, timestamps */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KubectlLogsPanel />
+      </section>
+
+      {/* kubectl pods — name, ready, status, restarts, age */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KubectlPodsPanel />
       </section>
 
       {/* Posts */}

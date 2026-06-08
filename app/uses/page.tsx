@@ -207,6 +207,7 @@ import K9sPanel from '@/components/K9sPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
 import KnativePanel from '@/components/KnativePanel';
 import KubeAuditPanel from '@/components/KubeAuditPanel';
+import KubebenchPanel from '@/components/KubebenchPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1544,8 +1545,13 @@ export default function UsesPage() {
         </div>
 
         {/* kube audit — events, rules, verbs, resources */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <KubeAuditPanel />
+        </div>
+
+        {/* kubebench — checks, failures, warnings, remediation */}
+        <div className="mt-6 pb-10">
+          <KubebenchPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

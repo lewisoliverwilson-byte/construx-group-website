@@ -208,6 +208,7 @@ import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
+import KnativePanel from '@/components/KnativePanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1777,8 +1778,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* keycloak — realms, clients, users, tokens */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <KeycloakPanel />
+      </section>
+
+      {/* knative — services, revisions, routes, events */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <KnativePanel />
       </section>
 
       {/* CTA */}
