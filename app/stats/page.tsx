@@ -147,6 +147,7 @@ import CurlJwtPanel from '@/components/CurlJwtPanel';
 import CurlVerbosePanel from '@/components/CurlVerbosePanel';
 import DaggerPanel from '@/components/DaggerPanel';
 import DbMigrationPanel from '@/components/DbMigrationPanel';
+import DebeziumPanel from '@/components/DebeziumPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1202,8 +1203,13 @@ export default function StatsPage() {
       </div>
 
       {/* db migration — flyway, liquibase, versions, checksums */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DbMigrationPanel />
+      </div>
+
+      {/* debezium — cdc, connectors, transforms, offsets */}
+      <div className="mt-6 pb-10">
+        <DebeziumPanel />
       </div>
     </div>
   );

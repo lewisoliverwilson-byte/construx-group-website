@@ -145,6 +145,7 @@ import DaggerPanel from '@/components/DaggerPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import DigPanel from '@/components/DigPanel';
+import DiskUsagePanel from '@/components/DiskUsagePanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1290,8 +1291,13 @@ export default function FoundersPage() {
         </div>
 
         {/* dig — dns query, records, trace, reverse */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DigPanel />
+        </div>
+
+        {/* disk usage — df, partitions, inodes, mounts */}
+        <div className="mt-6 pb-10">
+          <DiskUsagePanel />
         </div>
 
         {/* CTA */}

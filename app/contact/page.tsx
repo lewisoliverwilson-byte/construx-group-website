@@ -144,6 +144,7 @@ import DbtPanel from '@/components/DbtPanel';
 import DebeziumPanel from '@/components/DebeziumPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
+import DmesgPanel from '@/components/DmesgPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1162,8 +1163,13 @@ export default function ContactPage() {
       </section>
 
       {/* disk usage — df, partitions, inodes, mounts */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <DiskUsagePanel />
+      </section>
+
+      {/* dmesg — kernel, boot, drivers, errors */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <DmesgPanel />
       </section>
     </div>
   );

@@ -145,6 +145,7 @@ import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
 import CrunchyPostgresPanel from '@/components/CrunchyPostgresPanel';
 import CuePanel from '@/components/CuePanel';
+import CurlHeadersPanel from '@/components/CurlHeadersPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1154,8 +1155,13 @@ export default function NowPage() {
         </div>
 
         {/* cue — schema, validation, export, evaluate */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CuePanel />
+        </div>
+
+        {/* curl headers — request, response, timing, tls */}
+        <div className="mt-6 pb-10">
+          <CurlHeadersPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
