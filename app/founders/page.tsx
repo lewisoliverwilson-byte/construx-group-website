@@ -130,6 +130,7 @@ import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import CortexPanel from '@/components/CortexPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1200,8 +1201,13 @@ export default function FoundersPage() {
         </div>
 
         {/* containerd — images, containers, namespaces, snapshots */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ContainerdPanel />
+        </div>
+
+        {/* cortex — prometheus, ruler, querier, compactor */}
+        <div className="mt-6 pb-10">
+          <CortexPanel />
         </div>
 
         {/* CTA */}

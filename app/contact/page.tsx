@@ -129,6 +129,7 @@ import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
+import CniPanel from '@/components/CniPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1072,8 +1073,13 @@ export default function ContactPage() {
       </section>
 
       {/* cluster api — providers, machines, controlplane, kubeconfig */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ClusterApiPanel />
+      </section>
+
+      {/* cni — plugins, ipam, overlay, policy */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CniPanel />
       </section>
     </div>
   );

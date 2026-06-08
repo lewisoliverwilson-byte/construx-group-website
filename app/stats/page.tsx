@@ -132,6 +132,7 @@ import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1112,8 +1113,13 @@ export default function StatsPage() {
       </div>
 
       {/* cloudnative pg — clusters, backups, replication, switchover */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <CloudNativePGPanel />
+      </div>
+
+      {/* cluster api — providers, machines, controlplane, kubeconfig */}
+      <div className="mt-6 pb-10">
+        <ClusterApiPanel />
       </div>
     </div>
   );
