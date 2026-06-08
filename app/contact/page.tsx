@@ -134,6 +134,7 @@ import ContainerdPanel from '@/components/ContainerdPanel';
 import CortexPanel from '@/components/CortexPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CrontabPanel from '@/components/CrontabPanel';
+import CuePanel from '@/components/CuePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1102,8 +1103,13 @@ export default function ContactPage() {
       </section>
 
       {/* crontab — schedule, jobs, logs, next-run */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CrontabPanel />
+      </section>
+
+      {/* cue — schema, validation, export, evaluate */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CuePanel />
       </section>
     </div>
   );

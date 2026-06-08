@@ -135,6 +135,7 @@ import CosignPanel from '@/components/CosignPanel';
 import CoverageReportPanel from '@/components/CoverageReportPanel';
 import CpuStatsPanel from '@/components/CpuStatsPanel';
 import CrossplanePanel from '@/components/CrossplanePanel';
+import CrontabPanel from '@/components/CrontabPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1230,8 +1231,13 @@ export default function FoundersPage() {
         </div>
 
         {/* crossplane — providers, compositions, claims, xrds */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CrossplanePanel />
+        </div>
+
+        {/* crontab — schedule, jobs, logs, next-run */}
+        <div className="mt-6 pb-10">
+          <CrontabPanel />
         </div>
 
         {/* CTA */}

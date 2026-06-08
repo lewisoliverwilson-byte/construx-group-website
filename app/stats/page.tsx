@@ -137,6 +137,7 @@ import CniPanel from '@/components/CniPanel';
 import CockroachDbPanel from '@/components/CockroachDbPanel';
 import ConsulPanel from '@/components/ConsulPanel';
 import ContainerdPanel from '@/components/ContainerdPanel';
+import CosignPanel from '@/components/CosignPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1142,8 +1143,13 @@ export default function StatsPage() {
       </div>
 
       {/* containerd — images, containers, namespaces, snapshots */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <ContainerdPanel />
+      </div>
+
+      {/* cosign — keyless signing, sbom, attestation, policy */}
+      <div className="mt-6 pb-10">
+        <CosignPanel />
       </div>
     </div>
   );

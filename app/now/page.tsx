@@ -135,6 +135,7 @@ import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickhouseMvPanel from '@/components/ClickhouseMvPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
+import CloudNativePGPanel from '@/components/CloudNativePGPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1094,8 +1095,13 @@ export default function NowPage() {
         </div>
 
         {/* clickhouse query — explain, profiling, system tables */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ClickhouseQueryPanel />
+        </div>
+
+        {/* cloudnative pg — clusters, backups, replication, switchover */}
+        <div className="mt-6 pb-10">
+          <CloudNativePGPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
