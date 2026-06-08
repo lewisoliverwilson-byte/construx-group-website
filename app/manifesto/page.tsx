@@ -111,6 +111,7 @@ import BeylaPanel from '@/components/BeylaPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BrewListPanel from '@/components/BrewListPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
+import BunBuildPanel from '@/components/BunBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -849,8 +850,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* build output — next.js compilation, chunks, sizes */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <BuildOutputPanel />
+        </div>
+
+        {/* bun build — bundler, transpile, minify, treeshake */}
+        <div className="mt-4 pb-6">
+          <BunBuildPanel />
         </div>
 
         {/* Sign-off */}

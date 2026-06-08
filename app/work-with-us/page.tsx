@@ -110,6 +110,7 @@ import AuditdPanel from '@/components/AuditdPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
 import BackstagePanel from '@/components/BackstagePanel';
 import BazelPanel from '@/components/BazelPanel';
+import BenthosPanel from '@/components/BenthosPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1189,8 +1190,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* bazel hermetic build — remote cache, targets, action cache stats */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <BazelPanel />
+      </section>
+
+      {/* benthos stream processor — pipelines, bloblang, fanout */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <BenthosPanel />
       </section>
 
       {/* CTA */}
