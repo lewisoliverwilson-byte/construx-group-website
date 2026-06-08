@@ -118,6 +118,7 @@ import BeylaPanel from '@/components/BeylaPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BpftracePanel from '@/components/BpftracePanel';
 import BrewListPanel from '@/components/BrewListPanel';
+import BunBuildPanel from '@/components/BunBuildPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1028,8 +1029,13 @@ export default function StatsPage() {
       </div>
 
       {/* brew list — installed formulae, casks, versions */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <BrewListPanel />
+      </div>
+
+      {/* bun build — bundler, transpile, minify, treeshake */}
+      <div className="mt-6 pb-10">
+        <BunBuildPanel />
       </div>
     </div>
   );

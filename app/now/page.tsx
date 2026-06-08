@@ -116,6 +116,7 @@ import BenthosPanel from '@/components/BenthosPanel';
 import BgpLookupPanel from '@/components/BgpLookupPanel';
 import BiomePanel from '@/components/BiomePanel';
 import BoundaryPanel from '@/components/BoundaryPanel';
+import BrewListPanel from '@/components/BrewListPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -980,8 +981,13 @@ export default function NowPage() {
         </div>
 
         {/* boundary zero-trust infrastructure access — targets, sessions, policies */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BoundaryPanel />
+        </div>
+
+        {/* brew list — installed formulae, casks, versions */}
+        <div className="mt-6 pb-10">
+          <BrewListPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

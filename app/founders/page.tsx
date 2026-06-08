@@ -116,6 +116,7 @@ import BrewListPanel from '@/components/BrewListPanel';
 import BufPanel from '@/components/BufPanel';
 import BuildOutputPanel from '@/components/BuildOutputPanel';
 import BundleAnalysisPanel from '@/components/BundleAnalysisPanel';
+import CaddyAccessPanel from '@/components/CaddyAccessPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1116,8 +1117,13 @@ export default function FoundersPage() {
         </div>
 
         {/* bundle analysis — chunks, modules, size, tree */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <BundleAnalysisPanel />
+        </div>
+
+        {/* caddy access log — requests, status, latency, bytes */}
+        <div className="mt-6 pb-10">
+          <CaddyAccessPanel />
         </div>
 
         {/* CTA */}
