@@ -127,6 +127,7 @@ import ClickhouseMigrationPanel from '@/components/ClickhouseMigrationPanel';
 import ClickHousePanel from '@/components/ClickHousePanel';
 import ClusterApiPanel from '@/components/ClusterApiPanel';
 import CniPanel from '@/components/CniPanel';
+import CockroachDbPanel from '@/components/CockroachDbPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -945,8 +946,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* cni — plugins, ipam, overlay, policy */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <CniPanel />
+        </div>
+
+        {/* cockroachdb — distributed sql, regions, ranges, raft */}
+        <div className="mt-4 pb-6">
+          <CockroachDbPanel />
         </div>
 
         {/* Sign-off */}

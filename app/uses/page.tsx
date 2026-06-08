@@ -125,6 +125,7 @@ import CargoPanel from '@/components/CargoPanel';
 import CephPanel from '@/components/CephPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
+import ChaosMeshPanel from '@/components/ChaosMeshPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1052,8 +1053,13 @@ export default function UsesPage() {
         </div>
 
         {/* cert manager — issuers, certificates, renewals, status */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CertManagerPanel />
+        </div>
+
+        {/* chaos mesh — faults, experiments, schedules, pods */}
+        <div className="mt-6 pb-10">
+          <ChaosMeshPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
