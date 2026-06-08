@@ -100,6 +100,7 @@ import WeaviatePanel from '@/components/WeaviatePanel';
 import VscodeExtensionsPanel from '@/components/VscodeExtensionsPanel';
 import ZitadelPanel from '@/components/ZitadelPanel';
 import AlertManagerPanel from '@/components/AlertManagerPanel';
+import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -884,8 +885,13 @@ export default function NowPage() {
         </div>
 
         {/* alertmanager — prometheus alerts, groups, silences, receivers */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AlertManagerPanel />
+        </div>
+
+        {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
+        <div className="mt-6 pb-10">
+          <AnsiblePlaybookPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

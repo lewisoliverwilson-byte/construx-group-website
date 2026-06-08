@@ -100,6 +100,7 @@ import ValsPanel from '@/components/ValsPanel';
 import VclusterPanel from '@/components/VclusterPanel';
 import ZarfPanel from '@/components/ZarfPanel';
 import ArgoCDPanel from '@/components/ArgoCDPanel';
+import ActPanel from '@/components/ActPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1020,8 +1021,13 @@ export default function FoundersPage() {
         </div>
 
         {/* argo cd — gitops, sync, apps, rollbacks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <ArgoCDPanel />
+        </div>
+
+        {/* act — github actions local runner, jobs, steps, env */}
+        <div className="mt-6 pb-10">
+          <ActPanel />
         </div>
 
         {/* CTA */}

@@ -99,6 +99,7 @@ import TechFreqPanel from '@/components/TechFreqPanel';
 import TerraformPanel from '@/components/TerraformPanel';
 import UptimePanel from '@/components/UptimePanel';
 import AnsiblePlaybookPanel from '@/components/AnsiblePlaybookPanel';
+import ArgoEventsPanel from '@/components/ArgoEventsPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -892,8 +893,13 @@ export default function ContactPage() {
       </section>
 
       {/* ansible playbook — tasks, hosts, roles, handlers, inventory */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <AnsiblePlaybookPanel />
+      </section>
+
+      {/* argo events — event-driven workflows, event sources, sensors, triggers */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ArgoEventsPanel />
       </section>
     </div>
   );
