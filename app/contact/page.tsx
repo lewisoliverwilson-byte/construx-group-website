@@ -128,6 +128,7 @@ import ClickHousePanel from '@/components/ClickHousePanel';
 import ClickhouseQueryPanel from '@/components/ClickhouseQueryPanel';
 import CloudflareWorkersPanel from '@/components/CloudflareWorkersPanel';
 import CloudNativePGPanel from '@/components/CloudNativePGPanel';
+import ClusterApiPanel from '@/components/ClusterApiPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1066,8 +1067,13 @@ export default function ContactPage() {
       </section>
 
       {/* cloudnative pg — clusters, backups, replication, switchover */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <CloudNativePGPanel />
+      </section>
+
+      {/* cluster api — providers, machines, controlplane, kubeconfig */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <ClusterApiPanel />
       </section>
     </div>
   );
