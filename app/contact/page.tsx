@@ -182,6 +182,7 @@ import GrypePanel from '@/components/GrypePanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
+import HtopPanel from '@/components/HtopPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1390,8 +1391,13 @@ export default function ContactPage() {
       </section>
 
       {/* helm chart — releases, values, templates, hooks */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <HelmChartPanel />
+      </section>
+
+      {/* htop — processes, cpu, memory, load */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <HtopPanel />
       </section>
     </div>
   );

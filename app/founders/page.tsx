@@ -183,6 +183,7 @@ import HubblePanel from '@/components/HubblePanel';
 import HuggingFacePanel from '@/components/HuggingFacePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import InfluxDbPanel from '@/components/InfluxDbPanel';
+import IostatPanel from '@/components/IostatPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1518,8 +1519,13 @@ export default function FoundersPage() {
         </div>
 
         {/* influxdb — measurements, tags, fields, retention */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <InfluxDbPanel />
+        </div>
+
+        {/* iostat — disks, throughput, iops, utilization */}
+        <div className="mt-6 pb-10">
+          <IostatPanel />
         </div>
 
         {/* CTA */}
