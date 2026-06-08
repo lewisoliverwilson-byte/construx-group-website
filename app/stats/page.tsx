@@ -228,6 +228,7 @@ import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LitestreamPanel from '@/components/LitestreamPanel';
 import LokiPanel from '@/components/LokiPanel';
+import LokiQueryPanel from '@/components/LokiQueryPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1688,8 +1689,13 @@ export default function StatsPage() {
       </div>
 
       {/* loki — log aggregation, streams, labels, queries */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <LokiPanel />
+      </div>
+
+      {/* loki-query — logql, stream selectors, filter expressions, formatters */}
+      <div className="mt-6 pb-10">
+        <LokiQueryPanel />
       </div>
     </div>
   );

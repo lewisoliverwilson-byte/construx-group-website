@@ -226,6 +226,7 @@ import MinIOPanel from '@/components/MinIOPanel';
 import MisePanel from '@/components/MisePanel';
 import MLflowPanel from '@/components/MLflowPanel';
 import MtrPanel from '@/components/MtrPanel';
+import NATSPanel from '@/components/NATSPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1776,8 +1777,13 @@ export default function FoundersPage() {
         </div>
 
         {/* mtr — network diagnostics, hops, latency, packet loss */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MtrPanel />
+        </div>
+
+        {/* nats — messaging, subjects, streams, consumers */}
+        <div className="mt-6 pb-10">
+          <NATSPanel />
         </div>
 
         {/* CTA */}
