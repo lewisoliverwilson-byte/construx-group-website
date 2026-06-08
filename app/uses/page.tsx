@@ -244,6 +244,7 @@ import OPAPanel from '@/components/OPAPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenObservePanel from '@/components/OpenObservePanel';
 import OpensslPanel from '@/components/OpensslPanel';
+import OpenTelemetryPanel from '@/components/OpenTelemetryPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1766,8 +1767,13 @@ export default function UsesPage() {
         </div>
 
         {/* openssl — certs, keys, ciphers, tls handshake */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <OpensslPanel />
+        </div>
+
+        {/* opentelemetry — sdk, instrumentation, otlp, traces */}
+        <div className="mt-6 pb-10">
+          <OpenTelemetryPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

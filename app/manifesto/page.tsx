@@ -246,6 +246,7 @@ import OpenFGAPanel from '@/components/OpenFGAPanel';
 import OpenSearchPanel from '@/components/OpenSearchPanel';
 import OtelCollectorPanel from '@/components/OtelCollectorPanel';
 import OtelTracesPanel from '@/components/OtelTracesPanel';
+import PackerBuildPanel from '@/components/PackerBuildPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1659,8 +1660,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* otel-traces — spans, traceids, latency, service graph */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <OtelTracesPanel />
+        </div>
+
+        {/* packer-build — image templates, builders, provisioners, post-processors */}
+        <div className="mt-4 pb-6">
+          <PackerBuildPanel />
         </div>
 
         {/* Sign-off */}

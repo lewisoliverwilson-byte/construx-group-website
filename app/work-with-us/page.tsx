@@ -245,6 +245,7 @@ import NginxAccessLogPanel from '@/components/NginxAccessLogPanel';
 import NixFlakePanel from '@/components/NixFlakePanel';
 import NixShellPanel from '@/components/NixShellPanel';
 import NpmGlobalPanel from '@/components/NpmGlobalPanel';
+import NpmOutdatedPanel from '@/components/NpmOutdatedPanel';
 
 export const metadata: Metadata = {
   title: 'Work With Us',
@@ -1999,8 +2000,13 @@ export default function WorkWithUsPage() {
       </section>
 
       {/* npm-global — global packages, versions, install, link */}
-      <section className="px-5 pb-6 mx-auto max-w-6xl">
+      <section className="px-5 pb-4 mx-auto max-w-6xl">
         <NpmGlobalPanel />
+      </section>
+
+      {/* npm-outdated — stale dependencies, versions, wanted, latest */}
+      <section className="px-5 pb-6 mx-auto max-w-6xl">
+        <NpmOutdatedPanel />
       </section>
 
       {/* CTA */}

@@ -249,6 +249,7 @@ import OllamaPanel from '@/components/OllamaPanel';
 import OpenCostPanel from '@/components/OpenCostPanel';
 import OpenFgaAuditPanel from '@/components/OpenFgaAuditPanel';
 import OpenFGAPanel from '@/components/OpenFGAPanel';
+import OpenObservePanel from '@/components/OpenObservePanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1615,8 +1616,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* openfga — fine-grained authorization, relationships, checks */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <OpenFGAPanel />
+      </section>
+
+      {/* openobserve — logs, metrics, traces, dashboards */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <OpenObservePanel />
       </section>
 
       {/* Posts */}
