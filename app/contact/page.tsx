@@ -214,6 +214,7 @@ import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 import KubeVirtPanel from '@/components/KubeVirtPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
+import LighthousePanel from '@/components/LighthousePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1582,8 +1583,13 @@ export default function ContactPage() {
       </section>
 
       {/* last login — user, ip, device, timestamp */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <LastLoginPanel />
+      </section>
+
+      {/* lighthouse — performance, accessibility, seo, best practices */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LighthousePanel />
       </section>
     </div>
   );

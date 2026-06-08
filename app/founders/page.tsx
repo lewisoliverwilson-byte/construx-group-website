@@ -215,6 +215,7 @@ import LangfusePanel from '@/components/LangfusePanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LighthousePanel from '@/components/LighthousePanel';
 import LinkerdPanel from '@/components/LinkerdPanel';
+import LitestreamPanel from '@/components/LitestreamPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1710,8 +1711,13 @@ export default function FoundersPage() {
         </div>
 
         {/* linkerd — proxies, traffic, retries, timeouts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LinkerdPanel />
+        </div>
+
+        {/* litestream — sqlite replication, wal, s3, snapshots */}
+        <div className="mt-6 pb-10">
+          <LitestreamPanel />
         </div>
 
         {/* CTA */}
