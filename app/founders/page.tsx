@@ -122,6 +122,7 @@ import CassandraPanel from '@/components/CassandraPanel';
 import CephPanel from '@/components/CephPanel';
 import CertInfoPanel from '@/components/CertInfoPanel';
 import CIPipelinePanel from '@/components/CIPipelinePanel';
+import CitusPanel from '@/components/CitusPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1152,8 +1153,13 @@ export default function FoundersPage() {
         </div>
 
         {/* ci pipeline — stages, jobs, artifacts, runners */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <CIPipelinePanel />
+        </div>
+
+        {/* citus distributed postgres — shards, workers, routing */}
+        <div className="mt-6 pb-10">
+          <CitusPanel />
         </div>
 
         {/* CTA */}

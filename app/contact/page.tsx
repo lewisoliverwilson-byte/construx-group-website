@@ -121,6 +121,7 @@ import CephPanel from '@/components/CephPanel';
 import CertManagerPanel from '@/components/CertManagerPanel';
 import CgroupsPanel from '@/components/CgroupsPanel';
 import ChaosMeshPanel from '@/components/ChaosMeshPanel';
+import CIPipelinePanel from '@/components/CIPipelinePanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1024,8 +1025,13 @@ export default function ContactPage() {
       </section>
 
       {/* chaos mesh — faults, experiments, schedules, pods */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <ChaosMeshPanel />
+      </section>
+
+      {/* ci pipeline — stages, jobs, artifacts, runners */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <CIPipelinePanel />
       </section>
     </div>
   );
