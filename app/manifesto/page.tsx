@@ -168,6 +168,7 @@ import GitBlamePanel from '@/components/GitBlamePanel';
 import GitConfigPanel from '@/components/GitConfigPanel';
 import GiteaPanel from '@/components/GiteaPanel';
 import GitShortlogPanel from '@/components/GitShortlogPanel';
+import GitSignPanel from '@/components/GitSignPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1191,8 +1192,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* git shortlog — authors, commits, files, insertions */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <GitShortlogPanel />
+        </div>
+
+        {/* git sign — signers, keys, status, fingerprints */}
+        <div className="mt-4 pb-6">
+          <GitSignPanel />
         </div>
 
         {/* Sign-off */}

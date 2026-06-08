@@ -166,6 +166,7 @@ import FioPanel from '@/components/FioPanel';
 import FlaggerPanel from '@/components/FlaggerPanel';
 import FluentBitPanel from '@/components/FluentBitPanel';
 import FluxCDPanel from '@/components/FluxCDPanel';
+import FreeMemPanel from '@/components/FreeMemPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1298,8 +1299,13 @@ export default function UsesPage() {
         </div>
 
         {/* fluxcd — sources, kustomizations, helmreleases, alerts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <FluxCDPanel />
+        </div>
+
+        {/* freemem — rss, heap, external, arraybuffers */}
+        <div className="mt-6 pb-10">
+          <FreeMemPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">
