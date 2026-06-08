@@ -111,6 +111,7 @@ import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
 import AwsCliPanel from '@/components/AwsCliPanel';
+import BackstagePanel from '@/components/BackstagePanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -986,8 +987,13 @@ export default function StatsPage() {
       </div>
 
       {/* aws cli — s3, ec2, iam, lambda commands */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <AwsCliPanel />
+      </div>
+
+      {/* backstage developer portal — catalog, tech radar, plugins */}
+      <div className="mt-6 pb-10">
+        <BackstagePanel />
       </div>
     </div>
   );

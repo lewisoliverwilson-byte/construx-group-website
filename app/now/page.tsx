@@ -109,6 +109,7 @@ import ArgoWorkflowsPanel from '@/components/ArgoWorkflowsPanel';
 import AuditdPanel from '@/components/AuditdPanel';
 import AuthentikPanel from '@/components/AuthentikPanel';
 import AwsBedrockPanel from '@/components/AwsBedrockPanel';
+import AwsCliPanel from '@/components/AwsCliPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -938,8 +939,13 @@ export default function NowPage() {
         </div>
 
         {/* aws bedrock — foundation models, inference, agents */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <AwsBedrockPanel />
+        </div>
+
+        {/* aws cli — s3, ec2, iam, lambda commands */}
+        <div className="mt-6 pb-10">
+          <AwsCliPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">
