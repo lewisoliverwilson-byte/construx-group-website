@@ -219,6 +219,7 @@ import LinkerdPanel from '@/components/LinkerdPanel';
 import LokiPanel from '@/components/LokiPanel';
 import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LonghornPanel from '@/components/LonghornPanel';
+import LsofPanel from '@/components/LsofPanel';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -1612,8 +1613,13 @@ export default function ContactPage() {
       </section>
 
       {/* longhorn — distributed block storage, volumes, snapshots, replicas */}
-      <section className="px-5 pb-20 mx-auto max-w-2xl">
+      <section className="px-5 pb-14 mx-auto max-w-2xl">
         <LonghornPanel />
+      </section>
+
+      {/* lsof — open files, sockets, pids, fds */}
+      <section className="px-5 pb-20 mx-auto max-w-2xl">
+        <LsofPanel />
       </section>
     </div>
   );

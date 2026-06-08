@@ -220,6 +220,7 @@ import LokiQueryPanel from '@/components/LokiQueryPanel';
 import LshwPanel from '@/components/LshwPanel';
 import LsofPanel from '@/components/LsofPanel';
 import MaterializePanel from '@/components/MaterializePanel';
+import MemInfoPanel from '@/components/MemInfoPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1740,8 +1741,13 @@ export default function FoundersPage() {
         </div>
 
         {/* materialize — streaming sql, views, sources, sinks */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <MaterializePanel />
+        </div>
+
+        {/* meminfo — ram, swap, buffers, cached, available */}
+        <div className="mt-6 pb-10">
+          <MemInfoPanel />
         </div>
 
         {/* CTA */}

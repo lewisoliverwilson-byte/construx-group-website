@@ -220,6 +220,7 @@ import KubescapePanel from '@/components/KubescapePanel';
 import KyvernoPanel from '@/components/KyvernoPanel';
 import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
+import LatencyMapPanel from '@/components/LatencyMapPanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -1604,8 +1605,13 @@ export default function NowPage() {
         </div>
 
         {/* last login — auth log, last session, ip, terminal */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <LastLoginPanel />
+        </div>
+
+        {/* latency map — regions, p50, p95, p99 */}
+        <div className="mt-6 pb-10">
+          <LatencyMapPanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

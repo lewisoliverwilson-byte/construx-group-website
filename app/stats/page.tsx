@@ -222,6 +222,7 @@ import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
 import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
+import KubeVirtPanel from '@/components/KubeVirtPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1652,8 +1653,13 @@ export default function StatsPage() {
       </div>
 
       {/* kube state metrics — pods, deployments, nodes, conditions */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <KubeStateMetricsPanel />
+      </div>
+
+      {/* kubevirt — virtual machines, vmis, disks, networks */}
+      <div className="mt-6 pb-10">
+        <KubeVirtPanel />
       </div>
     </div>
   );
