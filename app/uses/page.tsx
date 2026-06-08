@@ -203,6 +203,7 @@ import K3sPanel from '@/components/K3sPanel';
 import K6LoadTestPanel from '@/components/K6LoadTestPanel';
 import K6Panel from '@/components/K6Panel';
 import K8sEventsPanel from '@/components/K8sEventsPanel';
+import K9sPanel from '@/components/K9sPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1520,8 +1521,13 @@ export default function UsesPage() {
         </div>
 
         {/* k8s events — reasons, objects, counts, timestamps */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <K8sEventsPanel />
+        </div>
+
+        {/* k9s — namespaces, pods, deployments, services */}
+        <div className="mt-6 pb-10">
+          <K9sPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

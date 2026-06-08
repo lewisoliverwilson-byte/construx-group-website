@@ -205,6 +205,7 @@ import KubeAuditPanel from '@/components/KubeAuditPanel';
 import KubectlLogsPanel from '@/components/KubectlLogsPanel';
 import KubectlPodsPanel from '@/components/KubectlPodsPanel';
 import KubeflowPanel from '@/components/KubeflowPanel';
+import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1413,8 +1414,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* kubeflow — pipelines, runs, experiments, artifacts */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <KubeflowPanel />
+        </div>
+
+        {/* kube prometheus — metrics, alerts, targets, rules */}
+        <div className="mt-4 pb-6">
+          <KubePrometheusPanel />
         </div>
 
         {/* Sign-off */}

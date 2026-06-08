@@ -208,6 +208,7 @@ import KafkaStreamsPanel from '@/components/KafkaStreamsPanel';
 import KarpenterPanel from '@/components/KarpenterPanel';
 import KedaPanel from '@/components/KedaPanel';
 import KeycloakPanel from '@/components/KeycloakPanel';
+import KindPanel from '@/components/KindPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1369,8 +1370,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* keycloak — realms, clients, users, tokens */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KeycloakPanel />
+      </section>
+
+      {/* kind — clusters, nodes, images, status */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KindPanel />
       </section>
 
       {/* Posts */}
