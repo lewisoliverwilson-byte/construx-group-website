@@ -149,6 +149,7 @@ import DiskUsagePanel from '@/components/DiskUsagePanel';
 import DnsLookupPanel from '@/components/DnsLookupPanel';
 import DockerStatsPanel from '@/components/DockerStatsPanel';
 import DragonFlyDnsPanel from '@/components/DragonFlyDnsPanel';
+import DragonflyPanel from '@/components/DragonflyPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -1314,8 +1315,13 @@ export default function FoundersPage() {
         </div>
 
         {/* dragonfly dns — zones, records, acl, forwarders */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <DragonFlyDnsPanel />
+        </div>
+
+        {/* dragonfly — shards, replication, keyspaces, memory */}
+        <div className="mt-6 pb-10">
+          <DragonflyPanel />
         </div>
 
         {/* CTA */}

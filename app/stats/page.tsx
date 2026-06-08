@@ -151,6 +151,7 @@ import DebeziumPanel from '@/components/DebeziumPanel';
 import DeltaLakePanel from '@/components/DeltaLakePanel';
 import DigPanel from '@/components/DigPanel';
 import DiskUsagePanel from '@/components/DiskUsagePanel';
+import DmesgPanel from '@/components/DmesgPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -1226,8 +1227,13 @@ export default function StatsPage() {
       </div>
 
       {/* disk usage — df, partitions, inodes, mounts */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <DiskUsagePanel />
+      </div>
+
+      {/* dmesg — kernel, boot, drivers, errors */}
+      <div className="mt-6 pb-10">
+        <DmesgPanel />
       </div>
     </div>
   );
