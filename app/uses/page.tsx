@@ -178,6 +178,7 @@ import GitShortlogPanel from '@/components/GitShortlogPanel';
 import GoReleaserPanel from '@/components/GoReleaserPanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GpgFingerprintPanel from '@/components/GpgFingerprintPanel';
+import GrafanaAlloyPanel from '@/components/GrafanaAlloyPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1370,8 +1371,13 @@ export default function UsesPage() {
         </div>
 
         {/* gpg fingerprint — keys, fingerprints, trust, expiry */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GpgFingerprintPanel />
+        </div>
+
+        {/* grafana alloy — pipelines, components, otel, logs */}
+        <div className="mt-6 pb-10">
+          <GrafanaAlloyPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

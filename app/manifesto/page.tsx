@@ -180,6 +180,7 @@ import GVisorPanel from '@/components/GVisorPanel';
 import HarborPanel from '@/components/HarborPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
 import HtopPanel from '@/components/HtopPanel';
+import HttpArchivePanel from '@/components/HttpArchivePanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1263,8 +1264,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* htop — processes, cpu, memory, load */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <HtopPanel />
+        </div>
+
+        {/* http archive — requests, timings, waterfall, headers */}
+        <div className="mt-4 pb-6">
+          <HttpArchivePanel />
         </div>
 
         {/* Sign-off */}

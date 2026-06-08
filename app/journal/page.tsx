@@ -183,6 +183,7 @@ import GitWorktreePanel from '@/components/GitWorktreePanel';
 import GoReplayPanel from '@/components/GoReplayPanel';
 import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
+import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1219,8 +1220,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* grafana oncall — rotations, alerts, escalations, silences */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <GrafanaOnCallPanel />
+      </section>
+
+      {/* grafana tempo — traces, spans, services, latency */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <GrafanaTempoPanel />
       </section>
 
       {/* Posts */}
