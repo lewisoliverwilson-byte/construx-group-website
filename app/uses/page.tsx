@@ -193,6 +193,7 @@ import HyperfinePanel from '@/components/HyperfinePanel';
 import IcebergPanel from '@/components/IcebergPanel';
 import IostatPanel from '@/components/IostatPanel';
 import IpAddrPanel from '@/components/IpAddrPanel';
+import IstioPanel from '@/components/IstioPanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1460,8 +1461,13 @@ export default function UsesPage() {
         </div>
 
         {/* ip addr — interfaces, addresses, states, flags */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <IpAddrPanel />
+        </div>
+
+        {/* istio — services, traffic, policies, telemetry */}
+        <div className="mt-6 pb-10">
+          <IstioPanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

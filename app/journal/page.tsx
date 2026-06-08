@@ -198,6 +198,7 @@ import IpAddrPanel from '@/components/IpAddrPanel';
 import IpLinkPanel from '@/components/IpLinkPanel';
 import IstioPanel from '@/components/IstioPanel';
 import JournalctlPanel from '@/components/JournalctlPanel';
+import JournaldPanel from '@/components/JournaldPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1309,8 +1310,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* journalctl — units, logs, priorities, boots */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <JournalctlPanel />
+      </section>
+
+      {/* journald — fields, units, boots, priorities */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <JournaldPanel />
       </section>
 
       {/* Posts */}
