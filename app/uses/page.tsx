@@ -183,6 +183,7 @@ import GrafanaFaroPanel from '@/components/GrafanaFaroPanel';
 import GrafanaOnCallPanel from '@/components/GrafanaOnCallPanel';
 import GrafanaTempoPanel from '@/components/GrafanaTempoPanel';
 import GrpcCallPanel from '@/components/GrpcCallPanel';
+import GrypePanel from '@/components/GrypePanel';
 
 export const metadata: Metadata = {
   title: 'Uses',
@@ -1400,8 +1401,13 @@ export default function UsesPage() {
         </div>
 
         {/* grpc call — methods, payloads, status, latency */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <GrpcCallPanel />
+        </div>
+
+        {/* grype — vulnerabilities, packages, severity, cvss */}
+        <div className="mt-6 pb-10">
+          <GrypePanel />
         </div>
 
         <div className="mt-16 pt-8 border-t border-border">

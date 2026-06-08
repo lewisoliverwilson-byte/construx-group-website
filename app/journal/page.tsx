@@ -188,6 +188,7 @@ import GrpcurlPanel from '@/components/GrpcurlPanel';
 import GrypePanel from '@/components/GrypePanel';
 import GVisorPanel from '@/components/GVisorPanel';
 import HelmChartPanel from '@/components/HelmChartPanel';
+import HtopPanel from '@/components/HtopPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1249,8 +1250,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* helm chart — releases, values, templates, hooks */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <HelmChartPanel />
+      </section>
+
+      {/* htop — processes, cpu, memory, load */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <HtopPanel />
       </section>
 
       {/* Posts */}
