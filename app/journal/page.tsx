@@ -218,6 +218,7 @@ import KubePrometheusPanel from '@/components/KubePrometheusPanel';
 import KubeProxyPanel from '@/components/KubeProxyPanel';
 import KubernetesGatewayPanel from '@/components/KubernetesGatewayPanel';
 import KubescapePanel from '@/components/KubescapePanel';
+import KubeStateMetricsPanel from '@/components/KubeStateMetricsPanel';
 
 export const metadata: Metadata = {
   title: 'Journal',
@@ -1429,8 +1430,13 @@ export default async function JournalPage({ searchParams }: Props) {
       </section>
 
       {/* kubescape — risks, controls, frameworks, scores */}
-      <section className="px-5 pb-6 mx-auto max-w-3xl">
+      <section className="px-5 pb-4 mx-auto max-w-3xl">
         <KubescapePanel />
+      </section>
+
+      {/* kube state metrics — pods, deployments, nodes, conditions */}
+      <section className="px-5 pb-6 mx-auto max-w-3xl">
+        <KubeStateMetricsPanel />
       </section>
 
       {/* Posts */}

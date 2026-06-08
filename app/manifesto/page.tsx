@@ -215,6 +215,7 @@ import LangfusePanel from '@/components/LangfusePanel';
 import LastLoginPanel from '@/components/LastLoginPanel';
 import LatencyMapPanel from '@/components/LatencyMapPanel';
 import LokiPanel from '@/components/LokiPanel';
+import LokiQueryPanel from '@/components/LokiQueryPanel';
 
 export const metadata: Metadata = {
   title: 'Manifesto',
@@ -1473,8 +1474,13 @@ export default function ManifestoPage() {
         </div>
 
         {/* loki — streams, labels, queries, lines */}
-        <div className="mt-4 pb-6">
+        <div className="mt-4 pb-4">
           <LokiPanel />
+        </div>
+
+        {/* loki query — logql, streams, labels, filters */}
+        <div className="mt-4 pb-6">
+          <LokiQueryPanel />
         </div>
 
         {/* Sign-off */}
