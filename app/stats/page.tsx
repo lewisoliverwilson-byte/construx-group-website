@@ -93,6 +93,7 @@ import RabbitMQPanel from '@/components/RabbitMQPanel';
 import RiverPanel from '@/components/RiverPanel';
 import ScorecardPanel from '@/components/ScorecardPanel';
 import SealedSecretsPanel from '@/components/SealedSecretsPanel';
+import SitemapIndexPanel from '@/components/SitemapIndexPanel';
 
 export const metadata: Metadata = {
   title: 'System Stats',
@@ -878,8 +879,13 @@ export default function StatsPage() {
       </div>
 
       {/* sealed secrets — gitops-safe encryption, kubeseal, rsa-4096 */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6 pb-6">
         <SealedSecretsPanel />
+      </div>
+
+      {/* sitemap index — urls, lastmod, changefreq, priority */}
+      <div className="mt-6 pb-10">
+        <SitemapIndexPanel />
       </div>
     </div>
   );

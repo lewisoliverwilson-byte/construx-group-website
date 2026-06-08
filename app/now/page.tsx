@@ -91,6 +91,7 @@ import RekorPanel from '@/components/RekorPanel';
 import RssFeedPanel from '@/components/RssFeedPanel';
 import ScyllaPanel from '@/components/ScyllaPanel';
 import SentryIssuesPanel from '@/components/SentryIssuesPanel';
+import SonarQubePanel from '@/components/SonarQubePanel';
 
 export const metadata: Metadata = {
   title: 'Now',
@@ -830,8 +831,13 @@ export default function NowPage() {
         </div>
 
         {/* sentry — issues, errors, events, alerts */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SentryIssuesPanel />
+        </div>
+
+        {/* sonarqube — code quality, coverage, issues, gates */}
+        <div className="mt-6 pb-10">
+          <SonarQubePanel />
         </div>
 
         <div className="mt-6 pt-8 border-t border-border">

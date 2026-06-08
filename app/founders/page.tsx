@@ -91,6 +91,7 @@ import RclonePanel from '@/components/RclonePanel';
 import RoutingTablePanel from '@/components/RoutingTablePanel';
 import ScyllaDbPanel from '@/components/ScyllaDbPanel';
 import SeaweedFSPanel from '@/components/SeaweedFSPanel';
+import SocketPanel from '@/components/SocketPanel';
 
 export const metadata: Metadata = {
   title: 'Founders',
@@ -966,8 +967,13 @@ export default function FoundersPage() {
         </div>
 
         {/* seaweedfs — volumes, filer, s3-compatible, erasure coding */}
-        <div className="mt-6 pb-10">
+        <div className="mt-6 pb-6">
           <SeaweedFSPanel />
+        </div>
+
+        {/* socket.dev — supply chain alerts, packages, cves */}
+        <div className="mt-6 pb-10">
+          <SocketPanel />
         </div>
 
         {/* CTA */}
