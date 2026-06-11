@@ -79,7 +79,7 @@ void main(){
   float scan=pow(sin(vPos.y*32.+uTime*4.)*.5+.5,8.)*.3;
   float scanH=pow(sin(atan(vPos.z,vPos.x)*14.+uTime*2.5)*.5+.5,8.)*.18;
   // data nodes (bright dots at grid intersections)
-  float node=step(.95,hash(floor(gUv)))*.6;
+  float node=step(.95,hash(vec3(floor(gUv),0.)))*.6;
   vec3 dark=vec3(.01,.025,.005);vec3 lime=vec3(.78,.96,.047);vec3 midGreen=vec3(.35,.65,.02);
   vec3 col=mix(dark,midGreen*(.5+terrain*.5),terrain);
   col=mix(col,lime,(grid*.45+grid2*.2));
