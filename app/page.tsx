@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 import { getAllPostMeta } from '@/lib/posts';
+import CompanyHero from '@/components/CompanyHero';
 import SolarSystemHero from '@/components/SolarSystemHero';
 
 export const metadata: Metadata = {
@@ -37,7 +38,10 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
       />
 
-      {/* ── Hero ── */}
+      {/* ── Hero: company identity ── */}
+      <CompanyHero />
+
+      {/* ── Venture Map: 3D solar system ── */}
       <SolarSystemHero />
 
       {/* ── Ventures ── */}
