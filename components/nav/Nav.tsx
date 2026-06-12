@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils';
 const links = [
   { href: '/ventures', label: 'Projects' },
   { href: '/manifesto', label: 'Manifesto' },
-  { href: '/journal', label: 'Journal' },
-  { href: '/founders', label: 'Studio' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/founders', label: 'Founders' },
   { href: '/contact', label: 'Contact' },
 ];
 
@@ -84,7 +84,7 @@ export default function Nav({ postCount }: Props) {
                   style={{ color: active ? 'var(--ink)' : 'var(--ink-muted)' }}
                 >
                   {label}
-                  {href === '/journal' && postCount ? (
+                  {href === '/blog' && postCount ? (
                     <span className="ml-1.5 tabular-nums" style={{ color: 'var(--ink-faint)' }}>
                       {postCount}
                     </span>

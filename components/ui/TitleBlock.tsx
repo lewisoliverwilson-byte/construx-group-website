@@ -24,7 +24,7 @@ export default function TitleBlock({
         </tr>
         <tr>
           <td className="tb-label">Drawn</td>
-          <td className="tb-value">L. WILSON</td>
+          <td className="tb-value">WILSON · BOYD</td>
           <td className="tb-label">Checked</td>
           <td className="tb-value">CLAUDE</td>
         </tr>

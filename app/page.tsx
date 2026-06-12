@@ -53,7 +53,7 @@ const SECTIONS = [
   { id: 'studio', label: '01 / Studio' },
   { id: 'capabilities', label: '02 / Capabilities' },
   { id: 'projects', label: '03 / Projects' },
-  { id: 'journal', label: '04 / Journal' },
+  { id: 'blog', label: '04 / Blog' },
   { id: 'contact', label: '05 / Contact' },
 ];
 
@@ -205,9 +205,9 @@ export default function HomePage() {
             <Reveal className="lg:col-span-5" delay={120}>
               <p className="t-lead mb-6">
                 Most software teams are still organised around the cost of writing
-                code. We aren&apos;t. With Claude as the build engine, one engineer
-                ships what used to take a team — so the constraint moves to judgment:
-                what to build, what to refuse, when it&apos;s done properly.
+                code. We aren&apos;t. With Claude as the build engine, two founders
+                ship what used to take a department — so the constraint moves to
+                judgment: what to build, what to refuse, when it&apos;s done properly.
               </p>
               <p className="t-body">
                 Every product on our manifest was designed, engineered, and deployed
@@ -241,6 +241,7 @@ export default function HomePage() {
               <dl className="flex flex-col">
                 {[
                   { k: 'Founded', v: '2025' },
+                  { k: 'Founders', v: '2' },
                   { k: 'Base', v: 'United Kingdom' },
                   { k: 'Products live', v: String(live.length) },
                   { k: 'Build engine', v: 'Claude' },
@@ -358,25 +359,38 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ════════ 04 / JOURNAL ════════ */}
-      {recentPosts.length > 0 && (
-        <section id="journal" className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>
-          <div className="mx-auto max-w-7xl px-6 lg:px-10 py-28 lg:py-36">
-            <div className="flex items-end justify-between mb-14">
-              <Reveal>
-                <p className="t-eyebrow mb-4">04 / Journal</p>
-                <h2 className="t-section">Working notes.</h2>
-              </Reveal>
-              <Link href="/journal" className="btn-text hidden md:inline-flex">
-                All {allPosts.length} entries <ArrowRight size={12} />
-              </Link>
-            </div>
+      {/* ════════ 04 / BLOG ════════ */}
+      <section id="blog" className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>
+        <div className="mx-auto max-w-7xl px-6 lg:px-10 py-28 lg:py-36">
+          <div className="flex items-end justify-between mb-14">
+            <Reveal>
+              <p className="t-eyebrow mb-4">04 / Blog</p>
+              <h2 className="t-section">Notes from the studio.</h2>
+            </Reveal>
+            <Link href="/blog" className="btn-text hidden md:inline-flex">
+              The blog <ArrowRight size={12} />
+            </Link>
+          </div>
 
+          {recentPosts.length === 0 ? (
+            <Reveal className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 py-4">
+              <div>
+                <p className="t-lead mb-2" style={{ maxWidth: '46ch' }}>
+                  First posts are being drafted — engineering notes, build logs, and
+                  what working with AI actually looks like.
+                </p>
+                <p className="pencil-note">— the machines are writing as fast as they can</p>
+              </div>
+              <Link href="/blog" className="btn-line flex-shrink-0">
+                Visit the blog <ArrowRight size={12} />
+              </Link>
+            </Reveal>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-px" style={{ background: 'var(--hairline)' }}>
               {recentPosts.map((post) => (
                 <Link
                   key={post.slug}
-                  href={`/journal/${post.slug}`}
+                  href={`/blog/${post.slug}`}
                   className="group flex flex-col p-8 transition-colors"
                   style={{ background: 'var(--paper)' }}
                 >
@@ -394,9 +408,9 @@ export default function HomePage() {
                 </Link>
               ))}
             </div>
-          </div>
-        </section>
-      )}
+          )}
+        </div>
+      </section>
 
       {/* ════════ 05 / CONTACT ════════ */}
       <section id="contact" className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>

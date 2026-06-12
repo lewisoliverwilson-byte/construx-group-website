@@ -282,7 +282,7 @@ export default async function VenturePage({ params }: Props) {
                     Building {venture.name}.
                   </h2>
                 </div>
-                <Link href="/journal" className="btn-text hidden md:inline-flex">
+                <Link href="/blog" className="btn-text hidden md:inline-flex">
                   All entries <ArrowRight size={11} />
                 </Link>
               </div>
@@ -290,7 +290,7 @@ export default async function VenturePage({ params }: Props) {
                 {relatedPosts.slice(0, 6).map((post) => (
                   <Link
                     key={post.slug}
-                    href={`/journal/${post.slug}`}
+                    href={`/blog/${post.slug}`}
                     className="group p-7"
                     style={{ background: 'var(--paper)' }}
                   >

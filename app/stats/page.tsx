@@ -92,7 +92,7 @@ export default function StatsPage() {
           <Link href="/ventures" className="btn-text">
             The manifest <ArrowRight size={11} />
           </Link>
-          <Link href="/journal" className="btn-text">
+          <Link href="/blog" className="btn-text">
             Journal <ArrowRight size={11} />
           </Link>
         </div>

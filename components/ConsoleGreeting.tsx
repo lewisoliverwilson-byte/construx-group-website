@@ -17,11 +17,11 @@ export default function ConsoleGreeting({ postCount }: Props) {
       'color: rgba(240,239,255,0.6); font-family: monospace; font-size: 11px; line-height: 1.7;'
     );
     console.log(
-      '%cCurious how this was built?\nhttps://construxgroup.io/journal/building-this-website',
+      '%cCurious how this was built?\nhttps://construxgroup.io/blog',
       'color: #F97316; font-family: monospace; font-size: 11px;'
     );
     console.log(
-      '%c⌘K search · ? shortcuts · g+j journal · g+v ventures · g+m manifesto',
+      '%c⌘K search · ? shortcuts · g+b blog · g+v ventures · g+m manifesto',
       'color: rgba(240,239,255,0.3); font-family: monospace; font-size: 10px;'
     );
     console.log(

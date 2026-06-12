@@ -30,7 +30,7 @@ function PlateTitleBlock() {
         </tr>
         <tr>
           <td style={label}>Drawn</td>
-          <td style={value}>L. WILSON</td>
+          <td style={value}>WILSON · BOYD</td>
           <td style={label}>Checked</td>
           <td style={value}>CLAUDE</td>
         </tr>
@@ -54,8 +54,8 @@ function PlateTitleBlock() {
 const navLinks = [
   { href: '/ventures', label: 'Projects' },
   { href: '/manifesto', label: 'Manifesto' },
-  { href: '/journal', label: 'Journal' },
-  { href: '/founders', label: 'Studio' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/founders', label: 'Founders' },
   { href: '/work-with-us', label: 'Work With Us' },
   { href: '/now', label: 'Now' },
   { href: '/uses', label: 'Uses' },
@@ -136,26 +136,35 @@ export default function Footer() {
               </div>
             </div>
 
-            {/* Journal */}
+            {/* Blog */}
             <div className="col-span-2 md:col-span-1">
-              <p className="t-meta mb-5" style={{ fontSize: 9.5 }}>
-                Journal <span style={{ opacity: 0.5 }}>· {allPosts.length}</span>
-              </p>
+              <p className="t-meta mb-5" style={{ fontSize: 9.5 }}>Blog</p>
               <ul className="flex flex-col gap-1">
-                {recentPosts.map((post) => (
-                  <li key={post.slug}>
-                    <Link
-                      href={`/journal/${post.slug}`}
-                      className="block py-1.5 font-serif-body text-[13px] leading-snug line-clamp-1 transition-colors hover:text-[#EDEAE4]"
+                {recentPosts.length === 0 ? (
+                  <li>
+                    <p
+                      className="py-1.5 font-serif-body text-[13px] italic leading-snug"
                       style={{ color: 'var(--plate-muted)' }}
                     >
-                      {post.title}
-                    </Link>
+                      First posts soon.
+                    </p>
                   </li>
-                ))}
+                ) : (
+                  recentPosts.map((post) => (
+                    <li key={post.slug}>
+                      <Link
+                        href={`/blog/${post.slug}`}
+                        className="block py-1.5 font-serif-body text-[13px] leading-snug line-clamp-1 transition-colors hover:text-[#EDEAE4]"
+                        style={{ color: 'var(--plate-muted)' }}
+                      >
+                        {post.title}
+                      </Link>
+                    </li>
+                  ))
+                )}
                 <li className="mt-2">
-                  <Link href="/journal" className="t-meta hover:text-[#EDEAE4] transition-colors">
-                    All posts →
+                  <Link href="/blog" className="t-meta hover:text-[#EDEAE4] transition-colors">
+                    The blog →
                   </Link>
                 </li>
               </ul>

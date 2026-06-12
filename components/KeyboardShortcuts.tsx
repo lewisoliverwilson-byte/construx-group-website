@@ -4,7 +4,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const ROUTES: Record<string, string> = {
-  j: '/journal',
+  b: '/blog',
   v: '/ventures',
   m: '/manifesto',
   w: '/work-with-us',
@@ -16,7 +16,7 @@ const ROUTES: Record<string, string> = {
 };
 
 const LABELS: Record<string, string> = {
-  j: 'Journal',
+  b: 'Blog',
   v: 'Ventures',
   m: 'Manifesto',
   w: 'Work With Us',

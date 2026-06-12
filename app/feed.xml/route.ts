@@ -16,7 +16,7 @@ export async function GET() {
 
   const items = posts
     .map((post) => {
-      const url = `${BASE_URL}/journal/${post.slug}`;
+      const url = `${BASE_URL}/blog/${post.slug}`;
       const pubDate = new Date(post.date).toUTCString();
       return `
     <item>

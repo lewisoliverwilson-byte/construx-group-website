@@ -54,7 +54,7 @@ export const metadata: Metadata = {
   },
   alternates: {
     types: {
-      'application/rss+xml': [{ url: '/feed.xml', title: 'Construx Group — Journal' }],
+      'application/rss+xml': [{ url: '/feed.xml', title: 'Construx Group — Blog' }],
     },
   },
 };

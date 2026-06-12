@@ -25,7 +25,7 @@ type Result = NavItem | PostItem;
 
 const NAV_ITEMS: NavItem[] = [
   { type: 'nav', label: 'Home', path: '/', shortcut: 'g+h' },
-  { type: 'nav', label: 'Journal', path: '/journal', shortcut: 'g+j' },
+  { type: 'nav', label: 'Blog', path: '/blog', shortcut: 'g+b' },
   { type: 'nav', label: 'Ventures', path: '/ventures', shortcut: 'g+v' },
   { type: 'nav', label: 'Manifesto', path: '/manifesto', shortcut: 'g+m' },
   { type: 'nav', label: 'Founders', path: '/founders', shortcut: 'g+f' },
@@ -91,7 +91,7 @@ export default function CommandPalette({ posts }: Props) {
       if (result.type === 'nav') {
         router.push(result.path);
       } else {
-        router.push(`/journal/${result.slug}`);
+        router.push(`/blog/${result.slug}`);
       }
     },
     [router, onClose]

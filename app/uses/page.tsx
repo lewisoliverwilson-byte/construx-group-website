@@ -103,7 +103,7 @@ export default function UsesPage() {
             The toolkit evolves as capability changes. Claude Code wrote the majority
             of this site — including this page.
           </p>
-          <Link href="/journal" className="btn-text">
+          <Link href="/blog" className="btn-text">
             How we build <ArrowRight size={11} />
           </Link>
         </div>

@@ -3,7 +3,7 @@ import path from 'path';
 import matter from 'gray-matter';
 import { readingTime } from './utils';
 
-const postsDir = path.join(process.cwd(), 'content', 'journal');
+const postsDir = path.join(process.cwd(), 'content', 'blog');
 
 export interface PostMeta {
   slug: string;
@@ -32,7 +32,7 @@ export function getAllPostMeta(): PostMeta[] {
         date: data.date ?? '',
         excerpt: data.excerpt ?? '',
         author: data.author ?? 'Construx Group',
-        tag: data.tag ?? 'Journal',
+        tag: data.tag ?? 'Blog',
         readingTime: readingTime(raw),
       };
     })

@@ -47,7 +47,7 @@ export default function NotFound() {
               {recentPosts.map((post) => (
                 <Link
                   key={post.slug}
-                  href={`/journal/${post.slug}`}
+                  href={`/blog/${post.slug}`}
                   className="group flex items-baseline gap-6 py-3.5 border-b"
                   style={{ borderColor: 'var(--hairline)' }}
                 >

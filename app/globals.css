@@ -14,8 +14,8 @@
     --paper-raised: #fbfaf7;
     --hairline: #e2dfd7;
     --ink: #16181a;
-    --ink-muted: #6e6a63;
-    --ink-faint: #9b968c;
+    --ink-muted: #514e47;
+    --ink-faint: #837e74;
 
     /* Charcoal plate */
     --plate: #111214;
@@ -29,9 +29,9 @@
     --green-plate: #4a8467;
 
     /* Drafting grid — non-photo blue, the pencil-guide tint that never
-       reproduced on blueprint copies */
-    --grid-minor: rgba(94, 130, 160, 0.075);
-    --grid-major: rgba(94, 130, 160, 0.14);
+       reproduced on blueprint copies. Kept faint so type stays crisp. */
+    --grid-minor: rgba(94, 130, 160, 0.045);
+    --grid-major: rgba(94, 130, 160, 0.085);
 
     --font-display: 'General Sans', system-ui, sans-serif;
     --font-serif: 'Erode', Georgia, serif;

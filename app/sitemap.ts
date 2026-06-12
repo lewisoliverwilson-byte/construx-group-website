@@ -13,7 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/manifesto`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
     { url: `${BASE_URL}/founders`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.7 },
     { url: `${BASE_URL}/work-with-us`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
-    { url: `${BASE_URL}/journal`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${BASE_URL}/blog`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
     { url: `${BASE_URL}/contact`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.6 },
     { url: `${BASE_URL}/uses`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.65 },
     { url: `${BASE_URL}/now`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.7 },
@@ -28,7 +28,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }));
 
   const postRoutes: MetadataRoute.Sitemap = postMeta.map((p) => ({
-    url: `${BASE_URL}/journal/${p.slug}`,
+    url: `${BASE_URL}/blog/${p.slug}`,
     lastModified: new Date(p.date),
     changeFrequency: 'monthly',
     priority: 0.75,
