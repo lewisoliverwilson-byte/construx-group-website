@@ -1,13 +1,14 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 import { getAllPostMeta } from '@/lib/posts';
 
 const navLinks = [
-  { href: '/ventures', label: 'Ventures' },
+  { href: '/ventures', label: 'Projects' },
   { href: '/manifesto', label: 'Manifesto' },
   { href: '/journal', label: 'Journal' },
-  { href: '/founders', label: 'Founders' },
+  { href: '/founders', label: 'Studio' },
   { href: '/work-with-us', label: 'Work With Us' },
   { href: '/now', label: 'Now' },
   { href: '/uses', label: 'Uses' },
@@ -20,41 +21,42 @@ export default function Footer() {
   const liveVentures = ventures.filter(v => v.status === 'live');
 
   return (
-    <footer className="relative border-t border-border overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 hairline" />
-
+    <footer className="plate relative">
       <div className="mx-auto max-w-7xl px-6 lg:px-10 pt-20 pb-10">
-        {/* Top: statement + columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-20">
-          {/* Brand statement */}
+        {/* Top: lockup + statement + columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-14 mb-16">
+          {/* Brand */}
           <div className="lg:col-span-5">
-            <p className="t-eyebrow mb-6">Construx Group</p>
+            <Image
+              src="/brand/construx-group-primary-dark-@4x-1080px.png"
+              alt="Construx Group"
+              width={216}
+              height={60}
+              className="mb-8 h-auto w-[200px]"
+            />
             <p
-              className="font-display text-[clamp(1.6rem,2.6vw,2.2rem)] leading-[1.12] text-white/85 mb-6"
-              style={{ fontWeight: 600, letterSpacing: '-0.02em' }}
+              className="font-display text-[clamp(1.3rem,2.2vw,1.8rem)] leading-[1.15] mb-6"
+              style={{ fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--plate-text)' }}
             >
-              We build what only
+              We build software with
               <br />
-              AI makes possible.
+              machines that build software.
             </p>
-            <p className="t-body max-w-sm mb-8">
-              Five AI-native ventures, built from first principles by a small team
-              operating at the frontier.
-            </p>
-            <p className="t-meta">Powered by Claude &amp; Anthropic</p>
+            <p className="t-meta">An AI development studio · United Kingdom</p>
           </div>
 
           {/* Columns */}
           <div className="lg:col-span-7 grid grid-cols-2 md:grid-cols-3 gap-10">
             {/* Site */}
             <div>
-              <p className="t-eyebrow mb-5" style={{ fontSize: 9 }}>Site</p>
+              <p className="t-meta mb-5" style={{ fontSize: 9.5 }}>Index</p>
               <ul className="flex flex-col gap-0.5">
                 {navLinks.map(({ href, label }) => (
                   <li key={href}>
                     <Link
                       href={href}
-                      className="block py-1.5 text-[13.5px] text-white/38 hover:text-white/80 transition-colors font-light"
+                      className="block py-1.5 font-mono text-[11.5px] uppercase tracking-[0.1em] transition-colors hover:text-[#EDEAE4]"
+                      style={{ color: 'var(--plate-muted)' }}
                     >
                       {label}
                     </Link>
@@ -63,9 +65,9 @@ export default function Footer() {
               </ul>
             </div>
 
-            {/* Ventures */}
+            {/* Projects */}
             <div>
-              <p className="t-eyebrow mb-5" style={{ fontSize: 9 }}>Ventures</p>
+              <p className="t-meta mb-5" style={{ fontSize: 9.5 }}>Projects</p>
               <div className="flex flex-col gap-0.5">
                 {liveVentures.map((v) => (
                   <a
@@ -73,15 +75,13 @@ export default function Footer() {
                     href={v.url ?? `/ventures/${v.slug}`}
                     target={v.url ? '_blank' : undefined}
                     rel={v.url ? 'noopener noreferrer' : undefined}
-                    className="flex items-center gap-2.5 py-1.5 text-[13.5px] text-white/38 hover:text-white/80 transition-colors group font-light"
+                    className="group flex items-center gap-2.5 py-1.5 font-mono text-[11.5px] uppercase tracking-[0.1em] transition-colors hover:text-[#EDEAE4]"
+                    style={{ color: 'var(--plate-muted)' }}
                   >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ background: v.accent, boxShadow: `0 0 5px ${v.accent}70` }}
-                    />
+                    <span className="dot-live" style={{ width: 5, height: 5 }} />
                     {v.name}
                     {v.url && (
-                      <ArrowUpRight size={11} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
+                      <ArrowUpRight size={10} className="ml-auto opacity-0 group-hover:opacity-50 transition-opacity" />
                     )}
                   </a>
                 ))}
@@ -90,25 +90,23 @@ export default function Footer() {
 
             {/* Journal */}
             <div className="col-span-2 md:col-span-1">
-              <p className="t-eyebrow mb-5" style={{ fontSize: 9 }}>
-                Journal{allPosts.length > 0 && <span className="text-white/15 ml-1.5">{allPosts.length}</span>}
+              <p className="t-meta mb-5" style={{ fontSize: 9.5 }}>
+                Journal <span style={{ opacity: 0.5 }}>· {allPosts.length}</span>
               </p>
-              <ul className="flex flex-col gap-0.5">
+              <ul className="flex flex-col gap-1">
                 {recentPosts.map((post) => (
                   <li key={post.slug}>
                     <Link
                       href={`/journal/${post.slug}`}
-                      className="block py-1.5 text-[13px] text-white/38 hover:text-white/80 transition-colors font-light leading-snug line-clamp-1"
+                      className="block py-1.5 font-serif-body text-[13px] leading-snug line-clamp-1 transition-colors hover:text-[#EDEAE4]"
+                      style={{ color: 'var(--plate-muted)' }}
                     >
                       {post.title}
                     </Link>
                   </li>
                 ))}
                 <li className="mt-2">
-                  <Link
-                    href="/journal"
-                    className="t-meta hover:text-white/50 transition-colors"
-                  >
+                  <Link href="/journal" className="t-meta hover:text-[#EDEAE4] transition-colors">
                     All posts →
                   </Link>
                 </li>
@@ -117,49 +115,31 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Giant wordmark */}
-        <div className="relative select-none pointer-events-none mb-10" aria-hidden="true">
-          <p
-            className="font-display leading-[0.8] whitespace-nowrap"
-            style={{
-              fontWeight: 700,
-              fontSize: 'clamp(4rem, 12.5vw, 12rem)',
-              letterSpacing: '-0.04em',
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.015) 90%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            CONSTRUX
-          </p>
-        </div>
-
         {/* Bottom bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-8 border-t border-border">
-          <div className="flex items-center gap-5">
+        <div
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-8 border-t"
+          style={{ borderColor: 'var(--plate-hairline)' }}
+        >
+          <div className="flex items-center gap-6">
             <p className="t-meta">© {new Date().getFullYear()} Construx Group</p>
-            <span className="flex items-center gap-1.5 t-meta">
-              <span
-                className="inline-block rounded-full animate-glow-pulse"
-                style={{ width: '4px', height: '4px', background: '#4ade80', boxShadow: '0 0 4px rgba(74,222,128,0.6)' }}
-              />
-              All systems online
+            <span className="flex items-center gap-2 t-meta">
+              <span className="dot-live" style={{ width: 5, height: 5 }} />
+              5 products operational
             </span>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-6">
             <a
               href="mailto:lewis.oliver.wilson@googlemail.com"
-              className="t-meta hover:text-white/50 transition-colors"
+              className="t-meta hover:text-[#EDEAE4] transition-colors"
             >
               Contact
             </a>
-            <a
-              href="/feed.xml"
-              className="t-meta hover:text-white/50 transition-colors"
-            >
+            <a href="/feed.xml" className="t-meta hover:text-[#EDEAE4] transition-colors">
               RSS
             </a>
+            <span className="t-meta" style={{ opacity: 0.6 }}>
+              Built with Claude
+            </span>
           </div>
         </div>
       </div>

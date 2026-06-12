@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 import { getAllPostMeta } from '@/lib/posts';
-import CompanyHero from '@/components/CompanyHero';
-import SolarSystemHero from '@/components/SolarSystemHero';
+import { formatDate } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: 'Construx Group — AI-First Ventures',
+  title: 'Construx Group — AI Development Studio',
   description:
-    'A portfolio of AI-first ventures. We build the things that are only possible now that AI exists.',
+    'Construx Group is a UK engineering studio that designs and ships AI-native products — from research to production.',
 };
 
 const organizationSchema = {
@@ -18,22 +16,46 @@ const organizationSchema = {
   '@type': 'Organization',
   name: 'Construx Group',
   description:
-    'A portfolio of AI-first ventures built by a small team operating at the frontier of what AI makes possible.',
+    'A UK engineering studio that designs and ships AI-native products — from research to production.',
   url: 'https://construxgroup.io',
+  logo: 'https://construxgroup.io/brand/construx-mark-512px.png',
 };
 
-// Map venture slugs to their screenshot paths (add as sites go live)
-const SCREENSHOTS: Record<string, string> = {
-  scoutr: '/screenshots/scoutr.png',
-  'the-marqet': '/screenshots/the-marqet.png',
-  'the-hyve': '/screenshots/the-hyve.png',
-  'construx-daily': '/screenshots/construx-daily.png',
-  'construx-studio': '/screenshots/construx-studio.png',
-};
+const CAPABILITIES = [
+  {
+    num: '01',
+    title: 'AI products, end to end',
+    body: 'Concept to production. We design, engineer, deploy, and operate complete AI-native products — the five on our manifest were all built this way.',
+  },
+  {
+    num: '02',
+    title: 'Agent systems & pipelines',
+    body: 'Multi-agent architectures that work unsupervised: research pipelines, content systems, decision engines. Our newsletter is written, edited, and published by one every day.',
+  },
+  {
+    num: '03',
+    title: 'Product engineering',
+    body: 'Production-grade web applications. Next.js, TypeScript, AWS. Real architecture, tested, observable — built to be maintained, not demoed.',
+  },
+  {
+    num: '04',
+    title: 'AI integration for clients',
+    body: 'Through Construx Studio we take a small number of engagements per quarter — adding genuine AI capability to products that need more than a chatbot.',
+  },
+];
+
+const SECTIONS = [
+  { id: 'studio', label: '01 / Studio' },
+  { id: 'capabilities', label: '02 / Capabilities' },
+  { id: 'projects', label: '03 / Projects' },
+  { id: 'journal', label: '04 / Journal' },
+  { id: 'contact', label: '05 / Contact' },
+];
 
 export default function HomePage() {
   const allPosts = getAllPostMeta();
   const recentPosts = allPosts.slice(0, 3);
+  const live = ventures.filter((v) => v.status === 'live');
 
   return (
     <>
@@ -42,316 +64,232 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
       />
 
-      {/* ── Hero: company identity ── */}
-      <CompanyHero />
+      {/* ════════ PLATE HERO ════════ */}
+      <section className="relative min-h-screen flex flex-col">
+        {/* Grid hairlines */}
+        <div className="absolute inset-0 pointer-events-none hidden lg:block" aria-hidden="true">
+          <span className="absolute top-0 bottom-0 w-px" style={{ left: 'calc(50% - 240px)', background: 'var(--hairline)' }} />
+          <span className="absolute top-0 bottom-0 w-px" style={{ right: '64px', background: 'var(--hairline)' }} />
+          <span className="reg-mark" style={{ position: 'absolute', left: 'calc(50% - 246px)', top: '88px' }} />
+        </div>
 
-      {/* ── Venture Map: 3D solar system ── */}
-      <SolarSystemHero />
+        <div className="relative mx-auto w-full max-w-7xl px-6 lg:px-10 flex-1 flex flex-col justify-center pt-32 pb-12">
+          {/* Eyebrow */}
+          <p className="t-eyebrow mb-10 animate-fade-in">An AI development studio</p>
 
-      {/* ── Ventures ── */}
-      <section id="ventures" className="relative py-32 px-6 lg:px-10 border-t border-border">
-        <div className="mx-auto max-w-7xl">
-          {/* Section header */}
-          <div className="flex items-end justify-between mb-24">
-            <div>
-              <p className="t-eyebrow mb-4">Portfolio</p>
-              <h2 className="t-section">
-                Five ventures.
-                <br />
-                All live.
-              </h2>
-            </div>
-            <Link href="/ventures" className="hidden md:inline-flex btn-text t-meta" style={{ fontSize: 10 }}>
-              Full portfolio <ArrowRight size={12} />
-            </Link>
+          {/* Statement */}
+          <h1 className="t-hero mb-12 animate-fade-up" style={{ maxWidth: '15ch' }}>
+            We build software with machines that build software.
+          </h1>
+
+          {/* Serif intro — offset right on desktop */}
+          <div className="lg:ml-auto lg:w-[420px] mb-16 animate-fade-up" style={{ animationDelay: '120ms' }}>
+            <p className="t-lead">
+              Construx Group is a UK engineering studio that designs and ships
+              AI-native products — from research to production, without the agency
+              overhead.
+            </p>
           </div>
 
-          {/* Venture rows */}
-          <div className="space-y-32">
-            {ventures.map((v, i) => {
-              const screenshot = SCREENSHOTS[v.slug] ?? null;
-              const isEven = i % 2 === 0;
+          {/* Title rule + fact strip */}
+          <div className="animate-fade-up" style={{ animationDelay: '200ms' }}>
+            <div className="title-rule mb-5" />
+            <div className="flex flex-wrap items-center gap-x-12 gap-y-3">
+              <span className="t-fact">Est. 2025</span>
+              <span className="t-fact flex items-center gap-2.5">
+                <span className="dot-live" />
+                {live.length} products operational
+              </span>
+              <span className="t-fact">United Kingdom</span>
+              <span className="t-meta ml-auto hidden md:block">Scroll for manifest ↓</span>
+            </div>
+          </div>
+        </div>
 
-              const info = (
-                <div className="flex flex-col justify-center py-4">
-                  {/* Index + category */}
-                  <div className="flex items-center gap-3 mb-7">
-                    <span className="font-mono text-[11px] tabular-nums" style={{ color: v.accent, opacity: 0.75 }}>
-                      0{i + 1}
-                    </span>
-                    <span className="h-px w-9" style={{ background: v.accent, opacity: 0.35 }} />
-                    <span
-                      className="font-mono text-[9px] uppercase tracking-[0.24em]"
-                      style={{ color: v.accent }}
-                    >
-                      {v.category}
-                    </span>
-                  </div>
-
-                  {/* Name */}
-                  <h3
-                    className="font-display leading-none mb-4 text-white/[0.93]"
-                    style={{
-                      fontWeight: 700,
-                      fontSize: 'clamp(2.3rem, 3.6vw, 3.4rem)',
-                      letterSpacing: '-0.028em',
-                    }}
-                  >
-                    {v.name}
-                  </h3>
-
-                  {/* Tagline */}
-                  <p
-                    className="text-[17px] font-light mb-5"
-                    style={{ color: 'rgba(255,255,255,0.55)' }}
-                  >
-                    {v.tagline}
-                  </p>
-
-                  {/* Pitch excerpt */}
-                  <p className="t-body mb-9" style={{ maxWidth: '46ch' }}>
-                    {v.what}
-                  </p>
-
-                  {/* Stats */}
-                  <div className="flex flex-wrap gap-2.5 mb-9">
-                    {v.stats.slice(0, 3).map((s) => (
-                      <div
-                        key={s.label}
-                        className="flex flex-col gap-1 px-4 py-3 rounded-lg"
-                        style={{
-                          background: 'rgba(255,255,255,0.03)',
-                          border: '1px solid rgba(255,255,255,0.07)',
-                        }}
-                      >
-                        <span
-                          className="font-display text-[15px]"
-                          style={{ fontWeight: 600, color: v.accent }}
-                        >
-                          {s.value}
-                        </span>
-                        <span className="t-meta" style={{ fontSize: 8 }}>
-                          {s.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* CTA */}
-                  <div className="flex items-center gap-6">
-                    {v.url ? (
-                      <a
-                        href={v.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[12.5px] font-normal transition-all duration-200 hover:-translate-y-px"
-                        style={{
-                          color: '#000008',
-                          background: v.accent,
-                          boxShadow: `0 4px 24px ${v.accent}30`,
-                        }}
-                      >
-                        Visit {v.name} <ArrowUpRight size={12} />
-                      </a>
-                    ) : null}
-                    <Link
-                      href={`/ventures/${v.slug}`}
-                      className="btn-text text-[13px]"
-                    >
-                      Learn more <ArrowRight size={12} />
-                    </Link>
-                  </div>
-                </div>
-              );
-
-              const preview = (
-                <div className="relative group">
-                  {/* Accent glow behind frame */}
-                  <div
-                    className="absolute -inset-4 rounded-2xl opacity-30 group-hover:opacity-50 transition-opacity duration-500 pointer-events-none"
-                    style={{
-                      background: `radial-gradient(ellipse 70% 70% at 50% 50%, ${v.accent}14, transparent 70%)`,
-                    }}
-                  />
-                  <div
-                    className="relative rounded-xl overflow-hidden transition-transform duration-500 group-hover:-translate-y-1"
-                    style={{
-                      border: '1px solid rgba(255,255,255,0.09)',
-                      boxShadow: '0 24px 80px -24px rgba(0,0,0,0.8)',
-                    }}
-                  >
-                    {/* Browser chrome */}
-                    <div
-                      className="flex items-center gap-2 px-4 py-2.5"
-                      style={{
-                        background: 'rgba(255,255,255,0.04)',
-                        borderBottom: '1px solid rgba(255,255,255,0.06)',
-                      }}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                      <div
-                        className="flex-1 mx-3 h-5 rounded flex items-center px-2.5"
-                        style={{ background: 'rgba(255,255,255,0.05)' }}
-                      >
-                        <span className="font-mono text-[9px] text-white/20 truncate">
-                          {v.url ? v.url.replace('https://', '') : `construxgroup.io/${v.slug}`}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Screenshot or accent placeholder */}
-                    <div className="relative" style={{ aspectRatio: '16/10' }}>
-                      {screenshot ? (
-                        <Image
-                          src={screenshot}
-                          alt={`${v.name} product screenshot`}
-                          fill
-                          className="object-cover object-top"
-                          sizes="(max-width: 768px) 100vw, 55vw"
-                        />
-                      ) : (
-                        <div
-                          className="absolute inset-0 flex flex-col items-center justify-center gap-4"
-                          style={{ background: `${v.accent}09` }}
-                        >
-                          <span
-                            className="font-mono text-[9px] uppercase tracking-[0.25em]"
-                            style={{ color: v.accent, opacity: 0.5 }}
-                          >
-                            {v.category}
-                          </span>
-                          <span
-                            className="font-display leading-none text-center"
-                            style={{
-                              fontWeight: 700,
-                              fontSize: 'clamp(2.8rem, 5vw, 5rem)',
-                              letterSpacing: '-0.03em',
-                              color: v.accent,
-                              opacity: 0.18,
-                            }}
-                          >
-                            {v.name}
-                          </span>
-                          <div className="w-12 h-px" style={{ background: v.accent, opacity: 0.2 }} />
-                          <span className="t-meta" style={{ fontSize: 9 }}>Live</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-
-              return (
-                <div
-                  key={v.id}
-                  className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center"
-                >
-                  {isEven ? (
-                    <>
-                      <div>{info}</div>
-                      <div>{preview}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="lg:order-2">{info}</div>
-                      <div className="lg:order-1">{preview}</div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
+        {/* Section index */}
+        <div className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>
+          <div className="mx-auto max-w-7xl px-6 lg:px-10 py-5 flex flex-wrap gap-x-10 gap-y-2">
+            {SECTIONS.map((s, i) => (
+              <a
+                key={s.id}
+                href={`#${s.id}`}
+                className="font-mono text-[11px] uppercase tracking-[0.12em] transition-colors hover:text-[#16181A]"
+                style={{ color: i === 0 ? 'var(--ink)' : 'var(--ink-faint)' }}
+              >
+                {s.label}
+              </a>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── About ── */}
-      <section className="relative py-32 px-6 lg:px-10 border-t border-border">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
-            <div className="lg:sticky lg:top-28">
-              <p className="t-eyebrow mb-4">About</p>
-              <h2 className="t-section mb-7">
-                Built at the
-                <br />
-                AI frontier.
-              </h2>
-              <p className="t-lead max-w-lg mb-8">
-                Construx Group is a portfolio of AI-first ventures built by a small team
-                operating at the frontier of what AI makes possible. We don&apos;t add AI to
-                existing ideas — we start with what AI enables and build backwards.
+      {/* ════════ 01 / STUDIO ════════ */}
+      <section id="studio" className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>
+        <div className="mx-auto max-w-7xl px-6 lg:px-10 py-28 lg:py-36">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-14">
+            <div className="lg:col-span-4">
+              <p className="t-eyebrow mb-4">01 / Studio</p>
+              <h2 className="t-section">A small studio,<br />deliberately.</h2>
+            </div>
+            <div className="lg:col-span-5">
+              <p className="t-lead mb-6">
+                Most software teams are still organised around the cost of writing
+                code. We aren&apos;t. With Claude as the build engine, one engineer
+                ships what used to take a team — so the constraint moves to judgment:
+                what to build, what to refuse, when it&apos;s done properly.
               </p>
-              <Link href="/manifesto" className="btn-text">
-                Read the manifesto <ArrowRight size={13} />
-              </Link>
+              <p className="t-body">
+                Every product on our manifest was designed, engineered, and deployed
+                in-house. Nothing outsourced, nothing templated. The studio stays
+                small because coordination is the enemy of good software.
+              </p>
             </div>
-            <div className="space-y-3 lg:pt-16">
-              {[
-                {
-                  num: '01',
-                  label: 'AI-native from day one',
-                  desc: 'Every product is designed around AI capabilities, not bolted on afterwards.',
-                },
-                {
-                  num: '02',
-                  label: 'Small team, high output',
-                  desc: 'We stay small and move fast. Every member owns their domain completely.',
-                },
-                {
-                  num: '03',
-                  label: 'Proper engineering',
-                  desc: 'Production-grade code, real architecture, built to last.',
-                },
-                {
-                  num: '04',
-                  label: 'Frontier-first',
-                  desc: "We track what's possible with the latest models and ship before the window closes.",
-                },
-              ].map(({ num, label, desc }) => (
-                <div key={label} className="card card-hover px-6 py-5 flex gap-5">
-                  <span className="font-mono text-[10px] text-white/20 tabular-nums pt-1">{num}</span>
-                  <div>
-                    <p className="t-card text-[15px] mb-1.5">{label}</p>
-                    <p className="t-body text-[13px]">{desc}</p>
+            <div className="lg:col-span-3">
+              <dl className="flex flex-col">
+                {[
+                  { k: 'Founded', v: '2025' },
+                  { k: 'Base', v: 'United Kingdom' },
+                  { k: 'Products live', v: String(live.length) },
+                  { k: 'Build engine', v: 'Claude' },
+                  { k: 'Stack', v: 'Next.js / AWS' },
+                ].map(({ k, v }) => (
+                  <div
+                    key={k}
+                    className="flex items-baseline justify-between gap-4 py-3.5 border-b"
+                    style={{ borderColor: 'var(--hairline)' }}
+                  >
+                    <dt className="t-meta">{k}</dt>
+                    <dd className="t-fact" style={{ fontSize: 12.5 }}>{v}</dd>
                   </div>
-                </div>
-              ))}
+                ))}
+              </dl>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Journal ── */}
+      {/* ════════ 02 / CAPABILITIES ════════ */}
+      <section id="capabilities" className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>
+        <div className="mx-auto max-w-7xl px-6 lg:px-10 py-28 lg:py-36">
+          <div className="flex items-end justify-between mb-16">
+            <div>
+              <p className="t-eyebrow mb-4">02 / Capabilities</p>
+              <h2 className="t-section">What we build.</h2>
+            </div>
+            <span className="reg-mark hidden lg:block" />
+          </div>
+
+          <div>
+            {CAPABILITIES.map(({ num, title, body }) => (
+              <div
+                key={num}
+                className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-10 py-9 border-b"
+                style={{ borderColor: 'var(--hairline)' }}
+              >
+                <span className="md:col-span-1 font-mono text-[12px] tabular-nums pt-1" style={{ color: 'var(--ink-faint)' }}>
+                  {num}
+                </span>
+                <h3 className="md:col-span-4 t-card text-[21px] leading-tight">{title}</h3>
+                <p className="md:col-span-7 t-body" style={{ maxWidth: '58ch' }}>{body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ 03 / PROJECTS — charcoal plate manifest ════════ */}
+      <section id="projects" className="plate relative">
+        <div className="mx-auto max-w-7xl px-6 lg:px-10 py-28 lg:py-36">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 mb-16">
+            <div className="lg:col-span-5">
+              <p className="t-eyebrow mb-4">03 / Projects</p>
+              <h2 className="t-section">The manifest.</h2>
+            </div>
+            <div className="lg:col-span-7 flex items-end">
+              <p className="t-body" style={{ maxWidth: '52ch' }}>
+                Five products, all operational, all built in-house. They are our
+                current projects — proof of method, not the point of the studio.
+              </p>
+            </div>
+          </div>
+
+          {/* Manifest table */}
+          <div className="border-t" style={{ borderColor: 'var(--plate-hairline)' }}>
+            {live.map((v, i) => (
+              <Link
+                key={v.id}
+                href={`/ventures/${v.slug}`}
+                className="group grid grid-cols-12 items-baseline gap-3 md:gap-6 py-6 border-b transition-colors hover:bg-[#16181a]"
+                style={{ borderColor: 'var(--plate-hairline)' }}
+              >
+                <span className="col-span-1 font-mono text-[11px] tabular-nums" style={{ color: 'var(--plate-muted)' }}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span
+                  className="col-span-7 md:col-span-3 font-display text-[clamp(1.2rem,2.2vw,1.7rem)] leading-none transition-colors"
+                  style={{ fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--plate-text)' }}
+                >
+                  {v.name}
+                </span>
+                <span className="hidden md:block md:col-span-3 t-meta">{v.category}</span>
+                <span className="hidden md:flex md:col-span-4 items-baseline justify-between gap-6">
+                  <span className="font-serif-body text-[13.5px]" style={{ color: 'var(--plate-muted)' }}>
+                    {v.tagline}
+                  </span>
+                  <span className="flex items-center gap-2 t-meta flex-shrink-0">
+                    <span className="dot-live" style={{ width: 5, height: 5 }} />
+                    Live
+                  </span>
+                </span>
+                <span className="col-span-4 md:hidden flex justify-end">
+                  <ArrowUpRight size={14} style={{ color: 'var(--plate-muted)' }} />
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-10 flex items-center justify-between">
+            <Link href="/ventures" className="btn-text">
+              Full project index <ArrowRight size={12} />
+            </Link>
+            <span className="t-meta hidden md:block">5 entries / all operational</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ 04 / JOURNAL ════════ */}
       {recentPosts.length > 0 && (
-        <section className="relative py-32 px-6 lg:px-10 border-t border-border">
-          <div className="mx-auto max-w-7xl">
+        <section id="journal" className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>
+          <div className="mx-auto max-w-7xl px-6 lg:px-10 py-28 lg:py-36">
             <div className="flex items-end justify-between mb-14">
               <div>
-                <p className="t-eyebrow mb-4">Journal</p>
-                <h2 className="t-section" style={{ fontSize: 'clamp(1.8rem, 3.5vw, 2.8rem)' }}>
-                  From the team.
-                </h2>
+                <p className="t-eyebrow mb-4">04 / Journal</p>
+                <h2 className="t-section">Working notes.</h2>
               </div>
-              <Link href="/journal" className="hidden md:inline-flex btn-text t-meta" style={{ fontSize: 10 }}>
-                All {allPosts.length} posts <ArrowRight size={12} />
+              <Link href="/journal" className="btn-text hidden md:inline-flex">
+                All {allPosts.length} entries <ArrowRight size={12} />
               </Link>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-px" style={{ background: 'var(--hairline)' }}>
               {recentPosts.map((post) => (
                 <Link
                   key={post.slug}
                   href={`/journal/${post.slug}`}
-                  className="group card card-hover p-7 flex flex-col"
+                  className="group flex flex-col p-8 transition-colors"
+                  style={{ background: 'var(--paper)' }}
                 >
-                  <p className="t-meta mb-4" style={{ fontSize: 9 }}>{post.date}</p>
-                  <h3 className="t-card text-[17px] leading-snug mb-3 group-hover:text-white transition-colors">
+                  <p className="t-meta mb-5">{formatDate(post.date)} · {post.readingTime} min</p>
+                  <h3
+                    className="t-card text-[19px] leading-snug mb-4 transition-colors group-hover:underline"
+                    style={{ textDecorationColor: 'var(--orange)', textUnderlineOffset: 4 }}
+                  >
                     {post.title}
                   </h3>
-                  <p className="t-body text-[13px] line-clamp-2 mb-6">{post.excerpt}</p>
-                  <div className="mt-auto flex items-center gap-1.5 t-meta group-hover:text-white/50 transition-colors" style={{ fontSize: 9 }}>
+                  <p className="t-body text-[14px] line-clamp-2 mb-6">{post.excerpt}</p>
+                  <span className="mt-auto t-meta flex items-center gap-1.5">
                     Read <ArrowRight size={10} />
-                  </div>
+                  </span>
                 </Link>
               ))}
             </div>
@@ -359,32 +297,24 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ── CTA ── */}
-      <section className="relative py-36 px-6 lg:px-10 border-t border-border overflow-hidden">
-        {/* Glow */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'radial-gradient(ellipse 55% 60% at 50% 110%, rgba(139,92,246,0.08) 0%, transparent 65%)',
-          }}
-        />
-        <div className="relative mx-auto max-w-3xl text-center">
-          <p className="t-eyebrow mb-6">Work with us</p>
-          <h2 className="t-section mb-7" style={{ fontSize: 'clamp(2.6rem, 5vw, 4.4rem)' }}>
-            Building something
-            <br />
-            serious?
+      {/* ════════ 05 / CONTACT ════════ */}
+      <section id="contact" className="relative border-t" style={{ borderColor: 'var(--hairline)' }}>
+        <div className="mx-auto max-w-7xl px-6 lg:px-10 py-28 lg:py-40">
+          <p className="t-eyebrow mb-4">05 / Contact</p>
+          <h2 className="t-hero mb-10" style={{ fontSize: 'clamp(2.4rem,5.5vw,5rem)', maxWidth: '16ch' }}>
+            Building something that needs proper engineering?
           </h2>
-          <p className="t-lead max-w-md mx-auto mb-11">
-            We work with a small number of builders who share our standards. If
-            that&apos;s you, let&apos;s talk.
+          <div className="title-rule mb-8" style={{ maxWidth: 480 }} />
+          <p className="t-lead mb-12" style={{ maxWidth: '46ch' }}>
+            We take a small number of client engagements each quarter through
+            Construx Studio. If the work is serious, we should talk.
           </p>
-          <div className="flex items-center justify-center gap-5">
-            <Link href="/work-with-us" className="btn-primary">
+          <div className="flex flex-wrap items-center gap-5">
+            <Link href="/work-with-us" className="btn-ink">
               Work with us
             </Link>
             <Link href="/contact" className="btn-text">
-              Get in touch <ArrowRight size={13} />
+              General contact <ArrowRight size={12} />
             </Link>
           </div>
         </div>

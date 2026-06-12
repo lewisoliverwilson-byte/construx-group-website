@@ -4,15 +4,15 @@ import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 
 export const metadata: Metadata = {
-  title: 'Ventures',
+  title: 'Projects',
   description:
-    'The full portfolio of Construx Group ventures — five live AI-native products.',
+    'The Construx Group project index — five operational AI-native products, all built in-house.',
 };
 
 const schema = {
   '@context': 'https://schema.org',
   '@type': 'ItemList',
-  name: 'Construx Group Ventures',
+  name: 'Construx Group Projects',
   url: 'https://construxgroup.io/ventures',
   itemListElement: ventures.map((v, i) => ({
     '@type': 'ListItem',
@@ -24,158 +24,106 @@ const schema = {
 };
 
 export default function VenturesPage() {
+  const live = ventures.filter((v) => v.status === 'live');
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
 
-      <div className="min-h-screen pt-36 pb-28">
+      <div className="min-h-screen pt-40 pb-28">
         <div className="mx-auto max-w-7xl px-6 lg:px-10">
           {/* Header */}
-          <div className="mb-20 max-w-2xl">
-            <p className="t-eyebrow mb-5">Portfolio</p>
-            <h1 className="t-page mb-6">
-              Five ventures.
-              <br />
-              All live.
-            </h1>
-            <p className="t-lead">
-              Each one exists because AI makes it possible. Designed from first
-              principles, engineered properly, shipped to production.
+          <div className="mb-16">
+            <p className="t-eyebrow mb-5">Project index</p>
+            <h1 className="t-page mb-7">The manifest.</h1>
+            <p className="t-lead" style={{ maxWidth: '52ch' }}>
+              Five operational products, designed and engineered in-house. Each one
+              is a working answer to the same question: what becomes buildable when
+              AI is the engine, not the feature?
             </p>
           </div>
 
-          {/* Venture cards */}
-          <div className="space-y-5">
-            {ventures.map((v, i) => (
+          <div className="title-rule mb-0" />
+
+          {/* Manifest */}
+          <div>
+            {live.map((v, i) => (
               <div
                 key={v.id}
-                className="group relative card overflow-hidden transition-all duration-300 hover:border-white/[0.14]"
+                className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 py-12 border-b"
+                style={{ borderColor: 'var(--hairline)' }}
               >
-                {/* Accent edge */}
-                <span
-                  className="absolute left-0 top-0 bottom-0 w-[2px]"
-                  style={{ background: `linear-gradient(180deg, ${v.accent}, ${v.accent}30)` }}
-                />
-                {/* Hover glow */}
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                  style={{
-                    background: `radial-gradient(ellipse 60% 100% at 0% 50%, ${v.accent}08, transparent 60%)`,
-                  }}
-                />
-
-                <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 p-8 lg:p-10">
-                  {/* Left: identity */}
-                  <div className="lg:col-span-5">
-                    <div className="flex items-center gap-3 mb-5">
-                      <span className="font-mono text-[11px] tabular-nums" style={{ color: v.accent, opacity: 0.7 }}>
-                        0{i + 1}
-                      </span>
-                      <span
-                        className="font-mono text-[9px] uppercase tracking-[0.22em]"
-                        style={{ color: v.accent }}
-                      >
-                        {v.category}
-                      </span>
-                      <span
-                        className="inline-flex items-center gap-1.5 font-mono text-[8px] uppercase tracking-[0.14em] px-2 py-0.5 rounded-full"
-                        style={{ color: '#4ade80', background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.14)' }}
-                      >
-                        <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                        Live
-                      </span>
-                    </div>
+                {/* Index + identity */}
+                <div className="lg:col-span-4 flex gap-6">
+                  <span className="font-mono text-[12px] tabular-nums pt-2" style={{ color: 'var(--ink-faint)' }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <div>
                     <h2
-                      className="font-display text-white/[0.92] mb-3 leading-none"
-                      style={{ fontWeight: 700, fontSize: 'clamp(1.9rem, 3vw, 2.6rem)', letterSpacing: '-0.025em' }}
+                      className="font-display text-[clamp(1.7rem,3vw,2.4rem)] leading-none mb-2.5"
+                      style={{ fontWeight: 600, letterSpacing: '-0.025em', color: 'var(--ink)' }}
                     >
                       {v.name}
                     </h2>
-                    <p className="text-[15px] font-light mb-6" style={{ color: 'rgba(255,255,255,0.52)' }}>
-                      {v.tagline}
-                    </p>
-                    <div className="flex items-center gap-5">
-                      {v.url && (
-                        <a
-                          href={v.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-[12.5px] font-normal transition-opacity hover:opacity-80"
-                          style={{ color: v.accent }}
-                        >
-                          Visit site <ArrowUpRight size={12} />
-                        </a>
-                      )}
-                      <Link href={`/ventures/${v.slug}`} className="btn-text text-[12.5px]">
-                        Learn more <ArrowRight size={12} />
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Middle: pitch */}
-                  <div className="lg:col-span-4 flex items-center">
-                    <p className="t-body text-[13.5px]">{v.what}</p>
-                  </div>
-
-                  {/* Right: stats */}
-                  <div className="lg:col-span-3 flex items-center">
-                    <div className="grid grid-cols-2 gap-2.5 w-full">
-                      {v.stats.map((s) => (
-                        <div
-                          key={s.label}
-                          className="rounded-lg px-3.5 py-3"
-                          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-                        >
-                          <p
-                            className="font-display text-[14px] mb-0.5"
-                            style={{ fontWeight: 600, color: v.accent }}
-                          >
-                            {s.value}
-                          </p>
-                          <p className="t-meta" style={{ fontSize: 7.5 }}>{s.label}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="t-meta mb-4">{v.category}</p>
+                    <span className="flex items-center gap-2 t-meta">
+                      <span className="dot-live" style={{ width: 5, height: 5 }} />
+                      Live · since 2026
+                    </span>
                   </div>
                 </div>
 
-                {/* Tech stack footer */}
-                <div
-                  className="relative flex flex-wrap items-center gap-1.5 px-8 lg:px-10 py-4"
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
-                >
-                  <span className="t-meta mr-3" style={{ fontSize: 8 }}>Stack</span>
-                  {v.techStack.map((t) => (
-                    <span
-                      key={t}
-                      className="font-mono text-[9px] px-2 py-1 rounded"
-                      style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        color: 'rgba(255,255,255,0.32)',
-                      }}
-                    >
-                      {t}
-                    </span>
-                  ))}
+                {/* Description */}
+                <div className="lg:col-span-5">
+                  <p className="font-serif-body text-[16px] mb-4" style={{ color: 'var(--ink)' }}>
+                    {v.tagline}
+                  </p>
+                  <p className="t-body text-[14px]" style={{ maxWidth: '52ch' }}>
+                    {v.what}
+                  </p>
+                </div>
+
+                {/* Facts + links */}
+                <div className="lg:col-span-3 flex flex-col gap-4">
+                  <dl className="flex flex-col">
+                    {v.stats.slice(0, 3).map((s) => (
+                      <div
+                        key={s.label}
+                        className="flex items-baseline justify-between gap-4 py-2 border-b"
+                        style={{ borderColor: 'var(--hairline)' }}
+                      >
+                        <dt className="t-meta" style={{ fontSize: 9.5 }}>{s.label}</dt>
+                        <dd className="font-mono text-[12px]" style={{ color: 'var(--ink)' }}>{s.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="flex items-center gap-5 pt-1">
+                    <Link href={`/ventures/${v.slug}`} className="btn-text">
+                      Detail <ArrowRight size={11} />
+                    </Link>
+                    {v.url && (
+                      <a
+                        href={v.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-text"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        Visit <ArrowUpRight size={11} />
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Bottom CTA */}
-          <div className="mt-24 pt-10 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            <p className="t-lead" style={{ maxWidth: '40ch' }}>
-              Want to see how these get built?
-            </p>
-            <div className="flex items-center gap-5">
-              <Link href="/manifesto" className="btn-ghost">
-                Read the manifesto
-              </Link>
-              <Link href="/journal" className="btn-text">
-                Journal <ArrowRight size={13} />
-              </Link>
-            </div>
+          {/* Footer note */}
+          <div className="mt-14 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <p className="t-meta">5 entries / all operational / built in-house</p>
+            <Link href="/work-with-us" className="btn-line">
+              Commission the studio
+            </Link>
           </div>
         </div>
       </div>

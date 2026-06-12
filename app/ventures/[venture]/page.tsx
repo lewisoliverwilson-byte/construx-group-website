@@ -69,7 +69,7 @@ export default async function VenturePage({ params }: Props) {
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://construxgroup.io' },
-      { '@type': 'ListItem', position: 2, name: 'Ventures', item: 'https://construxgroup.io/ventures' },
+      { '@type': 'ListItem', position: 2, name: 'Projects', item: 'https://construxgroup.io/ventures' },
       { '@type': 'ListItem', position: 3, name: venture.name, item: `https://construxgroup.io/ventures/${venture.slug}` },
     ],
   };
@@ -81,157 +81,87 @@ export default async function VenturePage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
 
-      {/* ── Hero ── */}
-      <section className="relative pt-36 pb-20 px-6 lg:px-10 overflow-hidden">
-        {/* Accent atmosphere */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: `radial-gradient(ellipse 75% 55% at 50% -10%, ${venture.accent}16, transparent 65%)`,
-          }}
-        />
-        {/* Top accent line */}
-        <div
-          className="absolute inset-x-0 top-0 h-px pointer-events-none"
-          style={{ background: `linear-gradient(90deg, transparent, ${venture.accent}90, transparent)` }}
-        />
-
-        <div className="relative mx-auto max-w-7xl">
-          <Link
-            href="/ventures"
-            className="inline-flex items-center gap-2 t-meta hover:text-white/55 transition-colors mb-12 group"
-          >
+      {/* ── Title block ── */}
+      <section className="relative pt-40 pb-16">
+        <div className="mx-auto max-w-7xl px-6 lg:px-10">
+          <Link href="/ventures" className="btn-text mb-14 inline-flex group">
             <ArrowLeft size={11} className="group-hover:-translate-x-0.5 transition-transform" />
-            All ventures
+            Project index
           </Link>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-14 items-end">
-            {/* Identity */}
-            <div className="lg:col-span-7">
-              <div className="flex items-center gap-3 mb-7">
-                <span
-                  className="font-mono text-[9px] uppercase tracking-[0.24em]"
-                  style={{ color: venture.accent }}
-                >
-                  {venture.category}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-end mb-10">
+            <div className="lg:col-span-8">
+              <div className="flex items-center gap-5 mb-6">
+                <span className="font-mono text-[12px] tabular-nums" style={{ color: 'var(--ink-faint)' }}>
+                  PROJECT {String(idx + 1).padStart(2, '0')}
                 </span>
-                <span
-                  className="inline-flex items-center gap-1.5 font-mono text-[8px] uppercase tracking-[0.14em] px-2 py-0.5 rounded-full"
-                  style={{ color: '#4ade80', background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.14)' }}
-                >
-                  <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                <span className="t-meta">{venture.category}</span>
+                <span className="flex items-center gap-2 t-meta">
+                  <span className="dot-live" style={{ width: 5, height: 5 }} />
                   Live
                 </span>
               </div>
-
-              <h1 className="t-hero mb-6" style={{ fontSize: 'clamp(3rem, 7vw, 6rem)' }}>
+              <h1 className="t-hero mb-5" style={{ fontSize: 'clamp(2.8rem,6.5vw,5.6rem)' }}>
                 {venture.name}
               </h1>
-
-              <p
-                className="font-display text-[clamp(1.2rem,2.2vw,1.7rem)] leading-snug mb-9"
-                style={{ fontWeight: 500, letterSpacing: '-0.015em', color: venture.accent }}
-              >
+              <p className="font-serif-body text-[clamp(1.1rem,2vw,1.45rem)]" style={{ color: 'var(--ink-muted)' }}>
                 {venture.tagline}
               </p>
+            </div>
 
-              <div className="flex flex-wrap gap-4">
-                {venture.url ? (
-                  <a
-                    href={venture.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg text-[13px] font-normal transition-all duration-200 hover:-translate-y-px"
-                    style={{
-                      color: '#000008',
-                      background: venture.accent,
-                      boxShadow: `0 6px 32px ${venture.accent}38`,
-                    }}
-                  >
-                    Visit {venture.name} <ArrowUpRight size={14} />
-                  </a>
-                ) : (
-                  <Link href="/contact" className="btn-primary">
-                    Start a conversation <ArrowRight size={14} />
-                  </Link>
-                )}
-                <Link href="/contact" className="btn-ghost">
-                  Get in touch
+            <div className="lg:col-span-4 flex lg:justify-end gap-4">
+              {venture.url ? (
+                <a href={venture.url} target="_blank" rel="noopener noreferrer" className="btn-ink">
+                  Visit site <ArrowUpRight size={13} />
+                </a>
+              ) : (
+                <Link href="/contact" className="btn-ink">
+                  Enquire <ArrowRight size={13} />
                 </Link>
-              </div>
+              )}
             </div>
+          </div>
 
-            {/* Stats */}
-            <div className="lg:col-span-5">
-              <div className="grid grid-cols-2 gap-3">
-                {venture.stats.map((s) => (
-                  <div
-                    key={s.label}
-                    className="rounded-xl px-5 py-5"
-                    style={{
-                      background: `${venture.accent}07`,
-                      border: `1px solid ${venture.accent}1c`,
-                    }}
-                  >
-                    <p
-                      className="font-display text-[22px] leading-tight mb-1"
-                      style={{ fontWeight: 700, color: venture.accent }}
-                    >
-                      {s.value}
-                    </p>
-                    <p className="t-meta" style={{ fontSize: 8.5 }}>{s.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="title-rule" />
+
+          {/* Fact strip */}
+          <div className="flex flex-wrap gap-x-12 gap-y-3 pt-5">
+            {venture.stats.map((s) => (
+              <span key={s.label} className="t-fact">
+                <span className="t-meta mr-2.5" style={{ fontSize: 10 }}>{s.label}</span>
+                {s.value}
+              </span>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ── Product frame ── */}
       {screenshot && (
-        <section className="relative px-6 lg:px-10 pb-24">
+        <section className="px-6 lg:px-10 pb-20">
           <div className="mx-auto max-w-6xl">
-            <div className="relative group">
+            <div
+              className="relative overflow-hidden"
+              style={{ border: '1px solid var(--hairline)', borderRadius: 2 }}
+            >
               <div
-                className="absolute -inset-6 rounded-3xl opacity-40 pointer-events-none"
-                style={{
-                  background: `radial-gradient(ellipse 70% 80% at 50% 30%, ${venture.accent}12, transparent 70%)`,
-                }}
-              />
-              <div
-                className="relative rounded-xl overflow-hidden"
-                style={{
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  boxShadow: '0 40px 120px -32px rgba(0,0,0,0.9)',
-                }}
+                className="flex items-center justify-between px-4 py-2.5 border-b"
+                style={{ background: 'var(--paper-raised)', borderColor: 'var(--hairline)' }}
               >
-                <div
-                  className="flex items-center gap-2 px-4 py-3"
-                  style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                  <div
-                    className="flex-1 mx-3 h-5 rounded flex items-center px-2.5"
-                    style={{ background: 'rgba(255,255,255,0.05)' }}
-                  >
-                    <span className="font-mono text-[9px] text-white/20 truncate">
-                      {venture.url ? venture.url.replace('https://', '') : `construxgroup.io/${venture.slug}`}
-                    </span>
-                  </div>
-                </div>
-                <div className="relative" style={{ aspectRatio: '16/9' }}>
-                  <Image
-                    src={screenshot}
-                    alt={`${venture.name} product screenshot`}
-                    fill
-                    className="object-cover object-top"
-                    sizes="(max-width: 1152px) 100vw, 1152px"
-                    priority
-                  />
-                </div>
+                <span className="t-meta" style={{ fontSize: 10 }}>
+                  FIG. {String(idx + 1).padStart(2, '0')} — {venture.name} / production interface
+                </span>
+                <span className="reg-mark" style={{ transform: 'scale(0.75)' }} />
+              </div>
+              <div className="relative" style={{ aspectRatio: '16/9' }}>
+                <Image
+                  src={screenshot}
+                  alt={`${venture.name} product screenshot`}
+                  fill
+                  className="object-cover object-top"
+                  sizes="(max-width: 1152px) 100vw, 1152px"
+                  priority
+                />
               </div>
             </div>
           </div>
@@ -239,45 +169,39 @@ export default async function VenturePage({ params }: Props) {
       )}
 
       {/* ── Body ── */}
-      <section className="px-6 lg:px-10 pb-28">
-        <div className="mx-auto max-w-7xl">
+      <section className="px-6 lg:px-10 pb-28 border-t" style={{ borderColor: 'var(--hairline)' }}>
+        <div className="mx-auto max-w-7xl pt-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             {/* Main */}
             <div className="lg:col-span-8 space-y-20">
-              {/* What it is */}
               <div>
-                <p className="t-eyebrow mb-5">What it is</p>
+                <p className="t-eyebrow mb-6">What it is</p>
                 <p
-                  className="font-display text-[clamp(1.3rem,2.3vw,1.85rem)] leading-[1.35] text-white/80"
-                  style={{ fontWeight: 500, letterSpacing: '-0.015em' }}
+                  className="font-display text-[clamp(1.25rem,2.2vw,1.7rem)] leading-[1.35]"
+                  style={{ fontWeight: 500, letterSpacing: '-0.01em', color: 'var(--ink)' }}
                 >
                   {venture.what}
                 </p>
               </div>
 
-              {/* Why it exists */}
               <div>
-                <p className="t-eyebrow mb-5">Why it exists</p>
-                <p className="t-lead" style={{ fontSize: 17, lineHeight: 1.75 }}>
-                  {venture.pitch}
-                </p>
+                <p className="t-eyebrow mb-6">Why it exists</p>
+                <p className="t-lead" style={{ maxWidth: '62ch' }}>{venture.pitch}</p>
               </div>
 
-              {/* Capabilities */}
               <div>
                 <p className="t-eyebrow mb-8">Capabilities</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border-t" style={{ borderColor: 'var(--hairline)' }}>
                   {venture.features.map((f, i) => (
-                    <div key={f} className="card px-6 py-5 flex gap-4">
-                      <span
-                        className="font-mono text-[11px] tabular-nums flex-shrink-0 pt-0.5"
-                        style={{ color: venture.accent }}
-                      >
+                    <div
+                      key={f}
+                      className="flex gap-6 py-5 border-b"
+                      style={{ borderColor: 'var(--hairline)' }}
+                    >
+                      <span className="font-mono text-[11px] tabular-nums pt-0.5 flex-shrink-0" style={{ color: 'var(--ink-faint)' }}>
                         {String(i + 1).padStart(2, '0')}
                       </span>
-                      <p className="t-body text-[13.5px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                        {f}
-                      </p>
+                      <p className="t-body text-[15px]" style={{ color: '#46443e' }}>{f}</p>
                     </div>
                   ))}
                 </div>
@@ -286,24 +210,24 @@ export default async function VenturePage({ params }: Props) {
 
             {/* Sidebar */}
             <aside className="lg:col-span-4">
-              <div className="lg:sticky lg:top-28 space-y-5">
-                {/* Facts */}
-                <div className="card p-7">
-                  <p className="t-eyebrow mb-6" style={{ fontSize: 9 }}>Overview</p>
-                  <dl className="space-y-4">
+              <div className="lg:sticky lg:top-28 space-y-8">
+                <div>
+                  <p className="t-eyebrow mb-5" style={{ fontSize: 9.5 }}>Specification</p>
+                  <dl className="flex flex-col">
                     {[
-                      { k: 'Status', v: 'Live', accent: '#4ade80' },
-                      { k: 'Category', v: venture.category, accent: venture.accent },
-                      { k: 'Group', v: 'Construx' },
+                      { k: 'Status', v: 'Live' },
+                      { k: 'Category', v: venture.category },
+                      { k: 'Studio', v: 'Construx Group' },
                       { k: 'Platform', v: 'AWS Amplify' },
-                      { k: 'Engine', v: 'Claude', accent: venture.accent },
-                    ].map(({ k, v, accent }) => (
-                      <div key={k} className="flex items-center justify-between gap-4">
-                        <dt className="t-meta" style={{ fontSize: 9 }}>{k}</dt>
-                        <dd
-                          className="font-mono text-[11px] uppercase tracking-wider text-right"
-                          style={{ color: accent ?? 'rgba(255,255,255,0.5)' }}
-                        >
+                      { k: 'Engine', v: 'Claude' },
+                    ].map(({ k, v }) => (
+                      <div
+                        key={k}
+                        className="flex items-baseline justify-between gap-4 py-3 border-b"
+                        style={{ borderColor: 'var(--hairline)' }}
+                      >
+                        <dt className="t-meta" style={{ fontSize: 9.5 }}>{k}</dt>
+                        <dd className="font-mono text-[11.5px] uppercase tracking-wider text-right" style={{ color: 'var(--ink)' }}>
                           {v}
                         </dd>
                       </div>
@@ -311,18 +235,18 @@ export default async function VenturePage({ params }: Props) {
                   </dl>
                 </div>
 
-                {/* Stack */}
-                <div className="card p-7">
-                  <p className="t-eyebrow mb-5" style={{ fontSize: 9 }}>Stack</p>
+                <div>
+                  <p className="t-eyebrow mb-5" style={{ fontSize: 9.5 }}>Stack</p>
                   <div className="flex flex-wrap gap-1.5">
                     {venture.techStack.map((tech) => (
                       <span
                         key={tech}
-                        className="font-mono text-[9.5px] px-2.5 py-1 rounded"
+                        className="font-mono text-[10px] px-2.5 py-1.5"
                         style={{
-                          background: `${venture.accent}0c`,
-                          border: `1px solid ${venture.accent}20`,
-                          color: `${venture.accent}d0`,
+                          border: '1px solid var(--hairline)',
+                          borderRadius: 2,
+                          color: 'var(--ink-muted)',
+                          background: 'var(--paper-raised)',
                         }}
                       >
                         {tech}
@@ -331,26 +255,17 @@ export default async function VenturePage({ params }: Props) {
                   </div>
                 </div>
 
-                {/* CTAs */}
                 {venture.url && (
                   <a
                     href={venture.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-lg text-[13px] font-normal transition-all duration-200 hover:-translate-y-px"
-                    style={{
-                      color: '#000008',
-                      background: venture.accent,
-                      boxShadow: `0 4px 24px ${venture.accent}30`,
-                    }}
+                    className="btn-ink w-full justify-center"
                   >
-                    Visit site <ArrowUpRight size={13} />
+                    Visit {venture.name} <ArrowUpRight size={13} />
                   </a>
                 )}
-                <Link
-                  href="/contact"
-                  className="btn-ghost w-full justify-center"
-                >
+                <Link href="/contact" className="btn-line w-full justify-center">
                   Get in touch
                 </Link>
               </div>
@@ -359,33 +274,33 @@ export default async function VenturePage({ params }: Props) {
 
           {/* ── Related journal ── */}
           {relatedPosts.length > 0 && (
-            <div className="mt-28 pt-14 border-t border-border">
+            <div className="mt-28 pt-14 border-t" style={{ borderColor: 'var(--hairline)' }}>
               <div className="flex items-end justify-between mb-10">
                 <div>
-                  <p className="t-eyebrow mb-3">Journal</p>
-                  <h2 className="t-section" style={{ fontSize: 'clamp(1.6rem,3vw,2.4rem)' }}>
+                  <p className="t-eyebrow mb-3">From the journal</p>
+                  <h2 className="t-section" style={{ fontSize: 'clamp(1.5rem,2.8vw,2.2rem)' }}>
                     Building {venture.name}.
                   </h2>
                 </div>
-                <Link href="/journal" className="hidden md:inline-flex btn-text t-meta" style={{ fontSize: 10 }}>
-                  All posts <ArrowRight size={12} />
+                <Link href="/journal" className="btn-text hidden md:inline-flex">
+                  All entries <ArrowRight size={11} />
                 </Link>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-px" style={{ background: 'var(--hairline)' }}>
                 {relatedPosts.slice(0, 6).map((post) => (
                   <Link
                     key={post.slug}
                     href={`/journal/${post.slug}`}
-                    className="group card card-hover p-6"
+                    className="group p-7"
+                    style={{ background: 'var(--paper)' }}
                   >
-                    <div className="flex items-center gap-3 mb-4">
-                      <time dateTime={post.date} className="t-meta" style={{ fontSize: 9 }}>
-                        {formatDate(post.date)}
-                      </time>
-                      <span className="t-meta" style={{ fontSize: 9 }}>·</span>
-                      <span className="t-meta" style={{ fontSize: 9 }}>{post.readingTime} min</span>
-                    </div>
-                    <p className="t-card text-[15px] leading-snug group-hover:text-white transition-colors">
+                    <p className="t-meta mb-4" style={{ fontSize: 9.5 }}>
+                      {formatDate(post.date)} · {post.readingTime} min
+                    </p>
+                    <p
+                      className="t-card text-[16px] leading-snug group-hover:underline"
+                      style={{ textDecorationColor: 'var(--orange)', textUnderlineOffset: 4 }}
+                    >
                       {post.title}
                     </p>
                   </Link>
@@ -394,34 +309,33 @@ export default async function VenturePage({ params }: Props) {
             </div>
           )}
 
-          {/* ── Next venture ── */}
-          <div className="mt-28">
+          {/* ── Next project ── */}
+          <div className="mt-24">
             <Link
               href={`/ventures/${nextVenture.slug}`}
-              className="group relative block card overflow-hidden transition-all duration-300 hover:border-white/[0.14]"
+              className="group flex items-center justify-between gap-8 py-10 border-t border-b transition-colors"
+              style={{ borderColor: 'var(--hairline)' }}
             >
-              <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{
-                  background: `radial-gradient(ellipse 60% 100% at 100% 50%, ${nextVenture.accent}0a, transparent 60%)`,
-                }}
-              />
-              <div className="relative flex items-center justify-between gap-8 px-8 lg:px-12 py-10">
-                <div>
-                  <p className="t-eyebrow mb-3" style={{ fontSize: 9 }}>Next venture</p>
-                  <p
-                    className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] leading-none text-white/85 group-hover:text-white transition-colors"
-                    style={{ fontWeight: 700, letterSpacing: '-0.025em' }}
-                  >
-                    {nextVenture.name}
-                  </p>
-                  <p className="t-body mt-2">{nextVenture.tagline}</p>
-                </div>
-                <ArrowRight
-                  size={28}
-                  className="flex-shrink-0 text-white/20 group-hover:text-white/60 group-hover:translate-x-1 transition-all duration-300"
-                />
+              <div>
+                <p className="t-meta mb-3">Next project</p>
+                <p
+                  className="font-display text-[clamp(1.7rem,3.4vw,2.7rem)] leading-none group-hover:underline"
+                  style={{
+                    fontWeight: 600,
+                    letterSpacing: '-0.025em',
+                    color: 'var(--ink)',
+                    textDecorationColor: 'var(--orange)',
+                    textUnderlineOffset: 6,
+                  }}
+                >
+                  {nextVenture.name}
+                </p>
               </div>
+              <ArrowRight
+                size={26}
+                className="flex-shrink-0 transition-transform group-hover:translate-x-1"
+                style={{ color: 'var(--ink-faint)' }}
+              />
             </Link>
           </div>
         </div>
