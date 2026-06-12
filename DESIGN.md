@@ -33,6 +33,7 @@
 ## Color
 - **Approach:** Restrained. Paper + ink + one rationed accent.
 - **Paper (background):** `#F4F2ED` — warm off-white, paper not screen
+- **Drafting grid (on paper):** non-photo blue grid baked into the body background — minor squares 14px `rgba(94,130,160,0.075)`, major lines every 112px `rgba(94,130,160,0.14)`. The vellum sheet CAD replaced. Solid-background cells ("sheets") sit on top like pasted details.
 - **Paper raised (cards/surfaces):** `#FBFAF7`
 - **Hairlines/rules:** `#E2DFD7`
 - **Ink (text primary):** `#16181A`
@@ -87,3 +88,4 @@
 | 2026-06-12 | Reposition: studio-first, projects de-emphasized | Founder decision |
 | 2026-06-12 | Serif body (Erode) | Deliberate category departure — both design voices independently proposed serif body |
 | 2026-06-12 | Orange rationed ≤3/viewport | Signature, not paint bucket |
+| 2026-06-12 | Drafting grid added to paper ground | Founder request: the vibe of pre-CAD design paper (vellum/graph sheets); non-photo blue for authenticity |

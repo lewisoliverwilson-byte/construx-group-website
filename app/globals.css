@@ -28,6 +28,11 @@
     --green: #2f6b4f;
     --green-plate: #4a8467;
 
+    /* Drafting grid — non-photo blue, the pencil-guide tint that never
+       reproduced on blueprint copies */
+    --grid-minor: rgba(94, 130, 160, 0.075);
+    --grid-major: rgba(94, 130, 160, 0.14);
+
     --font-display: 'General Sans', system-ui, sans-serif;
     --font-serif: 'Erode', Georgia, serif;
     --font-mono: var(--font-jetbrains-mono, 'JetBrains Mono'), monospace;
@@ -48,6 +53,18 @@
 
   body {
     background-color: var(--paper);
+    /* Drafting-sheet grid — minor squares with a heavier major line every 8th,
+       in non-photo blue, like the vellum CAD replaced */
+    background-image:
+      linear-gradient(var(--grid-major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+      linear-gradient(var(--grid-minor) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+    background-size:
+      112px 112px,
+      112px 112px,
+      14px 14px,
+      14px 14px;
     color: var(--ink);
     font-family: var(--font-serif);
     -webkit-font-smoothing: antialiased;
