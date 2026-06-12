@@ -5,9 +5,9 @@ import { ArrowRight, ArrowDown } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 
 const FD = (delay: number) => ({
-  initial: { opacity: 0, y: 20 },
+  initial: { opacity: 0, y: 24 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1], delay },
+  transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1], delay },
 });
 
 export default function CompanyHero() {
@@ -19,145 +19,122 @@ export default function CompanyHero() {
     <section className="relative w-full min-h-screen flex flex-col justify-center overflow-hidden">
       {/* Dot grid */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 pointer-events-none dot-grid"
         style={{
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px)',
-          backgroundSize: '38px 38px',
-          maskImage: 'radial-gradient(ellipse 100% 90% at 50% 50%, black 40%, transparent 100%)',
+          maskImage: 'radial-gradient(ellipse 100% 90% at 50% 50%, black 35%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 100% 90% at 50% 50%, black 35%, transparent 100%)',
         }}
       />
-      {/* Top glow */}
+      {/* Aurora glow */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse 75% 45% at 50% 0%, rgba(255,255,255,0.032) 0%, transparent 65%)',
+          background:
+            'radial-gradient(ellipse 60% 42% at 28% 8%, rgba(139,92,246,0.07) 0%, transparent 60%), radial-gradient(ellipse 55% 40% at 75% 16%, rgba(6,182,212,0.05) 0%, transparent 60%), radial-gradient(ellipse 75% 45% at 50% 0%, rgba(255,255,255,0.03) 0%, transparent 65%)',
         }}
       />
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-12 pt-32 pb-24">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-10 pt-32 pb-20">
         {/* Eyebrow */}
-        <motion.p
-          {...FD(0.1)}
-          className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/28 mb-8"
-        >
-          Construx Group&nbsp;&nbsp;·&nbsp;&nbsp;AI-native ventures
-        </motion.p>
+        <motion.div {...FD(0.08)} className="flex items-center gap-3 mb-10">
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block rounded-full animate-glow-pulse"
+              style={{ width: '5px', height: '5px', background: '#4ade80', boxShadow: '0 0 6px rgba(74,222,128,0.8)' }}
+            />
+          </span>
+          <p className="t-eyebrow" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            Construx Group · Five ventures, all live
+          </p>
+        </motion.div>
 
         {/* Headline */}
-        <motion.h1
-          {...FD(0.22)}
-          className="text-white/95 leading-[0.9] mb-8"
-          style={{
-            fontFamily: 'Clash Display, system-ui, sans-serif',
-            fontWeight: 700,
-            fontSize: 'clamp(3.4rem, 8vw, 8rem)',
-            letterSpacing: '-0.035em',
-          }}
-        >
-          We build what<br />
-          only AI makes<br />
-          possible.
+        <motion.h1 {...FD(0.2)} className="t-hero mb-9" style={{ maxWidth: '13ch' }}>
+          We build what
+          <br />
+          only AI makes
+          <br />
+          <span
+            style={{
+              background: 'linear-gradient(100deg, #ffffff 10%, rgba(139,92,246,0.95) 55%, rgba(6,182,212,0.9) 95%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            possible.
+          </span>
         </motion.h1>
 
         {/* Description */}
-        <motion.p
-          {...FD(0.35)}
-          className="text-[16px] text-white/38 font-light leading-relaxed max-w-xl mb-10"
-        >
-          Five AI-native ventures at the frontier of what today's models make
+        <motion.p {...FD(0.34)} className="t-lead max-w-xl mb-11">
+          Five AI-native ventures at the frontier of what today&apos;s models make
           buildable. No retrofits. No templates. Each one designed from first
           principles around what AI enables.
         </motion.p>
 
-        {/* Venture tags */}
-        <motion.div {...FD(0.46)} className="flex flex-wrap items-center gap-2.5 mb-12">
-          {ventures.map((v) => (
-            <div
-              key={v.slug}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full"
-              style={{
-                background: `${v.accent}12`,
-                border: `1px solid ${v.accent}28`,
-              }}
-            >
-              <div
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ background: v.accent, boxShadow: `0 0 6px ${v.accent}` }}
-              />
-              <span
-                className="font-mono text-[9px] uppercase tracking-wider whitespace-nowrap"
-                style={{ color: v.accent }}
-              >
-                {v.name}
-              </span>
-            </div>
-          ))}
-        </motion.div>
-
         {/* CTAs */}
-        <motion.div {...FD(0.55)} className="flex flex-wrap items-center gap-5">
-          <button
-            onClick={scrollToMap}
-            className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded text-[13px] font-light tracking-wide text-white/85 transition-all duration-200"
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.13)' }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.11)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.22)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.13)';
-            }}
-          >
-            Explore ventures
-            <ArrowDown size={13} />
+        <motion.div {...FD(0.46)} className="flex flex-wrap items-center gap-5 mb-16">
+          <button onClick={scrollToMap} className="btn-primary" style={{ cursor: 'pointer' }}>
+            Explore the ventures
+            <ArrowDown size={14} />
           </button>
-          <a
-            href="/work-with-us"
-            className="text-[13px] text-white/32 font-light hover:text-white/65 transition-colors tracking-wide flex items-center gap-1.5"
-          >
-            Work with us <ArrowRight size={12} />
+          <a href="/work-with-us" className="btn-text">
+            Work with us <ArrowRight size={13} />
           </a>
         </motion.div>
 
-        {/* Stats strip */}
-        <motion.div
-          {...FD(0.66)}
-          className="flex flex-wrap items-center gap-8 mt-16 pt-8 border-t"
-          style={{ borderColor: 'rgba(255,255,255,0.07)' }}
-        >
-          {[
-            { value: '5', label: 'live ventures' },
-            { value: 'Claude', label: 'primary model' },
-            { value: '167+', label: 'Marqet listings' },
-            { value: '<5s', label: 'Scoutr scan' },
-          ].map(({ value, label }) => (
-            <div key={label} className="flex flex-col gap-0.5">
-              <span
-                className="text-[18px] text-white/82"
-                style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700 }}
+        {/* Venture strip */}
+        <motion.div {...FD(0.58)}>
+          <div
+            className="flex flex-wrap items-stretch rounded-xl overflow-hidden"
+            style={{ border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}
+          >
+            {ventures.map((v, i) => (
+              <a
+                key={v.slug}
+                href={`/ventures/${v.slug}`}
+                className="group relative flex-1 min-w-[160px] px-5 py-5 transition-colors duration-200 hover:bg-white/[0.03]"
+                style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}
               >
-                {value}
-              </span>
-              <span className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/22">
-                {label}
-              </span>
-            </div>
-          ))}
+                <div className="flex items-center gap-2 mb-2">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: v.accent, boxShadow: `0 0 7px ${v.accent}` }}
+                  />
+                  <span className="t-meta" style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.28)' }}>
+                    {v.category}
+                  </span>
+                </div>
+                <p
+                  className="font-display text-[15px] text-white/75 group-hover:text-white transition-colors"
+                  style={{ fontWeight: 600, letterSpacing: '-0.01em' }}
+                >
+                  {v.name}
+                </p>
+                {/* hover accent line */}
+                <span
+                  className="absolute bottom-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{ background: `linear-gradient(90deg, transparent, ${v.accent}, transparent)` }}
+                />
+              </a>
+            ))}
+          </div>
         </motion.div>
       </div>
 
       {/* Scroll indicator */}
-      <motion.div
+      <motion.button
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.6, duration: 0.8 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 cursor-pointer"
+        transition={{ delay: 1.5, duration: 0.8 }}
+        className="absolute bottom-7 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 cursor-pointer"
         onClick={scrollToMap}
+        aria-label="Scroll to venture map"
       >
-        <span className="font-mono text-[8px] uppercase tracking-widest text-white/18">Venture map</span>
-        <div className="w-px h-8 bg-gradient-to-b from-white/15 to-transparent" />
-      </motion.div>
+        <span className="t-meta" style={{ fontSize: 8 }}>Venture map</span>
+        <div className="w-px h-9 bg-gradient-to-b from-white/20 to-transparent" />
+      </motion.button>
     </section>
   );
 }

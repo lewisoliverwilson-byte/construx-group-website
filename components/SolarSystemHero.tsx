@@ -602,11 +602,11 @@ export default function SolarSystemHero() {
   return (
     <section id="venture-map" className="relative w-full h-screen overflow-hidden bg-[#000008]">
       {/* Section label */}
-      <div className="absolute top-6 left-6 lg:top-8 lg:left-12 z-10 pointer-events-none">
-        <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-white/20 mb-1">
+      <div className="absolute top-7 left-6 lg:top-9 lg:left-10 z-10 pointer-events-none">
+        <p className="t-eyebrow mb-1.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
           Venture Map
         </p>
-        <div className="w-8 h-px" style={{ background: 'rgba(255,255,255,0.12)' }} />
+        <div className="w-9 h-px" style={{ background: 'rgba(255,255,255,0.14)' }} />
       </div>
 
       {/* 3D Canvas */}

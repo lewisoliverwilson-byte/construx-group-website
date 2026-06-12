@@ -36,48 +36,45 @@ export default function ContactPage() {
   }
 
   const inputClass =
-    'w-full bg-white/[0.04] border border-white/08 rounded-md px-4 py-3 text-[14px] text-white/82 font-light placeholder:text-white/22 focus:outline-none focus:border-white/20 transition-colors';
+    'w-full bg-white/[0.04] border border-white/[0.09] rounded-lg px-4 py-3.5 text-[14px] text-white/85 font-light placeholder:text-white/22 focus:outline-none focus:border-white/25 focus:bg-white/[0.05] transition-all';
 
   return (
-    <div className="min-h-screen pt-28 pb-24">
-      <div className="mx-auto max-w-5xl px-5 lg:px-8">
-
+    <div className="min-h-screen pt-36 pb-28">
+      <div className="mx-auto max-w-5xl px-6 lg:px-10">
         {/* Header */}
-        <div className="mb-16">
-          <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-white/28 mb-4">Contact</p>
-          <h1
-            className="text-display text-white/90 mb-5"
-            style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700 }}
-          >
-            Get in touch.
-          </h1>
-          <p className="text-[15px] text-white/40 font-light max-w-md leading-relaxed">
-            Direct line: <a href="mailto:lewis.oliver.wilson@googlemail.com" className="text-white/65 hover:text-white/88 transition-colors">lewis.oliver.wilson@googlemail.com</a>
+        <div className="mb-20">
+          <p className="t-eyebrow mb-5">Contact</p>
+          <h1 className="t-page mb-6">Get in touch.</h1>
+          <p className="t-lead max-w-md">
+            Direct line:{' '}
+            <a
+              href="mailto:lewis.oliver.wilson@googlemail.com"
+              className="text-white/70 hover:text-white transition-colors underline decoration-white/20 underline-offset-4"
+            >
+              lewis.oliver.wilson@googlemail.com
+            </a>
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
-
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
           {/* Form */}
           <div className="lg:col-span-3">
             {status === 'sent' ? (
-              <div className="glass rounded-xl p-10 text-center border-t-2 border-emerald-400/40">
-                <div className="w-10 h-10 rounded-full bg-emerald-400/10 flex items-center justify-center mx-auto mb-5">
-                  <span className="text-emerald-400 text-lg">✓</span>
-                </div>
-                <h3
-                  className="text-[20px] text-white/88 mb-2"
-                  style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 700 }}
+              <div className="card p-12 text-center">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-6"
+                  style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)' }}
                 >
-                  Message received.
-                </h3>
-                <p className="text-[13px] text-white/38 font-light">We'll get back to you within a few days.</p>
+                  <span className="text-emerald-400 text-xl">✓</span>
+                </div>
+                <h3 className="t-card text-[20px] mb-2">Message received.</h3>
+                <p className="t-body">We&apos;ll get back to you within a few days.</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Name</label>
+                    <label className="t-meta block mb-2.5" style={{ fontSize: 9 }}>Name</label>
                     <input
                       type="text"
                       required
@@ -88,7 +85,7 @@ export default function ContactPage() {
                     />
                   </div>
                   <div>
-                    <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Email</label>
+                    <label className="t-meta block mb-2.5" style={{ fontSize: 9 }}>Email</label>
                     <input
                       type="email"
                       required
@@ -100,7 +97,7 @@ export default function ContactPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Subject</label>
+                  <label className="t-meta block mb-2.5" style={{ fontSize: 9 }}>Subject</label>
                   <select
                     value={subject}
                     onChange={e => setSubject(e.target.value)}
@@ -113,7 +110,7 @@ export default function ContactPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/28 block mb-2">Message</label>
+                  <label className="t-meta block mb-2.5" style={{ fontSize: 9 }}>Message</label>
                   <textarea
                     required
                     rows={6}
@@ -132,7 +129,8 @@ export default function ContactPage() {
                 <button
                   type="submit"
                   disabled={status === 'sending'}
-                  className="flex items-center gap-2.5 px-7 py-3.5 glass rounded-md text-[13px] text-white/75 hover:text-white border border-white/08 hover:border-white/18 transition-all font-light tracking-wide disabled:opacity-40"
+                  className="btn-primary disabled:opacity-40"
+                  style={{ cursor: status === 'sending' ? 'wait' : 'pointer' }}
                 >
                   <Send size={13} />
                   {status === 'sending' ? 'Sending…' : 'Send message'}
@@ -142,56 +140,44 @@ export default function ContactPage() {
           </div>
 
           {/* Right column */}
-          <div className="lg:col-span-2 space-y-5">
-            <div className="glass rounded-lg p-5 border-t-2 border-white/06">
-              <p
-                className="text-[15px] text-white/72 mb-2"
-                style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 600 }}
-              >
-                Direct line
-              </p>
+          <div className="lg:col-span-2 space-y-4">
+            <div className="card p-6">
+              <p className="t-card text-[15px] mb-3">Direct line</p>
               <a
                 href="mailto:lewis.oliver.wilson@googlemail.com"
-                className="font-mono text-[11px] text-white/38 hover:text-white/65 transition-colors flex items-center gap-1.5"
+                className="font-mono text-[11px] text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5 break-all"
               >
                 lewis.oliver.wilson@googlemail.com
-                <ArrowUpRight size={10} />
+                <ArrowUpRight size={10} className="flex-shrink-0" />
               </a>
             </div>
-            <div className="glass rounded-lg p-5 border-t-2 border-white/06">
-              <p
-                className="text-[15px] text-white/72 mb-2"
-                style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 600 }}
-              >
-                Construx Studio
-              </p>
-              <p className="text-[12px] text-white/32 font-light mb-3">
-                For project enquiries, use the subject line "Construx Studio — project enquiry" or contact directly.
+            <div className="card p-6">
+              <p className="t-card text-[15px] mb-3">Construx Studio</p>
+              <p className="t-body text-[12.5px] mb-4">
+                For project enquiries, use the subject line &ldquo;Construx Studio —
+                project&rdquo; or contact directly.
               </p>
               <a
                 href="mailto:lewis.oliver.wilson@googlemail.com?subject=Construx Studio — Project Enquiry"
-                className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/28 hover:text-white/55 transition-colors"
+                className="btn-text t-meta"
+                style={{ fontSize: 9.5 }}
               >
                 Project enquiry <ArrowUpRight size={10} />
               </a>
             </div>
-            <div className="glass rounded-lg p-5 border-t-2 border-white/06">
-              <p
-                className="text-[15px] text-white/72 mb-2"
-                style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontWeight: 600 }}
-              >
-                Response time
-              </p>
-              <p className="text-[12px] text-white/32 font-light">
-                We reply to all messages within a few days. For urgent matters, email directly.
+            <div className="card p-6">
+              <p className="t-card text-[15px] mb-3">Response time</p>
+              <p className="t-body text-[12.5px]">
+                We reply to all messages within a few days. For urgent matters, email
+                directly.
               </p>
             </div>
-            <div className="pt-4 flex flex-col gap-2">
-              <Link href="/work-with-us" className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/22 hover:text-white/50 transition-colors flex items-center gap-1.5">
-                Work with us <ArrowRight size={9} />
+            <div className="pt-4 flex flex-col gap-3">
+              <Link href="/work-with-us" className="btn-text t-meta" style={{ fontSize: 10 }}>
+                Work with us <ArrowRight size={10} />
               </Link>
-              <Link href="/ventures" className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/22 hover:text-white/50 transition-colors flex items-center gap-1.5">
-                Our ventures <ArrowRight size={9} />
+              <Link href="/ventures" className="btn-text t-meta" style={{ fontSize: 10 }}>
+                Our ventures <ArrowRight size={10} />
               </Link>
             </div>
           </div>
