@@ -408,8 +408,7 @@ export default function VentureHero() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const liveCount = ventures.filter(v => v.status === 'live').length;
-  const devCount  = ventures.filter(v => v.status === 'dev').length;
+  const liveCount = ventures.length;
 
   return (
     <section
@@ -466,9 +465,6 @@ export default function VentureHero() {
         >
           <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-white/18">
             {liveCount} ventures live
-          </p>
-          <p className="font-mono text-[8px] uppercase tracking-[0.18em] text-white/10">
-            {devCount} in development
           </p>
         </motion.div>
       </div>

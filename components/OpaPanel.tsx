@@ -3,24 +3,22 @@
 import { useEffect, useRef, useState } from 'react';
 
 const POLICIES = [
-  { name: 'k8s/admission/require-labels', path: 'policies/k8s/admission.rego', rules: 4, violations: 0, effect: 'deny' },
-  { name: 'k8s/admission/no-privileged', path: 'policies/k8s/security.rego', rules: 3, violations: 2, effect: 'deny' },
-  { name: 'api/authz/rbac', path: 'policies/api/rbac.rego', rules: 8, violations: 0, effect: 'deny' },
-  { name: 'data/privacy/pii-mask', path: 'policies/data/privacy.rego', rules: 6, violations: 0, effect: 'mask' },
+  { name: 'construx.authz.api', rules: 12, version: 'v1.4', bundle: 'construx-bundle', lastEval: '28ms ago', status: 'active' },
+  { name: 'construx.authz.data', rules: 8, version: 'v1.2', bundle: 'construx-bundle', lastEval: '124ms ago', status: 'active' },
+  { name: 'construx.rbac.workspace', rules: 16, version: 'v2.1', bundle: 'construx-bundle', lastEval: '4ms ago', status: 'active' },
+  { name: 'construx.compliance.gdpr', rules: 6, version: 'v1.0', bundle: 'compliance-bundle', lastEval: '1s ago', status: 'active' },
 ];
 
-const EVALUATIONS = [
-  { input: 'k8s AdmissionReview pod/privileged:true', policy: 'no-privileged', result: 'DENY', latency: '0.4ms', reason: 'privileged mode not allowed' },
-  { input: 'api POST /listings user:alice role:viewer', policy: 'rbac', result: 'ALLOW', latency: '0.2ms', reason: 'viewer can read+create' },
-  { input: 'k8s AdmissionReview deploy/no-labels', policy: 'require-labels', result: 'DENY', latency: '0.3ms', reason: 'missing app, env labels' },
-  { input: 'data query pii fields user:dave', policy: 'pii-mask', result: 'MASK', latency: '0.1ms', reason: 'phone, email redacted' },
+const DECISIONS = [
+  { policy: 'construx.authz.api', input: 'POST /api/listings', result: 'allow', reason: 'role=admin', latency: 3, status: 'ok' },
+  { policy: 'construx.authz.data', input: 'SELECT listings WHERE org=construx', result: 'allow', reason: 'owner=true', latency: 4, status: 'ok' },
+  { policy: 'construx.rbac.workspace', input: 'DELETE workspace:84291', result: 'deny', reason: 'role=member', latency: 2, status: 'ok' },
+  { policy: 'construx.compliance.gdpr', input: 'EXPORT user:lewis data', result: 'allow', reason: 'consent=true', latency: 8, status: 'ok' },
 ];
 
 const RESULT_COLOR: Record<string, string> = {
-  ALLOW: '#4ade80',
-  DENY: '#f87171',
-  MASK: '#fbbf24',
-  WARN: '#f97316',
+  allow: '#4ade80',
+  deny: '#f87171',
 };
 
 function useCounter(base: number, delta: number, ms = 900) {
@@ -32,13 +30,13 @@ function useCounter(base: number, delta: number, ms = 900) {
   return v;
 }
 
-export default function OpaPanel() {
+export default function OPAPanel() {
   const [visible, setVisible] = useState(false);
-  const [pRows, setPRows] = useState(0);
-  const [eRows, setERows] = useState(0);
+  const [policyRows, setPolicyRows] = useState(0);
+  const [decisionRows, setDecisionRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const decisionsPerSec = useCounter(28400, 120, 400);
-  const bundleVersion = useCounter(284, 1, 1800);
+  const decisionsPerSec = useCounter(28400, 480, 400);
+  const bundleUpdates = useCounter(284, 1, 1200);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -48,9 +46,9 @@ export default function OpaPanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const p = setInterval(() => setPRows((x) => Math.min(x + 1, POLICIES.length)), 160);
-    const e = setInterval(() => setERows((x) => Math.min(x + 1, EVALUATIONS.length)), 140);
-    return () => { clearInterval(p); clearInterval(e); };
+    const p = setInterval(() => setPolicyRows((x) => Math.min(x + 1, POLICIES.length)), 160);
+    const d = setInterval(() => setDecisionRows((x) => Math.min(x + 1, DECISIONS.length)), 140);
+    return () => { clearInterval(p); clearInterval(d); };
   }, [visible]);
 
   return (
@@ -58,23 +56,23 @@ export default function OpaPanel() {
       ref={ref}
       style={{
         background: 'rgba(2,2,12,0.92)',
-        border: '1px solid rgba(74,222,128,0.13)',
+        border: '1px solid rgba(103,232,249,0.13)',
         borderRadius: '4px',
         overflow: 'hidden',
         fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-        boxShadow: '0 0 28px rgba(74,222,128,0.04)',
+        boxShadow: '0 0 28px rgba(103,232,249,0.04)',
         opacity: visible ? 1 : 0,
         transform: visible ? 'none' : 'translateY(10px)',
         transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(74,222,128,0.08)', background: 'rgba(74,222,128,0.02)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(103,232,249,0.08)', background: 'rgba(103,232,249,0.02)' }}>
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
-        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(74,222,128,0.4)' }}>
-          opa -- open policy agent -- rego / admission / api authz
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(103,232,249,0.4)' }}>
+          opa -- open policy agent -- rego / bundles / decisions
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
           {decisionsPerSec.toLocaleString()} dec/s
@@ -83,18 +81,18 @@ export default function OpaPanel() {
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#4ade80', fontWeight: 600 }}>opa@policy</span>
+        <span style={{ color: '#67e8f9', fontWeight: 600 }}>opa@policy</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>opa run --server --bundle policies/ && opa eval -d policies/ -i input.json "data.k8s.admission.deny"</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>opa eval -d policy.rego -i input.json "data.construx.authz.api.allow" && opa test ./policies/</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'decisions/s', value: decisionsPerSec.toLocaleString(), color: '#4ade80' },
-          { label: 'bundle rev', value: bundleVersion.toString(), color: '#67e8f9' },
+          { label: 'decisions / sec', value: decisionsPerSec.toLocaleString(), color: '#67e8f9' },
+          { label: 'bundle updates', value: bundleUpdates.toLocaleString(), color: '#4ade80' },
           { label: 'policies', value: POLICIES.length.toString(), color: '#a78bfa' },
-          { label: 'violations', value: POLICIES.reduce((a, p) => a + p.violations, 0).toString(), color: '#f87171' },
+          { label: 'total rules', value: POLICIES.reduce((a, p) => a + p.rules, 0).toString(), color: '#fbbf24' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -106,30 +104,33 @@ export default function OpaPanel() {
       <div style={{ padding: '10px 14px 0' }}>
         {/* Policies */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // rego policies
+          // policies
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {POLICIES.slice(0, pRows).map((pol) => (
-            <div key={pol.name} style={{ display: 'grid', gridTemplateColumns: '1fr 28px 24px 40px', alignItems: 'center', gap: 8, padding: '5px 8px', background: pol.violations > 0 ? 'rgba(248,113,113,0.04)' : 'rgba(74,222,128,0.04)', border: `1px solid ${pol.violations > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)'}`, borderRadius: 2 }}>
-              <span style={{ color: '#4ade80', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pol.name}</span>
-              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{pol.rules}r</span>
-              <span className="tabular-nums" style={{ color: pol.violations > 0 ? '#f87171' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'center', fontWeight: pol.violations > 0 ? 700 : 400 }}>{pol.violations}</span>
-              <span style={{ color: pol.effect === 'deny' ? '#f87171' : '#fbbf24', fontSize: 7, textAlign: 'right', fontWeight: 700 }}>{pol.effect}</span>
+          {POLICIES.slice(0, policyRows).map((p) => (
+            <div key={p.name} style={{ display: 'grid', gridTemplateColumns: '1fr 20px 28px 80px 44px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{p.rules}r</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{p.version}</span>
+              <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.bundle}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{p.lastEval}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{p.status}</span>
             </div>
           ))}
         </div>
 
-        {/* Evaluations */}
+        {/* Decisions */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // recent evaluations
+          // recent decisions
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {EVALUATIONS.slice(0, eRows).map((ev) => (
-            <div key={ev.input} style={{ display: 'grid', gridTemplateColumns: '1fr 48px 36px 36px', alignItems: 'center', gap: 8, padding: '4px 8px', background: ev.result === 'DENY' ? 'rgba(248,113,113,0.04)' : ev.result === 'ALLOW' ? 'rgba(74,222,128,0.04)' : 'rgba(251,191,36,0.04)', border: `1px solid ${ev.result === 'DENY' ? 'rgba(248,113,113,0.1)' : ev.result === 'ALLOW' ? 'rgba(74,222,128,0.08)' : 'rgba(251,191,36,0.1)'}`, borderRadius: 2 }}>
-              <span style={{ color: 'rgba(240,239,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.input}</span>
-              <span style={{ color: '#a78bfa', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.policy}</span>
-              <span style={{ color: RESULT_COLOR[ev.result] ?? '#fbbf24', fontSize: 7, fontWeight: 700 }}>{ev.result}</span>
-              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{ev.latency}</span>
+          {DECISIONS.slice(0, decisionRows).map((d, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 36px 44px 24px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.input}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.reason}</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{d.latency}ms</span>
+              <span style={{ color: RESULT_COLOR[d.result] ?? '#4ade80', fontSize: 7, fontWeight: 700 }}>{d.result}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{d.status}</span>
             </div>
           ))}
         </div>
@@ -137,11 +138,11 @@ export default function OpaPanel() {
 
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
-        <span style={{ fontSize: 8, color: 'rgba(74,222,128,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          opa v0.68 - apache-2.0 - open policy agent
+        <span style={{ fontSize: 8, color: 'rgba(103,232,249,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          opa v0.68 - apache-2.0 - open policy agent, general-purpose policy engine
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {decisionsPerSec.toLocaleString()} dec/s - {POLICIES.length} policies
+          {decisionsPerSec.toLocaleString()} dec/s - {bundleUpdates.toLocaleString()} bundles
         </span>
       </div>
     </div>

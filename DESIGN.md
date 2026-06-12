@@ -40,7 +40,7 @@
 - **Ink muted:** `#6E6A63`
 - **Ink faint (meta):** `#9B968C`
 - **Charcoal plate (dark sections — projects band, footer):** bg `#111214`, text `#EDEAE4`, hairline `#26292E`, muted `#8A8D93`
-- **Brand orange (accent):** `#F4731C` — **rationed brutally: max 3 appearances per viewport.** The logo X, one interactive/hover state, one annotation mark. NEVER headlines, NEVER backgrounds, NEVER gradients.
+- **Brand orange (accent):** `#F4731C` — rationed: **one confident moment per viewport** (the headline's plotted full-stop, a schematic trunk line) plus small marks (logo tip, REV stamp, registration crosshairs, one hover state). NEVER backgrounds, NEVER gradients, NEVER body text.
 - **Status green (live/operational dots only):** `#2F6B4F` on paper, `#4A8467` on charcoal
 - **Semantic:** success `#2F6B4F`, warning `#B07D2B`, error `#B3402E`, info `#3E5C74`
 - **Dark mode:** none. The site is paper. Charcoal plates provide the dark moments.
@@ -89,3 +89,4 @@
 | 2026-06-12 | Serif body (Erode) | Deliberate category departure — both design voices independently proposed serif body |
 | 2026-06-12 | Orange rationed ≤3/viewport | Signature, not paint bucket |
 | 2026-06-12 | Drafting grid added to paper ground | Founder request: the vibe of pre-CAD design paper (vellum/graph sheets); non-photo blue for authenticity |
+| 2026-06-12 | Plotter pass: self-drawing schematics (FIG. A system diagram, FIG. B exploded mark), crosshair cursor with coordinates, pencil marginalia, orange moment policy relaxed | Founder feedback: "boring" — the board needed drawings on it |

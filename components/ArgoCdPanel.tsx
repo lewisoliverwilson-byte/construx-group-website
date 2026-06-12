@@ -1,198 +1,140 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type LineKind = 'prompt' | 'comment' | 'app-healthy' | 'app-degraded' | 'app-unknown' | 'resource-ok' | 'resource-warn' | 'sync-ok' | 'sync-err' | 'diff' | 'blank';
-
-interface CliLine {
-  kind: LineKind;
-  text: string;
-}
-
-const LINES: CliLine[] = [
-  { kind: 'comment',      text: '# Argo CD application status across all clusters' },
-  { kind: 'prompt',       text: 'argocd app list' },
-  { kind: 'app-healthy',  text: 'construx-api         Synced   Healthy   construx-prod   2032-03-25  v2.4.1' },
-  { kind: 'app-healthy',  text: 'construx-worker      Synced   Healthy   construx-prod   2032-03-25  v1.8.3' },
-  { kind: 'app-healthy',  text: 'nats-cluster         Synced   Healthy   construx-prod   2032-03-10  2.10.11' },
-  { kind: 'app-healthy',  text: 'postgres-operator    Synced   Healthy   construx-prod   2032-02-28  1.12.2' },
-  { kind: 'app-degraded', text: 'construx-analytics   OutOfSync  Degraded  construx-prod   2032-03-24  v0.9.1' },
-  { kind: 'app-unknown',  text: 'staging-api          Synced   Healthy   construx-stage  2032-03-25  v2.4.2' },
-  { kind: 'blank',        text: '' },
-  { kind: 'comment',      text: '# Inspect the degraded application — what changed?' },
-  { kind: 'prompt',       text: 'argocd app diff construx-analytics' },
-  { kind: 'diff',         text: '===== apps/v1/Deployment construx/construx-analytics =====' },
-  { kind: 'diff',         text: '  4,  4   | spec:' },
-  { kind: 'diff',         text: '  5,  5   |   replicas: 2' },
-  { kind: 'diff',         text: '+  6      |   minReadySeconds: 30' },
-  { kind: 'diff',         text: '  7,  6   |   selector:' },
-  { kind: 'diff',         text: '  8,  7   |   template:' },
-  { kind: 'blank',        text: '' },
-  { kind: 'comment',      text: '# Sync the app — apply live state to match git' },
-  { kind: 'prompt',       text: 'argocd app sync construx-analytics --prune --force' },
-  { kind: 'sync-ok',      text: 'TIMESTAMP           GROUP  KIND        NAMESPACE  NAME                  STATUS  HEALTH' },
-  { kind: 'sync-ok',      text: '2032-03-25T14:32:01Z  apps  Deployment  construx   construx-analytics    Synced  Healthy' },
-  { kind: 'sync-ok',      text: '2032-03-25T14:32:01Z        Service     construx   construx-analytics    Synced  Healthy' },
-  { kind: 'sync-ok',      text: '2032-03-25T14:32:02Z        HPA         construx   construx-analytics    Synced  Healthy' },
-  { kind: 'sync-ok',      text: 'Message: successfully synced (all tasks run)' },
-  { kind: 'blank',        text: '' },
-  { kind: 'comment',      text: '# Resource health for construx-api' },
-  { kind: 'prompt',       text: 'argocd app resources construx-api' },
-  { kind: 'resource-ok',  text: 'GROUP  KIND           NAMESPACE  NAME                        ORPHANED' },
-  { kind: 'resource-ok',  text: 'apps   Deployment     construx   construx-api                ✓ Healthy' },
-  { kind: 'resource-ok',  text: '       Service        construx   construx-api-svc             ✓ Healthy' },
-  { kind: 'resource-ok',  text: '       HPA            construx   construx-api-hpa             ✓ Healthy' },
-  { kind: 'resource-ok',  text: '       ServiceAccount construx   construx-api-sa              ✓ Healthy' },
-  { kind: 'resource-warn', text: '       PodDisruptionBudget construx construx-api-pdb       ⚠ Warning' },
+const APPLICATIONS = [
+  { name: 'construx-api', source: 'github.com/construxgroup/infra', health: 'Healthy', sync: 'Synced', revision: 'a1b2c3d', status: 'ok' },
+  { name: 'construx-workspace', source: 'github.com/construxgroup/infra', health: 'Healthy', sync: 'Synced', revision: 'e5f6a7b', status: 'ok' },
+  { name: 'monitoring-stack', source: 'github.com/construxgroup/infra', health: 'Progressing', sync: 'Synced', revision: 'c9d0e1f', status: 'degraded' },
+  { name: 'cert-manager', source: 'github.com/construxgroup/infra', health: 'Healthy', sync: 'OutOfSync', revision: '8f4b2a1', status: 'outofsync' },
 ];
 
-const TOTAL = LINES.length + 3;
+const REPOS = [
+  { name: 'construxgroup/infra', type: 'git', connection: 'valid', lastFetch: '30s ago' },
+  { name: 'construxgroup/helm-charts', type: 'helm', connection: 'valid', lastFetch: '2m ago' },
+  { name: 'registry-1.docker.io', type: 'oci', connection: 'valid', lastFetch: '5m ago' },
+];
 
-function lineColor(k: LineKind): string {
-  switch (k) {
-    case 'comment':       return 'rgba(240,239,255,0.22)';
-    case 'prompt':        return 'rgba(240,239,255,0.6)';
-    case 'app-healthy':   return '#4ade80';
-    case 'app-degraded':  return '#f87171';
-    case 'app-unknown':   return '#67e8f9';
-    case 'resource-ok':   return '#4ade80';
-    case 'resource-warn': return '#fbbf24';
-    case 'sync-ok':       return '#4ade80';
-    case 'sync-err':      return '#f87171';
-    case 'diff':          return '#a78bfa';
-    default:              return 'transparent';
-  }
+function useCounter(base: number, delta: number, ms = 900) {
+  const [v, setV] = useState(base);
+  useEffect(() => {
+    const id = setInterval(() => setV((x) => x + Math.floor(Math.random() * delta) + 1), ms);
+    return () => clearInterval(id);
+  }, [delta, ms]);
+  return v;
 }
 
-export default function ArgoCdPanel() {
-  const [revealed,    setRevealed]    = useState(0);
-  const [liveRevision, setLiveRevision] = useState('a4f8c2d');
-  const ref      = useRef<HTMLDivElement>(null);
-  const started  = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const revisions = ['a4f8c2d', 'b7e9d1f', 'c3a2e8b', 'd9f4c7a', 'e1b6d3c'];
-  const revIdx = useRef(0);
+export default function ArgoCDPanel() {
+  const [visible, setVisible] = useState(false);
+  const [appRows, setAppRows] = useState(0);
+  const [repoRows, setRepoRows] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const appsTotal = useCounter(28, 1, 3600);
+  const syncsTotal = useCounter(2840, 4, 800);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setRevealed(1);
-          timerRef.current = setInterval(() => {
-            revIdx.current = (revIdx.current + 1) % revisions.length;
-            setLiveRevision(revisions[revIdx.current]);
-          }, 2400);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(el);
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
-    if (revealed === 0 || revealed > TOTAL) return;
-    const delay = LINES[revealed - 1]?.kind === 'blank' ? 30 : 80;
-    const id = setTimeout(() => setRevealed((r) => r + 1), delay);
-    return () => clearTimeout(id);
-  }, [revealed]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  const allDone    = revealed > TOTAL;
-  const shownLines = LINES.slice(0, Math.max(0, revealed - 1));
+    if (!visible) return;
+    const a = setInterval(() => setAppRows((x) => Math.min(x + 1, APPLICATIONS.length)), 160);
+    const r = setInterval(() => setRepoRows((x) => Math.min(x + 1, REPOS.length)), 140);
+    return () => { clearInterval(a); clearInterval(r); };
+  }, [visible]);
 
   return (
     <div
       ref={ref}
-      className="overflow-x-auto font-mono"
       style={{
-        background:   'rgba(1,1,10,0.97)',
-        border:       '1px solid rgba(255,255,255,0.07)',
-        borderRadius: '3px',
-        boxShadow:    '0 0 0 1px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+        background: 'rgba(2,2,12,0.92)',
+        border: '1px solid rgba(103,232,249,0.13)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        boxShadow: '0 0 28px rgba(103,232,249,0.04)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(10px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div
-        className="flex items-center gap-3 px-4 py-2.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF5F57', boxShadow: '0 0 4px rgba(255,95,87,0.4)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FFBD2E', boxShadow: '0 0 4px rgba(255,189,46,0.3)' }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28C840', boxShadow: '0 0 4px rgba(40,200,64,0.3)' }} />
-        </div>
-        <span
-          className="flex-1 text-center text-[9px] uppercase tracking-[0.2em]"
-          style={{ color: 'rgba(255,255,255,0.22)' }}
-        >
-          construx@prod-01 — argocd · GitOps · 6 applications
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(103,232,249,0.08)', background: 'rgba(103,232,249,0.02)' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(103,232,249,0.4)' }}>
+          argocd -- gitops cd -- apps / sync / health
         </span>
-        <span className="text-[8px] tabular-nums font-mono" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.2)' }}>
-          {allDone ? `HEAD ${liveRevision}` : 'syncing…'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {syncsTotal.toLocaleString()} syncs
         </span>
       </div>
 
       {/* Shell prompt */}
-      <div
-        className="px-4 py-1.5 select-none"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}
-      >
-        <span className="text-[9px]" style={{ color: 'rgba(74,222,128,0.45)' }}>construx@prod-01# </span>
-        <span className="text-[9px] ml-1" style={{ color: 'rgba(240,239,255,0.22)' }}>
-          argocd app list · diff · sync · resources · GitOps
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
+        <span style={{ color: '#67e8f9', fontWeight: 600 }}>argocd@cluster</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>argocd app list --output wide && argocd app sync construx-api --prune --force</span>
       </div>
 
-      {/* CLI output */}
-      <div className="px-4 pt-2 pb-2">
-        {shownLines.map((l, i) => (
-          <div
-            key={i}
-            className="text-[7.5px] leading-[1.8]"
-            style={{ color: lineColor(l.kind) }}
-          >
-            {l.kind === 'blank' ? ' ' : (
-              <>
-                {l.kind === 'prompt' && (
-                  <span style={{ color: 'rgba(74,222,128,0.45)', marginRight: '6px' }}>$</span>
-                )}
-                {l.text}
-              </>
-            )}
+      {/* Metrics row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
+        {[
+          { label: 'apps', value: appsTotal.toLocaleString(), color: '#67e8f9' },
+          { label: 'syncs', value: (syncsTotal / 1000).toFixed(0) + 'k', color: '#4ade80' },
+          { label: 'healthy', value: APPLICATIONS.filter(a => a.health === 'Healthy').length.toString(), color: '#4ade80' },
+          { label: 'out of sync', value: APPLICATIONS.filter(a => a.sync !== 'Synced').length.toString(), color: '#fbbf24' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
+            <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Metadata */}
-      {allDone && (
-        <div
-          className="flex items-center gap-4 flex-wrap px-4 py-1.5 text-[7.5px]"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <span style={{ color: 'rgba(240,239,255,0.25)' }}>Argo CD v2.11 ·</span>
-          <span style={{ color: '#4ade80' }}>5 Synced</span>
-          <span style={{ color: '#f87171' }}>1 OutOfSync (remediated)</span>
-          <span style={{ color: '#67e8f9' }}>staging: {liveRevision}</span>
-          <span style={{ color: '#a78bfa' }}>GitOps: git.construx.io/k8s</span>
+      <div style={{ padding: '10px 14px 0' }}>
+        {/* Applications */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // applications
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {APPLICATIONS.slice(0, appRows).map((app) => (
+            <div key={app.name} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 64px 64px 52px', alignItems: 'center', gap: 8, padding: '5px 8px', background: app.status === 'outofsync' ? 'rgba(251,191,36,0.04)' : app.status === 'degraded' ? 'rgba(248,113,113,0.04)' : 'rgba(103,232,249,0.04)', border: `1px solid ${app.status === 'outofsync' ? 'rgba(251,191,36,0.1)' : app.status === 'degraded' ? 'rgba(248,113,113,0.1)' : 'rgba(103,232,249,0.1)'}`, borderRadius: 2 }}>
+              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600 }}>{app.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.source}</span>
+              <span style={{ color: app.health === 'Healthy' ? '#4ade80' : '#fbbf24', fontSize: 7, textAlign: 'center' }}>{app.health}</span>
+              <span style={{ color: app.sync === 'Synced' ? '#4ade80' : '#fbbf24', fontSize: 7, textAlign: 'center' }}>{app.sync}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{app.revision}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Repositories */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // connected repositories
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {REPOS.slice(0, repoRows).map((repo, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 32px 48px 56px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{repo.name}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{repo.type}</span>
+              <span style={{ color: repo.connection === 'valid' ? '#4ade80' : '#f87171', fontSize: 7, fontWeight: 700 }}>{repo.connection}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{repo.lastFetch}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div
-        className="flex items-center justify-between px-4 py-1.5 select-none"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,4,0.5)' }}
-      >
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.12)' }}>
-          Argo CD 2.11.3 · 2 clusters · 6 apps · auto-sync enabled
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
+        <span style={{ fontSize: 8, color: 'rgba(103,232,249,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          argocd v2.11 - apache-2.0 - gitops continuous delivery
         </span>
-        <span className="text-[8px] uppercase tracking-widest" style={{ color: allDone ? '#4ade80' : 'rgba(240,239,255,0.15)' }}>
-          {allDone ? '● synced' : 'loading'}
+        <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
+          {appsTotal.toLocaleString()} apps - {(syncsTotal / 1000).toFixed(0)}k syncs
         </span>
       </div>
     </div>

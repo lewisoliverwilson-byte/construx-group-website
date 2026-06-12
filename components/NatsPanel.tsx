@@ -2,17 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const SUBJECTS = [
-  { subject: 'construx.listings.created', msgs: 284000, bytes: '12.4MB', consumers: 3, pending: 0, status: 'active' },
-  { subject: 'construx.search.query', msgs: 120000, bytes: '4.8MB', consumers: 2, pending: 4, status: 'active' },
-  { subject: 'construx.checkout.events', msgs: 8400, bytes: '840KB', consumers: 4, pending: 0, status: 'active' },
-  { subject: 'construx.media.uploads', msgs: 48200, bytes: '284MB', consumers: 1, pending: 12, status: 'lag' },
+const STREAMS = [
+  { name: 'LISTINGS', subjects: 'listings.>', msgs: 284000, bytes: '1.8GB', consumers: 4, retention: 'limits', status: 'ok' },
+  { name: 'EVENTS', subjects: 'events.>', msgs: 48400, bytes: '284MB', consumers: 6, retention: 'workqueue', status: 'ok' },
+  { name: 'ALERTS', subjects: 'alerts.>', msgs: 2840, bytes: '12MB', consumers: 2, retention: 'interest', status: 'ok' },
+  { name: 'AUDIT', subjects: 'audit.>', msgs: 840000, bytes: '4.2GB', consumers: 1, retention: 'limits', status: 'ok' },
 ];
 
-const STREAMS = [
-  { name: 'CONSTRUX_EVENTS', subjects: 4, msgs: 460600, storage: 'file', replicas: 3, retention: '7d' },
-  { name: 'CONSTRUX_AUDIT', subjects: 2, msgs: 84000, storage: 'file', replicas: 3, retention: '90d' },
-  { name: 'CONSTRUX_EPHEMERAL', subjects: 1, msgs: 12000, storage: 'memory', replicas: 1, retention: '1h' },
+const CONSUMERS = [
+  { name: 'listing-enricher', stream: 'LISTINGS', pending: 284, ackFloor: 283716, pull: true, ackPolicy: 'explicit', status: 'active' },
+  { name: 'search-indexer', stream: 'LISTINGS', pending: 0, ackFloor: 284000, pull: true, ackPolicy: 'explicit', status: 'active' },
+  { name: 'alert-forwarder', stream: 'ALERTS', pending: 2, ackFloor: 2838, pull: false, ackPolicy: 'none', status: 'active' },
+  { name: 'audit-archiver', stream: 'AUDIT', pending: 48, ackFloor: 839952, pull: true, ackPolicy: 'explicit', status: 'active' },
 ];
 
 function useCounter(base: number, delta: number, ms = 900) {
@@ -24,13 +25,13 @@ function useCounter(base: number, delta: number, ms = 900) {
   return v;
 }
 
-export default function NatsPanel() {
+export default function NATSPanel() {
   const [visible, setVisible] = useState(false);
-  const [subRows, setSubRows] = useState(0);
-  const [stRows, setStRows] = useState(0);
+  const [streamRows, setStreamRows] = useState(0);
+  const [consumerRows, setConsumerRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const msgsPerSec = useCounter(28400, 240, 400);
-  const totalMsgs = useCounter(460600, 840, 500);
+  const msgsPerSec = useCounter(28400, 480, 400);
+  const totalMsgs = useCounter(1175240, 1200, 500);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -40,9 +41,9 @@ export default function NatsPanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const s = setInterval(() => setSubRows((x) => Math.min(x + 1, SUBJECTS.length)), 160);
-    const st = setInterval(() => setStRows((x) => Math.min(x + 1, STREAMS.length)), 140);
-    return () => { clearInterval(s); clearInterval(st); };
+    const s = setInterval(() => setStreamRows((x) => Math.min(x + 1, STREAMS.length)), 160);
+    const c = setInterval(() => setConsumerRows((x) => Math.min(x + 1, CONSUMERS.length)), 140);
+    return () => { clearInterval(s); clearInterval(c); };
   }, [visible]);
 
   return (
@@ -66,7 +67,7 @@ export default function NatsPanel() {
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
         <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(103,232,249,0.4)' }}>
-          nats -- messaging -- jetstream / subjects / consumers
+          nats -- jetstream messaging -- streams / consumers / subjects
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
           {msgsPerSec.toLocaleString()} msg/s
@@ -75,18 +76,18 @@ export default function NatsPanel() {
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#67e8f9', fontWeight: 600 }}>nats@jetstream</span>
+        <span style={{ color: '#67e8f9', fontWeight: 600 }}>nats@server</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>nats stream ls --all && nats consumer report CONSTRUX_EVENTS --raw</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>nats stream ls && nats consumer ls LISTINGS --all</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'msg/s', value: msgsPerSec.toLocaleString(), color: '#67e8f9' },
+          { label: 'msg / sec', value: msgsPerSec.toLocaleString(), color: '#67e8f9' },
           { label: 'total msgs', value: (totalMsgs / 1000).toFixed(0) + 'k', color: '#4ade80' },
-          { label: 'subjects', value: SUBJECTS.length.toString(), color: '#a78bfa' },
-          { label: 'streams', value: STREAMS.length.toString(), color: '#fbbf24' },
+          { label: 'streams', value: STREAMS.length.toString(), color: '#a78bfa' },
+          { label: 'consumers', value: CONSUMERS.length.toString(), color: '#fbbf24' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -96,36 +97,37 @@ export default function NatsPanel() {
       </div>
 
       <div style={{ padding: '10px 14px 0' }}>
-        {/* Subjects */}
-        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // subjects
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {SUBJECTS.slice(0, subRows).map((sub) => (
-            <div key={sub.subject} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 40px 24px 24px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: sub.status === 'lag' ? 'rgba(251,191,36,0.04)' : 'rgba(103,232,249,0.04)', border: `1px solid ${sub.status === 'lag' ? 'rgba(251,191,36,0.1)' : 'rgba(103,232,249,0.1)'}`, borderRadius: 2 }}>
-              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.subject}</span>
-              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{(sub.msgs / 1000).toFixed(0)}k</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{sub.bytes}</span>
-              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{sub.consumers}</span>
-              <span className="tabular-nums" style={{ color: sub.pending > 0 ? '#fbbf24' : 'rgba(255,255,255,0.15)', fontSize: 7, textAlign: 'center' }}>{sub.pending}</span>
-              <span style={{ color: sub.status === 'active' ? '#4ade80' : '#fbbf24', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{sub.status}</span>
-            </div>
-          ))}
-        </div>
-
         {/* Streams */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
           // jetstream streams
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+          {STREAMS.slice(0, streamRows).map((s) => (
+            <div key={s.name} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 52px 40px 20px 56px 28px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#67e8f9', fontSize: 8, fontWeight: 600 }}>{s.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.subjects}</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{s.msgs.toLocaleString()}</span>
+              <span style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{s.bytes}</span>
+              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'center' }}>{s.consumers}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{s.retention}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{s.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Consumers */}
+        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
+          // consumers
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {STREAMS.slice(0, stRows).map((stream) => (
-            <div key={stream.name} style={{ display: 'grid', gridTemplateColumns: '1fr 24px 48px 40px 24px 32px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.08)', borderRadius: 2 }}>
-              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stream.name}</span>
-              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{stream.subjects}s</span>
-              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{(stream.msgs / 1000).toFixed(0)}k</span>
-              <span style={{ color: '#67e8f9', fontSize: 7, textAlign: 'center' }}>{stream.storage}</span>
-              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'center' }}>{stream.replicas}r</span>
-              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 7, textAlign: 'right' }}>{stream.retention}</span>
+          {CONSUMERS.slice(0, consumerRows).map((con) => (
+            <div key={con.name} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 52px 52px 28px 44px', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(103,232,249,0.04)', border: '1px solid rgba(103,232,249,0.08)', borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{con.name}</span>
+              <span style={{ color: '#67e8f9', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{con.stream}</span>
+              <span className="tabular-nums" style={{ color: con.pending > 0 ? '#fbbf24' : '#4ade80', fontSize: 7, textAlign: 'right' }}>{con.pending}p</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{con.ackPolicy}</span>
+              <span style={{ color: con.pull ? '#4ade80' : '#a78bfa', fontSize: 7, textAlign: 'center' }}>{con.pull ? 'pull' : 'push'}</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{con.status}</span>
             </div>
           ))}
         </div>
@@ -134,7 +136,7 @@ export default function NatsPanel() {
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
         <span style={{ fontSize: 8, color: 'rgba(103,232,249,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          nats v2.10 - apache-2.0 - cloud native messaging
+          nats v2.10 - apache-2.0 - connective technology for adaptive systems
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
           {msgsPerSec.toLocaleString()} msg/s - {(totalMsgs / 1000).toFixed(0)}k total

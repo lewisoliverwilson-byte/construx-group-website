@@ -3,17 +3,22 @@
 import { useEffect, useRef, useState } from 'react';
 
 const STORES = [
-  { name: 'construx-prod', model: 'rebac', tuples: 48200, checks: 284200, latency: '0.8ms' },
-  { name: 'construx-staging', model: 'rebac', tuples: 8400, checks: 28400, latency: '0.4ms' },
-  { name: 'construx-test', model: 'rebac', tuples: 840, checks: 2840, latency: '0.2ms' },
+  { name: 'construx-prod', tuples: 28400, models: 3, checks: 2840000, latency: 2, status: 'active' },
+  { name: 'construx-staging', tuples: 8400, models: 2, checks: 284000, latency: 3, status: 'active' },
+  { name: 'construx-dev', tuples: 2840, models: 1, checks: 28400, latency: 4, status: 'active' },
 ];
 
-const TUPLES = [
-  { user: 'user:alice', relation: 'owner', object: 'document:annual_report', store: 'construx-prod' },
-  { user: 'team:engineering#member', relation: 'viewer', object: 'document:tech_spec', store: 'construx-prod' },
-  { user: 'user:bob', relation: 'editor', object: 'project:construx_v2', store: 'construx-prod' },
-  { user: 'org:construx#member', relation: 'viewer', object: 'folder:public_docs', store: 'construx-prod' },
+const CHECKS = [
+  { user: 'user:lewis', relation: 'editor', object: 'document:api-spec', store: 'construx-prod', latency: '1ms', result: 'allowed' },
+  { user: 'user:ci-bot', relation: 'viewer', object: 'document:infra-design', store: 'construx-prod', latency: '2ms', result: 'allowed' },
+  { user: 'serviceaccount:worker', relation: 'writer', object: 'bucket:construx-builds', store: 'construx-prod', latency: '1ms', result: 'allowed' },
+  { user: 'user:guest', relation: 'admin', object: 'organization:construxgroup', store: 'construx-prod', latency: '2ms', result: 'denied' },
 ];
+
+const CHECK_COLOR: Record<string, string> = {
+  allowed: '#4ade80',
+  denied: '#f87171',
+};
 
 function useCounter(base: number, delta: number, ms = 900) {
   const [v, setV] = useState(base);
@@ -24,13 +29,13 @@ function useCounter(base: number, delta: number, ms = 900) {
   return v;
 }
 
-export default function OpenFgaPanel() {
+export default function OpenFGAPanel() {
   const [visible, setVisible] = useState(false);
-  const [sRows, setSRows] = useState(0);
-  const [tRows, setTRows] = useState(0);
+  const [storeRows, setStoreRows] = useState(0);
+  const [checkRows, setCheckRows] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const checksPerSec = useCounter(2840, 24, 600);
-  const totalTuples = useCounter(57440, 48, 1100);
+  const checksPerSec = useCounter(28400, 480, 400);
+  const tuplesTotal = useCounter(39640, 48, 600);
 
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.15 });
@@ -40,9 +45,9 @@ export default function OpenFgaPanel() {
 
   useEffect(() => {
     if (!visible) return;
-    const s = setInterval(() => setSRows((x) => Math.min(x + 1, STORES.length)), 160);
-    const t = setInterval(() => setTRows((x) => Math.min(x + 1, TUPLES.length)), 140);
-    return () => { clearInterval(s); clearInterval(t); };
+    const s = setInterval(() => setStoreRows((x) => Math.min(x + 1, STORES.length)), 160);
+    const c = setInterval(() => setCheckRows((x) => Math.min(x + 1, CHECKS.length)), 140);
+    return () => { clearInterval(s); clearInterval(c); };
   }, [visible]);
 
   return (
@@ -50,23 +55,23 @@ export default function OpenFgaPanel() {
       ref={ref}
       style={{
         background: 'rgba(2,2,12,0.92)',
-        border: '1px solid rgba(74,222,128,0.13)',
+        border: '1px solid rgba(59,130,246,0.13)',
         borderRadius: '4px',
         overflow: 'hidden',
         fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-        boxShadow: '0 0 28px rgba(74,222,128,0.04)',
+        boxShadow: '0 0 28px rgba(59,130,246,0.04)',
         opacity: visible ? 1 : 0,
         transform: visible ? 'none' : 'translateY(10px)',
         transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
       {/* Title bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(74,222,128,0.08)', background: 'rgba(74,222,128,0.02)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(59,130,246,0.08)', background: 'rgba(59,130,246,0.02)' }}>
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57', display: 'inline-block', boxShadow: '0 0 4px rgba(255,95,87,0.45)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FFBD2E', display: 'inline-block', boxShadow: '0 0 4px rgba(255,189,46,0.4)' }} />
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840', display: 'inline-block', boxShadow: '0 0 4px rgba(40,200,64,0.4)' }} />
-        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(74,222,128,0.4)' }}>
-          openfga -- fine-grained authorization -- rebac / stores / tuples
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(59,130,246,0.4)' }}>
+          openfga -- fine-grained authorization -- stores / tuples / checks
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
           {checksPerSec.toLocaleString()} checks/s
@@ -75,18 +80,18 @@ export default function OpenFgaPanel() {
 
       {/* Shell prompt */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,6,0.3)', fontSize: 10 }}>
-        <span style={{ color: '#4ade80', fontWeight: 600 }}>fga@authz</span>
+        <span style={{ color: '#3b82f6', fontWeight: 600 }}>fga@server</span>
         <span style={{ color: 'rgba(255,255,255,0.2)' }}>:~$</span>
-        <span style={{ color: 'rgba(240,239,255,0.3)' }}>fga store list && fga tuple check --store construx-prod user:alice owner document:annual_report</span>
+        <span style={{ color: 'rgba(240,239,255,0.3)' }}>fga store list && fga query check --store-id construx-prod user:lewis editor document:api-spec</span>
       </div>
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.03)' }}>
         {[
-          { label: 'checks/s', value: checksPerSec.toLocaleString(), color: '#4ade80' },
-          { label: 'total tuples', value: (totalTuples / 1000).toFixed(1) + 'k', color: '#67e8f9' },
+          { label: 'checks / sec', value: checksPerSec.toLocaleString(), color: '#3b82f6' },
+          { label: 'tuples', value: tuplesTotal.toLocaleString(), color: '#4ade80' },
           { label: 'stores', value: STORES.length.toString(), color: '#a78bfa' },
-          { label: 'avg latency', value: '0.8ms', color: '#fbbf24' },
+          { label: 'avg latency', value: '2ms', color: '#67e8f9' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ padding: '8px 10px', background: 'rgba(2,2,12,0.6)', textAlign: 'center' }}>
             <div className="tabular-nums" style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 2 }}>{value}</div>
@@ -98,30 +103,33 @@ export default function OpenFgaPanel() {
       <div style={{ padding: '10px 14px 0' }}>
         {/* Stores */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // stores
+          // authorization stores
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
-          {STORES.slice(0, sRows).map((s) => (
-            <div key={s.name} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 48px 56px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.1)', borderRadius: 2 }}>
-              <span style={{ color: '#4ade80', fontSize: 8, fontWeight: 600 }}>{s.name}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7 }}>{s.model}</span>
-              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7, textAlign: 'right' }}>{s.tuples.toLocaleString()}</span>
-              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'right' }}>{s.checks.toLocaleString()}</span>
-              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'right' }}>{s.latency}</span>
+          {STORES.slice(0, storeRows).map((store) => (
+            <div key={store.name} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 20px 1fr 28px 44px', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)', borderRadius: 2 }}>
+              <span style={{ color: '#3b82f6', fontSize: 8, fontWeight: 600 }}>{store.name}</span>
+              <span className="tabular-nums" style={{ color: '#4ade80', fontSize: 7, textAlign: 'right' }}>{store.tuples.toLocaleString()}</span>
+              <span className="tabular-nums" style={{ color: '#a78bfa', fontSize: 7, textAlign: 'center' }}>{store.models}m</span>
+              <span className="tabular-nums" style={{ color: '#67e8f9', fontSize: 7 }}>{(store.checks / 1000).toFixed(0)}k checks</span>
+              <span className="tabular-nums" style={{ color: '#fbbf24', fontSize: 7, textAlign: 'right' }}>{store.latency}ms</span>
+              <span style={{ color: '#4ade80', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{store.status}</span>
             </div>
           ))}
         </div>
 
-        {/* Tuples */}
+        {/* Recent Checks */}
         <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 6 }}>
-          // relationship tuples
+          // recent authorization checks
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {TUPLES.slice(0, tRows).map((tp) => (
-            <div key={tp.user + tp.object} style={{ display: 'grid', gridTemplateColumns: '1fr 44px 1fr', alignItems: 'center', gap: 8, padding: '4px 8px', background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.08)', borderRadius: 2 }}>
-              <span style={{ color: 'rgba(240,239,255,0.3)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tp.user}</span>
-              <span style={{ color: '#4ade80', fontSize: 7, textAlign: 'center', fontWeight: 700 }}>{tp.relation}</span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{tp.object}</span>
+          {CHECKS.slice(0, checkRows).map((chk, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 48px 1fr 28px 44px', alignItems: 'center', gap: 8, padding: '4px 8px', background: chk.result === 'allowed' ? 'rgba(74,222,128,0.03)' : 'rgba(248,113,113,0.04)', border: `1px solid ${chk.result === 'allowed' ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.1)'}`, borderRadius: 2 }}>
+              <span style={{ color: 'rgba(240,239,255,0.35)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chk.user}</span>
+              <span style={{ color: '#3b82f6', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chk.relation}</span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chk.object}</span>
+              <span className="tabular-nums" style={{ color: 'rgba(255,255,255,0.2)', fontSize: 7, textAlign: 'right' }}>{chk.latency}</span>
+              <span style={{ color: CHECK_COLOR[chk.result] ?? 'rgba(255,255,255,0.3)', fontSize: 7, fontWeight: 700, textAlign: 'right' }}>{chk.result}</span>
             </div>
           ))}
         </div>
@@ -129,11 +137,11 @@ export default function OpenFgaPanel() {
 
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.25)' }}>
-        <span style={{ fontSize: 8, color: 'rgba(74,222,128,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-          openfga v1.5 - apache-2.0 - fine-grained authz engine
+        <span style={{ fontSize: 8, color: 'rgba(59,130,246,0.4)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          openfga v1.5 - apache-2.0 - fine-grained authorization
         </span>
         <span className="tabular-nums" style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)' }}>
-          {checksPerSec.toLocaleString()} checks/s - {(totalTuples / 1000).toFixed(1)}k tuples
+          {checksPerSec.toLocaleString()} checks/s - {tuplesTotal.toLocaleString()} tuples
         </span>
       </div>
     </div>

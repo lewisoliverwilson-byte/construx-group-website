@@ -6,6 +6,8 @@ import { getAllPostMeta } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
 import TitleBlock from '@/components/ui/TitleBlock';
+import PlotterSchematic from '@/components/ui/PlotterSchematic';
+import HeroCrosshair from '@/components/ui/HeroCrosshair';
 
 export const metadata: Metadata = {
   title: 'Construx Group — AI Development Studio',
@@ -81,48 +83,79 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Title block — the drawing sheet's corner stamp */}
-        <div className="absolute right-10 top-32 hidden xl:block animate-fade-in" style={{ animationDelay: '1.1s' }}>
-          <TitleBlock sheet="01 / 05" title="CONSTRUX GROUP — STUDIO" rev="B" />
-        </div>
+        {/* Drafting crosshair follows the cursor */}
+        <HeroCrosshair />
 
         <div className="relative mx-auto w-full max-w-7xl px-6 lg:px-10 flex-1 flex flex-col justify-center pt-32 pb-12">
-          {/* Eyebrow */}
-          <p className="t-eyebrow mb-10 animate-fade-in">An AI development studio</p>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            {/* Left: eyebrow + statement */}
+            <div className="lg:col-span-8">
+              <p className="t-eyebrow mb-10 animate-fade-in">An AI development studio</p>
 
-          {/* Statement — hover reveals a drafting dimension line */}
-          <div className="dim-host relative">
-            <div
-              className="dim-note hidden xl:flex absolute -left-12 top-2 bottom-4 flex-col items-center"
-              aria-hidden="true"
-            >
-              <span style={{ width: 9, height: 1.5, background: 'var(--ink-muted)' }} />
-              <span className="flex-1" style={{ width: 1, background: 'var(--ink-muted)' }} />
-              <span
-                className="font-mono text-[9px] my-2 uppercase tracking-[0.18em]"
-                style={{ color: 'var(--ink-muted)', writingMode: 'vertical-rl' }}
-              >
-                3 LN · 600 WT
-              </span>
-              <span className="flex-1" style={{ width: 1, background: 'var(--ink-muted)' }} />
-              <span style={{ width: 9, height: 1.5, background: 'var(--ink-muted)' }} />
+              {/* Statement — hover reveals a drafting dimension line */}
+              <div className="dim-host relative">
+                <div
+                  className="dim-note hidden xl:flex absolute -left-12 top-2 bottom-4 flex-col items-center"
+                  aria-hidden="true"
+                >
+                  <span style={{ width: 9, height: 1.5, background: 'var(--ink-muted)' }} />
+                  <span className="flex-1" style={{ width: 1, background: 'var(--ink-muted)' }} />
+                  <span
+                    className="font-mono text-[9px] my-2 uppercase tracking-[0.18em]"
+                    style={{ color: 'var(--ink-muted)', writingMode: 'vertical-rl' }}
+                  >
+                    3 LN · 600 WT
+                  </span>
+                  <span className="flex-1" style={{ width: 1, background: 'var(--ink-muted)' }} />
+                  <span style={{ width: 9, height: 1.5, background: 'var(--ink-muted)' }} />
+                </div>
+                <h1 className="t-hero mb-10 animate-fade-up" style={{ maxWidth: '15ch' }}>
+                  We build software with machines that build software
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-block',
+                      width: '0.14em',
+                      height: '0.14em',
+                      background: 'var(--orange)',
+                      marginLeft: '0.07em',
+                    }}
+                  />
+                </h1>
+              </div>
+
+              {/* Serif intro + marginalia */}
+              <div className="max-w-[460px] animate-fade-up" style={{ animationDelay: '150ms' }}>
+                <p className="t-lead mb-5">
+                  Construx Group is a UK engineering studio that designs and ships
+                  AI-native products — from research to production, without the
+                  agency overhead.
+                </p>
+                <p className="pencil-note flex items-center gap-2">
+                  <svg width="34" height="18" viewBox="0 0 34 18" fill="none" aria-hidden="true">
+                    <path
+                      d="M 32 14 C 22 16, 8 14, 3 4 M 3 4 L 2 11 M 3 4 L 10 5"
+                      stroke="var(--ink-muted)"
+                      strokeWidth="1.1"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  typeset by the machines in question
+                </p>
+              </div>
             </div>
-            <h1 className="t-hero mb-12 animate-fade-up" style={{ maxWidth: '15ch' }}>
-              We build software with machines that build software.
-            </h1>
-          </div>
 
-          {/* Serif intro — offset right on desktop */}
-          <div className="lg:ml-auto lg:w-[420px] mb-16 animate-fade-up" style={{ animationDelay: '120ms' }}>
-            <p className="t-lead">
-              Construx Group is a UK engineering studio that designs and ships
-              AI-native products — from research to production, without the agency
-              overhead.
-            </p>
+            {/* Right: title block + system schematic */}
+            <div className="hidden lg:flex lg:col-span-4 flex-col items-end gap-10 pt-2">
+              <div className="animate-fade-in" style={{ animationDelay: '1.0s' }}>
+                <TitleBlock sheet="01 / 05" title="CONSTRUX GROUP — STUDIO" rev="B" />
+              </div>
+              <PlotterSchematic className="w-full max-w-[420px]" />
+            </div>
           </div>
 
           {/* Title rule + fact strip */}
-          <div>
+          <div className="mt-14">
             <div className="title-rule mb-5 animate-rule-draw" style={{ animationDelay: '350ms' }} />
             <div className="flex flex-wrap items-center gap-x-12 gap-y-3">
               <span className="t-fact animate-fade-up" style={{ animationDelay: '650ms' }}>Est. 2025</span>
@@ -177,6 +210,28 @@ export default function HomePage() {
               </p>
             </Reveal>
             <div className="lg:col-span-3">
+              {/* FIG. B — the mark, exploded */}
+              <Reveal variant="fade" className="hidden lg:block mb-10">
+                <svg viewBox="0 0 200 150" fill="none" className="w-full max-w-[190px]" aria-hidden="true">
+                  <text x="0" y="10" className="plot-label" style={{ transitionDelay: '300ms' }} fill="var(--ink-faint)" fontFamily="var(--font-mono)" fontSize="8" letterSpacing="1.5">
+                    FIG. B — THE MARK, EXPLODED
+                  </text>
+                  {/* three X layers, offset like an exploded assembly */}
+                  <g>
+                    <path d="M 30 40 L 62 72 M 62 40 L 30 72" stroke="var(--ink-faint)" strokeWidth="4" pathLength={1} className="plot-path" style={{ transitionDelay: '200ms' }} />
+                    <path d="M 50 62 L 82 94 M 82 62 L 50 94" stroke="var(--ink-muted)" strokeWidth="4.5" pathLength={1} className="plot-path" style={{ transitionDelay: '500ms' }} />
+                    <path d="M 70 84 L 102 116 M 102 84 L 70 116" stroke="var(--ink)" strokeWidth="5" pathLength={1} className="plot-path" style={{ transitionDelay: '800ms' }} />
+                    <path d="M 94 92 L 102 84" stroke="var(--orange)" strokeWidth="5" pathLength={1} className="plot-path" style={{ transitionDelay: '1100ms' }} />
+                  </g>
+                  {/* leader lines + labels */}
+                  <path d="M 64 52 L 128 52" stroke="var(--ink-faint)" strokeWidth="0.8" strokeDasharray="3 3" pathLength={1} className="plot-path" style={{ transitionDelay: '700ms' }} />
+                  <text x="132" y="55" className="plot-label" style={{ transitionDelay: '900ms' }} fill="var(--ink-faint)" fontFamily="var(--font-mono)" fontSize="7.5" letterSpacing="1">IDEA</text>
+                  <path d="M 84 76 L 128 76" stroke="var(--ink-faint)" strokeWidth="0.8" strokeDasharray="3 3" pathLength={1} className="plot-path" style={{ transitionDelay: '1000ms' }} />
+                  <text x="132" y="79" className="plot-label" style={{ transitionDelay: '1200ms' }} fill="var(--ink-faint)" fontFamily="var(--font-mono)" fontSize="7.5" letterSpacing="1">METHOD</text>
+                  <path d="M 104 102 L 128 102" stroke="var(--ink-faint)" strokeWidth="0.8" strokeDasharray="3 3" pathLength={1} className="plot-path" style={{ transitionDelay: '1300ms' }} />
+                  <text x="132" y="105" className="plot-label" style={{ transitionDelay: '1500ms' }} fill="var(--ink)" fontFamily="var(--font-mono)" fontSize="7.5" letterSpacing="1">PRODUCT</text>
+                </svg>
+              </Reveal>
               <dl className="flex flex-col">
                 {[
                   { k: 'Founded', v: '2025' },
@@ -290,7 +345,9 @@ export default function HomePage() {
             <Link href="/ventures" className="btn-text">
               Full project index <ArrowRight size={12} />
             </Link>
-            <span className="t-meta hidden md:block">5 entries / all operational</span>
+            <span className="pencil-note hidden md:block">
+              all five live — no vapourware ✓
+            </span>
           </div>
         </div>
       </section>
