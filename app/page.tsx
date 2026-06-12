@@ -6,7 +6,8 @@ import { getAllPostMeta } from '@/lib/posts';
 import { formatDate } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
 import TitleBlock from '@/components/ui/TitleBlock';
-import PlotterSchematic from '@/components/ui/PlotterSchematic';
+import TheMachine from '@/components/ui/TheMachine';
+import PlotterLine from '@/components/ui/PlotterLine';
 import HeroCrosshair from '@/components/ui/HeroCrosshair';
 
 export const metadata: Metadata = {
@@ -62,11 +63,14 @@ export default function HomePage() {
   const live = ventures.filter((v) => v.status === 'live');
 
   return (
-    <>
+    <div className="relative">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
       />
+
+      {/* The page spine — plots itself as you scroll */}
+      <PlotterLine />
 
       {/* ════════ PLATE HERO ════════ */}
       <section className="relative min-h-screen flex flex-col">
@@ -109,8 +113,8 @@ export default function HomePage() {
                   <span className="flex-1" style={{ width: 1, background: 'var(--ink-muted)' }} />
                   <span style={{ width: 9, height: 1.5, background: 'var(--ink-muted)' }} />
                 </div>
-                <h1 className="t-hero mb-10 animate-fade-up" style={{ maxWidth: '15ch' }}>
-                  We build software with machines that build software
+                <h1 className="t-hero mb-10 animate-fade-up" style={{ maxWidth: '14ch' }}>
+                  We design, build, and run AI-native software
                   <span
                     aria-hidden="true"
                     style={{
@@ -127,9 +131,9 @@ export default function HomePage() {
               {/* Serif intro + marginalia */}
               <div className="max-w-[460px] animate-fade-up" style={{ animationDelay: '150ms' }}>
                 <p className="t-lead mb-5">
-                  Construx Group is a UK engineering studio that designs and ships
-                  AI-native products — from research to production, without the
-                  agency overhead.
+                  A UK engineering studio shipping production software with AI at
+                  the core — five live products and counting, strategy to
+                  deployment, in weeks not quarters.
                 </p>
                 <p className="pencil-note flex items-center gap-2">
                   <svg width="34" height="18" viewBox="0 0 34 18" fill="none" aria-hidden="true">
@@ -140,17 +144,19 @@ export default function HomePage() {
                       strokeLinecap="round"
                     />
                   </svg>
-                  typeset by the machines in question
+                  built by the machine on the right →
                 </p>
               </div>
             </div>
 
-            {/* Right: title block + system schematic */}
-            <div className="hidden lg:flex lg:col-span-4 flex-col items-end gap-10 pt-2">
+            {/* Right: title block + The Machine */}
+            <div className="hidden lg:flex lg:col-span-4 flex-col items-end gap-8 pt-2">
               <div className="animate-fade-in" style={{ animationDelay: '1.0s' }}>
-                <TitleBlock sheet="01 / 05" title="CONSTRUX GROUP — STUDIO" rev="B" />
+                <TitleBlock sheet="01 / 05" title="CONSTRUX GROUP — STUDIO" rev="C" />
               </div>
-              <PlotterSchematic className="w-full max-w-[420px]" />
+              <Reveal variant="fade" className="w-full max-w-[440px]">
+                <TheMachine className="w-full" />
+              </Reveal>
             </div>
           </div>
 
@@ -418,6 +424,6 @@ export default function HomePage() {
           </Reveal>
         </div>
       </section>
-    </>
+    </div>
   );
 }

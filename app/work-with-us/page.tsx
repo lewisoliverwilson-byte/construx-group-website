@@ -28,10 +28,10 @@ export default function WorkWithUsPage() {
         {/* Header */}
         <div className="mb-16">
           <p className="t-eyebrow mb-5">Work with us</p>
-          <h1 className="t-page mb-7">Two doors.<br />Both narrow.</h1>
+          <h1 className="t-page mb-7">Work with us.</h1>
           <p className="t-lead" style={{ maxWidth: '48ch' }}>
-            Commission the studio for your project, or join the team. We keep both
-            deliberately selective — it&apos;s how the quality holds.
+            Commission the studio to build your product, or join the team. We keep
+            both deliberately selective — it&apos;s how the quality holds.
           </p>
         </div>
 
