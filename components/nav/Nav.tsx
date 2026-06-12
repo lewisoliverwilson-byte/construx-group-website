@@ -62,6 +62,7 @@ export default function Nav({ postCount }: Props) {
               width={26}
               height={26}
               priority
+              className="logo-mark"
             />
             <span
               className="font-display text-[14px] tracking-[0.16em] uppercase"
@@ -79,7 +80,7 @@ export default function Nav({ postCount }: Props) {
                 <Link
                   key={href}
                   href={href}
-                  className="relative font-mono text-[11px] uppercase tracking-[0.14em] transition-colors duration-150 py-2"
+                  className={`relative font-mono text-[11px] uppercase tracking-[0.14em] transition-colors duration-150 py-2 ${active ? '' : 'nav-link'}`}
                   style={{ color: active ? 'var(--ink)' : 'var(--ink-muted)' }}
                 >
                   {label}

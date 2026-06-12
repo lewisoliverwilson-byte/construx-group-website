@@ -4,6 +4,53 @@ import { ArrowUpRight } from 'lucide-react';
 import { ventures } from '@/lib/ventures';
 import { getAllPostMeta } from '@/lib/posts';
 
+/* Dark variant of the title block for the charcoal plate */
+function PlateTitleBlock() {
+  const cell: React.CSSProperties = {
+    border: '0.75px solid var(--plate-hairline)',
+    padding: '6px 12px',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 9,
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
+    whiteSpace: 'nowrap',
+  };
+  const label: React.CSSProperties = { ...cell, color: 'var(--plate-muted)', fontSize: 8 };
+  const value: React.CSSProperties = { ...cell, color: 'var(--plate-text)' };
+  return (
+    <table
+      className="border-collapse"
+      style={{ border: '1.5px solid var(--plate-muted)' }}
+      aria-hidden="true"
+    >
+      <tbody>
+        <tr>
+          <td style={label}>Title</td>
+          <td style={value} colSpan={3}>CONSTRUX GROUP — SITE</td>
+        </tr>
+        <tr>
+          <td style={label}>Drawn</td>
+          <td style={value}>L. WILSON</td>
+          <td style={label}>Checked</td>
+          <td style={value}>CLAUDE</td>
+        </tr>
+        <tr>
+          <td style={label}>Scale</td>
+          <td style={value}>1:1</td>
+          <td style={label}>Date</td>
+          <td style={value}>{new Date().getFullYear()}</td>
+        </tr>
+        <tr>
+          <td style={label}>Sheet</td>
+          <td style={value}>05 / 05</td>
+          <td style={label}>Rev</td>
+          <td style={{ ...cell, color: 'var(--orange)' }}>B</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 const navLinks = [
   { href: '/ventures', label: 'Projects' },
   { href: '/manifesto', label: 'Manifesto' },
@@ -42,7 +89,8 @@ export default function Footer() {
               <br />
               machines that build software.
             </p>
-            <p className="t-meta">An AI development studio · United Kingdom</p>
+            <p className="t-meta mb-10">An AI development studio · United Kingdom</p>
+            <PlateTitleBlock />
           </div>
 
           {/* Columns */}
